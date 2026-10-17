@@ -35,7 +35,15 @@ export function TrainerHome() {
       </div>
     );
   }
-  if (status.active) return <ClientsView displayName={status.displayName ?? ''} />;
+  if (status.active) {
+    return (
+      <ClientsView
+        displayName={status.displayName ?? ''}
+        gymLine={status.gymLine}
+        activeClients={status.activeClients}
+      />
+    );
+  }
   if (status.enabled && status.canActivate) {
     return <TrainerTurnOn defaultName={user?.firstName ?? ''} />;
   }

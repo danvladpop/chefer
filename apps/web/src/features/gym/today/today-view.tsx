@@ -183,7 +183,7 @@ export function TodayView() {
         />
       )}
 
-      <CoachingNotices routine={data.activeRoutine} />
+      <CoachingNotices />
 
       {/* Onboarding V4 (train-only lands here): one-time "You're all set". */}
       <OnboardingV4WelcomeCard className="mb-4" />

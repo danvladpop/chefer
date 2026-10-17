@@ -70,12 +70,14 @@ test.describe('Trainer coaching (desktop)', () => {
       'Left knee clicks, goal: June',
     );
 
-    // Client: stamps, the note, and the Today line.
+    // Client: the Today card, then the stamps and the note.
     await client.page.goto('/gym');
-    await expect(client.page.getByTestId('coaching-routine-updated')).toContainText(
-      'Coach Tess updated your routine',
-    );
-    await client.page.goto('/gym/routine');
+    const updated = client.page.getByTestId('coaching-routine-updated');
+    await expect(updated).toContainText('Coach Tess updated your routine');
+    await expect(updated).toContainText('note on');
+    // "View" opens the routine and dismisses the card.
+    await updated.getByRole('link', { name: 'View' }).click();
+    await client.page.waitForURL('**/gym/routine');
     await expect(client.page.getByTestId('routine-changed-by')).toContainText(
       'Coach Tess changed your routine',
     );
@@ -83,7 +85,6 @@ test.describe('Trainer coaching (desktop)', () => {
     await expect(client.page.getByTestId('trainer-note')).toContainText(
       'Coach Tess: knees out, slow eccentric',
     );
-    // Opening the routine cleared the Today line.
     await client.page.goto('/gym');
     await expect(client.page.getByTestId('coaching-routine-updated')).toHaveCount(0);
 

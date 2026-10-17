@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { formatShortDay } from '@/features/coaching/lib/dates';
-import { markRoutineSeen } from '@/features/coaching/lib/routine-seen';
+import { useMemo, useState } from 'react';
+import { routineChangedLine } from '@/features/coaching/components/RoutineAttribution';
 import { DayCard } from '@/features/gym/routine/components/DayCard';
 import {
   OverrideTargetSheet,
@@ -14,7 +13,7 @@ import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ListChecks } from 'lucide-react';
-import { COACHING_COPY, TEMPLATE_BY_KEY, type ProgressionDto } from '@chefer/types';
+import { TEMPLATE_BY_KEY, type ProgressionDto } from '@chefer/types';
 import { progressionKey, validateRoutine, volumeByGroup } from '@chefer/utils';
 import RoutineLoading from './loading';
 
@@ -64,12 +63,6 @@ export default function RoutinePage() {
     [routine, lookup, experience, suppressLowVolume],
   );
 
-  // Opening the routine clears Gym Today's "Ana updated your routine" line.
-  const changedAt = routine?.lastEditedByOther?.at ?? null;
-  useEffect(() => {
-    if (routine && changedAt) markRoutineSeen(routine.id, changedAt);
-  }, [routine, changedAt]);
-
   if (!hasMounted || isLoading) return <RoutineLoading />;
 
   if (!routine) {
@@ -105,10 +98,7 @@ export default function RoutinePage() {
           </h1>
           {routine.lastEditedByOther && (
             <p className="text-sm font-medium text-amber-800" data-testid="routine-changed-by">
-              {COACHING_COPY.stamps.routineChanged(
-                routine.lastEditedByOther.name,
-                formatShortDay(routine.lastEditedByOther.at),
-              )}
+              {routineChangedLine(routine.lastEditedByOther)}
             </p>
           )}
           {bootstrap?.profile?.weeklyGoal && (

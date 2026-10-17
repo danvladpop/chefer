@@ -32,7 +32,12 @@ import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
-import { TEMPLATE_BY_KEY, type LastEditedByOtherDto, type RoutineDto } from '@chefer/types';
+import {
+  editorLabel,
+  TEMPLATE_BY_KEY,
+  type LastEditedByOtherDto,
+  type RoutineDto,
+} from '@chefer/types';
 import {
   supersetSlot,
   userFacingErrorMessage,
@@ -136,10 +141,10 @@ export default function RoutineEditPage() {
     if (!stamp && !note) return null;
     return (
       <div className="mt-1 flex min-w-0 flex-col gap-1">
-        {stamp && <ChangedByLine name={stamp.name} at={stamp.at} />}
+        {stamp && <ChangedByLine stamp={stamp} />}
         {note && (
           <TrainerNoteLine
-            trainerName={stamp?.name ?? trainerName ?? 'Your trainer'}
+            trainerName={stamp ? editorLabel(stamp) : (trainerName ?? 'Your trainer')}
             note={note}
             onRemove={() =>
               dispatch({
@@ -343,7 +348,9 @@ export default function RoutineEditPage() {
       <ConflictDialog
         open={conflictCurrent !== null}
         saving={saveMutation.isPending}
-        changedBy={conflictCurrent?.lastEditedByOther?.name ?? null}
+        changedBy={
+          conflictCurrent?.lastEditedByOther ? editorLabel(conflictCurrent.lastEditedByOther) : null
+        }
         onUseTheirs={() => {
           if (!conflictCurrent) return;
           const resolved = resolveTheirsDraft(conflictCurrent);

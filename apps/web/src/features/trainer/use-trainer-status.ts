@@ -19,5 +19,8 @@ export function useTrainerStatus() {
     active: query.data?.active ?? false,
     canActivate: query.data?.canActivate ?? false,
     displayName: query.data?.displayName ?? null,
+    gymLine: query.data?.gymLine ?? null,
+    /** Active clients now (older APIs omit it: unknown). */
+    activeClients: query.data?.activeClients ?? null,
   };
 }

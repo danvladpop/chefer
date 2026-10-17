@@ -6,6 +6,7 @@ import { COACHING_COPY, COACHING_LIMITS, type InviteDto } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { InviteActions } from './InviteList';
+import { InviteQrCode } from './InviteQrCode';
 
 /** Clients → Invite a client: optional private label, then the link to copy or share. */
 export function InviteSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -81,6 +82,10 @@ export function InviteSheet({ open, onClose }: { open: boolean; onClose: () => v
               className="h-11 w-full min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 text-base sm:text-sm"
             />
             <InviteActions invite={created} />
+            <div className="flex flex-col items-center gap-2 rounded-xl border bg-white p-4">
+              <InviteQrCode url={created.url} />
+              <p className="text-center text-xs text-gray-500">{copy.qr.hint}</p>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">

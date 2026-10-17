@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CoachingNoticeList } from '@/features/coaching/components/CoachingNoticeList';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { trpc } from '@/lib/trpc';
 import { UserPlus } from 'lucide-react';
@@ -10,10 +11,22 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { ClientList } from './ClientList';
 import { InviteList } from './InviteList';
 import { InviteSheet } from './InviteSheet';
+import { TrainerRequests } from './TrainerRequests';
 import { TrainerSettings } from './TrainerSettings';
 
-/** /trainer for an active trainer: the clients, the pending invites, the settings. */
-export function ClientsView({ displayName }: { displayName: string }) {
+/**
+ * /trainer for an active trainer: notices about clients, coaching requests, the
+ * clients, the pending invites, the settings.
+ */
+export function ClientsView({
+  displayName,
+  gymLine,
+  activeClients,
+}: {
+  displayName: string;
+  gymLine: string | null;
+  activeClients: number | null;
+}) {
   const copy = COACHING_COPY.trainer;
   const utils = trpc.useUtils();
   const [inviting, setInviting] = useState(false);
@@ -39,6 +52,10 @@ export function ClientsView({ displayName }: { displayName: string }) {
           <UserPlus className="h-4 w-4" aria-hidden="true" /> {copy.invite}
         </Button>
       </div>
+
+      <CoachingNoticeList side="trainer" />
+
+      <TrainerRequests />
 
       {clients.isLoading ? (
         <div className="h-32 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
@@ -71,7 +88,11 @@ export function ClientsView({ displayName }: { displayName: string }) {
         </section>
       )}
 
-      <TrainerSettings displayName={displayName} />
+      <TrainerSettings
+        displayName={displayName}
+        gymLine={gymLine}
+        activeClients={clients.data?.length ?? activeClients}
+      />
 
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </div>

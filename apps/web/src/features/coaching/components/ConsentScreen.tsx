@@ -13,6 +13,14 @@ export interface ConsentScreenProps {
   error: string | null;
   onAllow: () => void;
   onDecline: () => void;
+  /** The heading; defaults to the invite's "Ana wants to coach you in Chefer." */
+  title?: string;
+  /** The primary button; defaults to "Allow and join" / "Switch to Ana". */
+  allowLabel?: string;
+  /** Replaces "You'll stop being coached by Ion." when switching (a coaching request says when). */
+  switchNote?: string | null;
+  /** One more line under the consent text ("Asking doesn't follow them …"). */
+  footnote?: string | null;
 }
 
 export function ConsentScreen({
@@ -22,6 +30,10 @@ export function ConsentScreen({
   error,
   onAllow,
   onDecline,
+  title,
+  allowLabel,
+  switchNote = null,
+  footnote = null,
 }: ConsentScreenProps) {
   const copy = COACHING_COPY.consent;
   return (
@@ -30,7 +42,7 @@ export function ConsentScreen({
         id="coaching-consent-title"
         className="font-serif text-2xl font-bold leading-tight text-gray-900"
       >
-        {copy.title(trainerName)}
+        {title ?? copy.title(trainerName)}
       </h1>
 
       <div className="flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
@@ -72,9 +84,10 @@ export function ConsentScreen({
             className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
             data-testid="coaching-switch-line"
           >
-            {copy.switchLine(currentTrainerName)}
+            {switchNote ?? copy.switchLine(currentTrainerName)}
           </p>
         )}
+        {footnote && <p className="text-sm text-gray-700">{footnote}</p>}
       </div>
 
       {error && (
@@ -85,7 +98,7 @@ export function ConsentScreen({
 
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <Button type="button" className="min-h-11 sm:flex-1" onClick={onAllow} loading={busy}>
-          {currentTrainerName ? copy.switchTo(trainerName) : copy.allow}
+          {allowLabel ?? (currentTrainerName ? copy.switchTo(trainerName) : copy.allow)}
         </Button>
         <Button
           type="button"

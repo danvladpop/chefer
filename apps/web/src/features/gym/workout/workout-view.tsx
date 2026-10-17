@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  editorLabel,
   GYM_MAX_EXERCISES_PER_SESSION,
   GYM_MAX_SETS_PER_EXERCISE,
   type ExerciseDto,
@@ -199,7 +200,11 @@ export function WorkoutView() {
     const progression = data?.progressions.find(
       (p) => p.exerciseId === se.exerciseId && p.repBucket === bucket,
     );
-    return progression?.override?.setByName ?? null;
+    const setByName = progression?.override?.setByName;
+    // "Set by Ana" runs through the same former-trainer label as "Changed by".
+    return setByName
+      ? editorLabel({ name: setByName, former: progression?.override?.setByFormer })
+      : null;
   };
   const inventory = profile ?? FALLBACK_PROFILE;
   const displayUnit = profile ? unit : inventory.unit;

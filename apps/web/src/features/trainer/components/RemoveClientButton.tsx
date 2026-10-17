@@ -8,7 +8,7 @@ import { COACHING_COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
-/** Remove client: a confirm sheet, then back to the list (spec §2.7). */
+/** "End coaching": a confirm sheet, then back to the list (spec §2.7, PRD 2026-10 §4.3). */
 export function RemoveClientButton({
   clientId,
   clientName,
@@ -38,7 +38,7 @@ export function RemoveClientButton({
         className="min-h-11 text-red-700"
         onClick={() => setOpen(true)}
       >
-        {copy.removeClient}
+        {COACHING_COPY.trainerProfile.endCoaching}
       </Button>
       <Sheet
         open={open}
@@ -60,7 +60,7 @@ export function RemoveClientButton({
               onClick={() => remove.mutate({ clientId })}
               loading={remove.isPending}
             >
-              {copy.removeClient}
+              {COACHING_COPY.trainerProfile.endCoaching}
             </Button>
           </div>
         }

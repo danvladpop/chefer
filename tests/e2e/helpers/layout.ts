@@ -37,6 +37,10 @@ export const APP_ROUTES = [
   // existed (the invite-state copy; the consent screen has its own unit tests).
   '/trainer',
   '/coaching/join/ZZZZZZZZZZ',
+  // Find a trainer (PRD 2026-10 §4.1): the search page, and a trainer id that
+  // does not exist (the uniform "This trainer isn't available" state).
+  '/coaching/find',
+  '/coaching/trainers/zzzzzzzzzz',
   // Email-link pages (P2-5): without a token they render the invalid-link state.
   '/unsubscribe',
   '/verify-email',

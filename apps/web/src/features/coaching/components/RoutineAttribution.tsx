@@ -1,12 +1,32 @@
 import { StickyNote } from 'lucide-react';
-import { COACHING_COPY } from '@chefer/types';
+import { COACHING_COPY, editorLabel, type LastEditedByOtherDto } from '@chefer/types';
 import { formatShortDay } from '../lib/dates';
 
-/** "Changed by Ana · 2 Oct": shown on exactly the rows the other person changed. */
-export function ChangedByLine({ name, at }: { name: string; at: string }) {
+/** Upper-cases the first letter, for a line that starts with "a former trainer". */
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** "Ana changed your routine · 2 Oct" / "Ana (former trainer) changed …" / "A former trainer changed …". */
+export function routineChangedLine(stamp: LastEditedByOtherDto): string {
+  return sentence(
+    COACHING_COPY.stamps.routineChanged(editorLabel(stamp), formatShortDay(stamp.at)),
+  );
+}
+
+/** "Set by Ana" / "Set by Ana (former trainer)". */
+export function setByLine(stamp: { name: string; former?: boolean | undefined }): string {
+  return COACHING_COPY.stamps.setBy(editorLabel(stamp));
+}
+
+/**
+ * "Changed by Ana · 2 Oct": shown on exactly the rows the other person changed.
+ * A trainer who no longer coaches the client reads "Ana (former trainer)".
+ */
+export function ChangedByLine({ stamp }: { stamp: LastEditedByOtherDto }) {
   return (
     <p className="min-w-0 break-words text-xs text-gray-500" data-testid="changed-by">
-      {COACHING_COPY.stamps.changedBy(name, formatShortDay(at))}
+      {COACHING_COPY.stamps.changedBy(editorLabel(stamp), formatShortDay(stamp.at))}
     </p>
   );
 }

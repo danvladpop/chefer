@@ -1,6 +1,10 @@
 'use client';
 
-import { ChangedByLine, TrainerNoteLine } from '@/features/coaching/components/RoutineAttribution';
+import {
+  ChangedByLine,
+  setByLine,
+  TrainerNoteLine,
+} from '@/features/coaching/components/RoutineAttribution';
 import {
   COACHING_COPY,
   type ProgressionDto,
@@ -102,14 +106,14 @@ export function DayCard({
                   </p>
                   {progression?.override?.setByName && (
                     <p className="min-w-0 break-words text-xs font-medium text-amber-800">
-                      {COACHING_COPY.stamps.setBy(progression.override.setByName)}
+                      {setByLine({
+                        name: progression.override.setByName,
+                        former: progression.override.setByFormer,
+                      })}
                     </p>
                   )}
                   {exercise.lastEditedByOther && (
-                    <ChangedByLine
-                      name={exercise.lastEditedByOther.name}
-                      at={exercise.lastEditedByOther.at}
-                    />
+                    <ChangedByLine stamp={exercise.lastEditedByOther} />
                   )}
                   {exercise.trainerNote && (
                     <div className="mt-1">

@@ -84,7 +84,7 @@ export default defineConfig({
     // FEATURE_FLAGS=coaching and TRAINER_ALLOWLIST=*.
     {
       name: 'coaching',
-      testMatch: /(trainer|coaching-join)\.spec\.ts/,
+      testMatch: /(trainer|coaching-[a-z]+)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
 

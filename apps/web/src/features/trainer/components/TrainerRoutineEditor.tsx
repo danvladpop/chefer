@@ -28,7 +28,7 @@ import {
 import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, COACHING_LIMITS, type RoutineDto } from '@chefer/types';
+import { COACHING_COPY, COACHING_LIMITS, editorLabel, type RoutineDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { supersetSlot, userFacingErrorMessage, type ExerciseLookup } from '@chefer/utils';
 import { draftFromOwnRoutine } from '../fill-from-mine';
@@ -247,7 +247,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
     const stamp = exercise.id ? rowById.get(exercise.id)?.lastEditedByOther : null;
     return stamp ? (
       <div className="mt-1">
-        <ChangedByLine name={stamp.name} at={stamp.at} />
+        <ChangedByLine stamp={stamp} />
       </div>
     ) : null;
   };
@@ -298,10 +298,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
           />
           {routine.lastEditedByOther && (
             <div className="px-1">
-              <ChangedByLine
-                name={routine.lastEditedByOther.name}
-                at={routine.lastEditedByOther.at}
-              />
+              <ChangedByLine stamp={routine.lastEditedByOther} />
             </div>
           )}
         </div>
@@ -458,7 +455,11 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
       <ConflictDialog
         open={conflictCurrent !== null}
         saving={saveMutation.isPending}
-        changedBy={conflictCurrent?.lastEditedByOther?.name ?? firstName}
+        changedBy={
+          conflictCurrent?.lastEditedByOther
+            ? editorLabel(conflictCurrent.lastEditedByOther)
+            : firstName
+        }
         onUseTheirs={() => {
           if (!conflictCurrent) return;
           const resolved = resolveTheirsDraft(conflictCurrent);

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { formatShortDay } from '@/features/coaching/lib/dates';
 import { showAppToast } from '@/lib/app-toast';
 import { COACHING_COPY, type InviteDto } from '@chefer/types';
-import { Badge, Button } from '@chefer/ui';
+import { Badge, Button, Sheet } from '@chefer/ui';
+import { InviteQrCode } from './InviteQrCode';
 
 // ─── Invites (spec §2.2) ──────────────────────────────────────────────────────
 
@@ -71,6 +72,49 @@ export function InviteActions({
   );
 }
 
+/** "Show QR code" on an open invite: the same link, scannable on the gym floor. */
+function InviteQrButton({ invite }: { invite: InviteDto }) {
+  const copy = COACHING_COPY.trainer;
+  const [open, setOpen] = useState(false);
+  const name = invite.label ?? 'invite link';
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="min-h-11"
+        aria-label={`${copy.qr.show}: ${name}`}
+        onClick={() => setOpen(true)}
+      >
+        {copy.qr.show}
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={copy.qr.title}
+        size="sm"
+        footer={
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col items-center gap-3 px-5 py-4">
+          {invite.label && <p className="text-sm font-medium text-gray-900">{invite.label}</p>}
+          <InviteQrCode url={invite.url} />
+          <p className="text-center text-sm text-gray-600">{copy.qr.hint}</p>
+          <p className="text-xs text-gray-500">
+            {copy.inviteExpires(formatShortDay(invite.expiresAt))}
+          </p>
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
 export function InviteList({
   invites,
   onRevoke,
@@ -108,6 +152,7 @@ export function InviteList({
           {invite.state === 'OPEN' && (
             <div className="flex flex-wrap items-center gap-2">
               <InviteActions invite={invite} compact />
+              <InviteQrButton invite={invite} />
               <Button
                 type="button"
                 variant="ghost"
