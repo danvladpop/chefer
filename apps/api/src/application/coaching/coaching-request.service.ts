@@ -177,7 +177,10 @@ export class CoachingRequestService {
       this.deps.links.countActiveForTrainer(trainerId),
     ]);
     if (current?.trainerId === trainerId) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: COACHING_COPY.server.alreadyYourTrainer });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: COACHING_COPY.server.alreadyYourTrainer,
+      });
     }
     if (!gym?.setupCompletedAt) {
       throw new TRPCError({
@@ -302,7 +305,11 @@ export class CoachingRequestService {
     }
   }
 
-  async decline(trainerId: string, requestId: string, source: CoachingSource): Promise<{ ok: true }> {
+  async decline(
+    trainerId: string,
+    requestId: string,
+    source: CoachingSource,
+  ): Promise<{ ok: true }> {
     const declined = await this.deps.requests.decline(trainerId, requestId, {
       source,
       documentVersion: LEGAL_VERSIONS.privacy,

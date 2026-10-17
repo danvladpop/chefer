@@ -402,13 +402,10 @@ describe('GymBootstrapService.get: trainer coaching', () => {
     expect(b.activeRoutine?.days[0]?.exercises[0]?.trainerNote).toBe('knees out');
     expect(b.nextWorkout?.exercises.map((e) => e.trainerNote)).toEqual(['knees out', undefined]);
     expect(b.coaching).toEqual({ trainerName: 'Ana' });
-    expect(prog.toDtos).toHaveBeenCalledWith(
-      expect.anything(),
-      [],
-      expect.any(Map),
-      TODAY,
-      { names: expect.any(Map), currentTrainerId: 'ctrainer' },
-    );
+    expect(prog.toDtos).toHaveBeenCalledWith(expect.anything(), [], expect.any(Map), TODAY, {
+      names: expect.any(Map),
+      currentTrainerId: 'ctrainer',
+    });
   });
 
   it('level 6 without a trainer: coaching is null', async () => {

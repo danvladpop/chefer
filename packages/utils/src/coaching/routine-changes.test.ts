@@ -9,7 +9,14 @@ const names: Record<string, string> = {
 };
 const nameOf = (id: string) => names[id] ?? 'Exercise';
 
-const row = (id: string, exerciseId: string, sets = 3, repMin = 8, repMax = 8, note: string | null = null) => ({
+const row = (
+  id: string,
+  exerciseId: string,
+  sets = 3,
+  repMin = 8,
+  repMax = 8,
+  note: string | null = null,
+) => ({
   id,
   exerciseId,
   sets,
@@ -19,7 +26,12 @@ const row = (id: string, exerciseId: string, sets = 3, repMin = 8, repMax = 8, n
 });
 
 const before: ChangeDay[] = [
-  { id: 'd1', name: 'Upper', plannedWeekday: 1, exercises: [row('r1', 'squat'), row('r2', 'bench')] },
+  {
+    id: 'd1',
+    name: 'Upper',
+    plannedWeekday: 1,
+    exercises: [row('r1', 'squat'), row('r2', 'bench')],
+  },
 ];
 
 describe('summarizeRoutineChanges', () => {
@@ -52,14 +64,24 @@ describe('summarizeRoutineChanges', () => {
       { kind: 'schedule' },
     ]);
     const reordered: ChangeDay[] = [
-      { id: 'd1', name: 'Upper', plannedWeekday: 1, exercises: [row('r2', 'bench'), row('r1', 'squat')] },
+      {
+        id: 'd1',
+        name: 'Upper',
+        plannedWeekday: 1,
+        exercises: [row('r2', 'bench'), row('r1', 'squat')],
+      },
     ];
     expect(summarizeRoutineChanges(before, reordered, nameOf)).toEqual([]);
   });
 
   it('a swapped exercise on the same row reads as one out, one in', () => {
     const after: ChangeDay[] = [
-      { id: 'd1', name: 'Upper', plannedWeekday: 1, exercises: [row('r1', 'lunge'), row('r2', 'bench')] },
+      {
+        id: 'd1',
+        name: 'Upper',
+        plannedWeekday: 1,
+        exercises: [row('r1', 'lunge'), row('r2', 'bench')],
+      },
     ];
     expect(summarizeRoutineChanges(before, after, nameOf)).toEqual([
       { kind: 'removed', exercise: 'Squat' },
@@ -99,10 +121,17 @@ describe('mergeRoutineChanges', () => {
     expect(
       mergeRoutineChanges(
         [{ kind: 'added', exercise: 'Lunge' }, { kind: 'schedule' }],
-        [{ kind: 'removed', exercise: 'Lunge' }, { kind: 'schedule' }, { kind: 'note', exercise: 'Squat' }],
+        [
+          { kind: 'removed', exercise: 'Lunge' },
+          { kind: 'schedule' },
+          { kind: 'note', exercise: 'Squat' },
+        ],
       ),
     ).toEqual([{ kind: 'schedule' }, { kind: 'note', exercise: 'Squat' }]);
-    const many = Array.from({ length: 30 }, (_, i) => ({ kind: 'added' as const, exercise: `E${i}` }));
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      kind: 'added' as const,
+      exercise: `E${i}`,
+    }));
     expect(mergeRoutineChanges([], many, 20)).toHaveLength(20);
   });
 

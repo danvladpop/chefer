@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
   notificationRepository,
-  trainerProfileRepository,
   socialProfileRepository,
+  trainerProfileRepository,
   type CoachingNotificationKindDb,
   type INotificationRepository,
   type ISocialProfileRepository,
@@ -114,8 +114,7 @@ export class CoachingNoticeService {
         'COACHING_ROUTINE_UPDATED',
         actorId,
       );
-      const unseen =
-        existing?.readAt === null ? (readPayload(existing)?.changes ?? []) : [];
+      const unseen = existing?.readAt === null ? (readPayload(existing)?.changes ?? []) : [];
       const merged = mergeRoutineChanges(unseen, changes);
       if (merged.length === 0 && existing?.readAt === null) {
         // Everything went back to how the recipient last saw it.
@@ -161,7 +160,9 @@ export class CoachingNoticeService {
   }
 
   async requestReceived(trainerId: string, clientId: string): Promise<void> {
-    await this.safely(() => this.write(trainerId, 'COACHING_REQUEST', clientId, { role: 'CLIENT' }));
+    await this.safely(() =>
+      this.write(trainerId, 'COACHING_REQUEST', clientId, { role: 'CLIENT' }),
+    );
   }
 
   /** The request was cancelled, answered or expired: it leaves the trainer's notices. */

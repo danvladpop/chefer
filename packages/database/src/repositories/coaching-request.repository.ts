@@ -79,7 +79,11 @@ export interface ICoachingRequestRepository {
   /** The client cancels their live request (withdrawn event). Null when there was none. */
   cancel(clientId: string, data: AnswerRequestData): Promise<CoachingRequest | null>;
   /** The trainer declines a live request of theirs (withdrawn event). Null when not available. */
-  decline(trainerId: string, requestId: string, data: AnswerRequestData): Promise<CoachingRequest | null>;
+  decline(
+    trainerId: string,
+    requestId: string,
+    data: AnswerRequestData,
+  ): Promise<CoachingRequest | null>;
   /** The trainer accepts: request ACCEPTED and coaching started, in one transaction. */
   accept(data: AcceptRequestData): Promise<AcceptRequestResult>;
   /** Maintenance: flips every PENDING row past `expiresAt` to EXPIRED (withdrawn events). Returns the count. */

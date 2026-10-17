@@ -1,8 +1,8 @@
 import {
   clientIdInputSchema,
   clientsListInputSchema,
-  coachingRequestIdInputSchema,
   COACHING_LIMITS,
+  coachingRequestIdInputSchema,
   createInviteInputSchema,
   revokeInviteInputSchema,
   trainerProfileInputSchema,

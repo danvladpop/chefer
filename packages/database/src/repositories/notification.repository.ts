@@ -81,7 +81,11 @@ export interface INotificationRepository {
   /** Marks one of the recipient's coaching notices read. False when it isn't theirs. */
   markCoachingRead(userId: string, id: string): Promise<boolean>;
   /** Withdraws one coaching notice (a cancelled request disappears from the trainer's list). */
-  withdrawCoaching(userId: string, kind: CoachingNotificationKindDb, actorId: string): Promise<number>;
+  withdrawCoaching(
+    userId: string,
+    kind: CoachingNotificationKindDb,
+    actorId: string,
+  ): Promise<number>;
 }
 
 export class NotificationRepository implements INotificationRepository {

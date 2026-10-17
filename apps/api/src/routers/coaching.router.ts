@@ -12,10 +12,10 @@ import {
   trainerIdInputSchema,
   type CoachingAvailabilityDto,
 } from '@chefer/types';
-import { coachingNoticeService } from '../application/coaching/coaching-notice.service.js';
-import { coachingRequestService } from '../application/coaching/coaching-request.service.js';
 import { coachingInviteService } from '../application/coaching/coaching-invite.service.js';
 import { coachingLinkService } from '../application/coaching/coaching-link.service.js';
+import { coachingNoticeService } from '../application/coaching/coaching-notice.service.js';
+import { coachingRequestService } from '../application/coaching/coaching-request.service.js';
 import { canBeTrainer, isCoachingEnabledFor } from '../lib/coaching-flags.js';
 import { coachingProcedure } from '../lib/coaching-middleware.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';

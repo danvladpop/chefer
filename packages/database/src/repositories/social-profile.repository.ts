@@ -2,7 +2,6 @@ import type { Prisma, ProfileVisibility, SocialProfile } from '@prisma/client';
 import { prisma } from '../client';
 import { SOCIAL_NOTIFICATION_KINDS } from './notification.repository';
 
-
 // ─── Following: social profiles (docs/friends/implementation-plan.md §2.4) ────
 // One row = the user turned Following on. This file also holds the small
 // shared vocabulary of the Following repositories (the transaction client
@@ -251,7 +250,10 @@ export class SocialProfileRepository implements ISocialProfileRepository {
       const dismissals = await tx.suggestionDismissal.deleteMany({ where: { userId } });
       // Following's own Activity only: coaching notices outlive turning Following off.
       const notifications = await tx.notification.deleteMany({
-        where: { OR: [{ userId }, { actorId: userId }], kind: { in: [...SOCIAL_NOTIFICATION_KINDS] } },
+        where: {
+          OR: [{ userId }, { actorId: userId }],
+          kind: { in: [...SOCIAL_NOTIFICATION_KINDS] },
+        },
       });
       const profile = await tx.socialProfile.deleteMany({ where: { userId } });
       // UserReport and ModerationLog are deliberately untouched (PRD FD-14).

@@ -192,8 +192,7 @@ export const COACHING_COPY = {
     cancelled: 'Request cancelled',
     switchNote: (current: string, trainer: string) =>
       `This ends your coaching with ${current} when ${trainer} accepts.`,
-    otherPending: (trainer: string) =>
-      `You already asked ${trainer}. Cancel that request first.`,
+    otherPending: (trainer: string) => `You already asked ${trainer}. Cancel that request first.`,
     yourTrainer: (trainer: string) => `${trainer} is your trainer.`,
     noFollow: 'Asking doesn’t follow them or make your profile public.',
     // Trainer side
@@ -295,10 +294,7 @@ export function routineChangeText(change: RoutineChange): string {
 }
 
 /** The whole card line: "+ Romanian deadlift · Squat 3×8 → 4×6 · note on Bench press · + 2 more". */
-export function routineChangesLine(
-  changes: readonly RoutineChange[],
-  max = 4,
-): string {
+export function routineChangesLine(changes: readonly RoutineChange[], max = 4): string {
   const shown = changes.slice(0, max).map(routineChangeText);
   const more = changes.length - shown.length;
   return [...shown, ...(more > 0 ? [`+ ${more} more`] : [])].join(' · ');

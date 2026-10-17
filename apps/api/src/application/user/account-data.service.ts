@@ -1,11 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { consentEventRepository, prisma, uploadedFileRepository } from '@chefer/database';
 import { COACHING_RETENTION } from '@chefer/types';
-import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
+import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────

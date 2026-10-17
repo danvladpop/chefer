@@ -32,10 +32,7 @@ import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
 import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
-import {
-  coachingRequestService,
-  type CoachingRequestService,
-} from './coaching-request.service.js';
+import { coachingRequestService, type CoachingRequestService } from './coaching-request.service.js';
 
 // ─── Trainer coaching: links (spec §2.3, §2.7, §7.2, §7.3) ────────────────────
 // join / leave / remove are single transactions in CoachingLinkRepository: the
