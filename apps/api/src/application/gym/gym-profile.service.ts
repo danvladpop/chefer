@@ -17,6 +17,7 @@ import {
   LB_PER_KG,
   TEMPLATE_BY_KEY,
   type CompleteSetupInput,
+  type CompleteSimpleSetupInput,
   type EquipmentProfile,
   type GoalHistoryEntry,
   type GymBootstrap,
@@ -225,6 +226,9 @@ export class GymProfileService {
     if (input.quietNudgeDays !== undefined) data.quietNudgeDays = input.quietNudgeDays;
     // T-36.6: "How long can a session usually be?" (null clears it).
     if (input.sessionLengthMins !== undefined) data.sessionLengthMins = input.sessionLengthMins;
+    // Simple training mode: the settings switch. Lossless — the routine,
+    // history and progressions are untouched; only the view changes.
+    if (input.trainingStyle !== undefined) data.trainingStyle = input.trainingStyle;
     if (input.weeklyGoal !== undefined && input.weeklyGoal !== row.weeklyGoal) {
       const fromWeek = weekStartOf(today);
       const history = readGoalHistory(row.goalHistory).filter((g) => g.fromWeek !== fromWeek);
@@ -399,6 +403,7 @@ export class GymProfileService {
         ...(input.sessionLengthMins !== undefined && {
           sessionLengthMins: input.sessionLengthMins,
         }),
+        ...(input.trainingStyle !== undefined && { trainingStyle: input.trainingStyle }),
         offerState: toJson({
           ...offerState,
           knownWeightsKg: { ...(offerState.knownWeightsKg ?? {}), ...knownWeightsKg },
@@ -419,6 +424,59 @@ export class GymProfileService {
     // Day rebalance: now a lifter with training days — the plan is resized to match.
     await notifyTargetsChanged(userId);
 
+    return this.bootstrap.get(userId, { today }, level);
+  }
+
+  /**
+   * "Keep it simple" setup (simple training mode §6.1): asks nothing else and
+   * builds NO routine — Today offers "Start a workout" straight away, and My
+   * week is an optional step for later. Re-running it on an existing profile
+   * keeps that profile's inventory, reminders and experience; it only
+   * switches the style to SIMPLE and (re)marks setup done.
+   */
+  async completeSimpleSetup(
+    userId: string,
+    input: CompleteSimpleSetupInput,
+    today: string = serverToday(),
+    level = 0,
+  ): Promise<GymBootstrap> {
+    const existing = await this.repo.findByUserId(userId);
+    const inventory =
+      existing && existing.unit === input.unit
+        ? {
+            barWeightKg: existing.barWeightKg,
+            platePairsKg: existing.platePairsKg,
+            dumbbellsKg: existing.dumbbellsKg,
+            machineStepKg: existing.machineStepKg,
+            cableStepKg: existing.cableStepKg,
+            hasDipBelt: existing.hasDipBelt,
+            microPlates: existing.microPlates,
+          }
+        : defaultInventory(input.unit);
+    const weeklyGoal = input.weeklyGoal ?? existing?.weeklyGoal ?? 3;
+    const fromWeek = weekStartOf(today);
+    const goalHistory: GoalHistoryEntry[] = [
+      ...readGoalHistory(existing?.goalHistory ?? []).filter((g) => g.fromWeek < fromWeek),
+      { fromWeek, goal: weeklyGoal },
+    ];
+    await this.repo.completeSimpleSetup(userId, {
+      // A preference, not a skill level: experience keeps driving templates
+      // if the user ever switches to "Track my progress".
+      experience: existing?.experience ?? 'BEGINNER',
+      equipmentAccess: existing?.equipmentAccess ?? 'FULL_GYM',
+      unit: input.unit,
+      weeklyGoal,
+      goalHistory: toJson(goalHistory),
+      ...inventory,
+      reminderEnabled: existing?.reminderEnabled ?? false,
+      reminderTime: existing?.reminderTime ?? null,
+      quietNudgeDays: existing ? existing.quietNudgeDays : 5,
+      offerState: toJson(readOfferState(existing?.offerState)),
+      trainingStyle: 'SIMPLE',
+    });
+    if (existing?.unit !== input.unit) await this.syncPreferredUnitsFromSetup(userId, input.unit);
+    // Workouts now make training days (F-1): the plan follows.
+    await notifyTargetsChanged(userId);
     return this.bootstrap.get(userId, { today }, level);
   }
 }

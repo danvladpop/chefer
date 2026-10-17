@@ -1,4 +1,11 @@
-import type { Exercise, Prisma, Routine, RoutineDay, RoutineExercise } from '@prisma/client';
+import type {
+  Exercise,
+  Prisma,
+  Routine,
+  RoutineDay,
+  RoutineExercise,
+  WorkoutType,
+} from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Gym routines (gym_plan.md §2.2 / §4.1) ──────────────────────────────────
@@ -33,6 +40,11 @@ export interface RoutineDayWriteData {
   id?: string | undefined;
   name: string;
   plannedWeekday: number | null;
+  /**
+   * My week (ADR 0001). `undefined` keeps the stored value on an update (a doc
+   * from an older binary never knew the field); `null` clears it.
+   */
+  workoutType?: WorkoutType | null | undefined;
   exercises: RoutineExerciseWriteData[];
 }
 
@@ -98,6 +110,7 @@ function dayCreateInput(day: RoutineDayWriteData, position: number) {
     position,
     name: day.name,
     plannedWeekday: day.plannedWeekday,
+    workoutType: day.workoutType ?? null,
     exercises: {
       create: day.exercises.map((e, i) => ({
         exerciseId: e.exerciseId,
@@ -226,11 +239,22 @@ export class RoutineRepository implements IRoutineRepository {
           dayId = day.id;
           await tx.routineDay.update({
             where: { id: dayId },
-            data: { position, name: day.name, plannedWeekday: day.plannedWeekday },
+            data: {
+              position,
+              name: day.name,
+              plannedWeekday: day.plannedWeekday,
+              ...(day.workoutType !== undefined && { workoutType: day.workoutType }),
+            },
           });
         } else {
           const created = await tx.routineDay.create({
-            data: { routineId: id, position, name: day.name, plannedWeekday: day.plannedWeekday },
+            data: {
+              routineId: id,
+              position,
+              name: day.name,
+              plannedWeekday: day.plannedWeekday,
+              workoutType: day.workoutType ?? null,
+            },
           });
           dayId = created.id;
         }

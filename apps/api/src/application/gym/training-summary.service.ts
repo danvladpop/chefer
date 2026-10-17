@@ -10,10 +10,10 @@ import {
   type WeightUnit,
 } from '@chefer/types';
 import {
-  activityFacts,
   formatDurationMinutes,
   formatLoad,
-  isActivityLogSession,
+  isLoggedWorkout,
+  loggedWorkoutFacts,
   pauseReasonLabel,
   sessionDurationMin,
   trackingTypeOf,
@@ -257,8 +257,8 @@ function loadText(kg: number, unit: WeightUnit, meta: ExerciseMeta | undefined):
 }
 
 function sessionLine(s: SessionSummaryDto, hasPr: boolean): string {
-  const activity = isActivityLogSession(s);
-  const facts = activityFacts(s);
+  const activity = isLoggedWorkout(s);
+  const facts = loggedWorkoutFacts(s);
   const minutes =
     activity && facts.durationSec !== null
       ? formatDurationMinutes(facts.durationSec)

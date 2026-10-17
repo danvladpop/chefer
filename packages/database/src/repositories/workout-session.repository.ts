@@ -5,6 +5,7 @@ import type {
   SessionSet,
   WorkoutSession,
   WorkoutStatus,
+  WorkoutType,
 } from '@prisma/client';
 import { prisma } from '../client';
 
@@ -78,6 +79,8 @@ export interface SessionDocWriteData {
   notes: string | null;
   clientUpdatedAt: Date;
   engineVersion: number;
+  /** Simple training mode: the workout's type; null on typeless routine/freestyle workouts. */
+  workoutType: WorkoutType | null;
   exercises: SessionExerciseWriteData[];
 }
 
@@ -190,6 +193,7 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
         notes: doc.notes,
         clientUpdatedAt: doc.clientUpdatedAt,
         engineVersion: doc.engineVersion,
+        workoutType: doc.workoutType,
       };
       await tx.workoutSession.upsert({
         where: { id: doc.id },

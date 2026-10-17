@@ -208,3 +208,58 @@ describe('sessionKcalCopy', () => {
     expect(copy.spoken).toBe('313 kilocalories burned, as you logged');
   });
 });
+
+describe('typed workouts (simple training mode §6.6)', () => {
+  const live = (workoutType: BurnSession['workoutType'], minutes: number): BurnSession => ({
+    startedAt: '2026-10-17T18:00:00.000Z',
+    finishedAt: new Date(Date.parse('2026-10-17T18:00:00.000Z') + minutes * 60_000).toISOString(),
+    workoutType,
+    exercises: [],
+  });
+
+  it('bills a live workout with no exercises at its type MET over the wall time', () => {
+    // Upper body: strength low end 3.5 MET × 80 kg × 0.75 h = 210 kcal.
+    expect(estimateSessionKcal({ session: live('UPPER_BODY', 45), bodyweightKg: 80 })).toEqual({
+      kcal: 210,
+      isEstimate: true,
+    });
+    // Yoga: midpoint (2.5 + 4) / 2 = 3.25 MET × 80 × 1 h = 260.
+    expect(estimateSessionKcal({ session: live('YOGA', 60), bodyweightKg: 80 })?.kcal).toBe(260);
+  });
+
+  it('a typeless session with no sets still estimates nothing (unchanged)', () => {
+    expect(estimateSessionKcal({ session: live(undefined, 45), bodyweightKg: 80 })).toBeNull();
+  });
+
+  it('the watch number still wins on a logged workout', () => {
+    const session: BurnSession = {
+      ...live('UPPER_BODY', 45),
+      exercises: [
+        {
+          exerciseId: 'other-activity',
+          skipped: false,
+          sets: [{ isWarmup: false, completed: true, durationSec: 2700, caloriesKcal: 333 }],
+        },
+      ],
+    };
+    expect(estimateSessionKcal({ session, bodyweightKg: 80 })).toEqual({
+      kcal: 333,
+      isEstimate: false,
+    });
+  });
+
+  it("a logged generic entry takes the type's MET, not other-activity's", () => {
+    const session: BurnSession = {
+      ...live('LOWER_BODY', 60),
+      exercises: [
+        {
+          exerciseId: 'other-activity',
+          skipped: false,
+          sets: [{ isWarmup: false, completed: true, durationSec: 3600 }],
+        },
+      ],
+    };
+    // Billed like the live twin: 3.5 × 80 × 1 h = 280 (other-activity's 5.5 would say 440).
+    expect(estimateSessionKcal({ session, bodyweightKg: 80 })?.kcal).toBe(280);
+  });
+});
