@@ -174,6 +174,33 @@ describe('also included', () => {
   });
 });
 
+describe('the tier row overview (F7, 2026-10-17)', () => {
+  it('the tier row headlines everything Premium adds and opens with every benefit shown', () => {
+    const pitch = premiumPitchFor('tier-row');
+    expect(pitch.job).toBe('overview');
+    expect(pitch.headline).toBe('Everything Premium adds');
+    expect(pitch.showAllIncluded).toBe(true);
+    expect(pitch.alsoIncluded).toEqual(
+      expect.arrayContaining(['Portions for your table', 'The AI chef (daily allowance)']),
+    );
+  });
+
+  it('never repeats a headline bullet in also included', () => {
+    const pitch = premiumPitchFor('tier-row');
+    expect(pitch.bullets).toContain('A new week planned for you every Sunday');
+    expect(pitch.alsoIncluded).not.toContain('Your week, ready every Monday');
+  });
+
+  it('keeps the same overview for a Train user', () => {
+    expect(premiumPitchFor('tier-row', { jobs: ['TRAIN'] }).job).toBe('overview');
+  });
+
+  it('a job-led pitch keeps also included folded', () => {
+    expect(premiumPitchFor('household').showAllIncluded).toBe(false);
+    expect(premiumPitchFor(null).showAllIncluded).toBe(false);
+  });
+});
+
 describe('terms and forbidden copy (rules 1 and 2)', () => {
   it('every pitch carries the included-at-no-cost terms paragraph', () => {
     for (const source of [...PREMIUM_SOURCES, 'unknown']) {
