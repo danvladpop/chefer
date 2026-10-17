@@ -93,31 +93,34 @@ export function SimpleSummaryScreen({ id }: { id: string }) {
           ) : null}
         </View>
 
-        <View className="gap-1 rounded-card border border-separator bg-surface p-4">
-          {burn ? (
-            <View className="flex-row items-center gap-2">
-              <Icon name="flame" color={colors.brand} size={20} />
-              <Text
-                testID="simple-summary-kcal"
-                className="min-w-0 flex-1 text-headline font-semibold text-label"
-              >
-                {burn.isEstimate
-                  ? `~${burn.kcal} kcal (est.)`
-                  : `${burn.kcal} kcal (from your watch)`}
+        {/* No estimate with a weigh-in on file = too short to say; no card then. */}
+        {burn || bootstrap?.bodyweightKg == null ? (
+          <View className="gap-1 rounded-card border border-separator bg-surface p-4">
+            {burn ? (
+              <View className="flex-row items-center gap-2">
+                <Icon name="flame" color={colors.brand} size={20} />
+                <Text
+                  testID="simple-summary-kcal"
+                  className="min-w-0 flex-1 text-headline font-semibold text-label"
+                >
+                  {burn.isEstimate
+                    ? `~${burn.kcal} kcal (est.)`
+                    : `${burn.kcal} kcal (from your watch)`}
+                </Text>
+                <IconButton
+                  testID="simple-summary-how"
+                  accessibilityLabel="How we estimate this"
+                  icon={<Icon name="info" color={colors.brand} size={20} />}
+                  onPress={() => setHowOpen(true)}
+                />
+              </View>
+            ) : (
+              <Text testID="simple-summary-kcal-hint" className="text-subhead text-label-secondary">
+                Log your weight to see calories
               </Text>
-              <IconButton
-                testID="simple-summary-how"
-                accessibilityLabel="How we estimate this"
-                icon={<Icon name="info" color={colors.brand} size={20} />}
-                onPress={() => setHowOpen(true)}
-              />
-            </View>
-          ) : (
-            <Text testID="simple-summary-kcal-hint" className="text-subhead text-label-secondary">
-              Log your weight to see calories
-            </Text>
-          )}
-        </View>
+            )}
+          </View>
+        ) : null}
 
         {streak ? (
           <View
