@@ -145,6 +145,27 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     await user.press(screen.getByTestId('premium-sheet-also-included-toggle'));
     expect(screen.queryByTestId('premium-sheet-also-included')).toBeNull();
   });
+
+  it('a reopened sheet starts from the pitch again, not the last fold', async () => {
+    const user = userEvent.setup();
+    const sheet = (visible: boolean) => (
+      <SafeAreaProvider initialMetrics={metrics}>
+        <PremiumSheet
+          visible={visible}
+          onClose={jest.fn()}
+          onTurnOn={jest.fn()}
+          pitch={premiumPitchFor('tier-row')}
+        />
+      </SafeAreaProvider>
+    );
+    const { rerender } = await render(sheet(true));
+    await user.press(screen.getByTestId('premium-sheet-also-included-toggle'));
+    expect(screen.queryByTestId('premium-sheet-also-included')).toBeNull();
+
+    await rerender(sheet(false));
+    await rerender(sheet(true));
+    expect(screen.getByTestId('premium-sheet-also-included')).toBeOnTheScreen();
+  });
 });
 
 describe('PremiumSheet — error and success', () => {
