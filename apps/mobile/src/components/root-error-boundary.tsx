@@ -16,6 +16,7 @@ import {
   useFeedbackRoute,
 } from '../features/feedback/feedback-context';
 import { submitFeedbackStandalone } from '../features/feedback/standalone-submit';
+import { noteReviewBlockingError } from '../features/review/review-store';
 import { reportError } from '../lib/crash-reporting';
 
 type ReportStatus = 'idle' | 'sending' | 'sent' | 'failed';
@@ -115,6 +116,8 @@ export function RootErrorBoundary({ error, retry }: ErrorBoundaryProps) {
     console.error('[chefer] render error', error);
     reportError(error, 'root-error-boundary');
   }, [error]);
+  // No store rating prompt for the rest of this session (ASO §5.1).
+  useEffect(() => noteReviewBlockingError(), []);
   return (
     <Screen className="flex-1 bg-white px-6">
       {/* Scrolls, so the report field and Send stay clear of the keyboard. */}

@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { resetLandingCacheForTests as resetLandingCache } from '../../navigation/landing-cache';
 import { setHealthConsentDeclined } from '../../privacy/health-declined-store';
+import { REVIEW_PROMPT_KEY } from '../../review/review-store';
 import { clearPendingRebalance } from '../../tracker/rebalance-store';
 import { resetModeForTests as resetModeStore } from '../mode-store';
 import { resetRestTimerForTests as resetRestTimerStore } from '../rest-timer';
@@ -21,8 +22,12 @@ import { resetSessionCorrectionsForTests as resetSessionCorrectionsStore } from 
 // key somebody adds next month is wiped too, and only what belongs to the
 // DEVICE has to be named here.
 
-/** KV keys that belong to the phone, not the account — they survive sign-out. */
-export const DEVICE_KV_KEYS_KEPT: readonly string[] = ['analytics.consent'];
+/**
+ * KV keys that belong to the phone, not the account — they survive sign-out.
+ * `review.prompt-state` (REVIEW_PROMPT_KEY): the store rating prompt's 120-day
+ * cooldown and active days — a sign-out must not reopen the prompt.
+ */
+export const DEVICE_KV_KEYS_KEPT: readonly string[] = ['analytics.consent', REVIEW_PROMPT_KEY];
 
 /** Gym keys that survive a session expiry so unsynced workouts upload on re-login. */
 function isKeptGymKey(key: string): boolean {

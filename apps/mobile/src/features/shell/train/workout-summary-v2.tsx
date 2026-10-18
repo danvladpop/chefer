@@ -45,6 +45,7 @@ import {
 import { AdjustSheet, goToday, PR_KIND_LABEL } from '../../gym/workout/summary-screen';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { DIRECTION_LABEL, fallbackMeta, unitOf } from '../../gym/workout/workout-model';
+import { useWorkoutReviewPrompt } from '../../review/review-signals';
 import { BurnTile } from './burn-tile';
 
 // ─── Workout summary, shell v2 (10 Oct redesign, Summary board) ─────────────
@@ -122,6 +123,8 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
     () => (view ? sessionPrs(view, bootstrap?.recentSessions ?? [], bootstrap?.olderBests) : []),
     [view, bootstrap?.recentSessions, bootstrap?.olderBests],
   );
+  // Store rating prompt (ASO §5.1): a PR or the 3rd workout, once the summary has played.
+  useWorkoutReviewPrompt(id, getFinished(id) !== undefined, prs.length);
   const rows = useMemo(() => (view ? nextTimeRows(view, bootstrap) : []), [view, bootstrap]);
   const weekJustMet =
     !!bootstrap?.streak &&
