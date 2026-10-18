@@ -4129,17 +4129,19 @@ or a Google Workspace account (2,000/day).
 Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
 inlined at bundle time by Expo.
 
-| Variable                   | Required | Default                                                            | Description                                                                                                                                                                                                                                                                                                                                |
-| -------------------------- | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `EXPO_PUBLIC_API_URL`      | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                                                                                                                                                                                                                 |
-| `EXPO_PUBLIC_SENTRY_DSN`   | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                                                                                                                                                                                                             |
-| `EXPO_PUBLIC_POSTHOG_KEY`  | No       | —                                                                  | **NEW (T-12.2)** — PostHog project key for the pure-JS analytics transport (`lib/analytics-transport.ts`). Unset = no-op: nothing is queued, no `fetch` ever fires                                                                                                                                                                         |
-| `EXPO_PUBLIC_POSTHOG_HOST` | No       | —                                                                  | **NEW (T-12.2)** — must be `https://eu.i.posthog.com` (rev 2 D24, EU only) when set; `env.ts` fails validation otherwise                                                                                                                                                                                                                   |
-| `EXPO_APPLE_TEAM_ID`       | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it                                                                                                                                                                                        |
-| `GOOGLE_IOS_URL_SCHEME`    | No       | —                                                                  | **NEW (WP-22)** — build-time only: reversed iOS OAuth client id (`com.googleusercontent.apps.<id>`); registered as an iOS URL scheme by the Google sign-in plugin. Unset = no plugin, Google hidden on iOS. Part of the native fingerprint: same value for builds and OTA publishes (`apps/mobile/.env`, `eas.json` env, CI repo variable) |
-| `GOOGLE_IOS_CLIENT_ID`     | No       | —                                                                  | **NEW (WP-22)** — build-time alternative to the above (`<id>.apps.googleusercontent.com`); the scheme is derived from it                                                                                                                                                                                                                   |
-| `ENABLE_APPLE_SIGN_IN`     | No       | —                                                                  | **NEW (WP-22)** — `1` adds the Sign in with Apple entitlement to a development build (production always has it); needs the paid Apple team                                                                                                                                                                                                 |
-| `APP_VARIANT`              | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…`                                                                                                                                                                        |
+| Variable                     | Required | Default                                                            | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------- | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_API_URL`        | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `EXPO_PUBLIC_SENTRY_DSN`     | No       | —                                                                  | **M1-6** — DSN of the Sentry project `chefer-mobile` (org `chefer`, EU region). Crash reporting (`src/lib/crash-reporting.ts`) runs only in **production** builds with a DSN, never in the dev variant or `__DEV__`; unset, empty or malformed = off (never a startup error). Inlined at bundle time, so it must be present wherever JS is bundled: `apps/mobile/.env` (local scripts), the EAS `production` environment (EAS cloud builds) and the `EXPO_PUBLIC_SENTRY_DSN` repo variable (CI OTA job, §13). Not part of the native fingerprint |
+| `EXPO_PUBLIC_POSTHOG_KEY`    | No       | —                                                                  | **NEW (T-12.2)** — PostHog project key for the pure-JS analytics transport (`lib/analytics-transport.ts`). Unset = no-op: nothing is queued, no `fetch` ever fires                                                                                                                                                                                                                                                                                                                                                                               |
+| `EXPO_PUBLIC_POSTHOG_HOST`   | No       | —                                                                  | **NEW (T-12.2)** — must be `https://eu.i.posthog.com` (rev 2 D24, EU only) when set; `env.ts` fails validation otherwise                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `EXPO_APPLE_TEAM_ID`         | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GOOGLE_IOS_URL_SCHEME`      | No       | —                                                                  | **NEW (WP-22)** — build-time only: reversed iOS OAuth client id (`com.googleusercontent.apps.<id>`); registered as an iOS URL scheme by the Google sign-in plugin. Unset = no plugin, Google hidden on iOS. Part of the native fingerprint: same value for builds and OTA publishes (`apps/mobile/.env`, `eas.json` env, CI repo variable)                                                                                                                                                                                                       |
+| `GOOGLE_IOS_CLIENT_ID`       | No       | —                                                                  | **NEW (WP-22)** — build-time alternative to the above (`<id>.apps.googleusercontent.com`); the scheme is derived from it                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `ENABLE_APPLE_SIGN_IN`       | No       | —                                                                  | **NEW (WP-22)** — `1` adds the Sign in with Apple entitlement to a development build (production always has it); needs the paid Apple team                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `APP_VARIANT`                | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…`                                                                                                                                                                                                                                                                                                                                                                              |
+| `SENTRY_AUTH_TOKEN`          | No       | —                                                                  | **M1-6** — build/upload-time only, a **secret**: Sentry org auth token for uploading source maps (Gradle release task, Xcode bundle phase, `sentry-expo-upload-sourcemaps`) and iOS debug symbols. Never in `app.config.js` (the Sentry plugin's arguments are literals, so builds with and without it share one fingerprint). Put it in `apps/mobile/.env` locally, the EAS `production` environment (secret visibility) and the `SENTRY_AUTH_TOKEN` repo secret                                                                                |
+| `SENTRY_DISABLE_AUTO_UPLOAD` | No       | set automatically                                                  | **M1-6** — `true` skips the native builds' Sentry upload, which otherwise **fails the build** without a token. `scripts/common.sh` sets it whenever `SENTRY_AUTH_TOKEN` is empty; `eas.json` sets it for the `development` and `preview` profiles (production uploads with the EAS `SENTRY_AUTH_TOKEN` secret). **`eas.json` is part of the native fingerprint** (whole file), so removing it there to let EAS builds upload is a native change: do it only in the same change as a store build (runbook, §11)                                   |
 
 ### `packages/database/.env`
 
@@ -4219,8 +4221,78 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   fingerprint covers the config plugins and `ios.associatedDomains`, so build and publish with the same
   `GOOGLE_IOS_URL_SCHEME` / `EXPO_PUBLIC_API_URL` / `EXPO_APPLE_TEAM_ID` (see the runbook in §10).
 
-- **Native release 3 (F8, ships in 1.0.2): `modules/chefer-credentials`.** A local Expo module (Android only,
-  `androidx.credentials` 1.6.0) for the explicit password save. Like releases 1 and 2 it changes the runtime
+- **Native release 3 (M1-6): crash reporting.** Adds `@sentry/react-native` 7.11 and its config plugin (plus `@sentry/cli` as a direct devDependency — pnpm does not hoist it, and the iOS "Upload Debug Symbols to Sentry" build phase fails without it even when uploads are disabled). It changes
+  the runtime fingerprint on purpose (`expo-updates runtimeversion:resolve`, production variant,
+  `EXPO_APPLE_TEAM_ID=45TS85YK89`, `EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`, master before → after):
+
+  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump                       | After the phone-only portrait lock         | After EAS production uploads (shipped runtime) |
+  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ---------------------------------------------- |
+  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` | `48164b511e206c3d79e0224d5f8c7b879eabf798` | `027e2640f829053d44e2553df166f5b640b363f9`     |
+  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` | `9ada5dcddf642fa453c59ccf47c4a79e6a3e6b8b` | `7c46f3d78003b9cb9e5d2d037521b614cebc7725`     |
+
+  The Android "before" equals the runtime of the Play 1.0.1 AAB (`release-builds/runtime-android.txt` of that build).
+
+  **Merge only when 1.0.2 is about to be built for both stores**: from the merge on, every CI OTA targets the new
+  runtime, so installed 1.0.1 apps stop receiving updates until they install 1.0.2. The same branch already bumps
+  `version` to **1.0.2** and sets `android.versionCode: 2` in `app.config.js` (1.0.1 shipped as code `1` because it
+  was unset; Play rejects a reused code). Both are part of the fingerprint, so the last column is what the 1.0.2
+  binaries carry; bump them again only together with the next store build. iOS build numbers come from EAS
+  (`appVersionSource: remote`, `autoIncrement`). The Sentry env does **not** affect the fingerprint (verified: same
+  runtime with and without `SENTRY_AUTH_TOKEN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`/`SENTRY_PROJECT`,
+  `SENTRY_DISABLE_AUTO_UPLOAD`), because the plugin's arguments are literals.
+
+- **Native release 3, part 2 (1.0.2): phone-only portrait lock.** Play Console warns about orientation restrictions
+  (Android 16 ignores them on large screens, sw ≥ 600dp, and tablets already rotated with targetSdk 36), so the manifest
+  no longer locks orientation: `orientation: 'default'` (`android:screenOrientation="unspecified"`). Phones stay
+  portrait three ways, large screens are free:
+  - **JS** (`apps/mobile/src/lib/orientation-lock.ts`, `expo-screen-orientation` 57.0.3): `useOrientationLock()` in the
+    root layout locks `PORTRAIT_UP` while the window's smaller side is < `LARGE_SCREEN_MIN_SIDE_DP` (600) and unlocks
+    otherwise, re-evaluated on every window change (foldable unfolding, freeform/desktop resizing), plus one call at
+    module load. The module is `require`d inside try/catch, so a bundle on a binary without it just has no lock.
+  - **Android launch:** an inline config plugin (`withPhonePortraitAtLaunch` in `app.config.js`) adds to
+    `MainActivity.onCreate`: `smallestScreenWidthDp < 600` → `requestedOrientation = PORTRAIT`, so a phone held sideways
+    opens in portrait before JS runs. Only the system splash (starting window, drawn before `onCreate`) can show sideways
+    for a moment. The fingerprint records inline plugins by **name** only — rename the function when its body changes.
+  - **iOS:** the app is iPhone-only (`supportsTablet: false`, `TARGETED_DEVICE_FAMILY = 1`), so `ios.infoPlist` keeps
+    `UISupportedInterfaceOrientations` = portrait + upside down, exactly as before (it overrides the abstract
+    `orientation`; prebuild prints a warning saying so). No launch flash, nothing for App Review. Should iPad support
+    turn on, Expo's `requireFullScreen` handling adds all four `UISupportedInterfaceOrientations~ipad` entries
+    (multitasking, ITMS-90474) and the JS gate unlocks the large screen.
+
+  Verified on throwaway AVDs (production APK): phone 1080×2400 @420dpi stays portrait when launched sideways and when
+  rotated (`requestedOrientation=PORTRAIT`); tablet 2560×1600 @320dpi rotates (`UNSPECIFIED`).
+
+- **Mobile crash reporting (M1-6) — owner runbook.** The code ships inert: no DSN, no reports.
+  1. **Sentry project:** in the `chefer` org (EU region, where web `javascript-nextjs` lives) create a **React
+     Native** project named exactly **`chefer-mobile`** (the slug is a literal in `app.config.js`; a different slug
+     means editing it there, which changes the native fingerprint — do that only together with a store build).
+     Copy its DSN. Optional: Expo → Account settings → Overview → Connect Sentry, then link the project in EAS.
+  2. **DSN — the same value in three places** (`EXPO_PUBLIC_*` is inlined when JS is bundled, so every place that
+     bundles needs it, or that bundle ships with crash reporting off): `apps/mobile/.env` (local release scripts and
+     `pnpm mobile:update`), the EAS **`production`** environment on expo.dev (EAS cloud builds; plain-text visibility
+     is fine, the DSN is public — web hardcodes its own), and the GitHub repo **variable** `EXPO_PUBLIC_SENTRY_DSN`
+     (the deploy's OTA job, §13). The DSN can be added before or after the store build: it only needs to be present
+     when JS is bundled, so a later OTA can switch reporting on for 1.0.2 installs.
+  3. **Auth token (optional, for readable stack traces):** Sentry → Settings → Auth Tokens → org token. Store it as
+     `SENTRY_AUTH_TOKEN` in `apps/mobile/.env` (gitignored; local Android/iOS release builds then upload their
+     bundle's source maps), as the GitHub repo **secret** `SENTRY_AUTH_TOKEN` (OTA source maps, the bundles most
+     users run), and in the EAS `production` environment with **secret** visibility. **Done 2026-10-16** (all three
+     places, plus the DSN in all three), so the `production` profile in `eas.json` no longer sets
+     `SENTRY_DISABLE_AUTO_UPLOAD` and EAS production builds upload source maps and dSYMs; `development` and
+     `preview` still skip (their EAS environments have no token, and the upload would fail the build). `eas.json` is
+     hashed into the native fingerprint, so any later edit there moves the runtime: change it **only in the same
+     change as a store build**, never on its own, or every later OTA targets a runtime no installed binary has. Without a token everything still builds and reports; only
+     stack traces stay minified. After a manual `pnpm mobile:update`, run
+     `cd apps/mobile && pnpm exec sentry-expo-upload-sourcemaps dist` (CI does this itself).
+  4. **Store privacy labels** — update before the build with reporting on reaches review: App Store Connect → App
+     Privacy → Diagnostics → **Crash Data** (App Functionality, linked to the user: the account id is attached), and
+     Play Console → Data safety → App info and performance → **Crash logs** + **Diagnostics** (collected, not shared,
+     App functionality). See docs/app-store/ios/privacy-and-rating.md and docs/app-store/android/data-safety.md.
+  5. **Check:** a 1.0.2 production install with the DSN; force a render error (or wait for a real one) and confirm
+     the event in `chefer-mobile` with `environment: production` and the `ota_updates` context.
+
+- **Native release 4 (F8, ships in 1.0.2): `modules/chefer-credentials`.** A local Expo module (Android only,
+  `androidx.credentials` 1.6.0) for the explicit password save. Like releases 1–3 it changes the runtime
   fingerprint: once merged, OTA updates from master target only binaries built after it, so the 1.0.1 store binaries
   stop receiving them. Merge it together with the other 1.0.2 native changes and build once. The JS is safe on older
   binaries (`requireOptionalNativeModule` → no-op), so an OTA built from this code would not break them — it just
@@ -4496,6 +4568,9 @@ setup (resolve tag)
               JS on their next launch and run it on the one after. Runs only after verify
               (the API the JS talks to is live first); skipped with a warning while the
               EXPO_TOKEN secret is unset; skipped on rollbacks
+              then (M1-6) `pnpm exec sentry-expo-upload-sourcemaps dist` in apps/mobile —
+              uploads that update's Hermes bundles + source maps to Sentry; runs only
+              when the SENTRY_AUTH_TOKEN secret is set, continue-on-error
 ```
 
 **Mobile OTA from CI:** the job publishes with `ALLOW_RUNTIME_MISMATCH=1` (CI has no
@@ -4507,6 +4582,15 @@ USB; the job log prints the runtimes. `EXPO_APPLE_TEAM_ID` must be set as a repo
 different runtime and updates would never arrive). Rolling mobile JS back:
 `npx eas-cli update:republish --group <previous group id>` (or publish from an older
 commit).
+
+**Mobile crash reporting in the OTA job (M1-6):** `EXPO_PUBLIC_SENTRY_DSN` is inlined into
+the JS bundle, so the job exports it from the `EXPO_PUBLIC_SENTRY_DSN` repo **variable**
+before `pnpm mobile:update` — only when the variable is non-empty (an empty value would be
+inlined as `""` and could shadow the EAS `production` environment's value; `env.ts` treats
+empty/malformed as "off" either way, never as a startup crash). Without it, OTAs ship with
+crash reporting off. The source-map upload step needs the `SENTRY_AUTH_TOKEN` **secret** and
+never fails the deploy. Neither value is part of the native fingerprint (verified, §11). No
+CI step builds binaries or submits to the stores — those stay manual.
 
 **Branch protection (manual, repo Settings → Branches → `master`):** require the
 `Lint`, `Format`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
@@ -4532,6 +4616,8 @@ pulls. `infrastructure/scripts/deploy-local-build.sh` keeps the build-on-VM path
 | Secret   | `EXPO_TOKEN`                                  | expo.dev → Account settings → Access tokens (robot/personal token with access to `@cheferoni/chefer`) — mobile OTA job         |
 | Variable | `EXPO_APPLE_TEAM_ID`                          | `45P674Q3CW` (free Apple ID team; same as `apps/mobile/.env`) — mobile OTA job                                                 |
 | Variable | `GOOGLE_IOS_URL_SCHEME` (optional, WP-22)     | `com.googleusercontent.apps.<id>` — must equal the value the store binary was built with (native fingerprint) — mobile OTA job |
+| Variable | `EXPO_PUBLIC_SENTRY_DSN` (optional, M1-6)     | DSN of the Sentry project `chefer-mobile` — inlined into the OTA bundle (crash reporting off without it) — mobile OTA job      |
+| Secret   | `SENTRY_AUTH_TOKEN` (optional, M1-6)          | Sentry org auth token (org `chefer`, source-map upload scope) — OTA source-map upload step; skipped without it                 |
 
 `NEXT_PUBLIC_*` are baked into the web bundle at build time — changing them requires a rebuild
 (updating `.env.production` on the VM alone has no effect on the client bundle). Application
@@ -4640,22 +4726,22 @@ day, so re-seeding later keeps the demo data inside the 7-day window.
 
 - Session replay, surveys and feature flags are disabled (`disable_session_recording`, `disable_surveys`, `advanced_disable_flags`): unused, and each would touch browser storage. `analytics.test.ts` runs the real SDK in jsdom and asserts that no cookie/localStorage/sessionStorage key is written except the consent key.
 - **Decision:** no cookie banner. With in-memory persistence nothing is stored on or read from the device for analytics (ePrivacy Art. 5(3)); anonymous counts rely on legitimate interest. Linking events to an account is opt-in consent (default OFF), because events such as `weight_logged`/`workout_finished` tied to a person can be health data (GDPR Art. 9). The choice is per account **per browser** (localStorage, strictly necessary to remember it) — no schema/API change. Toggle: `features/profile/components/AnalyticsConsentCard.tsx` on `/profile` ("Usage analytics"); withdrawing calls `posthog.reset()` at once. Trade-off: a full page reload starts a new anonymous ID, so cross-reload funnels only work for opted-in users.
-- **Mobile:** sends no analytics (no PostHog or Sentry SDK in `apps/mobile/package.json`), so there is nothing to mirror; `mobile_parity_backlog.md` records that any future mobile analytics must follow the same default-off rule.
+- **Mobile:** sends no PostHog analytics unless a key is configured (pure-JS transport, no SDK), so there is nothing to mirror here. Crash reports (Sentry, M1-6) are not analytics: errors only, no usage events, and not gated on this consent — they fall under the policy's "Security and error data" (legitimate interest), like web's Sentry; `mobile_parity_backlog.md` records that any future mobile analytics must follow the same default-off rule.
 
 **Processors named on `/privacy` (evidence).** Keep this table and the page in sync.
 
-| Processor / recipient                                                                    | Evidence                                                                                                                                                                                                 |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Oracle Cloud Infrastructure (Frankfurt)                                                  | §12 "Oracle Always Free ARM" VM; region eu-frankfurt-1 (owner)                                                                                                                                           |
-| Google Gemini (standard routing only)                                                    | `apps/api/src/lib/ai/gemini.ts` (`GeminiAIService`), `AI_PROVIDER=gemini` in `.env.production.example`; never built when `AI_FREE_ONLY=true`                                                             |
-| Groq (backup AI; primary in free-only mode; video transcription)                         | `apps/api/src/lib/env.ts` `AI_SECONDARY_BASE_URL` default `https://api.groq.com/openai/v1`; `lib/ai/failover.ts`                                                                                         |
-| Cloudflare Workers AI (free-only backup; recipe images when `IMAGE_PROVIDER=cloudflare`) | `lib/ai/providers.ts` `cloudflareBaseUrl`, `lib/image-gen/cloudflare.ts`. The page lists the AI recipients from `profile.aiProviders` (`AI_PROVIDERS` in `@chefer/types`), so it follows the live config |
-| Sentry (EU region, `ingest.de.sentry.io`)                                                | web `apps/web/src/instrumentation.ts`, `instrumentation-client.ts`; API `apps/api/src/instrument.ts`. Not on mobile                                                                                      |
-| PostHog (EU Cloud)                                                                       | `apps/web/src/lib/analytics.ts`                                                                                                                                                                          |
-| Email provider (named generically)                                                       | `apps/api/src/lib/email/index.ts` (Resend today; provider not final)                                                                                                                                     |
-| Expo (EAS Update)                                                                        | `expo-updates` in `apps/mobile/package.json`; `.github/workflows/deploy.yml` "Publish EAS update" — IP/device only                                                                                       |
-| Image generation (Pollinations; Cloudflare optional)                                     | `apps/api/src/lib/image-gen/index.ts` — recipe name + cuisine only, no personal data                                                                                                                     |
-| Content hosts loaded by the client (Unsplash, Pollinations, YouTube nocookie)            | `apps/web/src/lib/recipe-image.ts`, `features/gym/library/VideoEmbed.tsx`, mobile `exercise-video-sheet.tsx` — IP only                                                                                   |
+| Processor / recipient                                                                    | Evidence                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Oracle Cloud Infrastructure (Frankfurt)                                                  | §12 "Oracle Always Free ARM" VM; region eu-frankfurt-1 (owner)                                                                                                                                                                                                                        |
+| Google Gemini (standard routing only)                                                    | `apps/api/src/lib/ai/gemini.ts` (`GeminiAIService`), `AI_PROVIDER=gemini` in `.env.production.example`; never built when `AI_FREE_ONLY=true`                                                                                                                                          |
+| Groq (backup AI; primary in free-only mode; video transcription)                         | `apps/api/src/lib/env.ts` `AI_SECONDARY_BASE_URL` default `https://api.groq.com/openai/v1`; `lib/ai/failover.ts`                                                                                                                                                                      |
+| Cloudflare Workers AI (free-only backup; recipe images when `IMAGE_PROVIDER=cloudflare`) | `lib/ai/providers.ts` `cloudflareBaseUrl`, `lib/image-gen/cloudflare.ts`. The page lists the AI recipients from `profile.aiProviders` (`AI_PROVIDERS` in `@chefer/types`), so it follows the live config                                                                              |
+| Sentry (EU region, `ingest.de.sentry.io`)                                                | web `apps/web/src/instrumentation.ts`, `instrumentation-client.ts`; API `apps/api/src/instrument.ts`; mobile `apps/mobile/src/lib/crash-reporting.ts` (M1-6: crash reports only, production builds with `EXPO_PUBLIC_SENTRY_DSN`, account id but no name/email/IP, no tracing/replay) |
+| PostHog (EU Cloud)                                                                       | `apps/web/src/lib/analytics.ts`                                                                                                                                                                                                                                                       |
+| Email provider (named generically)                                                       | `apps/api/src/lib/email/index.ts` (Resend today; provider not final)                                                                                                                                                                                                                  |
+| Expo (EAS Update)                                                                        | `expo-updates` in `apps/mobile/package.json`; `.github/workflows/deploy.yml` "Publish EAS update" — IP/device only                                                                                                                                                                    |
+| Image generation (Pollinations; Cloudflare optional)                                     | `apps/api/src/lib/image-gen/index.ts` — recipe name + cuisine only, no personal data                                                                                                                                                                                                  |
+| Content hosts loaded by the client (Unsplash, Pollinations, YouTube nocookie)            | `apps/web/src/lib/recipe-image.ts`, `features/gym/library/VideoEmbed.tsx`, mobile `exercise-video-sheet.tsx` — IP only                                                                                                                                                                |
 
 Not listed (no user data): DuckDNS / Let's Encrypt (domain + TLS), Carrefour price lookups (ingredient names only), Cloudinary (only with `IMAGE_PROVIDER=cloudflare`, unset in prod).
 

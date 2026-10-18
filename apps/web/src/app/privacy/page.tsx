@@ -238,7 +238,10 @@ export default async function PrivacyPage() {
             <li>
               <strong>Sentry</strong> receives error reports and performance data from the website
               and our server. These can include your IP address, browser type and the page involved.
-              The data is stored in Sentry&apos;s EU region (Germany); Sentry is a US company.
+              It also receives crash reports from the Chefer app: what went wrong, the app version,
+              and the phone model and operating system, tagged with your account ID (not your name
+              or email). The data is stored in Sentry&apos;s EU region (Germany); Sentry is a US
+              company.
             </li>
             <li>
               <strong>PostHog</strong> provides usage analytics for the website and, in app versions
