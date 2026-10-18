@@ -34,6 +34,12 @@ vi.mock('recharts', () => ({
 }));
 vi.mock('@/features/coach/components/ChefReviewBanner', () => ({ ChefReviewBanner: () => null }));
 vi.mock('@/features/coach/components/WeightCard', () => ({ WeightCard: () => null }));
+vi.mock('@/features/coaching/components/ClientBookings', () => ({
+  UpcomingBookingCard: () => null,
+}));
+vi.mock('@/features/coaching/components/ConsentUpdateNotice', () => ({
+  ConsentUpdateNotice: () => null,
+}));
 vi.mock('@/features/coaching/components/CoachingNoticeList', () => ({
   CoachingNoticeList: () => null,
 }));

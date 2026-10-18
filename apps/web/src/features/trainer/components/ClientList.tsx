@@ -3,7 +3,7 @@ import { formatDayWithWeekday, formatShortDay } from '@/features/coaching/lib/da
 import { ChevronRight } from 'lucide-react';
 import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
 import { Badge, pressCard } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { clientRowNextBooking, cn, deviceTimeZone, todayIn } from '@chefer/utils';
 import { firstName } from '../format';
 
 // ─── Clients (spec §2.4) ──────────────────────────────────────────────────────
@@ -15,6 +15,8 @@ const COLUMNS =
 
 export function ClientList({ clients }: { clients: ClientRowDto[] }) {
   const copy = COACHING_COPY.trainer;
+  const timeZone = deviceTimeZone();
+  const today = todayIn(timeZone);
   if (clients.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
@@ -90,6 +92,14 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                   className="hidden h-5 w-5 shrink-0 text-gray-400 lg:block"
                   aria-hidden="true"
                 />
+                {client.nextBookingAt && (
+                  <span
+                    className="min-w-0 break-words text-sm text-gray-700 lg:col-span-5"
+                    data-testid="trainer-client-next-booking"
+                  >
+                    {clientRowNextBooking(client, timeZone, today)}
+                  </span>
+                )}
                 {client.routineChangedByClientAt && (
                   <span
                     className="min-w-0 break-words text-xs font-medium text-amber-800 lg:col-span-5"

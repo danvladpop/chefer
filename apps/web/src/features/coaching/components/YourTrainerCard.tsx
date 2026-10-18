@@ -10,6 +10,8 @@ import { Button, pressCard, Sheet } from '@chefer/ui';
 import { cn, userFacingErrorMessage } from '@chefer/utils';
 import { formatShortDay } from '../lib/dates';
 import { useCoachingAvailability } from '../use-coaching-availability';
+import { UpcomingBookingsList } from './ClientBookings';
+import { ConsentUpdateNotice } from './ConsentUpdateNotice';
 
 // ─── Profile → Your trainer (spec §2.3 step 5, §2.6; PRD 2026-10 §4.1) ────────
 
@@ -123,6 +125,9 @@ export function YourTrainerCard() {
 
       {trainer ? (
         <div className="mt-4 space-y-4">
+          {/* Trainer mode M3: the one-time consent v2 notice (§10) and the client's bookings (§6.9). */}
+          <ConsentUpdateNotice leaveHref="#your-trainer-leave" />
+          <UpcomingBookingsList />
           <div>
             <h3 className="text-sm font-semibold text-gray-900">
               {copy.seesHeading(trainer.name)}
@@ -149,6 +154,7 @@ export function YourTrainerCard() {
             </p>
           </div>
           <Button
+            id="your-trainer-leave"
             type="button"
             variant="outline"
             className="min-h-11"

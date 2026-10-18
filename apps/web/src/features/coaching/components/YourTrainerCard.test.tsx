@@ -14,6 +14,9 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/app-toast', () => ({ showAppToast: vi.fn() }));
+// The M3 parts have their own tests (ClientBookings.test.tsx, ConsentUpdateNotice.test.tsx).
+vi.mock('./ClientBookings', () => ({ UpcomingBookingsList: () => null }));
+vi.mock('./ConsentUpdateNotice', () => ({ ConsentUpdateNotice: () => null }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>

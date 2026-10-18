@@ -1003,7 +1003,7 @@ function UngroupSheet({
 }
 
 /** Per-set menu: remove this set (warm-up or working) from today's workout. */
-function SetMenuSheet({
+export function SetMenuSheet({
   label,
   exerciseName,
   onClose,
@@ -1097,7 +1097,7 @@ function ElapsedClock({ startedAt }: { startedAt: string }) {
   return <span className="tabular-nums">{formatElapsed(startedAt, now)}</span>;
 }
 
-function ActionItem({
+export function ActionItem({
   icon: Icon,
   label,
   onClick,
@@ -1129,7 +1129,7 @@ function ActionItem({
   );
 }
 
-function NoteSheet({
+export function NoteSheet({
   open,
   title,
   initial,
@@ -1191,7 +1191,7 @@ function useMediaQuery(query: string): boolean {
 }
 
 /** Keeps the screen awake during a workout (Screen Wake Lock API, where supported). */
-function useWakeLock(active: boolean): void {
+export function useWakeLock(active: boolean): void {
   useEffect(() => {
     if (!active || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
     let lock: WakeLockSentinel | null = null;

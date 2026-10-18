@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
 import { WeightCard } from '@/features/coach/components/WeightCard';
+import { UpcomingBookingCard } from '@/features/coaching/components/ClientBookings';
 import { CoachingNoticeList } from '@/features/coaching/components/CoachingNoticeList';
+import { ConsentUpdateNotice } from '@/features/coaching/components/ConsentUpdateNotice';
 import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
@@ -586,7 +588,10 @@ export default function DashboardPage() {
             B-31 interim (T-00.12): weight tracking assumes a goal. */}
           {showNutritionCards && <WeightCard />}
 
-          {/* Trainer coaching: "Ana updated your routine" and other unread notices. */}
+          {/* Trainer coaching: "Ana updated your routine" and other unread notices;
+            trainer mode M3: the consent v2 notice and the next booking (§6.9). */}
+          <ConsentUpdateNotice />
+          <UpcomingBookingCard />
           <CoachingNoticeList side="client" />
 
           {/* Gym (D11): next workout / done + week ring; opens Gym mode */}

@@ -118,6 +118,9 @@ export const TRAINER_MODE_SEGMENTS = [
   'clients',
   'workouts',
   'settings',
+  // M3: booking detail and the coached workout logger are not client ids.
+  'bookings',
+  'coach',
 ] as const;
 
 /** `/trainer/<clientId>` and its sub-routes (client detail, routine editor). */
@@ -130,7 +133,13 @@ export function isTrainerClientPath(pathname: string): boolean {
 /** Trainer mode in sidebar order: Today first. */
 export const TRAINER_MODE_NAV_ITEMS: readonly NavItem[] = [
   { href: '/trainer/today', label: 'Today', icon: House },
-  { href: '/trainer/schedule', label: 'Schedule', icon: CalendarDays },
+  {
+    href: '/trainer/schedule',
+    label: 'Schedule',
+    icon: CalendarDays,
+    // Booking detail and the coached logger belong to the calendar (M3).
+    alsoActiveFor: ['/trainer/bookings', '/trainer/coach'],
+  },
   {
     href: '/trainer/clients',
     label: 'Clients',

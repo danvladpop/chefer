@@ -6,7 +6,12 @@ import { resetSessionCorrectionsForTests } from '@/features/gym/workout/session-
 import { createMemoryStorage, setStorageForTests } from '@/features/gym/workout/storage';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXERCISE_BY_ID, type ExerciseDto, type WorkoutSessionDoc } from '@chefer/types';
+import {
+  EXERCISE_BY_ID,
+  type ExerciseDto,
+  type WorkoutSessionDetailDto,
+  type WorkoutSessionDoc,
+} from '@chefer/types';
 import GymHistoryDetailPage from './page';
 
 // T-42.5 (cardio renders in history) and T-44.5 (Delete workout + Undo) on the
@@ -20,7 +25,7 @@ const m = vi.hoisted(() => {
     back: vi.fn(),
     push: vi.fn(),
     toasts: [] as { message: string; actionLabel?: string; onAction?: () => void }[],
-    doc: undefined as WorkoutSessionDoc | undefined,
+    doc: undefined as WorkoutSessionDetailDto | undefined,
     library: [] as unknown[],
     error,
     refetch: vi.fn(),
@@ -296,6 +301,19 @@ describe('GymHistoryDetailPage', () => {
     m.toasts.at(-1)?.onAction?.();
     expect(outbox.getState().entries).toHaveLength(0);
     expect(send).not.toHaveBeenCalled();
+  });
+
+  // Trainer mode M3: `session.get` says who logged a coached workout, so the label shows
+  // even when the workout is older than the bootstrap's 12-week window (no summary here).
+  it('a coached workout reads "Logged by Ana" from session.get, with no bootstrap summary', () => {
+    m.doc = { ...mixedDoc(), loggedBy: { name: 'Ana' } };
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByTestId('gym-history-logged-by')).toHaveTextContent('Logged by Ana');
+  });
+
+  it('the client’s own workout has no "Logged by" line', () => {
+    render(<GymHistoryDetailPage />);
+    expect(screen.queryByTestId('gym-history-logged-by')).toBeNull();
   });
 
   it('Edit workout is shown as phone-only for now (reverse ledger row)', () => {

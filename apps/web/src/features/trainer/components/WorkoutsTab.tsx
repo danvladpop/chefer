@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDayWithWeekday } from '@/features/coaching/lib/dates';
 import { trpc } from '@/lib/trpc';
 import {
+  BOOKING_COPY,
   COACHING_COPY,
   EXERCISE_BY_ID,
   type CoachedWorkoutDto,
@@ -71,6 +72,11 @@ export function WorkoutList({
                 {!typeLine && workout.durationMin !== null && ` · ${workout.durationMin} min`}
               </p>
             </div>
+            {workout.loggedByTrainer && (
+              <p className="mt-1 text-xs text-gray-500" data-testid="trainer-workout-logged-by">
+                {BOOKING_COPY.coach.loggedByYou}
+              </p>
+            )}
             {typeLine && (
               <p className="mt-1 text-sm text-gray-700" data-testid="trainer-workout-type">
                 {typeLine}
