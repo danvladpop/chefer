@@ -163,8 +163,4 @@ export const TRAINER_MODE_COPY = {
     feedback: 'Send feedback',
     turnOff: 'Turn off trainer tools',
   },
-  comingSoon: {
-    scheduleTitle: 'Your calendar is on its way',
-    scheduleBody: 'Bookings and blocked time arrive in a coming update.',
-  },
 } as const;

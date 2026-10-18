@@ -38,7 +38,13 @@ export const localTimeSchema = z
   .regex(/^([01]\d|2[0-3]):[0-5][05]$/, 'Expected HH:MM in 5-minute steps');
 
 export const BOOKING_DURATION_CHIPS = [30, 45, 60, 90] as const;
-export const bookingDurationSchema = z.number().int().min(15).max(240);
+/** A booking lasts 15–240 minutes (the editor's custom duration and the API agree). */
+export const BOOKING_DURATION_LIMITS = { min: 15, max: 240 } as const;
+export const bookingDurationSchema = z
+  .number()
+  .int()
+  .min(BOOKING_DURATION_LIMITS.min)
+  .max(BOOKING_DURATION_LIMITS.max);
 
 /**
  * What the client will do in the slot (§6.3):
@@ -284,6 +290,14 @@ export const BOOKING_COPY = {
     /** Full label for a calendar block (§12): "Tuesday 18:00 to 19:00, Maria, Lower body A". */
     blockLabel: (when: string, who: string, what: string | null) =>
       [when, who, what].filter(Boolean).join(', '),
+    /** The spoken "when" of a block: "Tuesday 18:00 to 19:00". */
+    when: (weekday: string, start: string, end: string) => `${weekday} ${start} to ${end}`,
+    previousWeek: 'Previous week',
+    nextWeek: 'Next week',
+    previousDay: 'Previous day',
+    nextDay: 'Next day',
+    view: 'View',
+    days: 'Days',
   },
   editor: {
     newTitle: 'New booking',
@@ -315,6 +329,20 @@ export const BOOKING_COPY = {
     thisOnly: 'This booking',
     following: 'This and following',
     needsClient: 'Pick at least one client.',
+    /** A date stepper's buttons: "Date: earlier" / "Date: later". */
+    earlier: (field: string) => `${field}: earlier`,
+    later: (field: string) => `${field}: later`,
+    /** Under the custom duration field: "min · 15–240". */
+    customHint: (min: number, max: number) => `min · ${min}–${max}`,
+    customLabel: (min: number, max: number) => `Duration (${min}–${max} min)`,
+    validation: {
+      date: 'Pick a date.',
+      time: 'Pick a start time in 5-minute steps.',
+      duration: (min: number, max: number) => `Between ${min} and ${max} minutes.`,
+      until: 'Pick a date after the first booking.',
+      maxWeeks: (n: number) => `At most ${n} weeks.`,
+      maxChars: (n: number) => `Up to ${n} characters.`,
+    },
   },
   detail: {
     title: 'Booking',
@@ -335,6 +363,8 @@ export const BOOKING_COPY = {
   },
   today: {
     nextBooking: 'Next booking',
+    /** A client row / the Today link: "Next booking: Tue 21 Oct, 18:00". */
+    nextOn: (when: string) => `Next booking: ${when}`,
     noBookingsToday: 'No bookings today',
     todaysBookings: 'Later today',
     unmarked: (n: number) => `${n} past ${plural(n, 'booking needs', 'bookings need')} attendance`,
@@ -361,6 +391,22 @@ export const BOOKING_COPY = {
     loggedBy: (trainer: string) => `Logged by ${trainer}`,
     loggedByYou: 'Logged by you',
     miniBar: (name: string) => `Coaching ${name}`,
+    starting: 'Getting their workout ready…',
+    needsConnection: 'Starting this workout needs a connection the first time.',
+    needsConnectionBody: 'Open the booking once while online and it will start offline after that.',
+    setUpRoutine: (name: string) => `Set up ${name}’s routine`,
+    allLogged: 'Everyone’s workout is logged',
+    saved: (name: string) => `${name}’s workout is saved.`,
+    waitingToUpload: (name: string) => `${name}’s workout is finished and waiting to upload.`,
+    /** Finish everyone leaves out clients with nothing ticked. */
+    leftOut: (names: readonly string[]) =>
+      `${names.join(', ')} ${names.length === 1 ? 'has' : 'have'} no sets ticked and won’t be saved with Finish everyone.`,
+    unticked: (n: number, name: string) =>
+      `${n} of ${name}’s ${plural(n, 'set is', 'sets are')} not ticked. They won’t count.`,
+    finishTitle: 'Finish workouts',
+    keepGoing: 'Keep going',
+    back: 'Back',
+    switcherLabel: 'Clients in this booking',
   },
   client: {
     card: (trainer: string, when: string) => `Session with ${trainer} · ${when}`,
@@ -373,6 +419,7 @@ export const BOOKING_COPY = {
   reminders: {
     setting: 'Booking reminders',
     settingHint: 'A reminder an hour before each booking.',
+    off: 'Booking reminders are off',
     clientBody: (trainer: string) => `Session with ${trainer} in 1 hour`,
     trainerBody: (time: string, who: string, what: string | null) =>
       [`${time} ${who}`, what].filter(Boolean).join(' · '),

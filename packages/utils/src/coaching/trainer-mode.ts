@@ -84,7 +84,8 @@ export function summarizeTrainerDashboard(input: {
 
 // ─── Clients tab (§6.4) ───────────────────────────────────────────────────────
 
-export type ClientSort = 'name' | 'lastWorkout';
+/** Name, last workout, or (M3) next booking. */
+export type ClientSort = 'name' | 'lastWorkout' | 'nextBooking';
 
 /** Every query token is a prefix of a name token ("ma po" finds "Maria Pop"); an empty query keeps all. */
 export function filterClients<T extends Pick<ClientRowDto, 'name' | 'label'>>(
@@ -100,13 +101,22 @@ export function filterClients<T extends Pick<ClientRowDto, 'name' | 'label'>>(
   );
 }
 
-/** Name A→Z; or the most recent workout first, with never-trained clients last. */
-export function sortClients<T extends Pick<ClientRowDto, 'name' | 'lastWorkoutDate'>>(
-  rows: readonly T[],
-  sort: ClientSort,
-): T[] {
+/**
+ * Name A→Z; the most recent workout first (never-trained clients last); or
+ * the soonest next booking first (clients with none last, by name).
+ */
+export function sortClients<
+  T extends Pick<ClientRowDto, 'name' | 'lastWorkoutDate' | 'nextBookingAt'>,
+>(rows: readonly T[], sort: ClientSort): T[] {
   const byName = (a: T, b: T) => a.name.localeCompare(b.name);
   if (sort === 'name') return [...rows].sort(byName);
+  if (sort === 'nextBooking') {
+    return [...rows].sort((a, b) => {
+      const x = a.nextBookingAt ? Date.parse(a.nextBookingAt) : Infinity;
+      const y = b.nextBookingAt ? Date.parse(b.nextBookingAt) : Infinity;
+      return x === y ? byName(a, b) : x - y;
+    });
+  }
   return [...rows].sort((a, b) => {
     if (a.lastWorkoutDate === b.lastWorkoutDate) return byName(a, b);
     if (a.lastWorkoutDate === null) return 1;

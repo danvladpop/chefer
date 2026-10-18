@@ -389,6 +389,26 @@ export {
   type ActiveRoutineStamp,
 } from './coaching-content.repository';
 
+// Trainer mode bookings (docs/prd-2026-10/trainer-mode.md §8.2)
+export {
+  BookingRepository,
+  bookingRepository,
+  cancelFutureBookingsTx,
+  MAX_BOOKING_DURATION_MIN,
+  type IBookingRepository,
+  type BookingWithClients,
+  type BookingsForExport,
+  type BookingWriteData,
+  type BookingTimeData,
+  type BookingClientWriteData,
+  type SeriesWriteData,
+  type CreateBookingsData,
+  type BookingRowEdit,
+  type BookingEditPlan,
+  type BookingEditResult,
+  type CancelledForClientsResult,
+} from './booking.repository';
+
 // Trainer mode templates (docs/prd-2026-10/trainer-mode.md §6.6)
 export {
   WorkoutTemplateRepository,

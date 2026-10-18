@@ -4,3 +4,4 @@ export * from './routine-changes';
 export * from './trainer-mode';
 export * from './templates';
 export * from './booking-time';
+export * from './bookings';

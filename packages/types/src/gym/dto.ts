@@ -203,6 +203,13 @@ export interface NextWorkoutDto {
   exercises: NextWorkoutExerciseDto[];
 }
 
+/**
+ * `gym.session.get`: the stored session in the uploaded doc shape, plus — for a
+ * coached workout, level 8+ or web — who logged it ("Logged by Ana"), so the
+ * detail screen can say so beyond the bootstrap history window (additive).
+ */
+export type WorkoutSessionDetailDto = WorkoutSessionDoc & { loggedBy?: { name: string } };
+
 /** Compact past session for offline history, last-time columns and PR detection. */
 export interface SessionSummaryDto {
   id: string;

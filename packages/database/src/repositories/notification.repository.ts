@@ -25,6 +25,11 @@ export const COACHING_NOTIFICATION_KINDS = [
   'COACHING_REQUEST_DECLINED',
   'COACHING_ROUTINE_UPDATED',
   'COACHING_ENDED',
+  // Trainer mode M3 (§7.1): client-side booking and coached-workout notices.
+  'COACHING_BOOKING_CREATED',
+  'COACHING_BOOKING_CHANGED',
+  'COACHING_BOOKING_CANCELLED',
+  'COACHING_WORKOUT_LOGGED',
 ] as const satisfies readonly NotificationKind[];
 export type CoachingNotificationKindDb = (typeof COACHING_NOTIFICATION_KINDS)[number];
 
@@ -76,8 +81,17 @@ export interface INotificationRepository {
   ): Promise<Notification | null>;
   /** Create, or refresh the (userId, kind, actorId) row: new payload, createdAt = now, unread. */
   upsertCoaching(data: CoachingNotificationData): Promise<Notification>;
-  /** The recipient's coaching notices: unread ones, and read ones created at or after `since`. Newest first. */
-  listCoaching(userId: string, since: Date, limit: number): Promise<Notification[]>;
+  /**
+   * The recipient's coaching notices: unread ones, and read ones created at or
+   * after `since`. Newest first. `excludeKinds`: kinds the caller's app cannot
+   * render (filtered in the query, so they never crowd out the limit).
+   */
+  listCoaching(
+    userId: string,
+    since: Date,
+    limit: number,
+    excludeKinds?: readonly CoachingNotificationKindDb[],
+  ): Promise<Notification[]>;
   /** Marks one of the recipient's coaching notices read. False when it isn't theirs. */
   markCoachingRead(userId: string, id: string): Promise<boolean>;
   /** Withdraws one coaching notice (a cancelled request disappears from the trainer's list). */
@@ -180,11 +194,17 @@ export class NotificationRepository implements INotificationRepository {
     });
   }
 
-  async listCoaching(userId: string, since: Date, limit: number): Promise<Notification[]> {
+  async listCoaching(
+    userId: string,
+    since: Date,
+    limit: number,
+    excludeKinds: readonly CoachingNotificationKindDb[] = [],
+  ): Promise<Notification[]> {
+    const excluded = new Set<string>(excludeKinds);
     return prisma.notification.findMany({
       where: {
         userId,
-        kind: { in: [...COACHING_NOTIFICATION_KINDS] },
+        kind: { in: COACHING_NOTIFICATION_KINDS.filter((k) => !excluded.has(k)) },
         OR: [{ readAt: null }, { createdAt: { gte: since } }],
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

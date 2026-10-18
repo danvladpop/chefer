@@ -48,6 +48,8 @@ export interface AcceptRequestData {
   source: string;
   documentVersion: string;
   now: Date;
+  /** Trainer mode M3 (§10): the consent copy version stored on the new link (default 1). */
+  consentCopyVersion?: number;
 }
 
 export type AcceptRequestResult =
@@ -223,6 +225,9 @@ export class CoachingRequestRepository implements ICoachingRequestRepository {
           documentVersion: data.documentVersion,
           now: data.now,
           writeGrantedEvent: false,
+          ...(data.consentCopyVersion !== undefined && {
+            consentCopyVersion: data.consentCopyVersion,
+          }),
         });
         return {
           status: 'accepted',

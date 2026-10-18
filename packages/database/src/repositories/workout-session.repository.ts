@@ -104,6 +104,14 @@ export interface UpsertSessionOptions {
    * the same session never advance the routine twice).
    */
   rotation: { routineId: string; nextDayId: string | null } | null;
+  /**
+   * Trainer mode M3 (§8.3): a coached workout. `loggedById` (the trainer, from
+   * the server's ctx) and `bookingId` are stored; an existing row someone else
+   * logged (the client, or another trainer) is `foreign` — a trainer can never
+   * overwrite the client's own workouts. Omitted = the owner's own write, which
+   * leaves both columns as they are.
+   */
+  coached?: { loggedById: string; bookingId: string | null };
 }
 
 export interface SessionCursor {
@@ -166,9 +174,12 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.workoutSession.findUnique({
         where: { id: doc.id },
-        select: { userId: true, clientUpdatedAt: true, status: true },
+        select: { userId: true, clientUpdatedAt: true, status: true, loggedById: true },
       });
       if (existing && existing.userId !== userId) return { status: 'foreign' };
+      if (existing && opts.coached && existing.loggedById !== opts.coached.loggedById) {
+        return { status: 'foreign' };
+      }
       if (existing && existing.clientUpdatedAt.getTime() > doc.clientUpdatedAt.getTime()) {
         return { status: 'stale' };
       }
@@ -194,6 +205,10 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
         clientUpdatedAt: doc.clientUpdatedAt,
         engineVersion: doc.engineVersion,
         workoutType: doc.workoutType,
+        ...(opts.coached && {
+          loggedById: opts.coached.loggedById,
+          bookingId: opts.coached.bookingId,
+        }),
       };
       await tx.workoutSession.upsert({
         where: { id: doc.id },
