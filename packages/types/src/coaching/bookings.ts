@@ -141,6 +141,13 @@ export const markAttendanceInputSchema = z.object({
   attendance: z.enum(['ATTENDED', 'NO_SHOW', 'SCHEDULED']),
 });
 
+/** `trainer.client.bookings` (client detail → Bookings tab, §6.5). */
+export const clientBookingsInputSchema = z.object({
+  clientId: coachingClientIdSchema,
+  /** The trainer's device-local date ("this month" / "last month" are judged from it). */
+  today: localDateSchema,
+});
+
 // ─── Coached workouts (§6.7, §8.3) ────────────────────────────────────────────
 
 /** `trainer.coach.start`: the client's prescription, the same shape the client's own logger gets. */
@@ -237,6 +244,17 @@ export interface CoachStartDto {
 }
 
 export type CoachSyncResultDto = UpsertSessionsResultDto;
+
+/** `trainer.client.bookings`: one client's bookings with this trainer. */
+export interface TrainerClientBookingsDto {
+  /** Not yet ended, soonest first (cancelled ones included, greyed). */
+  upcoming: TrainerBookingDto[];
+  /** Ended, newest first, the last 90 days. */
+  past: TrainerBookingDto[];
+  /** Attended bookings in the trainer's current / previous calendar month. */
+  deliveredThisMonth: number;
+  deliveredLastMonth: number;
+}
 
 /** Sessions delivered this month (§6.1, O-4): bookings marked attended, per client. */
 export interface SessionsDeliveredDto {
