@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { localDateSchema } from '../gym/schemas';
+import type { SessionsDeliveredDto, TrainerBookingDto } from './bookings';
 
 // ─── Trainer mode (docs/prd-2026-10/trainer-mode.md) ──────────────────────────
 // The second app shell for coaching: Schedule · Clients · Today · Workouts ·
@@ -79,8 +80,16 @@ export interface TrainerDashboardSummaryDto {
   averageAdherence: number | null;
   /** Most inactive first. */
   quietClients: TrainerQuietClientDto[];
-  /** Bookings this week (scheduled vs done). Null until bookings exist (M3). */
+  /** Bookings this week (scheduled vs done; blocked time and cancelled ones excluded). Null from an M1 server. */
   bookingsThisWeek: { scheduled: number; done: number } | null;
+  /** Additive (M3): the next booking that has not ended, today or later. */
+  nextBooking?: TrainerBookingDto | null;
+  /** Additive (M3): the rest of today's bookings after `nextBooking`. */
+  todayBookings?: TrainerBookingDto[];
+  /** Additive (M3): past bookings with a client still SCHEDULED ("Mark attendance"). */
+  unmarkedAttendance?: TrainerBookingDto[];
+  /** Additive (M3): attended bookings this calendar month, per current client. */
+  sessionsDelivered?: SessionsDeliveredDto[];
 }
 
 // ─── Copy shared by web and mobile ────────────────────────────────────────────

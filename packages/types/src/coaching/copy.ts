@@ -14,6 +14,15 @@ import type { RoutineChange } from './dto';
 /** Shown instead of a trainer's name when that account is gone ("Changed by your trainer"). */
 export const FALLBACK_TRAINER_NAME = 'your trainer';
 
+/**
+ * The coaching consent screen's copy version (trainer mode M3, §10). v2 added
+ * "book sessions" and "log workouts". New links record it; a client who agreed
+ * to an older version sees a one-time notice (`coaching.status.consentUpdate`),
+ * never a re-consent gate. The consent event's `documentVersion` carries it as
+ * `<privacy version>+coaching-v<N>`.
+ */
+export const COACHING_CONSENT_COPY_VERSION = 2;
+
 /** Consent-history labels (`COACHING_SHARING` rows), keyed by `granted`. */
 export const COACHING_CONSENT_LABELS = {
   granted: 'Trainer access allowed',
@@ -43,6 +52,9 @@ export const COACHING_COPY = {
     can: (trainer: string) => [
       'Change your routine (exercises, sets, reps, rest, notes on exercises) and set your weights and reps for the next session.',
       `You’ll see what ${trainer} changed. You can change it too.`,
+      // Consent copy v2 (trainer mode M3, §10): see COACHING_CONSENT_COPY_VERSION.
+      `Book sessions with you. You’ll see when and where; other clients in a group session never see your name.`,
+      `Log workouts for you. They go into your history as “Logged by ${trainer}”.`,
     ],
     privateNotes: (trainer: string) =>
       `${trainer} can keep private notes about you. You won’t see them. Chefer never reads or uses them.`,

@@ -8,7 +8,8 @@
  * consent rows and the coaching routers' errors (spec §10). The header is one
  * shared counter across features (apps/api/src/application/gym/client-level.ts):
  * 3 = cardio, 4 = health consent, 5 = free (INTERVALS used to sit here), 6 =
- * coaching, 7 = INTERVALS. The API gates on the RAW `ctx.clientApiLevel`, not
+ * coaching, 7 = free (INTERVALS until trainer mode), 8 = trainer mode
+ * (bookings), 9 = INTERVALS. The API gates on the RAW `ctx.clientApiLevel`, not
  * `effectiveLevel()` (that one caps gym tracking types by the cardio flag).
  *
  * Level 5 stays unused on purpose: levels are cumulative ("a bundle that sends
@@ -16,8 +17,19 @@
  */
 export const COACHING_API_LEVEL = 6;
 
-/** The level INTERVALS moved to when coaching claimed 6 (Q-8, spec §10). */
-export const INTERVALS_API_LEVEL = 7;
+/**
+ * Trainer mode M3 (trainer-mode.md §9): a client at this level renders the
+ * booking and coached-workout notices (BOOKING_* / COACHED_WORKOUT_LOGGED),
+ * `coaching.status.consentUpdate` and the "Logged by" history label. The
+ * server filters those notice kinds out for anything below it.
+ */
+export const TRAINER_MODE_API_LEVEL = 8;
+
+/**
+ * The level INTERVALS is reserved at: 7 after coaching claimed 6 (Q-8, spec
+ * §10), moved to 9 when trainer mode claimed 8. No bundle implements it yet.
+ */
+export const INTERVALS_API_LEVEL = 9;
 
 export const COACHING_LIMITS = {
   /** Invite codes: 10 chars of Crockford base32 from crypto random. */

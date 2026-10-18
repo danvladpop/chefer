@@ -215,6 +215,8 @@ export interface SessionSummaryDto {
   isDeload: boolean;
   /** Simple training mode: the workout's type, when it has one (additive). */
   workoutType?: WorkoutType;
+  /** Trainer mode M3 (level 8+): a coached workout — the trainer logged it ("Logged by Ana"). */
+  loggedBy?: { name: string };
   exercises: {
     exerciseId: string;
     skipped: boolean;

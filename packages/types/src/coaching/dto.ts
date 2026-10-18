@@ -82,6 +82,8 @@ export interface ClientRowDto {
    * trainer sees a badge and can never change the style.
    */
   keepItSimple?: boolean;
+  /** Additive (trainer mode M3): the client's next booking with this trainer, ISO start, or null. */
+  nextBookingAt?: string | null;
 }
 
 // ─── Workouts and adherence ───────────────────────────────────────────────────
@@ -127,6 +129,8 @@ export interface CoachedWorkoutDto {
    * logged one with no exercises: "Yoga · 45 min". Never calories (D-8).
    */
   workoutType?: WorkoutType | null;
+  /** Additive (trainer mode M3): the trainer viewing it logged it for the client ("Logged by you"). */
+  loggedByTrainer?: true;
   exercises: CoachedExerciseDto[];
 }
 
@@ -289,6 +293,13 @@ export interface CoachingStatusDto {
    * trainer now: "Ana stopped coaching you".
    */
   stopped: { trainerName: string; at: string } | null;
+  /**
+   * Additive (trainer mode M3, §10): the coaching consent gained lines since
+   * this client agreed to it ("bookings and logged workouts"). A one-time
+   * notice, not a gate: `coaching.acknowledgeConsentUpdate` records the new
+   * copy version. Absent below TRAINER_MODE_API_LEVEL.
+   */
+  consentUpdate?: { trainerName: string; version: number } | null;
 }
 
 // ─── Find a trainer and coaching requests (PRD 2026-10 §4.1) ──────────────────
@@ -369,7 +380,15 @@ export type CoachingNoticeKind =
   /** Either side: the other one changed the client's routine. */
   | 'ROUTINE_UPDATED'
   /** Either side: the coaching ended (the other side ended it, or the trainer stopped being a trainer). */
-  | 'COACHING_ENDED';
+  | 'COACHING_ENDED'
+  /** Client (level 8+): the trainer booked them (one notice per series). */
+  | 'BOOKING_CREATED'
+  /** Client (level 8+): a booking moved or changed. */
+  | 'BOOKING_CHANGED'
+  /** Client (level 8+): a booking was cancelled (with the reason, if any). */
+  | 'BOOKING_CANCELLED'
+  /** Client (level 8+): the trainer logged a workout for them. */
+  | 'COACHED_WORKOUT_LOGGED';
 
 export interface CoachingNoticeDto {
   id: string;
@@ -386,4 +405,17 @@ export interface CoachingNoticeDto {
   changes?: RoutineChange[];
   /** COACHING_ENDED only: who ended it. SYSTEM = trainer tools off, removed from the allowlist, or account deleted. */
   endedBy?: 'CLIENT' | 'TRAINER' | 'SYSTEM';
+  /**
+   * BOOKING_* only (level 8+): the booking's start (ISO) and zone, whether it
+   * repeats weekly, and the cancel reason the trainer gave.
+   */
+  booking?: {
+    bookingId: string;
+    startsAt: string;
+    timeZone: string;
+    weekly: boolean;
+    reason: string | null;
+  };
+  /** COACHED_WORKOUT_LOGGED only: the session to open. */
+  workoutSessionId?: string;
 }
