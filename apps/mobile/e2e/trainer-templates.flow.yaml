@@ -169,7 +169,17 @@ env:
 - tapOn:
     id: 'routine-editor-day-template-exercise-.*-default-load-field-input'
 - inputText: '60'
-- hideKeyboard
+# A number pad has no Return key on iOS: close it with the field's Done bar (hideKeyboard throws there).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Done'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - extendedWaitUntil:
     visible:
       id: 'template-editor-status'
@@ -180,12 +190,11 @@ env:
 # ── Back to the library: the template is listed ──────────────────────────────
 - tapOn:
     id: 'template-editor-header-back'
+# The row is one button whose label joins its lines (iOS exposes only that label): match the whole of it.
 - extendedWaitUntil:
-    visible: 'Lower body M'
+    visible: 'Lower body M.*1 exercise.*Not assigned yet.*'
     timeout: 10000
-- assertVisible: '1 exercise.*'
-- assertVisible: 'Not assigned yet.*'
-- tapOn: 'Lower body M'
+- tapOn: 'Lower body M.*'
 - extendedWaitUntil:
     visible:
       id: 'template-editor'
