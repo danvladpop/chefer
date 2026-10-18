@@ -14,6 +14,7 @@ import type {
   WeekStatus,
   WorkoutType,
 } from '../gym';
+import type { RoutineDayTemplateRefDto } from './templates';
 
 // ─── Availability ─────────────────────────────────────────────────────────────
 
@@ -221,6 +222,11 @@ export interface TrainerRoutineDayDto {
   plannedWeekday: number | null;
   /** Additive (2026-10-17): a My week day's workout type ("Tue · Yoga"); a type-only day has no exercises. */
   workoutType?: WorkoutType | null;
+  /**
+   * Additive (trainer mode M2): the day was copied from one of the trainer's
+   * templates ("Based on Lower body A"); null or absent otherwise.
+   */
+  template?: RoutineDayTemplateRefDto | null;
   exercises: TrainerRoutineExerciseDto[];
 }
 

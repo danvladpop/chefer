@@ -261,6 +261,7 @@ model User {
   coachingNotesWritten   CoachingNote[]    @relation("CoachingNotesWritten")
   coachingNotesAbout     CoachingNote[]    @relation("CoachingNotesAbout")
   routinesEdited         Routine[]         @relation("RoutineEditedBy")
+  workoutTemplates       WorkoutTemplate[] @relation("WorkoutTemplates")
   coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
   coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
@@ -1375,9 +1376,10 @@ model Exercise {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
-  owner            User?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  routineExercises RoutineExercise[]
-  sessionExercises SessionExercise[]
+  owner             User?                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  routineExercises  RoutineExercise[]
+  sessionExercises  SessionExercise[]
+  templateExercises WorkoutTemplateExercise[]
 
   @@index([ownerId])
   @@index([updatedAt])
@@ -1452,18 +1454,28 @@ model Routine {
 }
 
 model RoutineDay {
-  id             String       @id @default(cuid())
-  routineId      String
-  position       Int
-  name           String
-  plannedWeekday Int? // 0 = Monday … 6 = Sunday
+  id                  String       @id @default(cuid())
+  routineId           String
+  position            Int
+  name                String
+  plannedWeekday      Int? // 0 = Monday … 6 = Sunday
   /// My week (ADR 0001): "Tue · Yoga". A day may have no exercises.
-  workoutType    WorkoutType?
+  workoutType         WorkoutType?
+  /// Trainer mode templates (trainer-mode.md §8.1): the day was copied from a
+  /// template. No foreign key on purpose — the copy outlives the template.
+  templateId          String?
+  templateVersion     Int?
+  templateAssignedAt  DateTime?
+  /// The template's name when it was copied, for "Based on …" once the template is gone.
+  templateName        String?
+  /// Set by any routine save that changed this day's exercises after the copy.
+  editedSinceTemplate Boolean      @default(false)
 
   routine   Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises RoutineExercise[]
 
   @@index([routineId])
+  @@index([templateId])
   @@map("routine_days")
 }
 
@@ -1926,4 +1938,48 @@ model UploadedFile {
 
   @@index([userId, createdAt])
   @@map("uploaded_files")
+}
+
+// ─── Trainer mode: templates (docs/prd-2026-10/trainer-mode.md §8.1) ──────────
+
+/// A reusable workout a trainer builds once and assigns to clients (copied into
+/// each client's routine). Soft delete: `deletedAt` hides it; the coaching
+/// maintenance worker purges it 30 days later. Clients' copies are never touched.
+model WorkoutTemplate {
+  id          String       @id @default(cuid())
+  trainerId   String
+  name        String // max 40
+  workoutType WorkoutType?
+  version     Int          @default(1) // optimistic concurrency for autosave
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  trainer   User                      @relation("WorkoutTemplates", fields: [trainerId], references: [id], onDelete: Cascade)
+  exercises WorkoutTemplateExercise[]
+
+  @@index([trainerId, deletedAt])
+  @@map("workout_templates")
+}
+
+/// One row of a template: the routine row's shape plus an optional default load.
+model WorkoutTemplateExercise {
+  id            String  @id @default(cuid())
+  templateId    String
+  exerciseId    String // curated library exercises only
+  position      Int
+  sets          Int
+  repMin        Int
+  repMax        Int
+  targetRir     Int     @default(2)
+  restSec       Int
+  supersetGroup String?
+  defaultLoadKg Float?
+  trainerNote   String? // max 200, the client sees it on the copy
+
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id])
+
+  @@index([templateId])
+  @@map("workout_template_exercises")
 }
