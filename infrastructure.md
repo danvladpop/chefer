@@ -537,6 +537,19 @@ API, Maestro E2E in `e2e/`).
   `prepare-photo.ts`), so the same JS still runs on a binary built before it — Android then
   falls back to the titled text share. `react-native-gesture-handler` is **not** a direct
   dependency (transitive only; swipe-to-remove is PanResponder-based, Q-17)
+- **Password save on Android (F8, native release for 1.0.2): local Expo module `modules/chefer-credentials`**
+  (Android only, autolinked from `apps/mobile/modules/`; `androidx.credentials:credentials` +
+  `credentials-play-services-auth` 1.6.0 in its own `android/build.gradle`). One function,
+  `savePassword(username, password)`: Credential Manager `createCredential(CreatePasswordRequest)` from the current
+  activity, then `AutofillManager.cancel()` on the UI thread; resolves `saved` / `cancelled` / `unavailable` (other
+  provider errors reject). JS: `src/features/auth/save-credentials.ts` `saveCredentials(email, password)` looks the module
+  up with `requireOptionalNativeModule('CheferCredentials')` (null on iOS and on binaries built before it → no-op), saves
+  the email trimmed and lower-cased like the API, never throws, logs `[credentials] …` without the password. Called after
+  `setToken` on a successful email sign-up (V3 `app/(auth)/register.tsx`, V4 `onboarding-v4/account-v4.tsx`) and a
+  successful sign-in whose password was typed (`login.tsx` + `src/features/auth/password-entry.ts` — a password-manager
+  fill is already saved). iOS has no module on purpose: its own save prompt works with the `webcredentials` entitlement
+  and an explicit save stacked a second sheet (`docs/research/password-autofill.md` §11–§12). New native code → new
+  runtime fingerprint (§11 build pipeline)
 - **Sign in with Google / Apple (WP-22, native release 2).** Two new native modules, so this needs a **new binary**
   and changes the runtime fingerprint (§11): `expo-apple-authentication` (`~57.0.2`; Apple's own `AppleAuthenticationButton`,
   iOS only) and `@react-native-google-signin/google-signin` (`^16.1.5`; native Google sheet via Credential Manager /
@@ -1379,8 +1392,9 @@ the primitives, so every screen inherits it; `apps/mobile/tests/unit/keyboard-di
   `emailAddress` left iOS without a username, so it suggested a strong password but never offered to save it.
   Sources in `docs/research/password-autofill.md`; pinned by `tests/unit/password-autofill.test.tsx`). The web auth
   forms already use `type=password` + `autocomplete` `current-password` / `new-password` / `username`
-  (`credential-fields.test.tsx`, `auth-autofill.test.tsx`). iOS strong-password suggestion / Keychain saving also
-  need the `webcredentials` associated domain, which production builds carry (§ build-time config below).
+  (`credential-fields.test.tsx`, `auth-autofill.test.tsx`). iOS saves to the Keychain under the `webcredentials`
+  associated domain, which production builds carry (§ build-time config below); Android needs the explicit
+  Credential Manager save (`chefer-credentials`, §4.3) because React Native never commits the autofill session.
 
 Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
 `glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).
@@ -4204,6 +4218,13 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   there, should it ever run on one). A new binary is required — bump `version` if it ships as a new store version. The
   fingerprint covers the config plugins and `ios.associatedDomains`, so build and publish with the same
   `GOOGLE_IOS_URL_SCHEME` / `EXPO_PUBLIC_API_URL` / `EXPO_APPLE_TEAM_ID` (see the runbook in §10).
+
+- **Native release 3 (F8, ships in 1.0.2): `modules/chefer-credentials`.** A local Expo module (Android only,
+  `androidx.credentials` 1.6.0) for the explicit password save. Like releases 1 and 2 it changes the runtime
+  fingerprint: once merged, OTA updates from master target only binaries built after it, so the 1.0.1 store binaries
+  stop receiving them. Merge it together with the other 1.0.2 native changes and build once. The JS is safe on older
+  binaries (`requireOptionalNativeModule` → no-op), so an OTA built from this code would not break them — it just
+  can't reach them.
 
 - **API compatibility:** web/API deploy on push to master; an OTA update
   goes live when published. Publish only after the API it depends on is

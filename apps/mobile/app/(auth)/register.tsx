@@ -28,6 +28,7 @@ import {
   getRegisterDraft,
   setRegisterDraft,
 } from '../../src/features/auth/register-draft';
+import { saveCredentials } from '../../src/features/auth/save-credentials';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
@@ -95,7 +96,7 @@ function RegisterForm() {
 
   const register = trpc.auth.register.useMutation({
     meta: { silent: true },
-    onSuccess: async (data) => {
+    onSuccess: async (data, account) => {
       track('signup_completed', {});
       clearRegisterDraft();
       if (data.session) {
@@ -113,6 +114,8 @@ function RegisterForm() {
           clearPendingOnboarding();
           throw err;
         }
+        // F8: offer the new account's credential (Android; see save-credentials.ts).
+        void saveCredentials(account.email, account.password);
       }
     },
   });
