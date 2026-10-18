@@ -209,6 +209,10 @@ beforeEach(() => {
 });
 
 describe('Onboarding V4', () => {
+  // Each test drives the whole flow (up to eight steps, the week build and the reveal): ~3 s
+  // locally, 2-3x that on CI runners, where Jest's 5 s default made the longest one flaky.
+  jest.setTimeout(20_000);
+
   it('meals + train: saves, builds and reveals the week, offers Premium, sets up training, lands on Today', async () => {
     const user = await renderFlow();
     expect(screen.getByTestId('onb-v4-continue')).toBeDisabled();
