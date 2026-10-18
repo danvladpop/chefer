@@ -29,6 +29,9 @@ export interface RoutineExerciseDraft {
   /** Trainer coaching: the trainer's cue for this exercise. The trainer's editor writes it, the client's
    * editor can only clear it (`gym.routine.save` `clearTrainerNoteIds`). Absent below API level 6. */
   trainerNote?: string | null;
+  /** Trainer mode M2 (a template's row only): the suggested starting weight in kg; null = each client's
+   * history decides. Absent on routine rows. */
+  defaultLoadKg?: number | null;
   /** Trainer coaching: this row was last changed by the other person (display only). */
   lastEditedByOther?: EditStamp;
 }

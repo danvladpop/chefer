@@ -22,6 +22,7 @@ import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
 import { ShellTopBar } from '../../shell/shell-chrome';
 import { TrainerNotices, trainerNoticeTitle } from '../../trainer/home/trainer-notices';
 import { InviteSheet } from '../../trainer/invite/invite-screen';
+import { NEW_TEMPLATE_HREF } from '../templates/library-screen';
 import { useTrainerBadges } from '../use-trainer-mode';
 import { clockTime, QuietClientRow, RequestsCard, WeekStats } from './today-parts';
 
@@ -124,8 +125,8 @@ export function TrainerTodayScreen() {
                 description={COPY.emptyBody}
                 className="py-4"
               />
-              {/* §6.1 empty state. "Add a booking" joins with bookings (M3); a
-                  template's tab is there already, with what is coming. */}
+              {/* §6.1 empty state. "Add a booking" joins with bookings (M3); "Build a
+                  template" opens the editor on a new template (M2). */}
               <ListSection>
                 <ListRow
                   testID="trainer-today-invite"
@@ -137,7 +138,7 @@ export function TrainerTodayScreen() {
                   testID="trainer-today-build-template"
                   title={COPY.buildTemplate}
                   icon={<Icon name="workouts" color={colors.brand} />}
-                  onPress={() => router.navigate('/(trainer)/workouts')}
+                  onPress={() => router.push(NEW_TEMPLATE_HREF)}
                 />
               </ListSection>
             </View>

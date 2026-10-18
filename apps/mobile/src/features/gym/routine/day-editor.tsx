@@ -2,7 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { elevation } from '@chefer/tokens';
-import { COACHING_COPY, COACHING_LIMITS, type ExerciseMeta } from '@chefer/types';
+import {
+  COACHING_COPY,
+  COACHING_LIMITS,
+  TEMPLATE_COPY,
+  type ExerciseMeta,
+  type WeightUnit,
+} from '@chefer/types';
 import {
   ConfirmSheet,
   DONE_FIELD_PROPS,
@@ -26,6 +32,7 @@ import {
   isSupersetWithNext,
   supersetRuns,
   supersetSlot,
+  takesStartingWeight,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { TrainButton } from '../../shell/train/train-button';
@@ -33,6 +40,7 @@ import { ExerciseNameLink } from '../components/exercise-name-link';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { newId } from '../offline/ids';
 import { ChangedByLine, TrainerNoteLine } from './attribution';
+import { DefaultLoadField, startingWeightSummary } from './default-load-field';
 import type { RoutineDraftAction } from './reducer';
 import {
   MAX_DAYS,
@@ -75,6 +83,10 @@ const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
  * - `client`: the client edits their own routine — a trainer note shows as "Ana: …" with "Remove note"
  *   (the client can clear a note, not rewrite it).
  * Both roles show "Changed by …" on rows the other person last changed.
+ * - `template` (trainer mode M2, trainer-mode.md §6.6): one workout template. The day's name, weekday
+ *   and day menu are gone (the screen owns the template's name and type); each row gets "Note for
+ *   clients" and, on weighted strength rows, an optional "Starting weight" in the trainer's unit. No
+ *   next-session slot: a template has no client yet.
  */
 export type DayEditorCoaching =
   | {
@@ -83,7 +95,8 @@ export type DayEditorCoaching =
       renderNext?: (exercise: RoutineExerciseDraft) => ReactNode;
       renderDayDetail?: (day: RoutineDayDraft) => ReactNode;
     }
-  | { role: 'client'; trainerName: string };
+  | { role: 'client'; trainerName: string }
+  | { role: 'template'; unit: WeightUnit };
 
 /** Rows animate their reflow only where Reanimated's layout transition is reliable (see ExerciseRow). */
 const ROW_LAYOUT_ANIMATED = Platform.OS === 'ios';
@@ -169,6 +182,16 @@ function SupersetTag({ label, testID }: { label: string; testID: string }) {
       className="rounded-full bg-brand-tint px-2 text-caption font-bold text-brand"
     >
       {label}
+    </Text>
+  );
+}
+
+/** A collapsed template row's "Starting weight 60 kg" (nothing when the row has none). */
+function TemplateLoadCaption({ testID, text }: { testID: string; text: string | null }) {
+  if (!text) return null;
+  return (
+    <Text testID={testID} className="text-caption text-label-secondary">
+      {text}
     </Text>
   );
 }
@@ -291,6 +314,12 @@ export function ExerciseRow({
             />
           ) : null}
           {coaching?.role === 'trainer' ? coaching.renderNext?.(exercise) : null}
+          {coaching?.role === 'template' && !expanded ? (
+            <TemplateLoadCaption
+              testID={`${testIDBase}-default-load`}
+              text={startingWeightSummary(exercise.defaultLoadKg, coaching.unit)}
+            />
+          ) : null}
         </View>
         <IconButton
           testID={`${testIDBase}-menu`}
@@ -377,6 +406,39 @@ export function ExerciseRow({
                 {(exercise.trainerNote ?? '').length} / {COACHING_LIMITS.trainerNoteMaxChars}
               </Text>
             </FormField>
+          ) : null}
+
+          {coaching?.role === 'template' ? (
+            <>
+              {takesStartingWeight(meta) ? (
+                <DefaultLoadField
+                  testID={`${testIDBase}-default-load-field`}
+                  weightKg={exercise.defaultLoadKg}
+                  unit={coaching.unit}
+                  onChange={(weightKg) =>
+                    set({ type: 'setDefaultLoad', dayKey: '', exerciseKey: exercise.key, weightKg })
+                  }
+                />
+              ) : null}
+              <FormField
+                testID={`${testIDBase}-trainer-note-field`}
+                label={TEMPLATE_COPY.editor.note}
+              >
+                <Input
+                  testID={`${testIDBase}-trainer-note-input`}
+                  label={TEMPLATE_COPY.editor.note}
+                  value={exercise.trainerNote ?? ''}
+                  maxLength={COACHING_LIMITS.trainerNoteMaxChars}
+                  multiline
+                  onChangeText={(note) =>
+                    set({ type: 'setTrainerNote', dayKey: '', exerciseKey: exercise.key, note })
+                  }
+                />
+                <Text variant="muted" className="text-xs">
+                  {(exercise.trainerNote ?? '').length} / {COACHING_LIMITS.trainerNoteMaxChars}
+                </Text>
+              </FormField>
+            </>
           ) : null}
 
           {/* MO-05: RIR + superset are expert settings, out of the way. */}
@@ -557,47 +619,56 @@ export function DayEditor({
   };
 
   const durationMin = estimateDurationMin(day, lookup);
+  // A template is one workout: its name and type live on the screen, and it has no weekday or day menu.
+  const isTemplate = coaching?.role === 'template';
+  const atExerciseLimit = day.exercises.length >= MAX_EXERCISES_PER_DAY;
 
   return (
     <View testID={testIDBase} className={CARD}>
-      <View className="flex-row items-center gap-1">
-        <Input
-          ref={nameRef}
-          testID={`${testIDBase}-name`}
-          className="flex-1"
-          value={day.name}
-          maxLength={40}
-          onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
-          onFocus={() => scrollFieldIntoView(nameRef.current)}
-          {...DONE_FIELD_PROPS}
-          placeholder="Day name"
-        />
-        <IconButton
-          testID={`${testIDBase}-up`}
-          accessibilityLabel="Move day up"
-          variant="tinted"
-          disabled={index === 0}
-          onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'up' })}
-          icon={<Icon name="chevronUp" color={colors.brand} size={20} />}
-        />
-        <IconButton
-          testID={`${testIDBase}-down`}
-          accessibilityLabel="Move day down"
-          variant="tinted"
-          disabled={index === dayCount - 1}
-          onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'down' })}
-          icon={<Icon name="chevronDown" color={colors.brand} size={20} />}
-        />
-      </View>
+      {isTemplate ? null : (
+        <>
+          <View className="flex-row items-center gap-1">
+            <Input
+              ref={nameRef}
+              testID={`${testIDBase}-name`}
+              className="flex-1"
+              value={day.name}
+              maxLength={40}
+              onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
+              onFocus={() => scrollFieldIntoView(nameRef.current)}
+              {...DONE_FIELD_PROPS}
+              placeholder="Day name"
+            />
+            <IconButton
+              testID={`${testIDBase}-up`}
+              accessibilityLabel="Move day up"
+              variant="tinted"
+              disabled={index === 0}
+              onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'up' })}
+              icon={<Icon name="chevronUp" color={colors.brand} size={20} />}
+            />
+            <IconButton
+              testID={`${testIDBase}-down`}
+              accessibilityLabel="Move day down"
+              variant="tinted"
+              disabled={index === dayCount - 1}
+              onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'down' })}
+              icon={<Icon name="chevronDown" color={colors.brand} size={20} />}
+            />
+          </View>
 
-      <View className="gap-1.5">
-        <Text className="text-subhead font-semibold text-label-secondary">Planned weekday</Text>
-        <WeekdayPicker
-          testID={`${testIDBase}-weekday`}
-          value={day.plannedWeekday}
-          onChange={(weekday) => dispatch({ type: 'setPlannedWeekday', dayKey: day.key, weekday })}
-        />
-      </View>
+          <View className="gap-1.5">
+            <Text className="text-subhead font-semibold text-label-secondary">Planned weekday</Text>
+            <WeekdayPicker
+              testID={`${testIDBase}-weekday`}
+              value={day.plannedWeekday}
+              onChange={(weekday) =>
+                dispatch({ type: 'setPlannedWeekday', dayKey: day.key, weekday })
+              }
+            />
+          </View>
+        </>
+      )}
 
       {coaching?.role === 'trainer' ? coaching.renderDayDetail?.(day) : null}
 
@@ -665,9 +736,14 @@ export function DayEditor({
         label="Add exercise"
         icon="add"
         variant="tinted"
-        disabled={day.exercises.length >= MAX_EXERCISES_PER_DAY}
+        disabled={atExerciseLimit}
         onPress={() => onAddExercise(day.key)}
       />
+      {isTemplate && atExerciseLimit ? (
+        <Text testID={`${testIDBase}-exercise-limit`} className="text-caption text-label-secondary">
+          {TEMPLATE_COPY.editor.exerciseLimit(MAX_EXERCISES_PER_DAY)}
+        </Text>
+      ) : null}
       <View className="-mb-2 -mt-1 flex-row items-center justify-between">
         <Text
           testID={`${testIDBase}-duration`}
@@ -693,13 +769,15 @@ export function DayEditor({
           <Icon name="link" color={colors.brand} size={18} />
           <Text className="text-callout font-semibold text-brand">{SUPERSET_COPY.title}</Text>
         </PressableScale>
-        <IconButton
-          testID={`${testIDBase}-day-menu`}
-          accessibilityLabel={`Options for ${day.name}`}
-          onPress={() => setDayMenuOpen(true)}
-          className="-mr-2"
-          icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
-        />
+        {isTemplate ? null : (
+          <IconButton
+            testID={`${testIDBase}-day-menu`}
+            accessibilityLabel={`Options for ${day.name}`}
+            onPress={() => setDayMenuOpen(true)}
+            className="-mr-2"
+            icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
+          />
+        )}
       </View>
 
       <Sheet

@@ -1,0 +1,272 @@
+# Trainer mode, M2: workout templates (docs/prd-2026-10/trainer-mode.md §6.6, §14). A `runScript` setup
+# registers a trainer (tools on, no templates) with two active clients who have gym setup done. The flow
+# signs in as the trainer, switches to trainer mode, opens Workouts (empty) → New template, names it,
+# adds Back squat with a 60 kg starting weight, waits for "Saved", goes back to the library (the template
+# is listed), opens it → Assign to clients → both clients → Add as a new day → confirm → "Assigned to
+# 2 clients" → Set weights for each client (one Next, one Done). Ends by switching back to personal mode.
+#
+# Needs: the dev app on a booted simulator/emulator, Metro up, the local API up with
+# FEATURE_FLAGS=coaching,trainerMode,mobileShellV2 TRAINER_ALLOWLIST=* — pass
+# `-e API_URL=http://localhost:<port>` when the API is not on :3001. Costs 3 registers + 1 login of the
+# per-IP auth budget. Local only (the orchestrator runs it).
+appId: dev.chefer.app.dev
+env:
+  API_URL: http://localhost:3001
+---
+- runScript: scripts/trainer-templates-setup.js
+- runFlow: common/connect.yaml
+
+# A device left in trainer mode (an earlier run that stopped half-way) reopens there: back to personal first.
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'trainer-today'
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - tapOn:
+          id: 'trainer-tab-you'
+          retryTapIfNoChange: true
+      - tapOn:
+          id: 'trainer-you-switch-to-personal'
+
+# ── Whoever is signed in, sign out (new shell: You → Sign out) ───────────────
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'today-scroll'
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - tapOn:
+          id: 'tab-you'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+      - tapOn:
+          id: 'logout-button'
+      - tapOn:
+          id: 'you-sign-out-confirm-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Sign in as the trainer ───────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.tEmail}
+- tapOn:
+    id: 'login-password'
+- inputText: ${output.tPassword}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 20000
+
+# ── Personal You → Switch to trainer mode ────────────────────────────────────
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: 'tab-you'
+- extendedWaitUntil:
+    visible:
+      id: 'you-switch-to-trainer'
+    timeout: 20000
+- tapOn:
+    id: 'you-switch-to-trainer'
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 15000
+
+# ── Workouts: empty library → New template ──────────────────────────────────
+# The mode switch cross-fades the shells (MO-09): a tab tap during the fade lands nowhere (Android).
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: 'trainer-tab-workouts'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'templates-library-empty'
+    timeout: 15000
+- takeScreenshot: trainer-templates-empty
+- tapOn:
+    id: 'templates-library-empty-new'
+- extendedWaitUntil:
+    visible:
+      id: 'template-editor'
+    timeout: 10000
+- tapOn:
+    id: 'template-editor-name'
+- inputText: 'Lower body M'
+- hideKeyboard
+
+# ── One exercise with a starting weight ─────────────────────────────────────
+- tapOn:
+    id: 'routine-editor-day-template-add-exercise'
+- extendedWaitUntil:
+    visible:
+      id: 'template-editor-picker-search'
+    timeout: 10000
+- tapOn:
+    id: 'template-editor-picker-search'
+- inputText: 'Back squat'
+- tapOn:
+    id: 'template-editor-picker-item-back-squat'
+# A new row opens expanded: its Starting weight field.
+- scrollUntilVisible:
+    element:
+      id: 'routine-editor-day-template-exercise-.*-default-load-field-input'
+    direction: DOWN
+- tapOn:
+    id: 'routine-editor-day-template-exercise-.*-default-load-field-input'
+- inputText: '60'
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'template-editor-status'
+      text: 'Saved'
+    timeout: 15000
+- takeScreenshot: trainer-templates-editor
+
+# ── Back to the library: the template is listed ──────────────────────────────
+- tapOn:
+    id: 'template-editor-header-back'
+- extendedWaitUntil:
+    visible: 'Lower body M'
+    timeout: 10000
+- assertVisible: '1 exercise.*'
+- assertVisible: 'Not assigned yet.*'
+- tapOn: 'Lower body M'
+- extendedWaitUntil:
+    visible:
+      id: 'template-editor'
+    timeout: 10000
+
+# ── Assign to both clients, as a new day ─────────────────────────────────────
+- tapOn:
+    id: 'template-editor-assign'
+- extendedWaitUntil:
+    visible:
+      id: 'assign-sheet-client-${output.c1Id}'
+    timeout: 10000
+- tapOn:
+    id: 'assign-sheet-client-${output.c1Id}'
+- tapOn:
+    id: 'assign-sheet-client-${output.c2Id}'
+- tapOn:
+    id: 'assign-sheet-next'
+# "Add as a new day" is the default for a client with room for another day.
+- extendedWaitUntil:
+    visible:
+      id: 'assign-sheet-choice-${output.c1Id}-add'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: 'Assign to 2 clients'
+    timeout: 15000
+- tapOn:
+    id: 'assign-sheet-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'assign-sheet-done'
+      text: 'Assigned to 2 clients'
+    timeout: 15000
+- takeScreenshot: trainer-templates-assigned
+
+# ── Set weights for each client (optional step) ─────────────────────────────
+- tapOn:
+    id: 'assign-sheet-tune'
+- extendedWaitUntil:
+    visible:
+      id: 'assign-sheet-tune-step'
+    timeout: 15000
+# One client at a time, in the order they were picked.
+- assertVisible:
+    id: 'assign-sheet-tune-step-client'
+    text: ${output.c1Name}
+- tapOn:
+    id: 'assign-sheet-tune-step-save'
+- extendedWaitUntil:
+    visible:
+      id: 'assign-sheet-tune-step-client'
+      text: ${output.c2Name}
+    timeout: 15000
+- tapOn:
+    id: 'assign-sheet-tune-step-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'assign-sheet-tune-step'
+    timeout: 10000
+# The editor lists both clients now.
+- extendedWaitUntil:
+    visible:
+      id: 'template-editor-assigned'
+    timeout: 15000
+- takeScreenshot: trainer-templates-assigned-list
+
+# ── Leave the device in personal mode for the next flow ─────────────────────
+- tapOn:
+    id: 'template-editor-header-back'
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: 'trainer-tab-you'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-you-switch-to-personal'
+    timeout: 10000
+- tapOn:
+    id: 'trainer-you-switch-to-personal'
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 15000
