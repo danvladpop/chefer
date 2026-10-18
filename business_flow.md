@@ -6128,6 +6128,24 @@ Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (To
   personal mode at the next launch or status refresh and the switch disappears.
 - **Old routes.** `/trainer` opens Clients (mobile) / Today (web) while trainer mode is available; client detail
   and the routine editor work from either mode.
+- **Workouts = templates (M2, §6.6).** A trainer builds a template once (name, workout type, curated exercises with
+  sets, reps, rest, a starting weight and a cue) and gives it to clients:
+
+  ```
+  Workouts tab → New template → editor (autosave, versioned; two tabs → "Keep mine / Use the other version")
+  Assign to clients (from the template, or "Assign a template" on client detail)
+    per client: Add as a new day (+ weekday)  |  Replace a day
+    → each client's routine gets a COPY (trainer.templates.assign), saved like a trainer edit:
+      "Changed by Ana" on the rows, "Ana updated your routine" for the client
+    → a starting weight becomes the client's next-session target only where they have no history yet
+  Set weights for each client (optional): one client at a time, their last load next to the template's
+    → trainer.client.setNextTarget
+  Edit the template later → "3 clients have an older version" → Update for clients
+    (a client whose copied day changed since is flagged "Edited since…" and unticked by default)
+    → trainer.templates.updateClients: the day's exercises become the new version; loads already reached stay
+  Delete a template → gone from the library; clients keep their copies ("Based on Lower body A" stays as text)
+  ```
+
 - **Turning trainer tools on** stays where it is (You → Trainer tools → turn-on screen): the switch only appears
   once tools are on.
 
