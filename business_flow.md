@@ -6090,6 +6090,47 @@ Routine: the trainer fills My week days with a workout type, exercises and notes
   version" work the same in both styles; a changed workout type shows as "days changed" in the client's card.
 ```
 
+### 37.11 Trainer mode (flag `trainerMode`, `docs/prd-2026-10/trainer-mode.md`)
+
+A second app shell for coaching, for **active trainers** (trainer tools on, still on TRAINER_ALLOWLIST) while the
+`trainerMode` flag is on. With the flag off, nothing changes: trainer tools stay under You → Trainer tools (mobile)
+and the "Clients" item in the secondary nav (web).
+
+```
+Personal mode You (mobile) / ModeSwitch (web)
+  └─ "Switch to trainer mode" (badge = trainer.badges.total: pending requests now; attendance + booking changes in M3)
+       │  light haptic, cross-fade (MO-09), the new mode is announced, `trainer_mode_switched {to}`
+       ▼
+Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (Today in the middle, the initial route,
+  Android Back returns there); web nav Today · Schedule · Clients · Workouts (+ Trainer settings, Profile), phone
+  bottom bar Schedule · Clients · Today · Workouts · More
+  ├─ Today  (trainer.dashboard.summary {today})
+  │    ├─ "2 people asked you to coach them" · Review → Clients   (only while requests are pending)
+  │    ├─ This week: active clients of 50 · average adherence (sessions in the last 7 days ÷ weekly goal, capped
+  │    │   at 100 % per client) · quiet clients (7+ days without a workout)
+  │    ├─ Needs attention: quiet clients (→ client detail) + the trainer's coaching notices
+  │    └─ brand-new trainer: Invite a client · Build a template · Add a booking
+  ├─ Clients: requests (Accept / Decline) · client list (search from 8 clients, sort by name / last workout)
+  │    · "23 of 50 clients" · Invite a client (link + QR + pending invites, as a sheet)
+  ├─ You (web: /trainer/settings): Switch to personal mode (badge = personal items waiting, mobile) · trainer
+  │    profile · invites · availability (read-only: closes on its own at 50 clients) · Send feedback ·
+  │    Turn off trainer tools (→ back to personal mode) · Help, Terms, Privacy, Sign out
+  └─ Schedule, Workouts: placeholders until M3 / M2
+```
+
+- **Badges.** One count source, `trainer.badges`, polled every 60 s in the foreground. Trainer mode: Clients =
+  pending requests; You (mobile) = Following's badge. Personal mode: You and the switch row = `total`. Web: the
+  Trainer segment of the ModeSwitch shows `total`; in trainer mode the Clients item shows the requests.
+- **Persistence.** The mode is per device, never on the server: mobile keeps the last mode in device KV and opens
+  straight into it at the next launch (the 30-minute foreground re-landing never takes a trainer out of trainer
+  mode); web keeps it in the `chefer_mode` cookie (`trainer`).
+- **Losing trainer status** (tools turned off, removed from the allowlist, flag off): the app falls back to
+  personal mode at the next launch or status refresh and the switch disappears.
+- **Old routes.** `/trainer` opens Clients (mobile) / Today (web) while trainer mode is available; client detail
+  and the routine editor work from either mode.
+- **Turning trainer tools on** stays where it is (You → Trainer tools → turn-on screen): the switch only appears
+  once tools are on.
+
 ---
 
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
