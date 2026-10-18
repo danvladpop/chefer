@@ -193,6 +193,8 @@ export interface RoutineDayTemplateRefDto {
 // ─── Copy shared by web and mobile ────────────────────────────────────────────
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+const NO_ROUTINE = 'Has no routine yet';
+const DAY_LIMIT = 'Already has 7 days';
 
 export const TEMPLATE_COPY = {
   library: {
@@ -227,6 +229,10 @@ export const TEMPLATE_COPY = {
     deleteBody: 'It leaves your library. Clients keep the workouts you gave them.',
     exerciseLimit: (max: number) => `A template holds up to ${max} exercises.`,
     curatedOnly: 'Templates use exercises from the Chefer library.',
+    exercises: 'Exercises',
+    nameRequired: 'Give the template a name to save it.',
+    notSaved: 'Not saved',
+    saveFailed: 'Couldn’t save your changes.',
   },
   assign: {
     action: 'Assign to clients',
@@ -240,11 +246,24 @@ export const TEMPLATE_COPY = {
     pickDay: 'Which day',
     confirm: (n: number) => `Assign to ${n} ${plural(n, 'client', 'clients')}`,
     done: (n: number) => `Assigned to ${n} ${plural(n, 'client', 'clients')}`,
-    noRoutine: 'Has no routine yet',
-    dayLimit: 'Already has 7 days',
+    noRoutine: NO_ROUTINE,
+    dayLimit: DAY_LIMIT,
     failed: (n: number) => `${n} ${plural(n, 'client', 'clients')} couldn’t get it`,
     tune: 'Set weights for each client',
     noClients: 'Invite a client first.',
+    next: 'Next',
+    back: 'Back',
+    noWeekday: 'No set day',
+    routineError: 'Couldn’t load this client’s routine.',
+    /** "Ion Rus: Already has 7 days", one line per client the assign / update skipped. */
+    failureReason: {
+      CLIENT_UNAVAILABLE: 'Isn’t available',
+      NO_ROUTINE,
+      DAY_NOT_FOUND: 'That day isn’t in their routine any more',
+      DAY_LIMIT,
+      NOT_ASSIGNED: 'Doesn’t have this template',
+      CONFLICT: 'Their routine just changed. Try again',
+    } satisfies Record<WorkoutTemplateTargetFailure, string>,
   },
   tune: {
     title: 'Set weights',
@@ -255,6 +274,7 @@ export const TEMPLATE_COPY = {
     next: 'Next client',
     done: 'Done',
     skip: 'Skip',
+    noWeightedExercises: 'No exercises with a weight in this workout.',
   },
   update: {
     banner: (n: number) => `${n} ${plural(n, 'client has', 'clients have')} an older version`,
@@ -265,6 +285,14 @@ export const TEMPLATE_COPY = {
     confirm: (n: number) => `Update ${n} ${plural(n, 'client', 'clients')}`,
     done: (n: number) => `Updated ${n} ${plural(n, 'client', 'clients')}`,
     upToDate: 'Up to date',
+    /** Status labels in the "Assigned to" list ("Older version · Edited since"). */
+    olderVersion: 'Older version',
+    editedSinceLabel: 'Edited since',
+  },
+  /** A template save CONFLICT (another tab or device saved first). */
+  conflict: {
+    title: 'This template changed elsewhere',
+    body: 'It was edited in another tab or on another device since you opened it. You can keep your changes and overwrite the other version, or discard yours and load the other version instead.',
   },
   /** "Based on Lower body A" on a client's copied day; plain text once the template is gone. */
   basedOn: (template: string) => `Based on ${template}`,

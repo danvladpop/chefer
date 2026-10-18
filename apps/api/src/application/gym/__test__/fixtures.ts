@@ -105,6 +105,11 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
         name: 'Day A',
         plannedWeekday: 0,
         workoutType: null,
+        templateId: null,
+        templateVersion: null,
+        templateAssignedAt: null,
+        templateName: null,
+        editedSinceTemplate: false,
         exercises: [
           {
             id: 're-bench',
@@ -131,6 +136,11 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
         name: 'Day B',
         plannedWeekday: 3,
         workoutType: null,
+        templateId: null,
+        templateVersion: null,
+        templateAssignedAt: null,
+        templateName: null,
+        editedSinceTemplate: false,
         exercises: [
           {
             id: 're-squat',

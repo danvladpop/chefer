@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { COACHING_RETENTION } from '@chefer/types';
-import { CoachingMaintenanceWorker } from './coaching-maintenance.worker.js';
+import {
+  CoachingMaintenanceWorker,
+  TEMPLATE_SOFT_DELETE_DAYS,
+} from './coaching-maintenance.worker.js';
 
 // Retention (spec §8.4, Q-6): invites 30 days after expiry, hidden notes after
 // 30 days, ended links after 24 months. Once per UTC day; a failed step retries.
@@ -30,6 +33,7 @@ function setup() {
       { userId: 't2', email: 'removed@x.dev' },
     ]),
   };
+  const templates = { purgeDeletedBefore: vi.fn(async () => 6) };
   const enforceAllowlist = vi.fn(async (u: { email: string }) => u.email === 'removed@x.dev');
   return {
     worker: new CoachingMaintenanceWorker({
@@ -38,8 +42,10 @@ function setup() {
       links,
       requests,
       trainers,
+      templates,
       enforceAllowlist,
     }),
+    templates,
     invites,
     notes,
     links,
@@ -50,7 +56,7 @@ function setup() {
 
 describe('CoachingMaintenanceWorker', () => {
   it('prunes with the retention constants and reports counts only', async () => {
-    const { worker, invites, notes, links, requests, enforceAllowlist } = setup();
+    const { worker, invites, notes, links, requests, templates, enforceAllowlist } = setup();
     expect(await worker.tick(NOW)).toEqual({
       prunedInvites: 3,
       prunedNotes: 2,
@@ -58,7 +64,11 @@ describe('CoachingMaintenanceWorker', () => {
       expiredRequests: 4,
       prunedRequests: 5,
       trainersRemoved: 1,
+      prunedTemplates: 6,
     });
+    // Trainer mode §10: deleted templates stay 30 days.
+    expect(TEMPLATE_SOFT_DELETE_DAYS).toBe(30);
+    expect(templates.purgeDeletedBefore).toHaveBeenCalledWith(new Date(NOW.getTime() - 30 * DAY));
     expect(requests.expireDue).toHaveBeenCalledWith(expect.objectContaining({ now: NOW }));
     expect(requests.deleteAnsweredBefore).toHaveBeenCalledWith(
       new Date(NOW.getTime() - COACHING_RETENTION.requestAfterAnswerDays * DAY),

@@ -616,6 +616,11 @@ describe('routine', () => {
           name: 'A',
           plannedWeekday: 2,
           workoutType: null,
+          templateId: null,
+          templateVersion: null,
+          templateAssignedAt: null,
+          templateName: null,
+          editedSinceTemplate: false,
           exercises: [
             ExerciseTrackingType.WEIGHT_REPS,
             ExerciseTrackingType.DISTANCE,

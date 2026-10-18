@@ -157,7 +157,5 @@ export const TRAINER_MODE_COPY = {
   comingSoon: {
     scheduleTitle: 'Your calendar is on its way',
     scheduleBody: 'Bookings and blocked time arrive in a coming update.',
-    workoutsTitle: 'Templates are on their way',
-    workoutsBody: 'Build a workout once, give it to any client — in a coming update.',
   },
 } as const;

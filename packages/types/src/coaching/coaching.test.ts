@@ -268,6 +268,7 @@ describe('limits and retention (counsel to confirm the retention numbers)', () =
       hiddenNoteDays: 30,
       inviteAfterExpiryDays: 30,
       requestAfterAnswerDays: 30,
+      templateSoftDeleteDays: 30,
       clientExportIncludesTrainerNotes: false,
     });
   });

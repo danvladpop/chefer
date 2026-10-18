@@ -7,6 +7,7 @@ import type {
   WorkoutType,
 } from '@prisma/client';
 import { prisma } from '../client';
+import { dayExercisesChanged } from './routine-day-change';
 
 // ─── Gym routines (gym_plan.md §2.2 / §4.1) ──────────────────────────────────
 // A routine is edited as ONE document: saves are full replaces guarded by an
@@ -51,7 +52,44 @@ export interface RoutineDayWriteData {
    * from an older binary never knew the field); `null` clears it.
    */
   workoutType?: WorkoutType | null | undefined;
+  /**
+   * Trainer mode templates (trainer-mode.md §8.1): the day is (re)copied from a
+   * template with this save. Set: the template columns are written and
+   * `editedSinceTemplate` resets to false. `null`: the columns are cleared.
+   * `undefined` (every editor save): the stored columns are kept, and a save
+   * that changed the day's exercises (`dayExercisesChanged`) sets
+   * `editedSinceTemplate`.
+   */
+  template?: RoutineDayTemplateStamp | null | undefined;
   exercises: RoutineExerciseWriteData[];
+}
+
+export interface RoutineDayTemplateStamp {
+  templateId: string;
+  templateVersion: number;
+  templateName: string;
+  assignedAt: Date;
+}
+
+/** The template columns a day write sets for `RoutineDayWriteData.template` (nothing when undefined). */
+function templateColumns(template: RoutineDayTemplateStamp | null | undefined) {
+  if (template === undefined) return {};
+  if (template === null) {
+    return {
+      templateId: null,
+      templateVersion: null,
+      templateName: null,
+      templateAssignedAt: null,
+      editedSinceTemplate: false,
+    };
+  }
+  return {
+    templateId: template.templateId,
+    templateVersion: template.templateVersion,
+    templateName: template.templateName,
+    templateAssignedAt: template.assignedAt,
+    editedSinceTemplate: false,
+  };
 }
 
 export interface RoutineCreateData {
@@ -170,6 +208,7 @@ function dayCreateInput(
     name: day.name,
     plannedWeekday: day.plannedWeekday,
     workoutType: day.workoutType ?? null,
+    ...templateColumns(day.template),
     exercises: {
       create: day.exercises.map((e, i) => ({
         exerciseId: e.exerciseId,
@@ -367,10 +406,24 @@ export class RoutineRepository implements IRoutineRepository {
       });
       await tx.routineDay.deleteMany({ where: { routineId: id, id: { notIn: [...keptDayIds] } } });
 
-      for (const [position, { day, keptId: keptDayId }] of plan.entries()) {
+      const storedDays = new Map(existing.days.map((d) => [d.id, d]));
+      for (const [position, { day, keptId: keptDayId, rows }] of plan.entries()) {
         let dayId: string;
         if (keptDayId) {
           dayId = keptDayId;
+          const storedDay = storedDays.get(keptDayId);
+          // §8.1: a copied day whose exercises this save changed is "edited since".
+          const editedSince =
+            day.template === undefined &&
+            storedDay?.templateId != null &&
+            !storedDay.editedSinceTemplate &&
+            dayExercisesChanged(
+              storedDay.exercises,
+              rows.map(({ row, keptId: rowKept }) => ({
+                ...row,
+                trainerNote: trainerNoteOf(row, rowKept),
+              })),
+            );
           await tx.routineDay.update({
             where: { id: dayId },
             data: {
@@ -378,6 +431,8 @@ export class RoutineRepository implements IRoutineRepository {
               name: day.name,
               plannedWeekday: day.plannedWeekday,
               ...(day.workoutType !== undefined && { workoutType: day.workoutType }),
+              ...templateColumns(day.template),
+              ...(editedSince && { editedSinceTemplate: true }),
             },
           });
         } else {
@@ -388,6 +443,7 @@ export class RoutineRepository implements IRoutineRepository {
               name: day.name,
               plannedWeekday: day.plannedWeekday,
               workoutType: day.workoutType ?? null,
+              ...templateColumns(day.template),
             },
           });
           dayId = created.id;

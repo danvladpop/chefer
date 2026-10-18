@@ -324,7 +324,9 @@ describe('RoutineService.save: attribution and trainer notes', () => {
     repo.replaceDocument.mockResolvedValue({ status: 'conflict', current });
     const payload = async (level: number) => {
       const err = await service.save(USER, doc(), 3, { level }).catch((e: unknown) => e);
-      return ((err as TRPCError).cause as ConflictCause).payload.current;
+      const conflict = ((err as TRPCError).cause as ConflictCause).payload;
+      if (conflict.kind !== 'routine') throw new Error(`unexpected ${conflict.kind}`);
+      return conflict.current;
     };
     expect((await payload(6)).lastEditedByOther?.name).toBe('Ana');
     expect(await payload(4)).not.toHaveProperty('lastEditedByOther');

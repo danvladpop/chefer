@@ -6,6 +6,7 @@ import {
   routineRepository,
   trainingPauseRepository,
   workoutSessionRepository,
+  workoutTemplateRepository,
   type CoachingLink,
   type Exercise,
   type GymProfile,
@@ -15,7 +16,9 @@ import {
   type IRoutineRepository,
   type ITrainingPauseRepository,
   type IWorkoutSessionRepository,
+  type IWorkoutTemplateRepository,
   type RoutineWithDays,
+  type TemplateNameRow,
 } from '@chefer/database';
 import {
   COACHING_COPY,
@@ -78,6 +81,7 @@ export interface CoachingContentDeps {
   sessions: Pick<IWorkoutSessionRepository, 'findCompletedDates'>;
   gymProfiles: Pick<IGymProfileRepository, 'findByUserId'>;
   progression: Pick<ProgressionService, 'forCoach'>;
+  templates: Pick<IWorkoutTemplateRepository, 'findNames'>;
   now: () => Date;
 }
 
@@ -89,6 +93,7 @@ const defaultDeps: CoachingContentDeps = {
   sessions: workoutSessionRepository,
   gymProfiles: gymProfileRepository,
   progression: progressionService,
+  templates: workoutTemplateRepository,
   now: () => new Date(),
 };
 
@@ -242,15 +247,17 @@ export class CoachingContentService {
   /** The TrainerRoutineDto for a stored routine (also used after the trainer's own saves and for CONFLICT payloads). */
   async routineDto(
     row: RoutineWithDays,
-    link: Pick<CoachingLink, 'startedAt'>,
+    link: Pick<CoachingLink, 'startedAt'> & Partial<Pick<CoachingLink, 'trainerId'>>,
     clientId: string,
     today: string,
   ): Promise<TrainerRoutineDto> {
     const exerciseIds = [...new Set(row.days.flatMap((d) => d.exercises.map((e) => e.exerciseId)))];
-    const [exercises, names, progressions] = await Promise.all([
+    const templateIds = [...new Set(row.days.flatMap((d) => (d.templateId ? [d.templateId] : [])))];
+    const [exercises, names, progressions, templates] = await Promise.all([
       this.deps.exercises.findVisibleByIds(clientId, exerciseIds),
       this.deps.content.userNames([clientId]),
       this.deps.progression.forCoach(clientId, exerciseIds, today),
+      templateIds.length > 0 ? this.deps.templates.findNames(templateIds) : [],
     ]);
     const client = names.get(clientId);
     return toTrainerRoutineDto({
@@ -260,6 +267,14 @@ export class CoachingContentService {
       clientName: client ? firstNameOf(client) : '',
       exercises,
       next: nextByRow(row, exercises, progressions, clientId),
+      // Another trainer's template (the client switched trainers) reads as gone: plain "Based on" text.
+      templates: new Map(
+        templates
+          .filter(
+            (t: TemplateNameRow) => link.trainerId === undefined || t.trainerId === link.trainerId,
+          )
+          .map((t) => [t.id, t]),
+      ),
     });
   }
 
