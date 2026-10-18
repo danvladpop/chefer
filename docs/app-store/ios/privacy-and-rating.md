@@ -112,7 +112,11 @@ build that carries the key is submitted, and re-check on every later build):
 - `expo-sharing` (wave 4 native release): opens the system share sheet for the data-export JSON
   and the gym CSV as a named file (Android). Collects and sends nothing; the file goes only where
   the user sends it.
-- Neither changes any answer on this page.
+- `expo-store-review` (1.0.2, ASO plan §5.1): asks the OS for its own App Store / Play rating
+  sheet at a success moment (`apps/mobile/src/features/review/`). The rating goes from the user
+  to Apple/Google directly; the app learns nothing about it and stores only when it last asked
+  (on the device). Collects and sends nothing.
+- None of these changes any answer on this page.
 
 ---
 

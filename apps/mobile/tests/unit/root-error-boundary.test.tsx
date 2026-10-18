@@ -6,10 +6,15 @@ jest.mock('../../src/features/feedback/standalone-submit', () => ({
   submitFeedbackStandalone: (...args: unknown[]) => mockSubmitFeedback(...args),
 }));
 jest.mock('expo-router', () => ({ usePathname: () => '/recipe/abc' }));
+const mockReportError = jest.fn<undefined, unknown[]>();
+jest.mock('../../src/lib/crash-reporting', () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
+}));
 
 describe('RootErrorBoundary', () => {
   beforeEach(() => {
     mockSubmitFeedback.mockReset().mockResolvedValue(undefined);
+    mockReportError.mockReset();
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
@@ -21,6 +26,17 @@ describe('RootErrorBoundary', () => {
     await render(<RootErrorBoundary error={new Error('boom')} retry={jest.fn()} />);
     expect(screen.getByText('Something went wrong')).toBeTruthy();
     expect(screen.getByText(/Nothing you saved has been lost/)).toBeTruthy();
+  });
+
+  // M1-6: React hands boundary-caught errors to no global handler, so the
+  // boundary reports them itself — once, not on every re-render.
+  it('reports the caught error to crash reporting once', async () => {
+    const error = new Error('boom');
+    await render(<RootErrorBoundary error={error} retry={jest.fn()} />);
+    await fireEvent.press(screen.getByTestId('root-error-report'));
+    await fireEvent.changeText(screen.getByTestId('root-error-report-input'), 'typing re-renders');
+    expect(mockReportError).toHaveBeenCalledTimes(1);
+    expect(mockReportError).toHaveBeenCalledWith(error, 'root-error-boundary');
   });
 
   it('retries the route when "Try again" is pressed', async () => {

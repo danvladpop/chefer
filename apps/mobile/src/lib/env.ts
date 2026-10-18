@@ -9,8 +9,13 @@ const envSchema = z.object({
    * host machine's LAN address (e.g. http://192.168.1.20:3001).
    */
   EXPO_PUBLIC_API_URL: z.string().url().optional(),
-  /** Sentry DSN — error reporting is disabled when unset. */
-  EXPO_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+  /**
+   * Sentry DSN (M1-6, src/lib/crash-reporting.ts) — crash reporting is off
+   * when unset. Empty or malformed also means off, never a startup throw: a
+   * typo in a CI variable must not take down every installed app over the
+   * air just to disable crash reporting.
+   */
+  EXPO_PUBLIC_SENTRY_DSN: z.string().url().optional().catch(undefined),
   /**
    * PostHog project key for the JS analytics transport (T-12.2, §5.10). No
    * key = no-op: nothing is queued or sent, and no `fetch` ever fires (AC3).

@@ -15,6 +15,13 @@ fi
 export LANG=en_US.UTF-8
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
+# Sentry (M1-6): the release Gradle task and the Xcode bundle phase upload
+# source maps / debug symbols, and FAIL the build when that upload can't
+# authenticate. No SENTRY_AUTH_TOKEN (in the shell or .env) = skip the upload.
+# Env only — never part of the native fingerprint.
+if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+  export SENTRY_DISABLE_AUTO_UPLOAD=true
+fi
 
 PROD_API_URL="https://chefer.duckdns.org"
 

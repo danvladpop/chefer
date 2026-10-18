@@ -331,6 +331,13 @@ jobs:
       # equal the value the store binary was built with (optional repo VARIABLE;
       # empty = no Google URL scheme, as in a build without it).
       GOOGLE_IOS_URL_SCHEME: ${{ vars.GOOGLE_IOS_URL_SCHEME }}
+      # M1-6 crash reporting — both optional, neither is part of the runtime
+      # fingerprint. The DSN (repo VARIABLE) is inlined into the JS bundle, so
+      # without it OTA updates ship with crash reporting off; it is exported
+      # in the publish step only when set (see there). The auth token (repo
+      # SECRET) only uploads this update's source maps to Sentry.
+      SENTRY_DSN_VARIABLE: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     steps:
       - name: Check credentials
         id: creds
@@ -367,4 +374,22 @@ jobs:
         env:
           ALLOW_RUNTIME_MISMATCH: '1'
         run: |
+          # Only when set: an empty EXPO_PUBLIC_SENTRY_DSN would be inlined as
+          # "" and shadow a value from the EAS "production" environment.
+          if [ -n "$SENTRY_DSN_VARIABLE" ]; then
+            export EXPO_PUBLIC_SENTRY_DSN="$SENTRY_DSN_VARIABLE"
+          else
+            echo "::notice::EXPO_PUBLIC_SENTRY_DSN repo variable not set — this update reports no crashes unless the EAS production environment provides the DSN"
+          fi
           pnpm mobile:update "$(git log -1 --format='%h %s')"
+
+      # M1-6: symbolicated stack traces for this OTA bundle. `eas update`
+      # leaves the Hermes bundles + source maps (with Sentry debug ids, from
+      # metro.config.js) in apps/mobile/dist. Skipped without the
+      # SENTRY_AUTH_TOKEN secret; a failed upload never fails the deploy.
+      # Org/project come from the Sentry plugin entry in app.config.js.
+      - name: Upload OTA source maps to Sentry
+        if: steps.creds.outputs.skip != 'true' && env.SENTRY_AUTH_TOKEN != ''
+        continue-on-error: true
+        working-directory: apps/mobile
+        run: pnpm exec sentry-expo-upload-sourcemaps dist

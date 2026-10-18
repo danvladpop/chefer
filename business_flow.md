@@ -41,7 +41,9 @@
 33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
 34. [Following: Follow, See, Save](#34-following-follow-see-save-docsfriends-f1d)
 35. [Automatic Moderation](#35-automatic-moderation-following-prd-9-q-f-13-f1d)
-36. [Trainer Coaching (1:1)](#36-trainer-coaching-11-docstrainer-platform-wp-18)
+36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
+37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
+38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
 
 ---
 
@@ -266,7 +268,11 @@ proposal"). With the flag off nothing changes.
    both; the confirmation never reaches the API) with **one** "I'm 16+ and agree
    to the Terms and Privacy Policy" checkbox that sends both `acceptedTerms` and
    `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
-   the combined checkbox is still pending (review D3).
+   the combined checkbox is still pending (review D3). After the account exists
+   (both V3 and V4 email sign-up), the password manager is offered the new
+   credential: iOS by itself (or silently, for a suggested strong password),
+   Android through Credential Manager's "Save password?" sheet (F8, 1.0.2 build;
+   a cancel or failure is silent).
 3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
    `HOUSEHOLD`), saved with `preferences.setJobs`.
 4. **Goal** — four tiles (lose weight, build muscle, eat healthier, "just good
@@ -320,6 +326,14 @@ built again. Web, like V3 web, keeps the answers in memory only.
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
+
+**Saving the password (F8, mobile).** After a successful sign-in whose password
+the user **typed**, the password manager is offered the credential: iOS shows its
+own "Save Password?" when the sign-in screen goes away; Android shows Credential
+Manager's sheet (native module in the 1.0.2 build — older binaries skip it). A
+password the password manager filled is already saved, so nothing is offered; a
+failed sign-in offers nothing; a cancel is silent. Social sign-in never offers.
+Web forms are plain `<form>` submits, so browsers offer to save on their own.
 
 **Leaving an account on mobile (UX-ACC-02/12/17, 2026-10).** More, Settings,
 account deletion and the 401 handler all run one `signOut()`
@@ -6070,3 +6084,42 @@ Routine: the trainer fills My week days with a workout type, exercises and notes
   saved through trainer.client.saveRoutine; omitted = unchanged). "Changed by …" and "Keep mine / Use the other
   version" work the same in both styles; a changed workout type shows as "days changed" in the client's card.
 ```
+
+---
+
+## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
+
+Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.
+The app never shows its own rating UI — no "Rate us" button, no "Enjoying Chefer?" question. At a
+success moment it may ask the OS for the native sheet; the OS decides whether to show it (iOS: at
+most 3 a year; Play: its own quota) and the rating goes straight to Apple/Google.
+
+```
+launch (app/_layout.tsx) ──► startReviewSession()
+  │   today → activeDays (KV `review.prompt-state`, device key, survives sign-out)
+  │   first launch ever with this feature → session.isFirst = true
+  │   every return to the foreground → today counted; ≥ 30 min in the background → new session
+  │
+  failures this session → session.hadError = true
+  │   root ErrorBoundary rendered · any tRPC mutation failed (its error snackbar)
+  │   · gym outbox: server failure or a parked (invalid) workout ("offline" does not count)
+  │
+success moment ──► maybeRequestReview(trigger)
+  │   food_log       tracker.logRecipe / tracker.logCustomMeal succeeded  ┐ only once a week
+  │   shopping_tick  shoppingList.toggleItems { checked: true } succeeded ┘ with meals on all 7
+  │                  days has been seen (any mealPlan.* result in the query cache)
+  │   gym_pr             workout summary of a just-finished workout with a new PR
+  │   gym_third_workout  workout summary, from the 3rd workout finished on this device
+  │
+  eligible? (all must hold)
+  │   not the first session · no failure this session · ≥ 3 distinct active days
+  │   · no request from us in the last 120 days · the trigger's own condition
+  ├─ no  → nothing happens
+  └─ yes → wait for the success UI to settle (2 s food, 3 s workout summary)
+           → re-check (still in the foreground, still eligible)
+           → StoreReview.isAvailableAsync() (false on TestFlight) → lastPromptAt = now
+           → track('review_prompt_requested', { trigger }) → StoreReview.requestReview()
+```
+
+Any failure on the way (no native module on an older binary, storage, the native call) is a
+silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.

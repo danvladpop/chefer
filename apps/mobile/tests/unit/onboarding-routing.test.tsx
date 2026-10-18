@@ -95,9 +95,12 @@ describe('Register → onboarding', () => {
   // R-18b: the redirect is state (read by the Food tab layout on the guard
   // flip), not an imperative router.replace racing the awaited token writes.
   it('flags a newly registered account for onboarding before the token is stored', async () => {
-    let onSuccess: ((data: { session: { token: string } | null }) => void) | undefined;
-    const mutate = jest.fn(() => {
-      onSuccess?.({ session: { token: 'tok' } });
+    // Like TanStack Query, the mutation's variables follow the data.
+    let onSuccess:
+      | ((data: { session: { token: string } | null }, variables: unknown) => void)
+      | undefined;
+    const mutate = jest.fn((variables: unknown) => {
+      onSuccess?.({ session: { token: 'tok' } }, variables);
     });
     trpc.auth.register.useMutation.mockImplementation((opts: { onSuccess: typeof onSuccess }) => {
       onSuccess = opts.onSuccess;
@@ -121,9 +124,12 @@ describe('Register → onboarding', () => {
   });
 
   it('does not raise the flag when sign-up returns no session', async () => {
-    let onSuccess: ((data: { session: { token: string } | null }) => void) | undefined;
-    const mutate = jest.fn(() => {
-      onSuccess?.({ session: null });
+    // Like TanStack Query, the mutation's variables follow the data.
+    let onSuccess:
+      | ((data: { session: { token: string } | null }, variables: unknown) => void)
+      | undefined;
+    const mutate = jest.fn((variables: unknown) => {
+      onSuccess?.({ session: null }, variables);
     });
     trpc.auth.register.useMutation.mockImplementation((opts: { onSuccess: typeof onSuccess }) => {
       onSuccess = opts.onSuccess;
@@ -145,9 +151,12 @@ describe('Register → onboarding', () => {
 
 describe('Login → no onboarding', () => {
   it('does not navigate to onboarding after signing in', async () => {
-    let onSuccess: ((data: { session: { token: string } | null }) => void) | undefined;
-    const mutate = jest.fn(() => {
-      onSuccess?.({ session: { token: 'tok' } });
+    // Like TanStack Query, the mutation's variables follow the data.
+    let onSuccess:
+      | ((data: { session: { token: string } | null }, variables: unknown) => void)
+      | undefined;
+    const mutate = jest.fn((variables: unknown) => {
+      onSuccess?.({ session: { token: 'tok' } }, variables);
     });
     trpc.auth.login.useMutation.mockImplementation((opts: { onSuccess: typeof onSuccess }) => {
       onSuccess = opts.onSuccess;

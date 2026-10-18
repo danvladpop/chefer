@@ -1,14 +1,18 @@
 // Monorepo-aware Metro config: watch the workspace root so @chefer/* packages
 // (which export raw TypeScript) resolve and hot-reload, and let Metro fall
 // back to the root node_modules for hoisted dependencies.
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
 
-const config = getDefaultConfig(projectRoot);
+// Expo's default config plus Sentry's debug-id serializer (M1-6): every bundle
+// and source map gets a debug id, which is how `sentry-expo-upload-sourcemaps`
+// (deploy.yml OTA job) and the native build uploads match crashes to maps.
+// Inert without a DSN/auth token.
+const config = getSentryExpoConfig(projectRoot);
 
 config.watchFolders = [workspaceRoot];
 config.resolver.nodeModulesPaths = [
