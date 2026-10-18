@@ -37,6 +37,13 @@ export const APP_ROUTES = [
   // available" notice while the flag is off) and a join link whose code never
   // existed (the invite-state copy; the consent screen has its own unit tests).
   '/trainer',
+  // Trainer mode (trainer-mode.md §5.4): without the flag (or for a non-trainer)
+  // each hands over to /trainer; with it, the trainer shell's pages.
+  '/trainer/today',
+  '/trainer/clients',
+  '/trainer/settings',
+  '/trainer/schedule',
+  '/trainer/workouts',
   '/coaching/join/ZZZZZZZZZZ',
   // Find a trainer (PRD 2026-10 §4.1): the search page, and a trainer id that
   // does not exist (the uniform "This trainer isn't available" state).

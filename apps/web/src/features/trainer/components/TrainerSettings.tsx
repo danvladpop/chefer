@@ -13,17 +13,27 @@ const FEEDBACK_HREF = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Tra
 /**
  * Name and gym / city line clients see, "Send feedback", and "Turn off trainer
  * tools" (ends every coaching; the confirmation names the client count first,
- * spec §2.7, PRD 2026-10 §4.3).
+ * spec §2.7, PRD 2026-10 §4.3). Trainer mode's settings page (trainer-mode.md
+ * §6.8) titles it "Trainer profile", puts invites and availability between the
+ * form and the footer, and switches back to Food once tools are off.
  */
 export function TrainerSettings({
   displayName,
   gymLine: savedGymLine,
   activeClients,
+  title = COACHING_COPY.trainer.title,
+  onTurnedOff,
+  children,
 }: {
   displayName: string;
   gymLine: string | null;
   /** Active clients now; null when unknown. */
   activeClients: number | null;
+  title?: string;
+  /** After trainer tools are off (before the status refetch lands). */
+  onTurnedOff?: () => void;
+  /** Rows between the profile form and the feedback / turn-off footer. */
+  children?: React.ReactNode;
 }) {
   const copy = COACHING_COPY.trainer;
   const profileCopy = COACHING_COPY.trainerProfile;
@@ -47,6 +57,7 @@ export function TrainerSettings({
     meta: { silent: true },
     onSuccess: () => {
       setConfirming(false);
+      onTurnedOff?.();
       void utils.trainer.invalidate();
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
@@ -63,7 +74,7 @@ export function TrainerSettings({
       className="flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
     >
       <h2 id="trainer-settings-title" className="font-semibold text-gray-900">
-        {copy.title}
+        {title}
       </h2>
       <form
         className="flex flex-col gap-3"
@@ -112,6 +123,7 @@ export function TrainerSettings({
           Save
         </Button>
       </form>
+      {children}
       <div className="flex flex-col gap-1 border-t pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <a
           href={FEEDBACK_HREF}

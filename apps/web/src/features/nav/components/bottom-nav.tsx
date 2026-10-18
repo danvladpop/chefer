@@ -7,6 +7,7 @@ import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
+import { modeSwapFade, NavCountBadge, NavCountText } from './nav-count-badge';
 
 // ─── Mobile bottom tab bar ────────────────────────────────────────────────────
 // The active mode's four primary destinations, in tab-bar order (Food puts
@@ -22,7 +23,7 @@ interface BottomNavProps {
 
 export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNavProps) {
   const pathname = usePathname();
-  const { nav } = useAppMode();
+  const { mode, nav, navBadges, trainerModeAvailable } = useAppMode();
 
   // "More" also lights up when the current route lives inside the drawer.
   const isSecondaryRoute = nav.secondary.some((item) => isItemActive(pathname, item));
@@ -36,7 +37,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
         className,
       )}
     >
-      <ul className="flex h-16">
+      <ul key={mode} className={cn('flex h-16', modeSwapFade(trainerModeAvailable))}>
         {nav.tabBar.map((item) => {
           const { href, label, shortLabel, icon: Icon } = item;
           const active = isItemActive(pathname, item);
@@ -51,11 +52,19 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
                   active ? 'text-[#944a00]' : 'text-gray-500',
                 )}
               >
-                <Icon
-                  className={cn('h-[22px] w-[22px]', active && 'stroke-[2.5]')}
-                  aria-hidden="true"
-                />
+                <span className="relative flex">
+                  <Icon
+                    className={cn('h-[22px] w-[22px]', active && 'stroke-[2.5]')}
+                    aria-hidden="true"
+                  />
+                  <NavCountBadge
+                    count={navBadges[href] ?? 0}
+                    announce={false}
+                    className="absolute -right-2.5 -top-1.5"
+                  />
+                </span>
                 <span className="text-xs font-medium leading-none">{shortLabel ?? label}</span>
+                <NavCountText count={navBadges[href] ?? 0} />
               </Link>
             </li>
           );

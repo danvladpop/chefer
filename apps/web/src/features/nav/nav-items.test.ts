@@ -8,13 +8,18 @@ import {
   isGymPath,
   isItemActive,
   isNavItemActive,
+  isTrainerClientPath,
+  MODE_HOME,
   modeCookieString,
+  modeOfPath,
   NAV_ITEMS,
   navFor,
   parseMode,
   PRIMARY_NAV_HREFS,
   PRIMARY_NAV_ITEMS,
+  rememberedMode,
   SECONDARY_NAV_ITEMS,
+  TRAINER_MODE_NAV_ITEMS,
   TRAINER_NAV_ITEM,
 } from './nav-items';
 
@@ -195,5 +200,84 @@ describe('trainer nav item (WP-18)', () => {
   it('does not change which mode a trainer route belongs to', () => {
     expect(deriveMode('/trainer/abc', 'gym')).toBe('gym');
     expect(deriveMode('/trainer', 'food')).toBe('food');
+  });
+});
+
+describe('trainer mode (trainer-mode.md §5.3)', () => {
+  const on = { trainerMode: true };
+  const labels = (items: readonly { label: string }[]) => items.map((i) => i.label);
+
+  it('the sidebar lists Today · Schedule · Clients · Workouts, then Trainer settings and Profile', () => {
+    const nav = navFor('trainer', { trainer: true, ...on });
+    expect(nav.primary.map((i) => i.href)).toEqual([
+      '/trainer/today',
+      '/trainer/schedule',
+      '/trainer/clients',
+      '/trainer/workouts',
+    ]);
+    expect(nav.secondary.map((i) => i.href)).toEqual(['/trainer/settings', '/profile']);
+    expect(labels(nav.secondary)).toEqual(['Trainer settings', 'Profile']);
+    expect(nav.all).not.toContain(TRAINER_NAV_ITEM);
+  });
+
+  it('the phone tab bar puts Today in the middle: Schedule · Clients · Today · Workouts', () => {
+    expect(labels(navFor('trainer', on).tabBar)).toEqual([
+      'Schedule',
+      'Clients',
+      'Today',
+      'Workouts',
+    ]);
+  });
+
+  it('lands on Trainer Today', () => {
+    expect(MODE_HOME.trainer).toBe('/trainer/today');
+  });
+
+  it('Clients also lights up on a client and their routine, not on the other tabs', () => {
+    const clients = TRAINER_MODE_NAV_ITEMS.find((i) => i.href === '/trainer/clients')!;
+    expect(isItemActive('/trainer/clients', clients)).toBe(true);
+    expect(isItemActive('/trainer/c1', clients)).toBe(true);
+    expect(isItemActive('/trainer/c1/routine', clients)).toBe(true);
+    expect(isItemActive('/trainer/today', clients)).toBe(false);
+    expect(isItemActive('/trainer', clients)).toBe(false);
+    expect(isTrainerClientPath('/trainer/settings')).toBe(false);
+    expect(isTrainerClientPath('/trainers/x')).toBe(false);
+  });
+
+  it('replaces "Clients" in the Food and Gym secondary lists', () => {
+    for (const mode of ['food', 'gym'] as const) {
+      expect(navFor(mode, { trainer: true, ...on }).secondary).not.toContain(TRAINER_NAV_ITEM);
+      expect(navFor(mode, { trainer: true, ...on }).all).not.toContain(TRAINER_NAV_ITEM);
+    }
+  });
+
+  it('every /trainer route is Trainer while trainer mode is available', () => {
+    for (const path of ['/trainer', '/trainer/today', '/trainer/clients', '/trainer/c1/routine']) {
+      expect(modeOfPath(path, on)).toBe('trainer');
+      expect(deriveMode(path, 'gym', on)).toBe('trainer');
+    }
+    expect(modeOfPath('/trainers', on)).toBeNull();
+    expect(deriveMode('/gym', 'trainer', on)).toBe('gym');
+    expect(deriveMode('/dashboard', 'trainer', on)).toBe('food');
+  });
+
+  it('neutral pages keep a remembered trainer mode', () => {
+    expect(deriveMode('/profile', 'trainer', on)).toBe('trainer');
+    expect(deriveMode('/premium', 'trainer', on)).toBe('trainer');
+  });
+
+  it('without trainer mode, /trainer stays neutral and a trainer cookie falls back to food (§5.1)', () => {
+    expect(modeOfPath('/trainer/today')).toBeNull();
+    expect(deriveMode('/trainer/today', 'gym')).toBe('gym');
+    expect(deriveMode('/profile', 'trainer')).toBe('food');
+    expect(deriveMode('/trainer', 'trainer', { trainerMode: false })).toBe('food');
+    expect(rememberedMode('trainer')).toBeNull();
+    expect(rememberedMode('trainer', on)).toBe('trainer');
+    expect(rememberedMode('gym')).toBe('gym');
+  });
+
+  it('parses and writes a trainer cookie', () => {
+    expect(parseMode('trainer')).toBe('trainer');
+    expect(modeCookieString('trainer')).toMatch(/^chefer_mode=trainer; Path=\/;/);
   });
 });

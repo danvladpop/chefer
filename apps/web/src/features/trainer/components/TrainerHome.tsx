@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useAppMode } from '@/features/nav/mode-context';
 import { trpc } from '@/lib/trpc';
 import { COACHING_COPY } from '@chefer/types';
 import { useTrainerStatus } from '../use-trainer-status';
@@ -22,12 +25,24 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** /trainer: off for this account, turn on, or the clients. */
+/**
+ * /trainer: off for this account, turn on, or the clients. With trainer mode
+ * available it hands over to trainer mode's Today (trainer-mode.md §5.3), so
+ * Trainer tools' links and bookmarks keep working.
+ */
 export function TrainerHome() {
+  const router = useRouter();
   const status = useTrainerStatus();
+  const { trainerModeAvailable, trainerModeLoading } = useAppMode();
   const { data: user } = trpc.user.me.useQuery();
 
-  if (status.isLoading) {
+  useEffect(() => {
+    if (trainerModeAvailable) router.replace('/trainer/today');
+  }, [trainerModeAvailable, router]);
+
+  // An active trainer waits for the flag too, so the old Clients page never
+  // flashes before the redirect.
+  if (status.isLoading || trainerModeAvailable || (status.active && trainerModeLoading)) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         <h1 className="sr-only">{COACHING_COPY.trainer.clients}</h1>
