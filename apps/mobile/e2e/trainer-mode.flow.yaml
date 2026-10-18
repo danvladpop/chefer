@@ -19,6 +19,25 @@ env:
 - runScript: scripts/trainer-mode-setup.js
 - runFlow: common/connect.yaml
 
+# A device left in trainer mode (an earlier run that stopped half-way) reopens there: back to personal first.
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'trainer-today'
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - tapOn:
+          id: 'trainer-tab-you'
+          retryTapIfNoChange: true
+      - tapOn:
+          id: 'trainer-you-switch-to-personal'
+
 # ── Whoever is signed in, sign out (new shell: You → Sign out) ───────────────
 - extendedWaitUntil:
     visible:
@@ -39,7 +58,6 @@ env:
           element:
             id: 'logout-button'
           direction: DOWN
-          centerElement: true
       - tapOn:
           id: 'logout-button'
       - tapOn:
@@ -138,8 +156,12 @@ env:
 - takeScreenshot: trainer-mode-today-welcome
 
 # ── Clients ──────────────────────────────────────────────────────────────────
+# The mode switch cross-fades the shells (MO-09): a tab tap during the fade lands nowhere (Android).
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn:
     id: 'trainer-tab-clients'
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: 'trainer-clients'
@@ -150,8 +172,11 @@ env:
     timeout: 15000
 - assertVisible:
     id: 'trainer-clients-invite'
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn:
     id: 'trainer-tab-today'
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: 'trainer-today'
@@ -201,8 +226,11 @@ env:
 # ── Trainer You → Switch to personal mode ────────────────────────────────────
 - waitForAnimationToEnd:
     timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn:
     id: 'trainer-tab-you'
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: 'trainer-you-switch-to-personal'

@@ -8,9 +8,8 @@ import { setShellMode } from './mode-store';
 
 // ─── Switching shells (trainer-mode.md §5.1) ──────────────────────────────────
 // From the first row of either You tab. Lands on that mode's Today, with no
-// reload: the root Stack cross-fades between the (main) and (trainer) groups
-// (MO-09, app/_layout.tsx). The light haptic plays, and screen readers hear
-// the new mode's name.
+// reload: the incoming tab group fades in (MO-09, shell-crossfade.tsx). The
+// light haptic plays, and screen readers hear the new mode's name.
 
 export const TRAINER_TODAY_HREF = '/(trainer)/today';
 
@@ -19,8 +18,18 @@ export function personalHomeHref(): '/home' | '/' {
   return isShellV2() ? '/home' : '/';
 }
 
+let crossfadeNext = false;
+
+/** True once, for the shell that mounts right after a switch (ShellCrossfade). */
+export function consumeShellCrossfade(): boolean {
+  const fade = crossfadeNext;
+  crossfadeNext = false;
+  return fade;
+}
+
 export function switchShellMode(to: AppShellMode): void {
   haptics.tick();
+  crossfadeNext = true;
   setShellMode(to);
   track('trainer_mode_switched', { to });
   AccessibilityInfo.announceForAccessibility(TRAINER_MODE_COPY.mode.switched(to));

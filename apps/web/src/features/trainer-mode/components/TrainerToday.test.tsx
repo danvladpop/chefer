@@ -143,10 +143,8 @@ describe('TrainerToday', () => {
       'href',
       '/trainer/workouts',
     );
-    expect(within(empty).getByRole('link', { name: 'Add a booking' })).toHaveAttribute(
-      'href',
-      '/trainer/schedule',
-    );
+    // Bookings arrive in M3: no "Add a booking" until then (mobile alike).
+    expect(within(empty).queryByRole('link', { name: 'Add a booking' })).toBeNull();
     expect(screen.queryByTestId('trainer-stat-active')).toBeNull();
     fireEvent.click(within(empty).getByRole('button', { name: 'Invite a client' }));
     expect(screen.getByRole('dialog', { name: 'Invite a client' })).toBeInTheDocument();

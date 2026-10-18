@@ -8,6 +8,7 @@ import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
 import { TabIcon } from '../../src/features/shell/tab-icon';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
+import { ShellCrossfade } from '../../src/features/trainer-mode/shell-crossfade';
 import { personalHomeHref } from '../../src/features/trainer-mode/switch-mode';
 import { TRAINER_TABS } from '../../src/features/trainer-mode/trainer-tabs';
 import { useMarkShellMode } from '../../src/features/trainer-mode/use-mark-shell-mode';
@@ -48,57 +49,59 @@ export default function TrainerTabsLayout() {
     name === 'clients' ? requests : name === 'you' ? personalWaiting : 0;
 
   return (
-    <Tabs
-      initialRouteName="today"
-      backBehavior="initialRoute"
-      // Premium motion #9: a selection haptic on every tab press and a short
-      // crossfade between tabs (none under reduced motion).
-      screenListeners={{ tabPress: () => haptics.selection() }}
-      screenOptions={{
-        headerShown: false,
-        animation: reducedMotion ? 'none' : 'fade',
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.labelSecondary,
-        tabBarStyle: { backgroundColor: colors.surfaceRaised, borderTopColor: colors.separator },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-      }}
-      tabBar={(props) => (
-        <View>
-          <WorkoutMiniBar />
-          <SnackbarAwareTabBar {...props} />
-        </View>
-      )}
-    >
-      {TRAINER_TABS.map((tab, index) => {
-        const badge = badgeFor(tab.name);
-        return (
-          <Tabs.Screen
-            key={tab.name}
-            name={tab.name}
-            options={{
-              title: tab.title,
-              tabBarButtonTestID: `trainer-tab-${tab.name}`,
-              tabBarAccessibilityLabel: tabAccessibilityLabel(
-                tab.title,
-                index,
-                TRAINER_TABS.length,
-                badge,
-              ),
-              tabBarIcon: ({ color, focused }) => (
-                <TabIcon focused={focused}>
-                  <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
-                </TabIcon>
-              ),
-              tabBarBadge: badge > 0 ? countPillText(badge) : undefined,
-              tabBarBadgeStyle: {
-                backgroundColor: colors.brand,
-                color: colors.onBrand,
-                fontSize: 12,
-              },
-            }}
-          />
-        );
-      })}
-    </Tabs>
+    <ShellCrossfade>
+      <Tabs
+        initialRouteName="today"
+        backBehavior="initialRoute"
+        // Premium motion #9: a selection haptic on every tab press and a short
+        // crossfade between tabs (none under reduced motion).
+        screenListeners={{ tabPress: () => haptics.selection() }}
+        screenOptions={{
+          headerShown: false,
+          animation: reducedMotion ? 'none' : 'fade',
+          tabBarActiveTintColor: colors.brand,
+          tabBarInactiveTintColor: colors.labelSecondary,
+          tabBarStyle: { backgroundColor: colors.surfaceRaised, borderTopColor: colors.separator },
+          tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        }}
+        tabBar={(props) => (
+          <View>
+            <WorkoutMiniBar />
+            <SnackbarAwareTabBar {...props} />
+          </View>
+        )}
+      >
+        {TRAINER_TABS.map((tab, index) => {
+          const badge = badgeFor(tab.name);
+          return (
+            <Tabs.Screen
+              key={tab.name}
+              name={tab.name}
+              options={{
+                title: tab.title,
+                tabBarButtonTestID: `trainer-tab-${tab.name}`,
+                tabBarAccessibilityLabel: tabAccessibilityLabel(
+                  tab.title,
+                  index,
+                  TRAINER_TABS.length,
+                  badge,
+                ),
+                tabBarIcon: ({ color, focused }) => (
+                  <TabIcon focused={focused}>
+                    <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
+                  </TabIcon>
+                ),
+                tabBarBadge: badge > 0 ? countPillText(badge) : undefined,
+                tabBarBadgeStyle: {
+                  backgroundColor: colors.brand,
+                  color: colors.onBrand,
+                  fontSize: 12,
+                },
+              }}
+            />
+          );
+        })}
+      </Tabs>
+    </ShellCrossfade>
   );
 }

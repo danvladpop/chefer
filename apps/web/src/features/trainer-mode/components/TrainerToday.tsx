@@ -210,18 +210,12 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
         <Button type="button" className="min-h-11" onClick={onInvite}>
           <UserPlus className="h-4 w-4" aria-hidden="true" /> {copy.inviteClient}
         </Button>
-        {/* Workouts (M2) and Schedule (M3) say what is coming until they ship. */}
+        {/* Workouts says what is coming until templates ship (M2); "Add a booking" joins with bookings (M3), as on mobile. */}
         <Link
           href="/trainer/workouts"
           className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11')}
         >
           {copy.buildTemplate}
-        </Link>
-        <Link
-          href="/trainer/schedule"
-          className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11')}
-        >
-          {copy.addBooking}
         </Link>
       </div>
     </section>

@@ -52,11 +52,10 @@ test.describe('Trainer mode (desktop)', () => {
     for (const label of ['Today', 'Schedule', 'Clients', 'Workouts', 'Trainer settings']) {
       await expect(primary.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
-    // A brand-new trainer: the three first steps.
+    // A brand-new trainer: the first steps (Add a booking joins with bookings, M3).
     const empty = page.getByTestId('trainer-today-empty');
     await expect(empty.getByRole('button', { name: 'Invite a client' })).toBeVisible();
     await expect(empty.getByRole('link', { name: 'Build a template' })).toBeVisible();
-    await expect(empty.getByRole('link', { name: 'Add a booking' })).toBeVisible();
     expect((await context.cookies()).find((c) => c.name === 'chefer_mode')?.value).toBe('trainer');
 
     // Clients.
