@@ -1,6 +1,6 @@
 'use client';
 
-import { COACHING_COPY } from '@chefer/types';
+import { COACHING_COPY, TEMPLATE_COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 
 export interface ConflictDialogProps {
@@ -13,6 +13,8 @@ export interface ConflictDialogProps {
    * editing ("Ana", the trainer's side: the client). Absent = the generic copy.
    */
   changedBy?: string | null;
+  /** What changed: a routine (default) or a trainer's workout template (trainer mode M2, two tabs). */
+  subject?: 'routine' | 'template';
 }
 
 /** gym_plan.md §5.4: routine save CONFLICT — the routine changed elsewhere. */
@@ -22,6 +24,7 @@ export function ConflictDialog({
   onUseTheirs,
   saving = false,
   changedBy = null,
+  subject = 'routine',
 }: ConflictDialogProps) {
   if (!open) return null;
 
@@ -30,7 +33,11 @@ export function ConflictDialog({
       open={open}
       onClose={onUseTheirs}
       title={
-        changedBy ? COACHING_COPY.stamps.conflict(changedBy) : 'This routine changed elsewhere'
+        changedBy
+          ? COACHING_COPY.stamps.conflict(changedBy)
+          : subject === 'template'
+            ? TEMPLATE_COPY.conflict.title
+            : 'This routine changed elsewhere'
       }
       hideHeader={false}
       size="sm"
@@ -46,13 +53,17 @@ export function ConflictDialog({
       }
     >
       <div className="px-5 py-4 text-sm text-gray-600">
-        <p>
-          {changedBy
-            ? `${changedBy} saved a different version since you opened it. `
-            : 'It looks like this routine was edited on another device since you opened it. '}
-          You can keep your changes and overwrite the other version, or discard yours and load the
-          other version instead.
-        </p>
+        {subject === 'template' && !changedBy ? (
+          <p>{TEMPLATE_COPY.conflict.body}</p>
+        ) : (
+          <p>
+            {changedBy
+              ? `${changedBy} saved a different version since you opened it. `
+              : 'It looks like this routine was edited on another device since you opened it. '}
+            You can keep your changes and overwrite the other version, or discard yours and load the
+            other version instead.
+          </p>
+        )}
       </div>
     </Sheet>
   );

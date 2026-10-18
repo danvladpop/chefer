@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
-import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
+import { cn, isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftDay, DraftExercise, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
@@ -23,7 +23,17 @@ export interface PhoneEditorListProps {
   renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
   /** Trainer coaching seam: a block under each day's header (the day's workout type). */
   renderDayExtra?: (day: DraftDay) => ReactNode;
+  /**
+   * `template` (trainer mode M2): one day that IS the workout template, so no
+   * day header, day reordering, "Add day" or "Move to another day". Default
+   * `routine`.
+   */
+  role?: EditorRole;
+  /** A day holds at most this many exercises: "Add exercise" turns off at the limit. */
+  exerciseLimit?: number;
 }
+
+export type EditorRole = 'routine' | 'template';
 
 const exerciseMoveButtonCls =
   'flex h-6 w-11 items-center justify-center text-gray-400 transition-colors hover:text-gray-600 disabled:pointer-events-none disabled:opacity-20';
@@ -40,7 +50,10 @@ export function PhoneEditorList({
   renderAttribution,
   renderExtra,
   renderDayExtra,
+  role = 'routine',
+  exerciseLimit,
 }: PhoneEditorListProps) {
+  const isTemplate = role === 'template';
   // UX-05 A4 (AC25): one exercise card expanded at a time, per day.
   const [expanded, setExpanded] = useState<Record<string, string | null>>({});
   const prevKeys = useRef<Record<string, string[]>>({});
@@ -71,46 +84,48 @@ export function PhoneEditorList({
           className="rounded-2xl border border-gray-200 bg-gray-50 p-3"
           data-testid="routine-editor-day"
         >
-          <DayHeaderFields
-            name={day.name}
-            plannedWeekday={day.plannedWeekday}
-            onRename={(name) => dispatch({ type: 'rename_day', dayKey: day.key, name })}
-            onWeekdayChange={(weekday) =>
-              dispatch({ type: 'set_day_weekday', dayKey: day.key, weekday })
-            }
-            onDuplicate={() => dispatch({ type: 'duplicate_day', dayKey: day.key })}
-            onDelete={() => dispatch({ type: 'delete_day', dayKey: day.key })}
-            canDelete={draft.days.length > 1}
-            leading={
-              <div className="flex shrink-0 flex-col">
-                <button
-                  type="button"
-                  aria-label="Move day up"
-                  disabled={dayIndex === 0}
-                  onClick={() =>
-                    dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex - 1 })
-                  }
-                  className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
-                >
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Move day down"
-                  disabled={dayIndex === draft.days.length - 1}
-                  onClick={() =>
-                    dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex + 1 })
-                  }
-                  className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
-                >
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            }
-          />
+          {!isTemplate && (
+            <DayHeaderFields
+              name={day.name}
+              plannedWeekday={day.plannedWeekday}
+              onRename={(name) => dispatch({ type: 'rename_day', dayKey: day.key, name })}
+              onWeekdayChange={(weekday) =>
+                dispatch({ type: 'set_day_weekday', dayKey: day.key, weekday })
+              }
+              onDuplicate={() => dispatch({ type: 'duplicate_day', dayKey: day.key })}
+              onDelete={() => dispatch({ type: 'delete_day', dayKey: day.key })}
+              canDelete={draft.days.length > 1}
+              leading={
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    type="button"
+                    aria-label="Move day up"
+                    disabled={dayIndex === 0}
+                    onClick={() =>
+                      dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex - 1 })
+                    }
+                    className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Move day down"
+                    disabled={dayIndex === draft.days.length - 1}
+                    onClick={() =>
+                      dispatch({ type: 'move_day', fromIndex: dayIndex, toIndex: dayIndex + 1 })
+                    }
+                    className="flex h-6 w-11 items-center justify-center text-gray-400 disabled:opacity-20"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              }
+            />
+          )}
           {renderDayExtra && <div className="mt-2">{renderDayExtra(day)}</div>}
 
-          <div className="mt-3 flex flex-col gap-2.5">
+          <div className={cn('flex flex-col gap-2.5', !isTemplate && 'mt-3')}>
             {day.exercises.map((exercise, exIndex) => (
               <div key={exercise.key} className="flex flex-col gap-1.5">
                 <SupersetHeading
@@ -203,7 +218,7 @@ export function PhoneEditorList({
                     </div>
                   }
                 />
-                {draft.days.length > 1 && (
+                {!isTemplate && draft.days.length > 1 && (
                   <label className="flex items-center gap-2 pl-1 text-xs text-gray-500">
                     Move to
                     <select
@@ -243,6 +258,7 @@ export function PhoneEditorList({
               variant="outline"
               size="sm"
               className="min-h-11 min-w-0 whitespace-nowrap"
+              disabled={exerciseLimit !== undefined && day.exercises.length >= exerciseLimit}
               onClick={() => onOpenPicker(day.key)}
             >
               <Plus className="h-4 w-4 shrink-0" /> Add exercise
@@ -263,9 +279,11 @@ export function PhoneEditorList({
         </div>
       ))}
 
-      <Button type="button" variant="outline" onClick={onAddDay}>
-        <Plus className="h-4 w-4" /> Add day
-      </Button>
+      {!isTemplate && (
+        <Button type="button" variant="outline" onClick={onAddDay}>
+          <Plus className="h-4 w-4" /> Add day
+        </Button>
+      )}
     </div>
   );
 }
