@@ -66,6 +66,19 @@ export function createTrpcGymMock() {
           })),
         },
         dismissNotice: { useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false })) },
+        // Trainer mode M3 (§6.9, §10): the upcoming-booking card and the consent v2 notice. None by default.
+        bookings: {
+          upcoming: {
+            useQuery: jest.fn((): { data: unknown; isError: boolean; isPending: boolean } => ({
+              data: [],
+              isError: false,
+              isPending: false,
+            })),
+          },
+        },
+        acknowledgeConsentUpdate: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false })),
+        },
       },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },

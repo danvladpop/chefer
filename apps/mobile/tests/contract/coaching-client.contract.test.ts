@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { COACHING_API_LEVEL, COACHING_CONSENT_LABELS } from '@chefer/types';
+import { COACHING_API_LEVEL, COACHING_CONSENT_LABELS, TRAINER_MODE_API_LEVEL } from '@chefer/types';
 import { buildAuthHeaders } from '../../src/lib/trpc-links';
 import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 import {
@@ -14,7 +14,8 @@ import {
 
 // WP-18 lane D: what the SHIPPED mobile client relies on. Unlike the other coaching suites (which pass an
 // explicit API level), the client here is built by the app's own link stack — the header the app really
-// sends (`x-chefer-api-level: 6`) — so this fails if the bump to level 6 is lost or the level-6 client
+// sends (`x-chefer-api-level: 8` since trainer mode M3; levels are cumulative, so it is at least the
+// coaching level 6) — so this fails if the bump is lost or the level-6 client
 // surfaces (trainer name, stamps, notes, "Set by", the consent-history rows, "stopped coaching you")
 // stop being served to it. Skipped when coaching is off on the API.
 
@@ -25,10 +26,11 @@ beforeAll(async () => {
   if (!enabled) console.warn(`[coaching-client.contract] ${NO_COACHING_MESSAGE}`);
 });
 
-describe('the shipped client at level 6', () => {
-  it('declares the coaching API level in its header', () => {
-    expect(buildAuthHeaders(() => null)['x-chefer-api-level']).toBe(String(COACHING_API_LEVEL));
+describe('the shipped client (level 6 surfaces, sent at level 8)', () => {
+  it('declares the trainer-mode API level in its header (≥ the coaching level)', () => {
+    expect(buildAuthHeaders(() => null)['x-chefer-api-level']).toBe(String(TRAINER_MODE_API_LEVEL));
     expect(COACHING_API_LEVEL).toBe(6);
+    expect(TRAINER_MODE_API_LEVEL).toBeGreaterThanOrEqual(COACHING_API_LEVEL);
   });
 
   it('join by a deep-link code, then trainer name, stamps, note, "Set by" and the consent rows all reach it', async () => {
@@ -135,6 +137,8 @@ describe('the shipped client at level 6', () => {
       trainer: null,
       request: null,
       stopped: null,
+      // Level 8 (trainer mode M3): nothing new to acknowledge without a trainer.
+      consentUpdate: null,
     });
     const after = (await api.privacy.getConsentHistory.query()).filter(
       (e) => e.kind === 'COACHING_SHARING',

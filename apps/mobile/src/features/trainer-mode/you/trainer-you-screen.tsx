@@ -14,6 +14,7 @@ import {
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useFriendsMe } from '../../friends/api/use-friends-me';
+import { BookingReminderSwitch } from '../../notifications/booking-reminder-switch';
 import { ShellTopBar } from '../../shell/shell-chrome';
 import { YouHelpSection, YouSignOutFooter } from '../../shell/you/you-footer';
 import { trainerFeedbackMailto } from '../../trainer/components/trainer-feedback-link';
@@ -95,6 +96,14 @@ export function TrainerYouScreen() {
               icon={<Icon name="availability" color={colors.brand} />}
             />
           </ListSection>
+
+          {/* M3 §7.3: local reminders an hour before each of the trainer's own bookings. */}
+          <View
+            testID="trainer-you-booking-reminders"
+            className="rounded-card border border-separator bg-surface px-4 py-2"
+          >
+            <BookingReminderSwitch role="trainer" testID="trainer-you-booking-reminders-switch" />
+          </View>
 
           <YouHelpSection
             feedback={

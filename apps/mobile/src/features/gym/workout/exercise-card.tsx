@@ -61,6 +61,8 @@ export interface WorkoutContext {
   prior: SessionSummaryDto[];
   /** Bootstrap `olderBests` — PRs must beat these too (audit F-GYM-6-1). */
   olderBests?: Record<string, ExerciseBest> | undefined;
+  /** Trainer mode M3 (coached workout): history is only the client's last exposure — no live PR badge. */
+  noLivePr?: boolean;
   /**
    * UX-44 (T-44.3): `edit` is the logger over a past session — no Why?/Next-time
    * banner (they describe the future; the notice on Gym Today covers it) and the
@@ -145,8 +147,8 @@ function ExerciseCardImpl({
   );
   const lastNote = useMemo(() => lastNoteFor(se.exerciseId, ctx.prior), [se.exerciseId, ctx.prior]);
   const pr = useMemo(
-    () => livePr(se, ctx.prior, ctx.olderBests?.[se.exerciseId]),
-    [se, ctx.prior, ctx.olderBests],
+    () => (ctx.noLivePr ? null : livePr(se, ctx.prior, ctx.olderBests?.[se.exerciseId])),
+    [se, ctx.prior, ctx.olderBests, ctx.noLivePr],
   );
   const trainerNote = ctx.trainer?.noteFor(se) ?? null;
   const setBy = ctx.trainer?.setByFor(se) ?? null;

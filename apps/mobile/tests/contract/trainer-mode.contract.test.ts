@@ -51,7 +51,12 @@ describe('trainer mode: badges and Today summary', () => {
       requestsWaiting: 0,
       averageAdherence: null,
       quietClients: [],
-      bookingsThisWeek: null,
+      // Trainer mode M3: the booking parts, empty for a brand-new trainer.
+      bookingsThisWeek: { scheduled: 0, done: 0 },
+      nextBooking: null,
+      todayBookings: [],
+      unmarkedAttendance: [],
+      sessionsDelivered: [],
     });
   });
 

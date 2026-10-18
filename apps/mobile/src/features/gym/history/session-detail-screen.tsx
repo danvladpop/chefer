@@ -32,6 +32,7 @@ import { trpc } from '../../../lib/trpc';
 import { ShellChromeProvider, ShellTopBar, useShellChrome } from '../../shell/shell-chrome';
 import { TrainButton } from '../../shell/train/train-button';
 import { TrainCard } from '../../shell/train/train-cards';
+import { loggedByLabel } from '../../trainer-coach/history-labels';
 import { useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { useIsOnline } from '../library-screens/online-status';
 import { StackBackButton } from '../library-screens/stack-back-button';
@@ -165,6 +166,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
     : undefined;
 
   const dateLabel = weekdayDateLabel(view.localDate);
+  // Trainer mode M3: "Logged by Ana" on a workout the trainer logged for you. `session.get`
+  // carries it for any date; the bootstrap summary (12-week window) is the offline fallback.
+  const loggedBy = loggedByLabel(fullDoc?.loggedBy ? fullDoc : summary);
   const headerActions = actionSession ? (
     <>
       <TrainButton
@@ -203,6 +207,11 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
             {duration !== null ? ` · ${duration} min` : ''}
             {view.isDeload ? ' · Deload' : ''}
           </Text>
+          {loggedBy ? (
+            <Text testID="session-detail-logged-by" className="text-subhead text-label-secondary">
+              {loggedBy}
+            </Text>
+          ) : null}
         </View>
 
         {view.notes ? (

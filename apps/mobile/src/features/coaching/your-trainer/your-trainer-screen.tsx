@@ -19,12 +19,16 @@ import { useIsOnline } from '../../gym/workout/use-is-online';
 import { useCoachingAvailability } from '../../trainer/api/use-coaching-availability';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TrainerHeader } from '../../trainer/components/trainer-header';
+import { UpcomingBookingsList } from '../bookings/upcoming-booking';
 import { COACHING_MOBILE_COPY } from '../copy';
+import { ConsentUpdateNotice } from '../notices/consent-update-notice';
 
 // ─── Profile → Your trainer (spec §2.3 step 5, §2.6) ──────────────────────────
 // Who coaches you, since when, what they see and can do, and Leave; a pending coaching request (Cancel
 // request) or, with neither, the way into Find a trainer (PRD 2026-10 §4.1). Mirrors the web card
 // (apps/web/src/features/coaching/components/YourTrainerCard.tsx) line for line.
+// Trainer mode M3 (§6.9, §10): the one-time "What's new with Ana" notice (its Leave opens the same
+// confirmation; `openLeave` opens it on arrival from Today/Train) and the read-only Upcoming bookings.
 
 const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
@@ -81,7 +85,7 @@ function PendingRequestCard({ request }: { request: CoachingRequestDto }) {
   );
 }
 
-export function YourTrainerScreen() {
+export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean } = {}) {
   const copy = COACHING_COPY.yourTrainer;
   const colors = useThemeColors();
   const { enabled, isLoading, unreachable, retry } = useCoachingAvailability();
@@ -96,7 +100,7 @@ export function YourTrainerScreen() {
       if (enabled) void utils.coaching.status.invalidate();
     }, [enabled, utils]),
   );
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState(openLeave);
   const [offlineError, setOfflineError] = useState(false);
   const leave = trpc.coaching.leave.useMutation({
     meta: { silent: true },
@@ -172,6 +176,13 @@ export function YourTrainerScreen() {
           />
         }
       >
+        <ConsentUpdateNotice
+          onLeave={() => {
+            setOfflineError(false);
+            leave.reset();
+            setConfirming(true);
+          }}
+        />
         <CoachingCard className="gap-4">
           <View className="min-w-0 flex-row items-center gap-3">
             <View className="h-10 w-10 items-center justify-center rounded-full bg-brand-tint">
@@ -230,6 +241,8 @@ export function YourTrainerScreen() {
             </View>
           )}
         </CoachingCard>
+
+        {trainer ? <UpcomingBookingsList /> : null}
 
         {request ? (
           <PendingRequestCard request={request} />

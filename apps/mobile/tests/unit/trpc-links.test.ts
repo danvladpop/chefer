@@ -1,7 +1,7 @@
 import { createTRPCUntypedClient, type TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
 import type { AppRouter } from '@chefer/api';
-import { COACHING_API_LEVEL } from '@chefer/types';
+import { TRAINER_MODE_API_LEVEL } from '@chefer/types';
 import {
   buildAuthHeaders,
   buildTrpcLinks,
@@ -24,11 +24,13 @@ describe('buildAuthHeaders', () => {
   });
 });
 
-describe('x-chefer-api-level (WP-18)', () => {
-  it('the app declares API level 6: the first to render trainer coaching (stamps, notes, "Set by")', () => {
-    expect(COACHING_API_LEVEL).toBe(6);
-    expect(buildAuthHeaders(() => null)['x-chefer-api-level']).toBe('6');
-    expect(buildAuthHeaders(() => 'tok')['x-chefer-api-level']).toBe(String(COACHING_API_LEVEL));
+describe('x-chefer-api-level (WP-18, trainer mode M3)', () => {
+  it('the app declares API level 8: the first to render booking notices, consent v2 and "Logged by"', () => {
+    expect(TRAINER_MODE_API_LEVEL).toBe(8);
+    expect(buildAuthHeaders(() => null)['x-chefer-api-level']).toBe('8');
+    expect(buildAuthHeaders(() => 'tok')['x-chefer-api-level']).toBe(
+      String(TRAINER_MODE_API_LEVEL),
+    );
   });
 });
 

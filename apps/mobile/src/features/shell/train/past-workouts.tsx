@@ -16,6 +16,7 @@ import { useSessionActions } from '../../gym/history/use-session-actions';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { localDate } from '../../gym/offline/ids';
 import { useRecentSessions } from '../../gym/today/use-recent-sessions';
+import { loggedByLabel } from '../../trainer-coach/history-labels';
 import { TrainButton } from './train-button';
 
 // "Past workouts" on Train (10 Oct redesign; owner: one per line). The same
@@ -89,12 +90,14 @@ export function PastWorkouts({ bootstrap }: { bootstrap: GymBootstrap }) {
         const session = pager.combined.find((s) => s.id === row.id);
         const activity = session ? isLoggedWorkout(session) : row.activity;
         const meta = pastWorkoutMeta(row, session, distanceUnit);
+        // Trainer mode M3: a workout the trainer logged reads "Logged by Ana".
+        const loggedBy = loggedByLabel(session);
         return (
           <MediaRow
             key={row.id}
             testID={`train-past-row-${row.id}`}
             title={row.name}
-            meta={meta.text}
+            meta={loggedBy ? `${meta.text} · ${loggedBy}` : meta.text}
             badge={row.hasPr ? '🏆 PR' : undefined}
             imageUri={
               session && !activity

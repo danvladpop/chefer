@@ -2,6 +2,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import {
+  getBookingReminderPrefs,
+  resetBookingReminderPrefsForTests,
+} from '../../src/features/notifications/booking-reminders';
+import {
   NO_FOOD_NUDGES,
   readFoodNudgePrefs,
   writeFoodNudgePrefs,
@@ -53,6 +57,17 @@ jest.mock('../../src/features/gym/rest-timer', () => ({
   ensureRestNotificationPermission: () => mockEnsureRest(),
 }));
 
+// Trainer mode M3 (§7.3): the client's "Booking reminders" shows only for someone with a trainer.
+let mockTrainer: { name: string; since: string } | null = null;
+jest.mock('../../src/features/coaching/use-coaching-status', () => ({
+  useCoachingStatus: () => ({
+    enabled: true,
+    isLoading: false,
+    data: { trainer: mockTrainer, stopped: null },
+    refetch: jest.fn(),
+  }),
+}));
+
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
@@ -73,9 +88,26 @@ beforeEach(() => {
   mockNudgeAllowed = true;
   setKvBackendForTests(createMemoryKvBackend());
   writeFoodNudgePrefs(NO_FOOD_NUDGES);
+  mockTrainer = null;
+  resetBookingReminderPrefsForTests();
 });
 
 describe('NotificationsScreen', () => {
+  it('Booking reminders (trainer mode §7.3): hidden without a trainer', async () => {
+    await renderScreen();
+    expect(screen.queryByTestId('notifications-booking-reminders')).toBeNull();
+  });
+
+  it('a client with a trainer sees Booking reminders on; turning it off stores the choice', async () => {
+    mockTrainer = { name: 'Ana', since: '2026-09-01T00:00:00.000Z' };
+    await renderScreen();
+    expect(screen.getByTestId('notifications-booking-reminders')).toHaveProp('value', true);
+    await fireEvent(screen.getByTestId('notifications-booking-reminders'), 'valueChange', false);
+    await waitFor(() =>
+      expect(getBookingReminderPrefs()).toEqual({ client: false, trainer: true }),
+    );
+  });
+
   it('gathers weekly updates, training reminders, the two nudges and the rest-timer alert', async () => {
     await renderScreen();
     expect(screen.getByTestId('notifications-title')).toHaveTextContent('Notifications');

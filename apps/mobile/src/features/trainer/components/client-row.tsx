@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
 import { Badge, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
+import { clientRowNextBooking, deviceTimeZone, todayIn } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { formatStampDate } from '../../gym/routine/attribution';
 import { firstNameOf, formatWeekdayDate } from '../format';
@@ -9,6 +10,13 @@ import { firstNameOf, formatWeekdayDate } from '../format';
 // One active client on a card (spec §2.4): name, label, last workout, this week's sessions against the
 // goal, a quiet flag after 7 days without a workout, the "Keep it simple" badge and "Routine changed by…".
 // Tap → the client. Shared by Trainer tools (/trainer) and trainer mode's Clients tab.
+// Trainer mode M3 (§6.4): "Next booking: Tue 21 Oct, 18:00" when one is set (`nextBookingAt`, additive).
+
+/** "Next booking: Tue 21 Oct, 18:00" in the device zone (§6.4), or null. */
+function nextBookingLine(row: ClientRowDto): string | null {
+  const zone = deviceTimeZone();
+  return clientRowNextBooking(row, zone, todayIn(zone));
+}
 
 export function clientRowLabel(row: ClientRowDto): string {
   const parts = [
@@ -22,6 +30,8 @@ export function clientRowLabel(row: ClientRowDto): string {
     parts.push(COACHING_COPY.trainer.quiet(row.inactiveDays));
   }
   if (row.keepItSimple) parts.push(COACHING_COPY.trainerProfile.keepItSimple);
+  const next = nextBookingLine(row);
+  if (next) parts.push(next);
   return parts.join('. ');
 }
 
@@ -56,6 +66,14 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
           ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
           : COACHING_COPY.trainer.noWorkoutYet}
       </Text>
+      {row.nextBookingAt ? (
+        <Text
+          testID={`trainer-client-${row.clientId}-next-booking`}
+          className="min-w-0 text-subhead text-label-secondary"
+        >
+          {nextBookingLine(row)}
+        </Text>
+      ) : null}
       {quiet || row.keepItSimple ? (
         <View className="flex-row flex-wrap gap-1.5">
           {quiet ? (

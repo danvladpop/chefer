@@ -21,6 +21,10 @@ export function trainerNoticeTitle(notice: CoachingNoticeDto): string | null {
       return copy.requestReceived(notice.other.name);
     case 'REQUEST_ACCEPTED':
     case 'REQUEST_DECLINED':
+    case 'BOOKING_CREATED':
+    case 'BOOKING_CHANGED':
+    case 'BOOKING_CANCELLED':
+    case 'COACHED_WORKOUT_LOGGED':
       return null; // client side only
   }
 }

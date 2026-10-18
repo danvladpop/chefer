@@ -18,6 +18,7 @@ import {
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
+import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
@@ -191,7 +192,17 @@ export default function RootLayout() {
                     <Stack.Screen name="trainer/[clientId]/routine" />
                     {/* Trainer mode M2 (trainer-mode.md §6.6): a workout template; `new` makes one. */}
                     <Stack.Screen name="trainer/templates/[id]" />
+                    {/* Trainer mode M3 (trainer-mode.md §6.2–§6.4): one booking (attendance, Start, Edit, Cancel). */}
+                    <Stack.Screen name="trainer/bookings/[id]" />
+                    {/* Trainer mode M3 (§6.7): the coached workout logger; `none` = no booking. Like
+                        gym/workout: slides up, no swipe-back out of a running workout. */}
+                    <Stack.Screen
+                      name="trainer/coach/[bookingId]"
+                      options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                    />
                     <Stack.Screen name="coaching/index" />
+                    {/* Trainer mode M3 (§6.9): the client's read-only booking. */}
+                    <Stack.Screen name="coaching/bookings/[id]" />
                     {/* PRD 2026-10 §4.1: Find a trainer and a trainer's card ("Ask to coach me"). */}
                     <Stack.Screen name="coaching/find" />
                     <Stack.Screen name="coaching/trainers/[trainerId]" />
@@ -213,6 +224,8 @@ export default function RootLayout() {
             <PendingJoinHost signedIn={token !== null} />
             {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
             <FoodNudgeHost signedIn={token !== null} />
+            {/* Trainer mode §7.3: local reminders 60 min before each booking (client and trainer). */}
+            <BookingReminderHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
             <ForegroundLandingHost signedIn={token !== null} />
             {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}

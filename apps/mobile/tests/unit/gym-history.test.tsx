@@ -9,9 +9,12 @@ import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests, setGymOwner } from '../../src/features/gym/offline/owner';
-import { resetSessionCorrectionsForTests } from '../../src/features/gym/offline/session-corrections';
+import {
+  resetSessionCorrectionsForTests,
+  sessionGetQueryKey,
+} from '../../src/features/gym/offline/session-corrections';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
-import { makeBootstrap, makeExercise, uuid } from './gym-fixtures';
+import { makeBootstrap, makeDoc, makeExercise, uuid } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
@@ -194,6 +197,31 @@ describe('SessionDetailScreen', () => {
     expect(screen.getByText(/Sep.*10.*2026|10.*Sep.*2026/)).toBeTruthy();
     const keyWarnings = errorSpy.mock.calls.filter((c) => String(c[0]).includes('same key'));
     expect(keyWarnings).toHaveLength(0);
+  });
+
+  // Trainer mode M3: `gym.session.get` says who logged a coached workout, so "Logged by Ana"
+  // shows even for a workout older than the bootstrap's 12-week `recentSessions` window.
+  it('a coached workout beyond the bootstrap window reads "Logged by Ana" from session.get', async () => {
+    onlineManager.setOnline(true);
+    const doc = { ...makeDoc(7, { name: 'Lower body A' }), loggedBy: { name: 'Ana' } };
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ recentSessions: [] }));
+    queryClient.setQueryData(sessionGetQueryKey(doc.id), doc);
+    await renderWithGym(<SessionDetailScreen sessionId={doc.id} />, queryClient);
+
+    expect(await screen.findByTestId('session-detail-logged-by')).toHaveTextContent(
+      'Logged by Ana',
+    );
+  });
+
+  it('the client’s own workout has no "Logged by" line', async () => {
+    const bootstrap = makeBootstrap({ recentSessions: [session] });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await renderWithGym(<SessionDetailScreen sessionId="session-1" />, queryClient);
+
+    await screen.findByTestId('gym-session-detail');
+    expect(screen.queryByTestId('session-detail-logged-by')).toBeNull();
   });
 
   it('shows a not-found state offline for an unknown session', async () => {

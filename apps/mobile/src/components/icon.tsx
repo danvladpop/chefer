@@ -98,6 +98,8 @@ const GLYPHS = {
   requests: 'mail-unread-outline',
   quiet: 'moon-outline',
   turnOff: 'power-outline',
+  // Trainer mode M3: a booking's place.
+  location: 'location-outline',
 } as const satisfies Record<string, keyof typeof Ionicons.glyphMap>;
 
 export type IconName = keyof typeof GLYPHS;
