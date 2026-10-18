@@ -48,6 +48,11 @@ export const featureFlagsSchema = z
      *  Today/logger/summary, My week and the training-style switch. Off by
      *  default for a dark launch to testers. */
     simpleTraining: z.boolean(),
+    /** Trainer mode (docs/prd-2026-10/trainer-mode.md): the second app shell
+     *  for coaching (Schedule · Clients · Today · Workouts · You) and the
+     *  mode switch, for active trainers only. Off by default; with it off,
+     *  trainer tools stay under You → Trainer tools exactly as today. */
+    trainerMode: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;
