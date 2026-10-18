@@ -31,3 +31,19 @@ const NEW_TAB_PATHS: ReadonlySet<string> = new Set(['/home', '/plan', '/shop', '
 export function isShellV2TabPath(pathname: string): boolean {
   return NEW_TAB_PATHS.has(pathname);
 }
+
+// ─── Trainer mode (docs/prd-2026-10/trainer-mode.md §5.2) ─────────────────────
+// The second shell's tab bar: Schedule · Clients · Today · Workouts · You
+// (`app/(trainer)`). Its tab URLs share names with other groups (`/today`,
+// `/you`), so code always navigates with the explicit group.
+
+export type TrainerTab = 'schedule' | 'clients' | 'today' | 'workouts' | 'you';
+
+const OLD_TO_TRAINER: Readonly<Record<string, string>> = {
+  '/trainer': '/(trainer)/clients',
+};
+
+/** Where an old Trainer tools URL lives once trainer mode is available (null when it has no new home). */
+export function trainerModePathFor(pathname: string): string | null {
+  return OLD_TO_TRAINER[pathname] ?? null;
+}

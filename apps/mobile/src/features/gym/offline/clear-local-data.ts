@@ -3,6 +3,7 @@ import { resetLandingCacheForTests as resetLandingCache } from '../../navigation
 import { setHealthConsentDeclined } from '../../privacy/health-declined-store';
 import { REVIEW_PROMPT_KEY } from '../../review/review-store';
 import { clearPendingRebalance } from '../../tracker/rebalance-store';
+import { resetTrainerModeAvailableCache, SHELL_MODE_KEY } from '../../trainer-mode/mode-store';
 import { resetModeForTests as resetModeStore } from '../mode-store';
 import { resetRestTimerForTests as resetRestTimerStore } from '../rest-timer';
 import { resetCardioTimerForTests as resetCardioTimerStore } from '../workout/cardio-timer';
@@ -26,8 +27,15 @@ import { resetSessionCorrectionsForTests as resetSessionCorrectionsStore } from 
  * KV keys that belong to the phone, not the account — they survive sign-out.
  * `review.prompt-state` (REVIEW_PROMPT_KEY): the store rating prompt's 120-day
  * cooldown and active days — a sign-out must not reopen the prompt.
+ * `shell.mode` (SHELL_MODE_KEY): personal or trainer mode, a per-device choice
+ * (trainer mode §5.1). The account's "trainer mode available" answer is wiped,
+ * so the next account opens in personal mode until its own answer arrives.
  */
-export const DEVICE_KV_KEYS_KEPT: readonly string[] = ['analytics.consent', REVIEW_PROMPT_KEY];
+export const DEVICE_KV_KEYS_KEPT: readonly string[] = [
+  'analytics.consent',
+  REVIEW_PROMPT_KEY,
+  SHELL_MODE_KEY,
+];
 
 /** Gym keys that survive a session expiry so unsynced workouts upload on re-login. */
 function isKeptGymKey(key: string): boolean {
@@ -65,6 +73,7 @@ export async function clearLocalUserData(opts: { keepGymData: boolean }): Promis
   // are the stores' only "forget the cached value" seam).
   resetModeStore();
   resetLandingCache();
+  resetTrainerModeAvailableCache();
   setHealthConsentDeclined(false);
   clearPendingRebalance();
   if (!opts.keepGymData) {

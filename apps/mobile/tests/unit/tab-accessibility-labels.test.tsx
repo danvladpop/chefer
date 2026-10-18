@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import FoodTabsLayout from '../../app/(food)/_layout';
 import GymTabsLayout from '../../app/(gym)/_layout';
 import MainTabsLayout from '../../app/(main)/_layout';
+import TrainerTabsLayout from '../../app/(trainer)/_layout';
 import { TabIcon } from '../../src/features/shell/tab-icon';
 import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
@@ -14,6 +15,7 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 type CapturedScreen = { name: string; options: Record<string, unknown> };
 const mockTabScreens: CapturedScreen[] = [];
 const mockTabsProps: Record<string, unknown>[] = [];
+const mockRedirects: unknown[] = [];
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over imports
   const { View } = require('react-native') as typeof import('react-native');
@@ -28,7 +30,10 @@ jest.mock('expo-router', () => {
   Tabs.Screen = TabsScreen;
   return {
     Tabs,
-    Redirect: () => null,
+    Redirect: ({ href }: { href: unknown }) => {
+      mockRedirects.push(href);
+      return null;
+    },
     usePathname: () => '/home',
     router: { push: jest.fn() },
   };
@@ -41,6 +46,7 @@ jest.mock('../../src/features/friends/api/use-friends-me', () => ({
 let mockShellV2 = false;
 jest.mock('../../src/features/shell/shell-store', () => ({
   useShellV2: () => mockShellV2,
+  isShellV2: () => mockShellV2,
 }));
 jest.mock('../../src/features/auth/pending-onboarding', () => ({
   usePendingOnboarding: () => false,
@@ -53,6 +59,16 @@ jest.mock('../../src/features/navigation/use-landing', () => ({
   useSyncLandingCache: () => undefined,
 }));
 jest.mock('../../src/lib/auth-store', () => ({ getToken: () => 'token' }));
+// Trainer mode (trainer-mode.md §5.2, §7.1): off unless a test turns it on.
+let mockTrainerMode = false;
+let mockTrainerBadges = { requests: 0, total: 0 };
+jest.mock('../../src/features/trainer-mode/use-trainer-mode', () => ({
+  useTrainerModeAvailability: () => mockTrainerMode,
+  useTrainerBadges: () => ({ ...mockTrainerBadges, loaded: true, refetch: jest.fn() }),
+}));
+jest.mock('../../src/features/trainer-mode/use-mark-shell-mode', () => ({
+  useMarkShellMode: () => undefined,
+}));
 
 const LAYOUTS = [
   {
@@ -88,6 +104,8 @@ async function labelsFor(layout: (typeof LAYOUTS)[number]): Promise<unknown[]> {
 
 beforeEach(() => {
   mockBadge = 0;
+  mockTrainerMode = false;
+  mockTrainerBadges = { requests: 0, total: 0 };
 });
 
 afterEach(() => {
@@ -146,6 +164,72 @@ describe('new shell tab order', () => {
     expect(mockTabsProps[0]).toMatchObject({
       initialRouteName: 'home',
       backBehavior: 'initialRoute',
+    });
+  });
+});
+
+// Trainer mode (trainer-mode.md §5.2, owner Q2): Schedule · Clients · Today ·
+// Workouts · You, Today in the middle as the start and Back target.
+describe('trainer mode tab bar', () => {
+  beforeEach(() => {
+    mockShellV2 = true;
+    mockTrainerMode = true;
+    mockTabScreens.length = 0;
+    mockTabsProps.length = 0;
+    jest.replaceProperty(Platform, 'OS', 'android');
+  });
+
+  it('reads Schedule · Clients · Today · Workouts · You and starts on Today', async () => {
+    await render(<TrainerTabsLayout />);
+    expect(mockTabScreens.map((s) => [s.name, s.options.title])).toEqual([
+      ['schedule', 'Schedule'],
+      ['clients', 'Clients'],
+      ['today', 'Today'],
+      ['workouts', 'Workouts'],
+      ['you', 'You'],
+    ]);
+    expect(mockTabsProps[0]).toMatchObject({
+      initialRouteName: 'today',
+      backBehavior: 'initialRoute',
+    });
+    expect(mockTabScreens.map((s) => s.options.tabBarButtonTestID)).toEqual([
+      'trainer-tab-schedule',
+      'trainer-tab-clients',
+      'trainer-tab-today',
+      'trainer-tab-workouts',
+      'trainer-tab-you',
+    ]);
+  });
+
+  it('Clients counts requests, You counts what waits in personal mode — both spoken', async () => {
+    mockTrainerBadges = { requests: 2, total: 2 };
+    mockBadge = 4;
+    await render(<TrainerTabsLayout />);
+    const byName = Object.fromEntries(mockTabScreens.map((s) => [s.name, s.options]));
+    expect(byName.clients).toMatchObject({
+      tabBarBadge: '2',
+      tabBarAccessibilityLabel: 'Clients, 2 new',
+    });
+    expect(byName.you).toMatchObject({ tabBarBadge: '4', tabBarAccessibilityLabel: 'You, 4 new' });
+    expect(byName.today?.tabBarBadge).toBeUndefined();
+  });
+
+  it('without trainer mode, the group renders no tabs (it redirects to personal mode)', async () => {
+    mockTrainerMode = false;
+    mockRedirects.length = 0;
+    await render(<TrainerTabsLayout />);
+    expect(mockTabScreens).toHaveLength(0);
+    expect(mockRedirects).toEqual(['/home']);
+  });
+
+  it('personal mode’s You badge adds what waits in trainer mode', async () => {
+    mockBadge = 1;
+    mockTrainerBadges = { requests: 2, total: 2 };
+    await render(<MainTabsLayout />);
+    const you = mockTabScreens.find((s) => s.name === 'you');
+    expect(you?.options).toMatchObject({
+      tabBarBadge: '3',
+      tabBarAccessibilityLabel: 'You, 3 new',
     });
   });
 });

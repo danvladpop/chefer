@@ -1,31 +1,26 @@
-import { useState } from 'react';
 import { ActivityIndicator, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
+import { COACHING_COPY } from '@chefer/types';
 import {
-  Badge,
   Button,
-  ConfirmSheet,
   EmptyState,
   ErrorState,
   KeyboardAwareScrollView,
-  PressableScale,
   Screen,
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
-import { formatStampDate } from '../../gym/routine/attribution';
+import { ClientRow } from '../components/client-row';
 import { CoachingCard } from '../components/coaching-card';
 import { TrainerFeedbackLink } from '../components/trainer-feedback-link';
 import { TrainerHeader } from '../components/trainer-header';
-import { firstNameOf, formatWeekdayDate } from '../format';
 import { RequestsSection } from './requests-section';
 import { TrainerNotices } from './trainer-notices';
 import { TrainerProfileCard } from './trainer-profile-card';
+import { useTurnOffTrainerTools } from './use-turn-off-trainer-tools';
 
 // ─── Trainer home: Clients (spec §2.4) ────────────────────────────────────────
 // One row per active client: name, last workout, this week's sessions against the client's goal, a quiet
@@ -36,101 +31,14 @@ import { TrainerProfileCard } from './trainer-profile-card';
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
-export function clientRowLabel(row: ClientRowDto): string {
-  const parts = [
-    row.name,
-    row.lastWorkoutDate
-      ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
-      : COACHING_COPY.trainer.noWorkoutYet,
-    COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal),
-  ];
-  if (row.inactiveDays >= COACHING_LIMITS.inactiveDays) {
-    parts.push(COACHING_COPY.trainer.quiet(row.inactiveDays));
-  }
-  if (row.keepItSimple) parts.push(COACHING_COPY.trainerProfile.keepItSimple);
-  return parts.join('. ');
-}
-
-function ClientRow({ row }: { row: ClientRowDto }) {
-  const colors = useThemeColors();
-  const quiet = row.inactiveDays >= COACHING_LIMITS.inactiveDays;
-  return (
-    // MO-01: a card-sized tap target scales on press.
-    <PressableScale
-      testID={`trainer-client-${row.clientId}`}
-      accessibilityRole="button"
-      accessibilityLabel={clientRowLabel(row)}
-      onPress={() => router.push(`/trainer/${row.clientId}`)}
-      className="min-h-14 gap-1 rounded-card border border-separator bg-surface px-4 py-3"
-    >
-      <View className="flex-row items-center gap-2">
-        <Text className="min-w-0 flex-1 text-headline font-semibold text-label" numberOfLines={1}>
-          {row.name}
-        </Text>
-        <Text className="text-subhead text-label-secondary">
-          {COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal)}
-        </Text>
-        <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
-      </View>
-      {row.label ? (
-        <Text className="min-w-0 text-caption text-label-secondary" numberOfLines={1}>
-          {row.label}
-        </Text>
-      ) : null}
-      <Text className="min-w-0 text-subhead text-label-secondary">
-        {row.lastWorkoutDate
-          ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
-          : COACHING_COPY.trainer.noWorkoutYet}
-      </Text>
-      {quiet || row.keepItSimple ? (
-        <View className="flex-row flex-wrap gap-1.5">
-          {quiet ? (
-            <Badge testID={`trainer-client-${row.clientId}-quiet`} variant="warning">
-              {COACHING_COPY.trainer.quiet(row.inactiveDays)}
-            </Badge>
-          ) : null}
-          {row.keepItSimple ? (
-            <Badge testID={`trainer-client-${row.clientId}-keep-it-simple`} variant="secondary">
-              {COACHING_COPY.trainerProfile.keepItSimple}
-            </Badge>
-          ) : null}
-        </View>
-      ) : null}
-      {row.routineChangedByClientAt ? (
-        <Text
-          testID={`trainer-client-${row.clientId}-changed`}
-          className="min-w-0 text-caption text-label-secondary"
-        >
-          {COACHING_COPY.trainer.routineChangedByClient(
-            firstNameOf(row.name),
-            formatStampDate(row.routineChangedByClientAt),
-          )}
-        </Text>
-      ) : null}
-    </PressableScale>
-  );
-}
-
 export function TrainerHome() {
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() });
-  const status = trpc.trainer.status.useQuery(undefined, { retry: false });
-  const [turnOffOpen, setTurnOffOpen] = useState(false);
   // PRD 2026-10 §4.3: the confirmation names the client count first.
-  const activeClients = status.data?.activeClients ?? clients.data?.length ?? 0;
-  const turnOffBody =
-    activeClients > 0
-      ? `${COACHING_COPY.trainerProfile.turnOffWithClients(activeClients)} ${COACHING_COPY.trainer.turnOffBody}`
-      : COACHING_COPY.trainer.turnOffBody;
-  const deactivate = trpc.trainer.deactivate.useMutation({
-    meta: { silent: true },
-    onSuccess: () => {
-      setTurnOffOpen(false);
-      void utils.trainer.status.invalidate();
-      void utils.trainer.clients.list.invalidate();
-      void utils.trainer.requests.list.invalidate();
-    },
+  const turnOff = useTurnOffTrainerTools({
+    testID: 'trainer-home-turn-off-confirm',
+    fallbackClients: clients.data?.length ?? 0,
   });
 
   return (
@@ -180,32 +88,16 @@ export function TrainerHome() {
 
         <CoachingCard className="mt-4 gap-2">
           <Text testID="trainer-home-turn-off-body" className="text-subhead text-label-secondary">
-            {turnOffBody}
+            {turnOff.body}
           </Text>
-          <Button
-            testID="trainer-home-turn-off"
-            variant="outline"
-            onPress={() => setTurnOffOpen(true)}
-          >
+          <Button testID="trainer-home-turn-off" variant="outline" onPress={turnOff.request}>
             {COACHING_COPY.trainer.turnOff}
           </Button>
         </CoachingCard>
         <TrainerFeedbackLink />
       </KeyboardAwareScrollView>
 
-      <ConfirmSheet
-        testID="trainer-home-turn-off-confirm"
-        visible={turnOffOpen}
-        onClose={() => setTurnOffOpen(false)}
-        title={COACHING_COPY.trainer.turnOff}
-        body={turnOffBody}
-        confirmLabel={COACHING_COPY.trainer.turnOff}
-        cancelLabel={COACHING_COPY.common.cancel}
-        destructive
-        busy={deactivate.isPending}
-        error={deactivate.error ? userFacingErrorMessage(deactivate.error) : null}
-        onConfirm={() => deactivate.mutate()}
-      />
+      {turnOff.sheet}
     </Screen>
   );
 }

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Snackbar, SnackbarTouchBoundary } from '@chefer/ui-mobile';
+import { Snackbar, SnackbarTouchBoundary, useReducedMotion } from '@chefer/ui-mobile';
 import { CrashReportingUserHost } from '../src/components/crash-reporting-user-host';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
 import { forceLightAppearance } from '../src/features/appearance/force-light';
@@ -25,6 +25,7 @@ import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
 import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
+import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -87,6 +88,10 @@ function createAppQueryClient() {
 
 export default function RootLayout() {
   useOrientationLock();
+  // MO-09 (route transitions): switching between personal and trainer mode
+  // replaces one tab group with the other — a crossfade, none under reduced motion.
+  const reducedMotion = useReducedMotion();
+  const shellSwitchOptions = { animation: reducedMotion ? 'none' : 'fade' } as const;
   const { ready, token } = useSession();
   // Weekly plan / recap notification taps → the plan or Progress (P2-5).
   useNotificationLinks(ready && token !== null);
@@ -130,7 +135,11 @@ export default function RootLayout() {
                     <Stack.Screen name="(gym)" />
                     {/* Mobile UX revamp: the one-tab-bar shell (`mobileShellV2`)
                     and the old Gym/Cookbook tabs, pushed from it. */}
-                    <Stack.Screen name="(main)" />
+                    <Stack.Screen name="(main)" options={shellSwitchOptions} />
+                    {/* Trainer mode (docs/prd-2026-10/trainer-mode.md §5.2): the second
+                    shell, for active trainers with `trainerMode`; the switch on You
+                    cross-fades between it and (main). */}
+                    <Stack.Screen name="(trainer)" options={shellSwitchOptions} />
                     <Stack.Screen name="training/routine" />
                     <Stack.Screen name="training/exercises" />
                     <Stack.Screen name="training/stats" />
@@ -210,6 +219,8 @@ export default function RootLayout() {
             <ForegroundLandingHost signedIn={token !== null} />
             {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}
             <ShellFlagHost signedIn={token !== null} />
+            {/* Trainer mode §5.1: caches "available" for the next cold start, falls back to personal. */}
+            <TrainerModeHost signedIn={token !== null} />
             {/* M1-6: crash reports carry the account id (not name/email). */}
             <CrashReportingUserHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed

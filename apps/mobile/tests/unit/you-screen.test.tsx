@@ -78,6 +78,20 @@ jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
   useCoachingAvailability: () => mockCoaching,
 }));
 
+// Trainer mode (trainer-mode.md §6.9): off unless a test turns it on.
+let mockTrainerMode = false;
+let mockTrainerTotal = 0;
+jest.mock('../../src/features/trainer-mode/use-trainer-mode', () => ({
+  useTrainerModeAvailability: () => mockTrainerMode,
+  useTrainerBadges: () => ({ requests: mockTrainerTotal, total: mockTrainerTotal, loaded: true }),
+}));
+const mockSwitch = jest.fn();
+jest.mock('../../src/features/trainer-mode/switch-mode', () => ({
+  switchShellMode: (...args: unknown[]) => {
+    mockSwitch(...args);
+  },
+}));
+
 const { track } = jest.requireMock<{ track: jest.Mock }>('../../src/lib/analytics');
 const { openPremium } = jest.requireMock<{ openPremium: jest.Mock }>(
   '../../src/features/premium/open-premium',
@@ -109,6 +123,9 @@ beforeEach(() => {
   mockBadge = 0;
   mockVariant = 'production';
   mockCoaching = { enabled: false, canBeTrainer: false };
+  mockTrainerMode = false;
+  mockTrainerTotal = 0;
+  mockSwitch.mockClear();
 });
 
 describe('You (10 Oct redesign)', () => {
@@ -253,6 +270,44 @@ describe('You: trainer coaching rows (WP-18)', () => {
     expect(ids.indexOf('you-your-trainer')).toBeLessThan(ids.indexOf('you-trainer-tools'));
     await fireEvent.press(screen.getByTestId('you-trainer-tools'));
     expect(mockPush).toHaveBeenLastCalledWith('/trainer');
+  });
+});
+
+describe('You: trainer mode (trainer-mode.md §6.9)', () => {
+  it('an active trainer gets "Switch to trainer mode" first, badged, and no "Trainer tools"', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    mockTrainerMode = true;
+    mockTrainerTotal = 2;
+    await renderYou();
+    const ids = screen.getAllByRole('button').map((b) => b.props.testID as string | undefined);
+    expect(ids[0]).toBe('you-switch-to-trainer');
+    const row = screen.getByTestId('you-switch-to-trainer');
+    expect(row).toHaveAccessibleName('Switch to trainer mode, 2 things waiting');
+    expect(screen.getByTestId('you-switch-to-trainer-badge')).toHaveTextContent('2');
+    expect(screen.queryByTestId('you-trainer-tools')).toBeNull();
+    // "Your trainer" (the client side) stays.
+    expect(screen.getByTestId('you-your-trainer')).toBeTruthy();
+    await fireEvent.press(row);
+    expect(mockSwitch).toHaveBeenCalledWith('trainer');
+  });
+
+  it('nothing waiting: no badge, a plain label', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    mockTrainerMode = true;
+    await renderYou();
+    expect(screen.getByTestId('you-switch-to-trainer')).toHaveAccessibleName(
+      'Switch to trainer mode',
+    );
+    expect(screen.queryByTestId('you-switch-to-trainer-badge')).toBeNull();
+  });
+
+  it('flag off, or tools not turned on yet: no switch, "Trainer tools" stays', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    mockTrainerMode = false;
+    mockTrainerTotal = 3;
+    await renderYou();
+    expect(screen.queryByTestId('you-switch-to-trainer')).toBeNull();
+    expect(screen.getByTestId('you-trainer-tools')).toBeTruthy();
   });
 });
 

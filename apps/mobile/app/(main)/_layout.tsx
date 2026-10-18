@@ -11,6 +11,8 @@ import { isShellV2TabPath, type ShellTab } from '../../src/features/shell/shell-
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { TabIcon } from '../../src/features/shell/tab-icon';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
+import { useMarkShellMode } from '../../src/features/trainer-mode/use-mark-shell-mode';
+import { useTrainerBadges } from '../../src/features/trainer-mode/use-trainer-mode';
 import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
@@ -40,10 +42,15 @@ export default function MainTabsLayout() {
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   useSyncLandingCache();
-  // Same in-app Following badge the old More tabs carried, now on You.
-  const { badgeCount } = useFriendsMe();
+  // Same in-app Following badge the old More tabs carried, now on You — plus,
+  // for an active trainer, what waits in trainer mode (trainer-mode.md §7.1).
+  const { badgeCount: friendsBadge } = useFriendsMe();
+  const trainerBadges = useTrainerBadges();
+  const badgeCount = friendsBadge + trainerBadges.total;
   const onboardingPending = usePendingOnboarding();
   const onboardingUnfinished = useOnboardingGate();
+  // This is personal mode's shell: being here is being in personal mode.
+  useMarkShellMode('personal', shellV2 && !onboardingPending && !onboardingUnfinished);
 
   if (onboardingPending || onboardingUnfinished) return <Redirect href="/onboarding" />;
   // The preview was switched off (or the flag flipped back): old shell —

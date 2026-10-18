@@ -121,7 +121,13 @@ function InviteRow({
   );
 }
 
-export function InviteScreen() {
+/**
+ * The invite flow's content (label → Create link, the new link, pending invites), with no screen or
+ * scroll view of its own: the legacy `/trainer/invite` route wraps it in a screen, trainer mode in a
+ * Sheet (trainer-mode.md §6.4). `qr`: on the screen a QR opens in its own sheet; inside the invite sheet
+ * it shows in place (no Modal on top of a Modal).
+ */
+export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
   const utils = trpc.useUtils();
   const [label, setLabel] = useState('');
   const [created, setCreated] = useState<InviteDto | null>(null);
@@ -144,89 +150,139 @@ export function InviteScreen() {
   // The freshly created invite is shown above the list; don't repeat it below.
   const others = (invites.data ?? []).filter((i) => i.code !== created?.code);
 
+  // Inside the sheet the QR takes the sheet's place until Hide (the body shrinks, so it is in view).
+  if (qr === 'inline' && qrInvite) {
+    return <InlineQr invite={qrInvite} onHide={() => setQrInvite(null)} />;
+  }
+
+  return (
+    <>
+      <CoachingCard className="gap-3">
+        <FormField
+          testID="trainer-invite-label-field"
+          label={COACHING_COPY.trainer.inviteLabel}
+          hint={COACHING_COPY.trainer.inviteLabelHint}
+        >
+          <Input
+            testID="trainer-invite-label"
+            label={COACHING_COPY.trainer.inviteLabel}
+            value={label}
+            maxLength={60}
+            {...DONE_FIELD_PROPS}
+            onChangeText={setLabel}
+          />
+        </FormField>
+        {create.error ? (
+          <Text testID="trainer-invite-error" className="text-sm text-danger">
+            {userFacingErrorMessage(create.error)}
+          </Text>
+        ) : null}
+        <Button
+          testID="trainer-invite-create"
+          loading={create.isPending}
+          onPress={() => create.mutate(trimmed === '' ? {} : { label: trimmed })}
+        >
+          {COACHING_COPY.trainer.createLink}
+        </Button>
+      </CoachingCard>
+
+      {created ? (
+        <CoachingCard testID="trainer-invite-created" className="gap-2">
+          <Text className="text-headline font-semibold text-label">
+            {created.label ?? COACHING_COPY.trainer.invite}
+          </Text>
+          <Text testID="trainer-invite-created-url" selectable className="text-sm text-label">
+            {created.url}
+          </Text>
+          <Text className="text-subhead text-label-secondary">
+            {COACHING_COPY.trainer.inviteExpires(formatStampDate(created.expiresAt))}
+          </Text>
+          <Button testID="trainer-invite-created-share" onPress={() => void shareInvite(created)}>
+            {COACHING_COPY.common.share}
+          </Button>
+          {created.state === 'OPEN' ? (
+            <Button
+              testID="trainer-invite-created-qr"
+              variant="outline"
+              onPress={() => setQrInvite(created)}
+            >
+              {COACHING_COPY.trainer.qr.show}
+            </Button>
+          ) : null}
+        </CoachingCard>
+      ) : null}
+
+      {invites.isPending ? (
+        <View testID="trainer-invite-loading" className="items-center py-6">
+          <ActivityIndicator />
+        </View>
+      ) : invites.isError ? (
+        <ErrorState testID="trainer-invite-list-error" onRetry={() => void invites.refetch()} />
+      ) : (
+        others.map((invite) => (
+          <InviteRow
+            key={invite.code}
+            invite={invite}
+            revoking={revoke.isPending}
+            onRevoke={(code) => revoke.mutate({ code })}
+            onShowQr={() => setQrInvite(invite)}
+          />
+        ))
+      )}
+      {revoke.error ? (
+        <Text testID="trainer-invite-revoke-error" className="text-sm text-danger">
+          {userFacingErrorMessage(revoke.error)}
+        </Text>
+      ) : null}
+      {qr === 'sheet' ? <QrSheet invite={qrInvite} onClose={() => setQrInvite(null)} /> : null}
+    </>
+  );
+}
+
+export const HIDE_QR_LABEL = 'Hide QR code';
+
+/** The QR inside the invite sheet, with Hide (back to the invites). */
+function InlineQr({ invite, onHide }: { invite: InviteDto; onHide: () => void }) {
+  const qr = COACHING_COPY.trainer.qr;
+  return (
+    <CoachingCard testID="trainer-invite-qr-inline" className="gap-3">
+      <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+        {invite.label ? `${qr.title} · ${invite.label}` : qr.title}
+      </Text>
+      <InviteQr url={invite.url} />
+      <Text className="text-center text-subhead text-label-secondary">{qr.hint}</Text>
+      <Button testID="trainer-invite-qr-inline-hide" variant="outline" onPress={onHide}>
+        {HIDE_QR_LABEL}
+      </Button>
+    </CoachingCard>
+  );
+}
+
+/** `/trainer/invite` (Trainer tools, and trainer mode off): the flow as its own screen. */
+export function InviteScreen() {
   return (
     <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-invite">
       <TrainerHeader testID="trainer-invite-header" title={COACHING_COPY.trainer.invite} />
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <CoachingCard className="gap-3">
-          <FormField
-            testID="trainer-invite-label-field"
-            label={COACHING_COPY.trainer.inviteLabel}
-            hint={COACHING_COPY.trainer.inviteLabelHint}
-          >
-            <Input
-              testID="trainer-invite-label"
-              label={COACHING_COPY.trainer.inviteLabel}
-              value={label}
-              maxLength={60}
-              {...DONE_FIELD_PROPS}
-              onChangeText={setLabel}
-            />
-          </FormField>
-          {create.error ? (
-            <Text testID="trainer-invite-error" className="text-sm text-danger">
-              {userFacingErrorMessage(create.error)}
-            </Text>
-          ) : null}
-          <Button
-            testID="trainer-invite-create"
-            loading={create.isPending}
-            onPress={() => create.mutate(trimmed === '' ? {} : { label: trimmed })}
-          >
-            {COACHING_COPY.trainer.createLink}
-          </Button>
-        </CoachingCard>
-
-        {created ? (
-          <CoachingCard testID="trainer-invite-created" className="gap-2">
-            <Text className="text-headline font-semibold text-label">
-              {created.label ?? COACHING_COPY.trainer.invite}
-            </Text>
-            <Text testID="trainer-invite-created-url" selectable className="text-sm text-label">
-              {created.url}
-            </Text>
-            <Text className="text-subhead text-label-secondary">
-              {COACHING_COPY.trainer.inviteExpires(formatStampDate(created.expiresAt))}
-            </Text>
-            <Button testID="trainer-invite-created-share" onPress={() => void shareInvite(created)}>
-              {COACHING_COPY.common.share}
-            </Button>
-            {created.state === 'OPEN' ? (
-              <Button
-                testID="trainer-invite-created-qr"
-                variant="outline"
-                onPress={() => setQrInvite(created)}
-              >
-                {COACHING_COPY.trainer.qr.show}
-              </Button>
-            ) : null}
-          </CoachingCard>
-        ) : null}
-
-        {invites.isPending ? (
-          <View testID="trainer-invite-loading" className="items-center py-6">
-            <ActivityIndicator />
-          </View>
-        ) : invites.isError ? (
-          <ErrorState testID="trainer-invite-list-error" onRetry={() => void invites.refetch()} />
-        ) : (
-          others.map((invite) => (
-            <InviteRow
-              key={invite.code}
-              invite={invite}
-              revoking={revoke.isPending}
-              onRevoke={(code) => revoke.mutate({ code })}
-              onShowQr={() => setQrInvite(invite)}
-            />
-          ))
-        )}
-        {revoke.error ? (
-          <Text testID="trainer-invite-revoke-error" className="text-sm text-danger">
-            {userFacingErrorMessage(revoke.error)}
-          </Text>
-        ) : null}
+        <InviteBody />
       </KeyboardAwareScrollView>
-      <QrSheet invite={qrInvite} onClose={() => setQrInvite(null)} />
     </Screen>
+  );
+}
+
+/** Trainer mode (§6.4, §6.8): the same flow as a sheet, from Clients and from You. */
+export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={COACHING_COPY.trainer.invite}
+      testID="trainer-invite-sheet"
+    >
+      {/* Mounted only while the sheet's Modal is up (exit motion included), so nothing loads closed. */}
+      <View className="gap-4 pb-4">
+        <InviteBody qr="inline" />
+      </View>
+    </Sheet>
   );
 }

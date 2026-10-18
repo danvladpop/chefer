@@ -1,0 +1,222 @@
+# Trainer mode, M1 (docs/prd-2026-10/trainer-mode.md §5.1, §5.2, §6.1, §7.1, §14): a `runScript` setup
+# registers a trainer (tools on, no clients yet) and a client with gym setup done. The flow signs in as the
+# trainer, switches You → "Switch to trainer mode", lands on trainer Today (the brand-new welcome) with the
+# Schedule · Clients · Today · Workouts · You tab bar, opens Clients; then the client asks to be coached
+# over HTTP and the request reaches the trainer within one badge poll (≤ 60 s): the requests card on
+# Today and the Clients tab badge. Review opens Clients with the request. A relaunch (no clearState)
+# reopens straight into trainer Today — the mode is per device — and You → "Switch to personal mode"
+# goes back, leaving the device in personal mode for the next flow.
+#
+# Needs: the dev app on a booted simulator/emulator, Metro up, the local API up with trainer mode and the
+# new shell on: FEATURE_FLAGS=coaching,trainerMode,mobileShellV2 TRAINER_ALLOWLIST=* — pass
+# `-e API_URL=http://localhost:<port>` when the API is not on :3001. Costs 2 registers + 1 login of the
+# per-IP auth budget. Local only (the orchestrator runs it). The trainer stays signed in afterwards (like
+# the other coaching flows); common/connect.yaml signs in again where a flow needs the seed account.
+appId: dev.chefer.app.dev
+env:
+  API_URL: http://localhost:3001
+---
+- runScript: scripts/trainer-mode-setup.js
+- runFlow: common/connect.yaml
+
+# ── Whoever is signed in, sign out (new shell: You → Sign out) ───────────────
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'today-scroll'
+    commands:
+      # Right after launch the tab bar can still be settling (Android): a tap then lands nowhere.
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - tapOn:
+          id: 'tab-you'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+      - tapOn:
+          id: 'you-sign-out-confirm-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Sign in as the trainer ───────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.tEmail}
+- tapOn:
+    id: 'login-password'
+- inputText: ${output.tPassword}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+# A new account answers the jobs question first.
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 20000
+
+# ── Personal You → Switch to trainer mode ────────────────────────────────────
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: 'tab-you'
+# The switch row appears once the live answer says trainer mode is available.
+- extendedWaitUntil:
+    visible:
+      id: 'you-switch-to-trainer'
+    timeout: 20000
+- assertNotVisible:
+    id: 'you-trainer-tools'
+- takeScreenshot: trainer-mode-personal-you
+- tapOn:
+    id: 'you-switch-to-trainer'
+
+# ── Trainer Today, the trainer tab bar ───────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today-welcome'
+    timeout: 15000
+- assertVisible:
+    id: 'trainer-tab-schedule'
+- assertVisible:
+    id: 'trainer-tab-clients'
+- assertVisible:
+    id: 'trainer-tab-today'
+- assertVisible:
+    id: 'trainer-tab-workouts'
+- assertVisible:
+    id: 'trainer-tab-you'
+# Personal mode's tabs are gone.
+- assertNotVisible:
+    id: 'tab-shop'
+- takeScreenshot: trainer-mode-today-welcome
+
+# ── Clients ──────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'trainer-tab-clients'
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-clients'
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-clients-empty'
+    timeout: 15000
+- assertVisible:
+    id: 'trainer-clients-invite'
+- tapOn:
+    id: 'trainer-tab-today'
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 10000
+
+# ── A request arrives: the requests card and the Clients badge (§7.1) ───────
+- runScript:
+    file: scripts/trainer-mode-request.js
+    env:
+      API_URL: ${API_URL}
+      C_TOKEN: ${output.cToken}
+      TRAINER_ID: ${output.trainerId}
+# The badge polls every 60 s in the foreground; a pull to refresh asks at once.
+- swipe:
+    start: 50%, 30%
+    end: 50%, 80%
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today-requests-card'
+    timeout: 75000
+- assertVisible: '1 person asked you to coach them'
+# The Clients tab speaks its count: "Clients, 1 new" (Android), "Clients, 1 new, tab, 2 of 5" (iOS).
+- assertVisible: 'Clients, 1 new.*'
+- takeScreenshot: trainer-mode-today-request
+- tapOn:
+    id: 'trainer-today-review'
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-requests'
+    timeout: 15000
+- assertVisible:
+    id: 'trainer-clients'
+
+# ── Relaunch: the device remembers trainer mode ──────────────────────────────
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-today'
+    timeout: 90000
+- assertVisible:
+    id: 'trainer-tab-clients'
+- assertNotVisible:
+    id: 'today-scroll'
+- takeScreenshot: trainer-mode-relaunch
+
+# ── Trainer You → Switch to personal mode ────────────────────────────────────
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: 'trainer-tab-you'
+- extendedWaitUntil:
+    visible:
+      id: 'trainer-you-switch-to-personal'
+    timeout: 10000
+- tapOn:
+    id: 'trainer-you-switch-to-personal'
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 15000
+- assertVisible:
+    id: 'tab-shop'
+- assertNotVisible:
+    id: 'trainer-tab-clients'
+# Personal You's badge carries the waiting request: "You, 1 new…".
+- assertVisible: 'You, 1 new.*'
+- takeScreenshot: trainer-mode-back-to-personal

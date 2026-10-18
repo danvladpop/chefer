@@ -28,7 +28,9 @@ module.exports = {
   // screens) sits at `.pnpm/@expo+vector-icons@<v>/node_modules/@expo/vector-icons/`
   // and was never matched by the old `(?:\\.pnpm/)?` prefix, which assumed
   // the package name followed `.pnpm/` directly.
+  // `standard-navigation` (ESM, pulled in by expo-router) is transformed too so
+  // `expo-router/testing-library`'s renderRouter can run (trainer-mode-routes.test.tsx).
   transformIgnorePatterns: [
-    'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|react-native-css-interop|nativewind|superjson|copy-anything|is-what|@chefer/.*))',
+    'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|react-native-css-interop|nativewind|superjson|standard-navigation|copy-anything|is-what|@chefer/.*))',
   ],
 };
