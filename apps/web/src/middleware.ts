@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { loginPathFor, safeNextPath } from '@/features/coaching/lib/next-path';
+import { isMobileUserAgent } from '@/features/coaching/lib/open-in-app';
 
 const PROTECTED_ROUTES = [
   '/dashboard',
@@ -33,12 +35,15 @@ export function middleware(request: NextRequest) {
 
   const session = request.cookies.get('chefer_session');
   if (!session?.value) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    // A coaching invite on a phone: offer the app (and the stores) before any
+    // sign-in. A rewrite, so the address stays the invite link.
+    if (safeNextPath(pathname) && isMobileUserAgent(request.headers.get('user-agent'))) {
+      const url = request.nextUrl.clone();
+      url.pathname = pathname.replace(/^\/coaching\/join\//, '/coaching-invite/');
+      return NextResponse.rewrite(url);
+    }
     // A coaching invite link: sign in (or register) and come straight back to it.
-    // `next` is not `from`: `from` means "your session expired" on the login page.
-    url.searchParams.set(pathname.startsWith('/coaching/join/') ? 'next' : 'from', pathname);
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL(loginPathFor(pathname), request.url));
   }
 
   return NextResponse.next();

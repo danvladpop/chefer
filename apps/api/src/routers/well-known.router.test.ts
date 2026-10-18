@@ -29,13 +29,21 @@ afterAll(() => {
 });
 
 describe('/.well-known association files', () => {
-  it('serves the Apple webcredentials association as JSON, with no redirect', async () => {
+  it('serves the Apple applinks + webcredentials association as JSON, with no redirect', async () => {
     const res = await fetch(`${base}/.well-known/apple-app-site-association`, {
       redirect: 'manual',
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(await res.json()).toEqual({
+      applinks: {
+        details: [
+          {
+            appIDs: ['45TS85YK89.com.popdan.chefer'],
+            components: [{ '/': '/coaching/join/*', comment: 'Coaching invite links' }],
+          },
+        ],
+      },
       webcredentials: { apps: ['45TS85YK89.com.popdan.chefer'] },
     });
   });
@@ -48,12 +56,15 @@ describe('/.well-known association files', () => {
     expect(await res.json()).toEqual([]);
   });
 
-  it('serves the get_login_creds statement for the production package with the env fingerprints', async () => {
+  it('serves the App Links + get_login_creds statement for the production package with the env fingerprints', async () => {
     fingerprints.value = ['AA:BB', 'CC:DD'];
     const res = await fetch(`${base}/.well-known/assetlinks.json`);
     expect(await res.json()).toEqual([
       {
-        relation: ['delegate_permission/common.get_login_creds'],
+        relation: [
+          'delegate_permission/common.handle_all_urls',
+          'delegate_permission/common.get_login_creds',
+        ],
         target: {
           namespace: 'android_app',
           package_name: 'dev.chefer.app',
@@ -65,7 +76,8 @@ describe('/.well-known association files', () => {
 
   it('builders are pure', () => {
     expect(buildAssetLinks([])).toEqual([]);
-    expect(buildAppleAppSiteAssociation('T', 'b.c')).toEqual({
+    expect(buildAppleAppSiteAssociation('T', 'b.c')).toMatchObject({
+      applinks: { details: [{ appIDs: ['T.b.c'] }] },
       webcredentials: { apps: ['T.b.c'] },
     });
   });

@@ -1,5 +1,6 @@
 'use client';
 
+import { loginPathFor } from '@/features/coaching/lib/next-path';
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
@@ -61,7 +62,8 @@ function handleUnauthorized(error: unknown): void {
   }
 
   redirectingToLogin = true;
-  window.location.replace(`/login?from=${encodeURIComponent(pathname)}`);
+  // An invite link opened with an expired cookie keeps the invite (`?next=`).
+  window.location.replace(loginPathFor(pathname));
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextQuery, safeNextPath } from './next-path';
+import { loginPathFor, nextQuery, safeNextPath } from './next-path';
 
 describe('safeNextPath', () => {
   it('accepts a coaching join path only', () => {
@@ -25,5 +25,12 @@ describe('safeNextPath', () => {
   it('builds the query string for the login and register links', () => {
     expect(nextQuery('/coaching/join/ABC')).toBe('?next=%2Fcoaching%2Fjoin%2FABC');
     expect(nextQuery(null)).toBe('');
+  });
+});
+
+describe('loginPathFor', () => {
+  it('an invite link comes back with next=, any other page says the session expired', () => {
+    expect(loginPathFor('/coaching/join/ABC')).toBe('/login?next=%2Fcoaching%2Fjoin%2FABC');
+    expect(loginPathFor('/gym')).toBe('/login?from=%2Fgym');
   });
 });

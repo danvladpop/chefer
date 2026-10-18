@@ -5875,7 +5875,11 @@ The trainer shares the link however they like (RN Share sheet on mobile, navigat
 ### 37.3 The client joins (web or mobile)
 
 ```
-Link → web page "Open in the Chefer app" (chefer://coaching/join/<code>) | "Continue on the web"; signed-out users sign in first
+Link → app with universal links / App Links (store builds after 1.0.2): the app opens straight on coaching/join/<code>
+     → otherwise the web page. Phone, signed out: "Join your trainer on Chefer" (no trainer name: the preview needs an account)
+       · "Open in the Chefer app" (chefer://coaching/join/<code>) · store badges · "Continue on the web" → /login?next=<link>
+     Phone, signed in: "Open in the Chefer app" | "Continue on the web" (the consent screen)
+     Desktop: signed-out users sign in first (/login?next=), then the consent screen
 coaching.previewInvite { code }  (30/h)  → { state, trainerName, currentTrainerName, needsGymSetup }
   state OK | EXPIRED | USED | REVOKED | SELF | ALREADY_YOURS | NOT_FOUND   — the trainer's name only for OK / ALREADY_YOURS;
   an open invite of a trainer who turned tools off reads REVOKED
@@ -5897,7 +5901,8 @@ Consent screen (COACHING_COPY.consent, the same words on both platforms):
   two joins racing for one client: the partial unique index lets one win; the loser re-reads once (a switch) → exactly one ACTIVE link
 ```
 
-**Mobile client side (lane D):** the invite page's "Open in the Chefer app" opens `coaching/join/<code>`. Signed out → "Join your trainer" with
+**Mobile client side (lane D):** the invite link itself (universal link / App Link, same route for a cold start) or the invite page's
+"Open in the Chefer app" opens `coaching/join/<code>`. Signed out → "Join your trainer" with
 Sign in / Create account; the code is remembered and the app returns to the invite after sign-in (and after onboarding for a new account).
 `needsGymSetup` → "Set up training" opens the existing setup and Gym Today then shows "Carry on joining your trainer" (dismissible). After
 joining: "You're coached by Ana" with Open my routine / Your trainer. More and Settings carry the rows "Your trainer" (Leave with a confirm) and,
