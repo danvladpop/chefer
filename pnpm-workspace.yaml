@@ -3,3 +3,12 @@ packages:
   - 'packages/*'
   - 'packages/config/*'
   - 'tests'
+
+# pnpm 10+ reads these here and ignores the "pnpm" field in package.json (EAS Build's
+# image runs pnpm 11). The repo's own pnpm 9 (packageManager) still reads package.json,
+# so keep both copies in sync — without this, EAS silently skipped the expo-modules-jsi
+# Xcode 26.3 patch and the typescript override.
+overrides:
+  typescript: ^5.5.2
+patchedDependencies:
+  expo-modules-jsi@57.0.6: patches/expo-modules-jsi@57.0.6.patch

@@ -41,10 +41,12 @@
     "jose": "^6.2.12",
     "nodemailer": "^9.1.1",
     "pino": "^10.3.1",
-    "sharp": "^0.34.5",
     "superjson": "^2.2.1",
     "undici": "^6.29.1",
     "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@chefer/eslint-config": "workspace:^",
