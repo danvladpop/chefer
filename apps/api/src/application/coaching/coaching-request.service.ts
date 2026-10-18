@@ -14,6 +14,7 @@ import {
   type TrainerProfile,
 } from '@chefer/database';
 import {
+  COACHING_CONSENT_COPY_VERSION,
   COACHING_COPY,
   COACHING_LIMITS,
   FALLBACK_TRAINER_NAME,
@@ -28,6 +29,7 @@ import {
 import { displayNameOf, queryTokens } from '@chefer/utils';
 import { resolveStartedOn } from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
+import { COACHING_CONSENT_DOCUMENT_VERSION } from './consent-copy.js';
 
 // ─── Trainer coaching: Find a trainer + coaching requests (PRD 2026-10 §4.1) ──
 //
@@ -198,7 +200,8 @@ export class CoachingRequestService {
       startedOn: resolveStartedOn(localDate, now),
       expiresAt: new Date(now.getTime() + COACHING_LIMITS.requestTtlDays * DAY_MS),
       source,
-      documentVersion: LEGAL_VERSIONS.privacy,
+      // Trainer mode M3 (§10): the consent screen shows copy v2.
+      documentVersion: COACHING_CONSENT_DOCUMENT_VERSION,
       now,
     });
     if (result.status === 'pending_exists') {
@@ -283,6 +286,8 @@ export class CoachingRequestService {
       source,
       documentVersion: LEGAL_VERSIONS.privacy,
       now,
+      // The client consented to copy v2 when sending the request.
+      consentCopyVersion: COACHING_CONSENT_COPY_VERSION,
     });
     switch (result.status) {
       case 'accepted': {

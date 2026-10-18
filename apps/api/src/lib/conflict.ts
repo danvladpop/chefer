@@ -1,4 +1,4 @@
-import type { RoutineDto, WorkoutTemplateDto } from '@chefer/types';
+import type { RoutineDto, TrainerBookingDto, WorkoutTemplateDto } from '@chefer/types';
 
 // ─── Structured CONFLICT payloads ─────────────────────────────────────────────
 // A TRPCError's `cause` never reaches the client, so conflicts that clients
@@ -10,7 +10,9 @@ import type { RoutineDto, WorkoutTemplateDto } from '@chefer/types';
 export type ConflictPayload =
   | { kind: 'routine'; current: RoutineDto }
   /** `trainer.templates.save` (trainer mode M2): the template as stored now. */
-  | { kind: 'template'; current: WorkoutTemplateDto };
+  | { kind: 'template'; current: WorkoutTemplateDto }
+  /** `trainer.bookings.update` (trainer mode M3): the booking as stored now. */
+  | { kind: 'booking'; current: TrainerBookingDto };
 
 export class ConflictCause extends Error {
   constructor(readonly payload: ConflictPayload) {

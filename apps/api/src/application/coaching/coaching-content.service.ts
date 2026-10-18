@@ -169,7 +169,7 @@ export class CoachingContentService {
         plannedWeekdays: routine?.days.map((d) => d.plannedWeekday) ?? [],
         setupDate: first,
       }),
-      recent: recent.map((s) => toCoachedWorkoutDto(s, renderable)),
+      recent: recent.map((s) => toCoachedWorkoutDto(s, renderable, access.trainerId)),
     };
   }
 
@@ -192,7 +192,7 @@ export class CoachingContentService {
     const last = items[items.length - 1];
     const renderable = renderableSet(level);
     return {
-      items: items.map((s) => toCoachedWorkoutDto(s, renderable)),
+      items: items.map((s) => toCoachedWorkoutDto(s, renderable, access.trainerId)),
       nextCursor: rows.length > limit && last ? encodeCursor(last.startedAt, last.id) : null,
     };
   }
@@ -217,7 +217,7 @@ export class CoachingContentService {
       exerciseId,
       name: exercise.name,
       entries: sessions.flatMap((s) => {
-        const workout = toCoachedWorkoutDto(s, renderableSet(level));
+        const workout = toCoachedWorkoutDto(s, renderableSet(level), access.trainerId);
         const e = workout.exercises.find((x) => x.exerciseId === exerciseId);
         // "Done as planned" exposures carry no lifted numbers (PRD 2026-10 §4.3).
         return e && !e.skipped && !e.doneAsPlanned

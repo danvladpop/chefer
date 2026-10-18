@@ -1,5 +1,6 @@
 import {
   clearNextTargetInputSchema,
+  clientBookingsInputSchema,
   clientExerciseHistoryInputSchema,
   clientIdInputSchema,
   clientOverviewInputSchema,
@@ -10,6 +11,7 @@ import {
   saveTrainerRoutineInputSchema,
   setNextTargetInputSchema,
 } from '@chefer/types';
+import { bookingService } from '../../application/coaching/booking.service.js';
 import { coachingContentService } from '../../application/coaching/coaching-content.service.js';
 import { coachingNoteService } from '../../application/coaching/coaching-note.service.js';
 import { trainerRoutineService } from '../../application/coaching/trainer-routine.service.js';
@@ -72,6 +74,10 @@ export const trainerClientRouter = router({
   clearNextTarget: writeProcedure
     .input(clearNextTargetInputSchema)
     .mutation(({ ctx, input }) => trainerRoutineService.clearNextTarget(ctx.coachingAccess, input)),
+  /** Client detail → Bookings tab (M3): this client's bookings with the caller. */
+  bookings: readProcedure
+    .input(clientBookingsInputSchema)
+    .query(({ ctx, input }) => bookingService.clientBookings(ctx.coachingAccess, input.today)),
   note: noteProcedure
     .input(clientIdInputSchema)
     .query(({ ctx }) => coachingNoteService.get(ctx.coachingAccess)),

@@ -33,6 +33,7 @@ const link = (trainerId: string): CoachingLink => ({
   startedOn: null,
   endedAt: null,
   endedBy: null,
+  consentCopyVersion: 2,
 });
 
 const request = (over: Partial<CoachingRequest> = {}): CoachingRequest => ({
@@ -208,7 +209,7 @@ describe('request', () => {
       startedOn: '2026-10-17',
       expiresAt: new Date(NOW.getTime() + COACHING_LIMITS.requestTtlDays * DAY),
       source: 'mobile',
-      documentVersion: LEGAL_VERSIONS.privacy,
+      documentVersion: `${LEGAL_VERSIONS.privacy}+coaching-v2`,
       now: NOW,
     });
     expect(notices.requestReceived).toHaveBeenCalledWith(MIHAI, CLIENT);

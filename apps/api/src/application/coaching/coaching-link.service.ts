@@ -1,11 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import {
+  bookingRepository,
   coachingContentRepository,
   coachingInviteRepository,
   coachingLinkRepository,
   gymProfileRepository,
   trainerProfileRepository,
   type CoachingLink,
+  type IBookingRepository,
   type ICoachingContentRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
@@ -13,10 +15,12 @@ import {
   type ITrainerProfileRepository,
 } from '@chefer/database';
 import {
+  COACHING_CONSENT_COPY_VERSION,
   COACHING_COPY,
   COACHING_LIMITS,
   FALLBACK_TRAINER_NAME,
   LEGAL_VERSIONS,
+  TRAINER_MODE_API_LEVEL,
   type ClientRowDto,
   type CoachingSource,
   type CoachingStatusDto,
@@ -34,6 +38,7 @@ import { keepItSimple } from './coaching-content.service.js';
 import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
 import { coachingRequestService, type CoachingRequestService } from './coaching-request.service.js';
+import { COACHING_CONSENT_DOCUMENT_VERSION } from './consent-copy.js';
 
 // ─── Trainer coaching: links (spec §2.3, §2.7, §7.2, §7.3) ────────────────────
 // join / leave / remove are single transactions in CoachingLinkRepository: the
@@ -50,6 +55,8 @@ export interface CoachingLinkDeps {
   content: ICoachingContentRepository;
   notices: Pick<CoachingNoticeService, 'ended'>;
   requests: Pick<CoachingRequestService, 'clientRequest'>;
+  /** Trainer mode M3: each client row's next booking (`ClientRowDto.nextBookingAt`). */
+  bookings: Pick<IBookingRepository, 'nextStartsByClient'>;
   now: () => Date;
 }
 
@@ -61,6 +68,7 @@ const defaultDeps: CoachingLinkDeps = {
   content: coachingContentRepository,
   notices: coachingNoticeService,
   requests: coachingRequestService,
+  bookings: bookingRepository,
   now: () => new Date(),
 };
 
@@ -82,6 +90,7 @@ export class CoachingLinkService {
     code: string,
     source: CoachingSource,
     localDate?: string,
+    level = 0,
   ): Promise<CoachingStatusDto> {
     const now = this.deps.now();
     const invite = await this.deps.invites.find(code);
@@ -90,7 +99,7 @@ export class CoachingLinkService {
       throw new TRPCError({ code: 'BAD_REQUEST', message: COACHING_COPY.server.selfCoaching });
     }
     const current = await this.deps.links.findActiveForClient(clientId);
-    if (current?.trainerId === invite.trainerId) return this.status(clientId);
+    if (current?.trainerId === invite.trainerId) return this.status(clientId, level);
     if (inviteStateOf(invite, now) !== 'OPEN') throw invalidInvite();
 
     const profile = await this.deps.gymProfiles.findByUserId(clientId);
@@ -112,13 +121,16 @@ export class CoachingLinkService {
         maxActiveClients: COACHING_LIMITS.maxActiveClients,
         startedOn: resolveStartedOn(localDate, now),
         now,
+        // Trainer mode M3 (§10): the consent screen shows copy v2 (bookings, logged workouts).
+        consentCopyVersion: COACHING_CONSENT_COPY_VERSION,
+        grantedDocumentVersion: COACHING_CONSENT_DOCUMENT_VERSION,
       });
       if (result.status === 'joined') {
         // A switch: the previous trainer hears that the client left.
         for (const old of result.endedLinks) {
           await this.deps.notices.ended(old.trainerId, clientId, 'CLIENT', 'CLIENT');
         }
-        return this.status(clientId);
+        return this.status(clientId, level);
       }
       if (result.status === 'invite_unavailable') throw invalidInvite();
       if (result.status === 'client_limit') {
@@ -128,27 +140,52 @@ export class CoachingLinkService {
     throw new TRPCError({ code: 'CONFLICT', message: COACHING_COPY.server.tooManyAttempts });
   }
 
-  /** `coaching.status` */
-  async status(clientId: string): Promise<CoachingStatusDto> {
+  /**
+   * `coaching.acknowledgeConsentUpdate` (trainer mode M3, §10): records the v2
+   * consent copy on the client's ACTIVE link. Idempotent; a no-op with no link.
+   */
+  async acknowledgeConsentUpdate(clientId: string, source: CoachingSource): Promise<{ ok: true }> {
+    await this.deps.links.acknowledgeConsentCopy({
+      clientId,
+      version: COACHING_CONSENT_COPY_VERSION,
+      source,
+      documentVersion: COACHING_CONSENT_DOCUMENT_VERSION,
+      now: this.deps.now(),
+    });
+    return { ok: true };
+  }
+
+  /**
+   * `coaching.status`. `level` = the caller's contract level (web: Infinity).
+   * At TRAINER_MODE_API_LEVEL+ it carries `consentUpdate` (null when there is
+   * nothing new); below, the field is absent.
+   */
+  async status(clientId: string, level = 0): Promise<CoachingStatusDto> {
     const now = this.deps.now();
     const [active, request] = await Promise.all([
       this.deps.links.findActiveForClient(clientId),
       this.deps.requests.clientRequest(clientId),
     ]);
+    const trainerMode = level >= TRAINER_MODE_API_LEVEL;
     if (active) {
+      const name = await this.trainerName(active.trainerId);
       return {
-        trainer: {
-          name: await this.trainerName(active.trainerId),
-          since: active.startedAt.toISOString(),
-        },
+        trainer: { name, since: active.startedAt.toISOString() },
         request,
         stopped: null,
+        ...(trainerMode && {
+          consentUpdate:
+            active.consentCopyVersion < COACHING_CONSENT_COPY_VERSION
+              ? { trainerName: name, version: COACHING_CONSENT_COPY_VERSION }
+              : null,
+        }),
       };
     }
     const since = new Date(now.getTime() - COACHING_LIMITS.stoppedNoticeDays * DAY_MS);
     const stopped = await this.deps.links.findLatestStoppedForClient(clientId, since);
     return {
       trainer: null,
+      ...(trainerMode && { consentUpdate: null }),
       request,
       stopped:
         stopped?.endedAt != null
@@ -161,7 +198,7 @@ export class CoachingLinkService {
   }
 
   /** `coaching.leave`: the trainer loses access at once; the routine, trainer notes and pending targets stay the client's. */
-  async leave(clientId: string, source: CoachingSource): Promise<CoachingStatusDto> {
+  async leave(clientId: string, source: CoachingSource, level = 0): Promise<CoachingStatusDto> {
     const link = await this.deps.links.findActiveForClient(clientId);
     if (link) {
       await this.deps.links.end({
@@ -174,7 +211,7 @@ export class CoachingLinkService {
       });
       await this.deps.notices.ended(link.trainerId, clientId, 'CLIENT', 'CLIENT');
     }
-    return this.status(clientId);
+    return this.status(clientId, level);
   }
 
   /** `trainer.clients.remove`: ends the link (`TRAINER`), withdrawal event on the client's log, note hidden. */
@@ -209,11 +246,12 @@ export class CoachingLinkService {
     if (links.length === 0) return [];
     const ids = links.map((l) => l.clientId);
     const weekStart = weekStartOf(day);
-    const [last, counts, profiles, stamps] = await Promise.all([
+    const [last, counts, profiles, stamps, nextBookings] = await Promise.all([
       this.deps.content.lastWorkoutDates(ids),
       this.deps.content.countSessions(ids, weekStart, addDaysLocal(weekStart, 6)),
       this.deps.content.gymProfiles(ids),
       this.deps.content.activeRoutineStamps(ids),
+      this.deps.bookings.nextStartsByClient(trainerId, ids, this.deps.now()),
     ]);
     return links.map((link) => {
       const profile = profiles.get(link.clientId);
@@ -237,6 +275,7 @@ export class CoachingLinkService {
         inactiveDays: Math.max(0, daysBetweenLocal(lastWorkoutDate ?? linkStartDay(link), day)),
         routineChangedByClientAt: changedByClientAt(link, stamp),
         keepItSimple: keepItSimple(profile),
+        nextBookingAt: nextBookings.get(link.clientId)?.toISOString() ?? null,
       };
     });
   }

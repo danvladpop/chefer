@@ -12,6 +12,7 @@ import {
 import {
   COACHING_LIMITS,
   FALLBACK_TRAINER_NAME,
+  TRAINER_MODE_API_LEVEL,
   type CoachingNoticeDto,
   type CoachingNoticeKind,
   type RoutineChange,
@@ -30,6 +31,13 @@ import { displayNameOf, mergeRoutineChanges } from '@chefer/utils';
 //   COACHING_REQUEST_DECLINED  client  ← the trainer declined
 //   COACHING_ROUTINE_UPDATED   either  ← the other side changed the client's routine
 //   COACHING_ENDED             either  ← the other side ended it, or the trainer stopped
+//   COACHING_BOOKING_CREATED   client  ← the trainer booked them (one per series)       (level 8+)
+//   COACHING_BOOKING_CHANGED   client  ← a booking moved or changed                      (level 8+)
+//   COACHING_BOOKING_CANCELLED client  ← a booking was cancelled                         (level 8+)
+//   COACHING_WORKOUT_LOGGED    client  ← the trainer logged a workout for them           (level 8+)
+//
+// Booking notices fold like the others: one row per (client, kind, trainer), so
+// the newest booking of a kind replaces an older unread card.
 //
 // A notice never blocks the action that caused it: a failed write is logged
 // (no names, no ids) and swallowed. When the other account is being deleted,
@@ -42,7 +50,28 @@ const KIND_TO_DTO: Record<CoachingNotificationKindDb, CoachingNoticeKind> = {
   COACHING_REQUEST_DECLINED: 'REQUEST_DECLINED',
   COACHING_ROUTINE_UPDATED: 'ROUTINE_UPDATED',
   COACHING_ENDED: 'COACHING_ENDED',
+  COACHING_BOOKING_CREATED: 'BOOKING_CREATED',
+  COACHING_BOOKING_CHANGED: 'BOOKING_CHANGED',
+  COACHING_BOOKING_CANCELLED: 'BOOKING_CANCELLED',
+  COACHING_WORKOUT_LOGGED: 'COACHED_WORKOUT_LOGGED',
 };
+
+/** Trainer mode M3 (§9): kinds a mobile bundle below TRAINER_MODE_API_LEVEL never receives. */
+const TRAINER_MODE_KINDS: readonly CoachingNotificationKindDb[] = [
+  'COACHING_BOOKING_CREATED',
+  'COACHING_BOOKING_CHANGED',
+  'COACHING_BOOKING_CANCELLED',
+  'COACHING_WORKOUT_LOGGED',
+];
+
+/** What a booking notice shows: when (instant + zone), whether it repeats, the cancel reason. */
+export interface BookingNoticeRef {
+  bookingId: string;
+  startsAt: string;
+  timeZone: string;
+  weekly: boolean;
+  reason: string | null;
+}
 
 const roleSchema = z.enum(['TRAINER', 'CLIENT']);
 const changeSchema: z.ZodType<RoutineChange> = z.union([
@@ -67,6 +96,17 @@ const payloadSchema = z.object({
   goneName: z.string().optional(),
   changes: z.array(changeSchema).optional(),
   endedBy: z.enum(['CLIENT', 'TRAINER', 'SYSTEM']).optional(),
+  // Trainer mode M3: ids, times and the reason the trainer typed for the client — never a name.
+  booking: z
+    .object({
+      bookingId: z.string(),
+      startsAt: z.string(),
+      timeZone: z.string(),
+      weekly: z.boolean(),
+      reason: z.string().nullable(),
+    })
+    .optional(),
+  workoutSessionId: z.string().optional(),
 });
 type NoticePayload = z.infer<typeof payloadSchema>;
 
@@ -148,15 +188,61 @@ export class CoachingNoticeService {
         endedBy,
         ...(gone && { goneName: opts.otherGoneName }),
       });
-      // A stale "updated your routine" card from them is moot now.
+      // A stale "updated your routine" (or "booked you") card from them is moot now.
       if (!gone) {
-        await this.deps.notifications.withdrawCoaching(
-          recipientId,
+        for (const kind of [
           'COACHING_ROUTINE_UPDATED',
-          otherId,
-        );
+          'COACHING_BOOKING_CREATED',
+          'COACHING_BOOKING_CHANGED',
+        ] as const) {
+          await this.deps.notifications.withdrawCoaching(recipientId, kind, otherId);
+        }
       }
     });
+  }
+
+  /** Trainer mode M3: the trainer booked, moved or cancelled a booking of the client's. */
+  async booking(
+    clientId: string,
+    trainerId: string,
+    change: 'CREATED' | 'CHANGED' | 'CANCELLED',
+    booking: BookingNoticeRef,
+  ): Promise<void> {
+    if (clientId === trainerId) return;
+    const kind = (
+      {
+        CREATED: 'COACHING_BOOKING_CREATED',
+        CHANGED: 'COACHING_BOOKING_CHANGED',
+        CANCELLED: 'COACHING_BOOKING_CANCELLED',
+      } as const
+    )[change];
+    await this.safely(async () => {
+      await this.write(clientId, kind, trainerId, { role: 'TRAINER', booking });
+      // A cancelled booking makes an unread "booked you" / "moved" card from the same booking moot.
+      if (change === 'CANCELLED') {
+        for (const stale of ['COACHING_BOOKING_CREATED', 'COACHING_BOOKING_CHANGED'] as const) {
+          const row = await this.deps.notifications.findCoaching(clientId, stale, trainerId);
+          if (row?.readAt === null && readPayload(row)?.booking?.bookingId === booking.bookingId) {
+            await this.deps.notifications.withdrawCoaching(clientId, stale, trainerId);
+          }
+        }
+      }
+    });
+  }
+
+  /** Trainer mode M3: the trainer logged (finished) a workout for the client. */
+  async coachedWorkoutLogged(
+    clientId: string,
+    trainerId: string,
+    workoutSessionId: string,
+  ): Promise<void> {
+    if (clientId === trainerId) return;
+    await this.safely(() =>
+      this.write(clientId, 'COACHING_WORKOUT_LOGGED', trainerId, {
+        role: 'TRAINER',
+        workoutSessionId,
+      }),
+    );
   }
 
   async requestReceived(trainerId: string, clientId: string): Promise<void> {
@@ -184,10 +270,20 @@ export class CoachingNoticeService {
     });
   }
 
-  /** `coaching.notices`: unread notices, and read ones from the last COACHING_LIMITS.noticeDays days. */
-  async list(userId: string): Promise<CoachingNoticeDto[]> {
+  /**
+   * `coaching.notices`: unread notices, and read ones from the last
+   * COACHING_LIMITS.noticeDays days. `level`: the caller's contract level
+   * (web: Infinity); below TRAINER_MODE_API_LEVEL the booking and
+   * coached-workout kinds are left out (§9).
+   */
+  async list(userId: string, level = 0): Promise<CoachingNoticeDto[]> {
     const since = new Date(this.deps.now().getTime() - COACHING_LIMITS.noticeDays * DAY_MS);
-    const rows = await this.deps.notifications.listCoaching(userId, since, LIST_LIMIT);
+    const rows = await this.deps.notifications.listCoaching(
+      userId,
+      since,
+      LIST_LIMIT,
+      level >= TRAINER_MODE_API_LEVEL ? [] : TRAINER_MODE_KINDS,
+    );
     const parsed = rows.flatMap((row) => {
       const payload = readPayload(row);
       return payload ? [{ row, payload }] : [];
@@ -221,6 +317,9 @@ export class CoachingNoticeService {
         other: { id: gone ? null : row.actorId, name, role: payload.role },
         ...(kind === 'ROUTINE_UPDATED' && { changes: payload.changes ?? [] }),
         ...(kind === 'COACHING_ENDED' && payload.endedBy && { endedBy: payload.endedBy }),
+        ...(payload.booking && kind.startsWith('BOOKING_') && { booking: payload.booking }),
+        ...(kind === 'COACHED_WORKOUT_LOGGED' &&
+          payload.workoutSessionId && { workoutSessionId: payload.workoutSessionId }),
       };
     });
   }

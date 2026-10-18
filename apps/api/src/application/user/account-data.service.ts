@@ -1,5 +1,11 @@
 import { TRPCError } from '@trpc/server';
-import { consentEventRepository, prisma, uploadedFileRepository } from '@chefer/database';
+import {
+  bookingRepository,
+  consentEventRepository,
+  prisma,
+  uploadedFileRepository,
+  type BookingWithClients,
+} from '@chefer/database';
 import { COACHING_RETENTION } from '@chefer/types';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
@@ -138,21 +144,69 @@ async function exportSocialData(
 // them out, since the trainer is the controller of those notes. The rest of the
 // client's coaching data (the routine with the trainer's exercise notes, stamps,
 // targets) is already in the `gym` section.
+//
+// Trainer mode M3 (trainer-mode.md §8.2): `asClient.bookings` are the sessions
+// you were booked into (when, where, the trainer's note to you, your
+// attendance) — the other people in a group session are a COUNT only, never
+// names or ids. `asTrainer.bookings` are your own calendar (bookings and
+// blocked time) with a client COUNT only: who you train is already in
+// `clients`, and a booking's row-level client list is not repeated here.
+
+function clientBookingExport(
+  b: BookingWithClients,
+  userId: string,
+  trainerName: (id: string) => string | null,
+) {
+  return {
+    startsAt: b.startsAt.toISOString(),
+    timeZone: b.timeZone,
+    durationMin: b.durationMin,
+    trainer: trainerName(b.trainerId),
+    location: b.location,
+    note: b.note,
+    attendance: b.clients.find((c) => c.clientId === userId)?.attendance ?? null,
+    cancelledAt: b.cancelledAt?.toISOString() ?? null,
+    cancelReason: b.cancelReason,
+    otherClients: b.clients.filter((c) => c.clientId !== userId).length,
+  };
+}
+
+function trainerBookingExport(b: BookingWithClients) {
+  return {
+    startsAt: b.startsAt.toISOString(),
+    kind: b.kind,
+    durationMin: b.durationMin,
+    timeZone: b.timeZone,
+    location: b.location,
+    note: b.note,
+    cancelledAt: b.cancelledAt?.toISOString() ?? null,
+    cancelReason: b.cancelReason,
+    clients: b.clients.length,
+  };
+}
 
 async function exportCoachingData(
   userId: string,
   consentEvents: { kind: string }[],
 ): Promise<Record<string, unknown>> {
-  const [trainerProfile, linksAsClient, linksAsTrainer, invites, notesWritten] = await Promise.all([
-    prisma.trainerProfile.findUnique({ where: { userId } }),
-    prisma.coachingLink.findMany({ where: { clientId: userId }, orderBy: { startedAt: 'desc' } }),
-    prisma.coachingLink.findMany({ where: { trainerId: userId }, orderBy: { startedAt: 'desc' } }),
-    prisma.coachingInvite.findMany({
-      where: { trainerId: userId },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.coachingNote.findMany({ where: { trainerId: userId }, orderBy: { updatedAt: 'desc' } }),
-  ]);
+  const [trainerProfile, linksAsClient, linksAsTrainer, invites, notesWritten, bookings] =
+    await Promise.all([
+      prisma.trainerProfile.findUnique({ where: { userId } }),
+      prisma.coachingLink.findMany({ where: { clientId: userId }, orderBy: { startedAt: 'desc' } }),
+      prisma.coachingLink.findMany({
+        where: { trainerId: userId },
+        orderBy: { startedAt: 'desc' },
+      }),
+      prisma.coachingInvite.findMany({
+        where: { trainerId: userId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.coachingNote.findMany({
+        where: { trainerId: userId },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      bookingRepository.listForExport(userId),
+    ]);
   const notesAbout = COACHING_RETENTION.clientExportIncludesTrainerNotes
     ? await prisma.coachingNote.findMany({ where: { clientId: userId, hiddenAt: null } })
     : [];
@@ -161,6 +215,7 @@ async function exportCoachingData(
   for (const l of linksAsClient) otherIds.add(l.trainerId);
   for (const l of linksAsTrainer) otherIds.add(l.clientId);
   for (const n of notesWritten) otherIds.add(n.clientId);
+  for (const b of bookings.asClient) otherIds.add(b.trainerId);
   otherIds.delete(userId);
   const [people, trainers] =
     otherIds.size === 0
@@ -191,6 +246,7 @@ async function exportCoachingData(
         body: n.body,
         updatedAt: n.updatedAt,
       })),
+      bookings: bookings.asClient.map((b) => clientBookingExport(b, userId, trainerName)),
       consentHistory: consentEvents.filter((e) => e.kind === 'COACHING_SHARING'),
     },
     asTrainer: {
@@ -222,6 +278,8 @@ async function exportCoachingData(
         updatedAt: n.updatedAt,
         hiddenAt: n.hiddenAt,
       })),
+      // Your calendar: bookings and blocked time, a client count only.
+      bookings: bookings.asTrainer.map(trainerBookingExport),
     },
   };
 }
@@ -416,6 +474,10 @@ export async function deleteAccount(userId: string): Promise<void> {
   // first — every coaching ends and each client keeps a notice ("Your trainer
   // stopped using Chefer"), written so it survives this account's cascade.
   await trainerProfileService.deactivate(userId, 'web', { accountDeleted: true });
+  // Trainer mode M3 (§9): as a client, their places in future bookings are
+  // cancelled first, so a booking left with nobody reads as cancelled (their
+  // rows then cascade away with the account).
+  await bookingRepository.cancelFutureForClient(userId, new Date());
 
   await prisma.$transaction([
     prisma.shoppingList.deleteMany({ where: { planId: { in: planIds } } }),

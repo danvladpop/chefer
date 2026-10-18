@@ -1,10 +1,12 @@
 import {
+  bookingRepository,
   coachingInviteRepository,
   coachingLinkRepository,
   coachingNoteRepository,
   coachingRequestRepository,
   trainerProfileRepository,
   workoutTemplateRepository,
+  type IBookingRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
   type ICoachingNoteRepository,
@@ -30,6 +32,11 @@ import { logger } from '../lib/logger.js';
 //   7. hard-delete workout templates soft-deleted more than
 //      `TEMPLATE_SOFT_DELETE_DAYS` (30) ago (trainer-mode.md §10). Clients'
 //      copies keep their stored template name, so nothing else changes.
+//   8. bookings (trainer-mode.md §10) follow the link's retention: places in
+//      bookings of links that ended more than `endedLinkMonths` (24) ago are
+//      deleted, then bookings left with nobody and empty series. Runs BEFORE
+//      step 3 deletes those links. The trainer's own blocked time goes after
+//      `BLOCK_RETENTION_MONTHS` (24). Coached workouts are the client's and stay.
 // Every step is idempotent; the "done today" marker is only set when all steps
 // succeeded, so a failed step retries on the next tick.
 
@@ -37,6 +44,8 @@ const TICK_INTERVAL_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Trainer mode §10: a deleted template is purged this many days later. */
 export const TEMPLATE_SOFT_DELETE_DAYS = COACHING_RETENTION.templateSoftDeleteDays;
+/** Trainer mode §10: the trainer's own blocked time is kept this many months. */
+export const BLOCK_RETENTION_MONTHS = COACHING_RETENTION.endedLinkMonths;
 
 function daysBefore(now: Date, days: number): Date {
   return new Date(now.getTime() - days * DAY_MS);
@@ -56,6 +65,7 @@ export interface CoachingMaintenanceDeps {
   requests: Pick<ICoachingRequestRepository, 'expireDue' | 'deleteAnsweredBefore'>;
   trainers: Pick<ITrainerProfileRepository, 'listActiveWithEmail'>;
   templates: Pick<IWorkoutTemplateRepository, 'purgeDeletedBefore'>;
+  bookings: Pick<IBookingRepository, 'deleteForEndedLinksBefore' | 'deleteBlocksBefore'>;
   /** TrainerProfileService.enforceAllowlist: true when it turned trainer tools off. */
   enforceAllowlist: (user: { id: string; email: string }) => Promise<boolean>;
 }
@@ -67,6 +77,7 @@ const defaultDeps: CoachingMaintenanceDeps = {
   requests: coachingRequestRepository,
   trainers: trainerProfileRepository,
   templates: workoutTemplateRepository,
+  bookings: bookingRepository,
   enforceAllowlist: (user) => trainerProfileService.enforceAllowlist(user),
 };
 
@@ -78,6 +89,7 @@ export interface CoachingHousekeepingResult {
   prunedRequests: number;
   trainersRemoved: number;
   prunedTemplates: number;
+  prunedBookings: number;
 }
 
 export class CoachingMaintenanceWorker {
@@ -128,6 +140,7 @@ export class CoachingMaintenanceWorker {
       prunedRequests: 0,
       trainersRemoved: 0,
       prunedTemplates: 0,
+      prunedBookings: 0,
     };
     let failed = false;
     const step = async (name: string, run: () => Promise<void>): Promise<void> => {
@@ -149,7 +162,19 @@ export class CoachingMaintenanceWorker {
         daysBefore(now, COACHING_RETENTION.hiddenNoteDays),
       );
     });
+    // Bookings first: they are matched to the ended links step 3 deletes.
+    let bookingsPruned = false;
+    await step('prune bookings', async () => {
+      result.prunedBookings =
+        (await this.deps.bookings.deleteForEndedLinksBefore(
+          monthsBefore(now, COACHING_RETENTION.endedLinkMonths),
+        )) +
+        (await this.deps.bookings.deleteBlocksBefore(monthsBefore(now, BLOCK_RETENTION_MONTHS)));
+      bookingsPruned = true;
+    });
     await step('prune ended links', async () => {
+      // Never drop a link whose bookings are still to be matched to it (retried next tick).
+      if (!bookingsPruned) throw new Error('bookings not pruned yet');
       result.prunedLinks = await this.deps.links.deleteEndedBefore(
         monthsBefore(now, COACHING_RETENTION.endedLinkMonths),
       );

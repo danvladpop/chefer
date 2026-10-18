@@ -18,6 +18,7 @@ import {
 import {
   FALLBACK_TRAINER_NAME,
   type ActivePauseDto,
+  type ExerciseDto,
   type GymBootstrap,
   type GymOffer,
   type NextWorkoutDto,
@@ -52,6 +53,7 @@ import {
   type GymUserContext,
 } from './gym-context.js';
 import {
+  loggedByIds,
   lookupFromRows,
   readCarryOver,
   serverToday,
@@ -59,6 +61,7 @@ import {
   toProfileDto,
   toRoutineDto,
   toSessionDoc,
+  withLoggedBy,
 } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
@@ -98,6 +101,10 @@ export class GymBootstrapService {
       'findActiveForClient'
     > = coachingLinkRepository,
     private readonly trainers: Pick<ITrainerProfileRepository, 'find'> = trainerProfileRepository,
+    private readonly trainerNames: Pick<
+      ITrainerProfileRepository,
+      'findMany'
+    > = trainerProfileRepository,
   ) {}
 
   /**
@@ -105,13 +112,17 @@ export class GymBootstrapService {
    * cardio flag). `coaching` carries what trainer coaching needs: the RAW
    * `x-chefer-api-level` (spec §10: gate on the raw level, not the effective
    * one) and whether coaching is on for this user. Below level 6 nothing new is
-   * sent or queried.
+   * sent or queried. `coaching.loggedBy` (trainer mode M3, level 8+ or web):
+   * recent coached workouts carry "Logged by Ana".
    */
   async get(
     userId: string,
     input: { librarySince?: string | undefined; today?: string | undefined } = {},
     level = 0,
-    coaching: { rawLevel: number; enabled: boolean } = { rawLevel: 0, enabled: false },
+    coaching: { rawLevel: number; enabled: boolean; loggedBy?: boolean } = {
+      rawLevel: 0,
+      enabled: false,
+    },
   ): Promise<GymBootstrap> {
     const today = input.today ?? serverToday();
     await this.ensure();
@@ -162,8 +173,11 @@ export class GymBootstrapService {
             await this.attribution.forRoutine(ctx.activeRoutineRow, userId, coaching.rawLevel),
           )
         : ctx.activeRoutine;
+    const loggedByNames = coaching.loggedBy ? await this.namesOf(loggedByIds(recentRows)) : null;
     const recentSessions = recentRows
-      .map((r) => toSessionSummary(toSessionDoc(r)))
+      .map((r) =>
+        withLoggedBy(toSessionSummary(toSessionDoc(r)), r.loggedById ?? null, loggedByNames),
+      )
       .reverse() // newest first
       .map((s) => ({
         ...s,
@@ -204,6 +218,51 @@ export class GymBootstrapService {
     };
   }
 
+  /**
+   * Trainer mode M3 (`trainer.coach.start`): the prescription `userId`'s own
+   * logger would get — their routine, progressions, equipment, units and
+   * recent history — for `dayId` (a day of their ACTIVE routine) or, when null
+   * or not in the routine, their rotation's next day. With the trainer's notes.
+   * `exercises`: library metadata for the workout's rows only.
+   */
+  async prescription(
+    userId: string,
+    today: string,
+    dayId: string | null,
+  ): Promise<{ workout: NextWorkoutDto | null; exercises: ExerciseDto[]; unit: 'KG' | 'LB' }> {
+    await this.ensure();
+    const windowStart = addDaysLocal(today, -RECENT_SESSION_DAYS);
+    const [ctx, exerciseRows, progressionRows, recentRows] = await Promise.all([
+      this.contextLoader.load(userId),
+      this.exerciseRepo.findVisible(userId),
+      this.progressionRepo.findForUser(userId),
+      this.sessionRepo.findCompleted(userId, { fromLocalDate: windowStart }),
+    ]);
+    const { lookup, metas } = lookupFromRows(exerciseRows);
+    // Setter names are the client's own attribution: none needed for the trainer's logger.
+    const setterNames = await this.progression.setterNames(progressionRows, 0);
+    const progressions = this.progression.toDtos(ctx, progressionRows, metas, today, setterNames);
+    const recentSessions = recentRows.map((r) => toSessionSummary(toSessionDoc(r))).reverse();
+    const routine =
+      ctx.activeRoutineRow != null ? toRoutineDto(ctx.activeRoutineRow) : ctx.activeRoutine;
+    const workout = this.withTrainerNotes(
+      this.nextWorkout(ctx, lookup, progressions, recentSessions, today, dayId),
+      routine,
+    );
+    const ids = new Set(workout?.exercises.map((e) => e.exerciseId) ?? []);
+    return {
+      workout,
+      exercises: exerciseRows.filter((r) => ids.has(r.id)).map(toExerciseDto),
+      unit: ctx.profileRow?.unit ?? 'KG',
+    };
+  }
+
+  private async namesOf(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.trainerNames.findMany(ids);
+    return new Map(rows.map((t) => [t.userId, t.displayName]));
+  }
+
   /** Level 6+: the client's current trainer, or null. */
   private async coaching(userId: string): Promise<{ trainerName: string } | null> {
     const link = await this.coachingLinks.findActiveForClient(userId);
@@ -239,11 +298,16 @@ export class GymBootstrapService {
     progressions: ProgressionDto[],
     recentSessions: SessionSummaryDto[],
     today: string,
+    /** A specific day of the active routine (trainer mode M3); null/unknown = the rotation's next. */
+    preferredDayId: string | null = null,
   ): NextWorkoutDto | null {
     const routine = ctx.activeRoutine;
     if (!ctx.profileRow || !routine) return null;
     const dayId =
-      routine.days.find((d) => d.id === routine.nextDayId)?.id ?? routine.days[0]?.id ?? null;
+      routine.days.find((d) => d.id === preferredDayId)?.id ??
+      routine.days.find((d) => d.id === routine.nextDayId)?.id ??
+      routine.days[0]?.id ??
+      null;
     if (!dayId) return null;
     const map = new Map<string, ProgressionEntry>(
       progressions.map((p) => [

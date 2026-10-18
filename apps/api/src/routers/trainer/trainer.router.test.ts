@@ -2,6 +2,7 @@ import type { Response as ExpressResponse } from 'express';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { CoachingLink, TrainerProfile } from '@chefer/database';
 import { COACHING_COPY, type UserProfile } from '@chefer/types';
+import { sessionDoc } from '../../application/gym/__test__/fixtures.js';
 import { resetRateLimits } from '../../lib/rate-limit.js';
 import { router, type Context } from '../../lib/trpc.js';
 import { trainerRouter } from './index.js';
@@ -104,6 +105,23 @@ const templates = vi.hoisted(() => ({
 }));
 vi.mock('../../application/coaching/workout-template.service.js', () => ({
   workoutTemplateService: templates,
+}));
+const bookings = vi.hoisted(() => ({
+  range: vi.fn(async () => 'range'),
+  get: vi.fn(async () => 'get'),
+  create: vi.fn(async () => 'create'),
+  update: vi.fn(async () => 'update'),
+  cancel: vi.fn(async () => 'cancel'),
+  markAttendance: vi.fn(async () => 'markAttendance'),
+  clientBookings: vi.fn(async () => 'clientBookings'),
+}));
+vi.mock('../../application/coaching/booking.service.js', () => ({ bookingService: bookings }));
+const coach = vi.hoisted(() => ({
+  start: vi.fn(async () => 'start'),
+  sync: vi.fn(async () => 'sync'),
+}));
+vi.mock('../../application/coaching/coached-workout.service.js', () => ({
+  coachedWorkoutService: coach,
 }));
 vi.mock('../../application/coaching/coaching-invite.service.js', () => ({
   coachingInviteService: { list: vi.fn(), create: vi.fn(), revoke: vi.fn() },
@@ -214,6 +232,19 @@ const PROCEDURES: Record<string, { call: Call; reaches: () => Mock }> = {
   'clients.remove': {
     call: (clientId) => caller().clients.remove({ clientId }),
     reaches: () => links.removeClient,
+  },
+  // Trainer mode M3: every trainer.* call naming a client needs an ACTIVE coaching.
+  'client.bookings': {
+    call: (clientId) => caller().client.bookings({ clientId, today: '2026-10-19' }),
+    reaches: () => bookings.clientBookings,
+  },
+  'coach.start': {
+    call: (clientId) => caller().coach.start({ clientId, today: '2026-10-19' }),
+    reaches: () => coach.start,
+  },
+  'coach.sync': {
+    call: (clientId) => caller().coach.sync({ clientId, docs: [sessionDoc()] }),
+    reaches: () => coach.sync,
   },
 };
 
@@ -433,5 +464,116 @@ describe('trainer.templates input limits', () => {
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(templates.assign).not.toHaveBeenCalled();
+  });
+});
+
+// Trainer mode M3 (trainer-mode.md §9): trainer.bookings.* are the trainer's own
+// calendar; clients named in a booking are checked by the service at save.
+const bookingInput = {
+  kind: 'BOOKING' as const,
+  date: '2026-10-20',
+  time: '18:00',
+  timeZone: 'Europe/Bucharest',
+  durationMin: 60,
+  clients: [{ clientId: CLIENT }],
+};
+describe.each([
+  [
+    'range',
+    () => caller().bookings.range({ from: '2026-10-19T00:00:00Z', to: '2026-10-26T00:00:00Z' }),
+    [ME, new Date('2026-10-19T00:00:00Z'), new Date('2026-10-26T00:00:00Z')],
+  ],
+  ['get', () => caller().bookings.get({ bookingId: 'b1' }), [ME, 'b1']],
+  ['create', () => caller().bookings.create(bookingInput), [ME, bookingInput]],
+  [
+    'update',
+    () =>
+      caller().bookings.update({ bookingId: 'b1', expectedVersion: 1, patch: { time: '19:00' } }),
+    [ME, { bookingId: 'b1', expectedVersion: 1, scope: 'THIS', patch: { time: '19:00' } }],
+  ],
+  [
+    'cancel',
+    () => caller().bookings.cancel({ bookingId: 'b1', scope: 'FOLLOWING' }),
+    [ME, { bookingId: 'b1', scope: 'FOLLOWING' }],
+  ],
+  [
+    'markAttendance',
+    () =>
+      caller().bookings.markAttendance({
+        bookingId: 'b1',
+        clientId: CLIENT,
+        attendance: 'ATTENDED',
+      }),
+    [ME, { bookingId: 'b1', clientId: CLIENT, attendance: 'ATTENDED' }],
+  ],
+] as const)('trainer.bookings.%s', (name, call, args) => {
+  const reaches = () => bookings[name];
+
+  it('an active trainer reaches the service with their own id', async () => {
+    await expect(call()).resolves.toBe(name);
+    expect(reaches()).toHaveBeenCalledWith(...args);
+  });
+
+  it('coaching off: NOT_FOUND; trainer tools off: FORBIDDEN TRAINER_TOOLS_OFF', async () => {
+    world.flag = false;
+    await expect(call()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    world.flag = true;
+    world.trainerOn = false;
+    await expect(call()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: COACHING_COPY.server.trainerToolsOff,
+    });
+    expect(reaches()).not.toHaveBeenCalled();
+  });
+});
+
+describe('trainer.bookings / trainer.coach input limits and identity', () => {
+  it('7 clients is a BAD_REQUEST before the service', async () => {
+    const seven = Array.from({ length: 7 }, () => ({ clientId: CLIENT }));
+    await expect(
+      caller().bookings.create({ ...bookingInput, clients: seven }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(bookings.create).not.toHaveBeenCalled();
+  });
+
+  it('blocked time with a client, or a booking without one, is a BAD_REQUEST', async () => {
+    await expect(
+      caller().bookings.create({ ...bookingInput, kind: 'BLOCK' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller().bookings.create({ ...bookingInput, clients: [] })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(bookings.create).not.toHaveBeenCalled();
+  });
+
+  it('a range over six weeks is a BAD_REQUEST', async () => {
+    await expect(
+      caller().bookings.range({ from: '2026-10-01T00:00:00Z', to: '2026-12-01T00:00:00Z' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('coach.sync: loggedById is the caller from ctx; a client-sent id never reaches the service', async () => {
+    const doc = { ...sessionDoc(), loggedById: CLIENT, bookingId: 'b1' };
+    await caller().coach.sync({ clientId: CLIENT, docs: [doc] });
+    const [access, loggedById, docs] = coach.sync.mock.calls[0] as unknown as [
+      { trainerId: string; clientId: string },
+      string,
+      Record<string, unknown>[],
+    ];
+    expect(access).toMatchObject({ trainerId: ME, clientId: CLIENT });
+    expect(loggedById).toBe(ME);
+    expect(docs[0]).not.toHaveProperty('loggedById');
+    expect(docs[0]?.['bookingId']).toBe('b1');
+  });
+
+  it('coach.start passes the booking (or null) and the device date', async () => {
+    await caller().coach.start({ clientId: CLIENT, bookingId: 'b1', today: '2026-10-19' });
+    expect(coach.start).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: CLIENT }),
+      'b1',
+      '2026-10-19',
+    );
+    await caller().coach.start({ clientId: CLIENT, today: '2026-10-19' });
+    expect(coach.start).toHaveBeenLastCalledWith(expect.anything(), null, '2026-10-19');
   });
 });

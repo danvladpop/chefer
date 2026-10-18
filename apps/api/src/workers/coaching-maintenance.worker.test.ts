@@ -34,6 +34,10 @@ function setup() {
     ]),
   };
   const templates = { purgeDeletedBefore: vi.fn(async () => 6) };
+  const bookings = {
+    deleteForEndedLinksBefore: vi.fn(async () => 7),
+    deleteBlocksBefore: vi.fn(async () => 1),
+  };
   const enforceAllowlist = vi.fn(async (u: { email: string }) => u.email === 'removed@x.dev');
   return {
     worker: new CoachingMaintenanceWorker({
@@ -43,9 +47,11 @@ function setup() {
       requests,
       trainers,
       templates,
+      bookings,
       enforceAllowlist,
     }),
     templates,
+    bookings,
     invites,
     notes,
     links,
@@ -56,7 +62,8 @@ function setup() {
 
 describe('CoachingMaintenanceWorker', () => {
   it('prunes with the retention constants and reports counts only', async () => {
-    const { worker, invites, notes, links, requests, templates, enforceAllowlist } = setup();
+    const { worker, invites, notes, links, requests, templates, bookings, enforceAllowlist } =
+      setup();
     expect(await worker.tick(NOW)).toEqual({
       prunedInvites: 3,
       prunedNotes: 2,
@@ -65,8 +72,14 @@ describe('CoachingMaintenanceWorker', () => {
       prunedRequests: 5,
       trainersRemoved: 1,
       prunedTemplates: 6,
+      prunedBookings: 8,
     });
-    // Trainer mode §10: deleted templates stay 30 days.
+    // Trainer mode §10: bookings follow the link's 24 months; blocked time is kept 24 months too.
+    expect(bookings.deleteForEndedLinksBefore).toHaveBeenCalledWith(
+      new Date('2024-10-04T12:00:00Z'),
+    );
+    expect(bookings.deleteBlocksBefore).toHaveBeenCalledWith(new Date('2024-10-04T12:00:00Z'));
+    // Deleted templates stay 30 days.
     expect(TEMPLATE_SOFT_DELETE_DAYS).toBe(30);
     expect(templates.purgeDeletedBefore).toHaveBeenCalledWith(new Date(NOW.getTime() - 30 * DAY));
     expect(requests.expireDue).toHaveBeenCalledWith(expect.objectContaining({ now: NOW }));
@@ -112,6 +125,17 @@ describe('CoachingMaintenanceWorker', () => {
     await worker.tick(new Date(NOW.getTime() + 60_000));
     expect(invites.deleteExpiredBefore).toHaveBeenCalledTimes(2);
     expect(notes.deleteHiddenBefore).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+
+  it('ended links are kept while their bookings could not be pruned (retried next tick)', async () => {
+    const { worker, bookings, links } = setup();
+    bookings.deleteForEndedLinksBefore.mockRejectedValueOnce(new Error('db down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await worker.tick(NOW);
+    expect(links.deleteEndedBefore).not.toHaveBeenCalled();
+    await worker.tick(new Date(NOW.getTime() + 60_000));
+    expect(links.deleteEndedBefore).toHaveBeenCalledTimes(1);
     spy.mockRestore();
   });
 

@@ -110,10 +110,15 @@ function toCoachedExerciseDto(e: CoachedSessionRow['exercises'][number]): Coache
   };
 }
 
-/** `renderable`: the tracking types the TRAINER's client level can show (like Following's workouts). */
+/**
+ * `renderable`: the tracking types the TRAINER's client level can show (like
+ * Following's workouts). `viewerId`: the trainer reading it — a workout they
+ * logged for the client is flagged `loggedByTrainer` ("Logged by you", M3).
+ */
 export function toCoachedWorkoutDto(
   session: CoachedSessionRow,
   renderable: ReadonlySet<ExerciseTrackingType>,
+  viewerId?: string,
 ): CoachedWorkoutDto {
   return {
     id: session.id,
@@ -132,6 +137,8 @@ export function toCoachedWorkoutDto(
       .sort((a, b) => a.position - b.position)
       .filter((e) => renderable.has(e.exercise.trackingType))
       .map(toCoachedExerciseDto),
+    ...(viewerId !== undefined &&
+      session.loggedById === viewerId && { loggedByTrainer: true as const }),
     // `session.notes`, heart rate and calories are NEVER copied.
   };
 }

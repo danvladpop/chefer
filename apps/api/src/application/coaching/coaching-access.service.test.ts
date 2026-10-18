@@ -54,6 +54,7 @@ function setup(world: World) {
     startedOn: null,
     endedAt: null,
     endedBy: null,
+    consentCopyVersion: 2,
   };
   const note: CoachingNote = {
     trainerId: TRAINER.id,

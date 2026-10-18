@@ -1,5 +1,7 @@
 import { mergeRouters, router } from '../../lib/trpc.js';
+import { trainerBookingsRouter } from './bookings.router.js';
 import { trainerClientRouter } from './client.router.js';
+import { trainerCoachRouter } from './coach.router.js';
 import { trainerModeRouter } from './mode.router.js';
 import { trainerProfileRouter } from './profile.router.js';
 import { trainerTemplatesRouter } from './templates.router.js';
@@ -11,5 +13,10 @@ import { trainerTemplatesRouter } from './templates.router.js';
 export const trainerRouter = mergeRouters(
   trainerProfileRouter,
   trainerModeRouter,
-  router({ client: trainerClientRouter, templates: trainerTemplatesRouter }),
+  router({
+    client: trainerClientRouter,
+    templates: trainerTemplatesRouter,
+    bookings: trainerBookingsRouter,
+    coach: trainerCoachRouter,
+  }),
 );

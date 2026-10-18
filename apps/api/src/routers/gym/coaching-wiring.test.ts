@@ -39,6 +39,10 @@ const progression = vi.hoisted(() => ({
 vi.mock('../../application/gym/progression.service.js', () => ({
   progressionService: progression,
 }));
+const sessions = vi.hoisted(() => ({ get: vi.fn(async () => 'session') }));
+vi.mock('../../application/gym/workout-session.service.js', () => ({
+  workoutSessionService: sessions,
+}));
 
 const ME = 'cme000000000000000000001';
 const user: UserProfile = {
@@ -72,6 +76,8 @@ describe('gym.bootstrap', () => {
     expect(bootstrap.get).toHaveBeenCalledWith(ME, expect.anything(), 2, {
       rawLevel: 6,
       enabled: false,
+      // A level-6 mobile bundle has no "Logged by" label (trainer mode M3 is level 8).
+      loggedBy: false,
     });
   });
 
@@ -81,7 +87,20 @@ describe('gym.bootstrap', () => {
     expect(bootstrap.get).toHaveBeenCalledWith(ME, expect.anything(), 2, {
       rawLevel: 6,
       enabled: true,
+      loggedBy: false,
     });
+  });
+});
+
+describe('gym.session.get', () => {
+  const ID = '00000000-0000-4000-8000-000000000001';
+
+  // Trainer mode M3: "Logged by Ana" on the detail only for bundles that render it.
+  it('asks for loggedBy at level 8+, not below', async () => {
+    await caller(8).session.get({ id: ID });
+    expect(sessions.get).toHaveBeenLastCalledWith(ME, ID, expect.any(Number), true);
+    await caller(7).session.get({ id: ID });
+    expect(sessions.get).toHaveBeenLastCalledWith(ME, ID, expect.any(Number), false);
   });
 });
 
