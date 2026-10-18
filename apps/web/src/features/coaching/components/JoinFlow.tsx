@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
+import { appJoinUrl, isMobileUserAgent } from '../lib/open-in-app';
 import { clearPendingJoin, rememberPendingJoin } from '../lib/pending-join';
 import { ConsentScreen } from './ConsentScreen';
 
@@ -14,9 +15,9 @@ import { ConsentScreen } from './ConsentScreen';
 // previewInvite -> consent screen -> join. Every invite state has copy. A client
 // without gym setup is sent to the existing setup first; the code is kept on the
 // device and Gym Today offers to carry on. On a phone the page first offers the
-// app (`chefer://`, no universal links: they need native config).
-
-const MOBILE_UA = /Android|iPhone|iPad|iPod/i;
+// app (`chefer://`). A signed-out phone gets SignedOutInvite instead (the
+// middleware rewrites to it), and app builds with universal links / App Links
+// open the invite before either page loads.
 
 function Page({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-lg px-4 py-6 sm:px-6 sm:py-10">{children}</div>;
@@ -69,7 +70,7 @@ export function JoinFlow({ code }: { code: string }) {
   const [choice, setChoice] = useState<'ask' | 'web'>('web');
 
   useEffect(() => {
-    if (MOBILE_UA.test(navigator.userAgent)) setChoice('ask');
+    if (isMobileUserAgent(navigator.userAgent)) setChoice('ask');
   }, []);
 
   const join = trpc.coaching.join.useMutation({
@@ -153,9 +154,7 @@ export function JoinFlow({ code }: { code: string }) {
             {COACHING_COPY.consent.title(trainerName)}
           </p>
           <Button asChild className="min-h-11">
-            <a href={`chefer://coaching/join/${encodeURIComponent(code)}`}>
-              {COACHING_COPY.consent.openInApp}
-            </a>
+            <a href={appJoinUrl(code)}>{COACHING_COPY.consent.openInApp}</a>
           </Button>
           <Button
             type="button"

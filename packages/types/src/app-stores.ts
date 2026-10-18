@@ -23,7 +23,7 @@ export const APP_STORE_APP_ID: string | null = null;
 export const APP_STORE_PROVIDER_TOKEN: string | null = null;
 
 /** Where a store link sits; becomes the campaign in both store consoles. */
-export type StoreCampaign = 'landing-hero' | 'landing-footer' | 'support';
+export type StoreCampaign = 'landing-hero' | 'landing-footer' | 'support' | 'coaching-invite';
 
 const PLAY_UTM_SOURCE = 'chefer-web';
 const PLAY_UTM_MEDIUM = 'badge';

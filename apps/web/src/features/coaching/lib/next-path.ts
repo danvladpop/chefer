@@ -13,3 +13,13 @@ export function safeNextPath(raw: string | string[] | null | undefined): string 
 export function nextQuery(next: string | null): string {
   return next ? `?next=${encodeURIComponent(next)}` : '';
 }
+
+/**
+ * Where a signed-out visitor of `pathname` signs in. An invite link comes back
+ * with `?next=` (only a valid join path is honoured by the login page); every
+ * other page gets `?from=`, which reads as "your session expired".
+ */
+export function loginPathFor(pathname: string): string {
+  const key = pathname.startsWith('/coaching/join/') ? 'next' : 'from';
+  return `/login?${key}=${encodeURIComponent(pathname)}`;
+}
