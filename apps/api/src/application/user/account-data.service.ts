@@ -13,6 +13,7 @@ import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
 import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
+import { pushService } from '../notifications/push.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
 // Users had no way to get their data or delete their account; the privacy
@@ -372,6 +373,8 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
   const shoppingLists = await prisma.shoppingList.findMany({
     where: { planId: { in: mealPlans.map((p) => p.id) } },
   });
+  // Trainer mode M4: registered devices (never the token) and the push switches.
+  const push = await pushService.exportData(userId);
   const social = await exportSocialData(userId, consentEvents);
   const coaching = await exportCoachingData(userId, consentEvents);
 
@@ -407,6 +410,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,
+      push,
       aiCallLog,
     },
   };

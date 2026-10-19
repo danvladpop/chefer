@@ -104,6 +104,23 @@ vi.mock('../notifications/email-preferences.service.js', () => ({
   emailPreferencesService: { get: vi.fn() },
 }));
 
+// Trainer mode M4: push devices (never the token) and switches under privacy.
+vi.mock('../notifications/push.service.js', () => ({
+  pushService: {
+    exportData: vi.fn(async () => ({
+      devices: [
+        {
+          platform: 'IOS',
+          appVersion: '1.0.3',
+          lastSeenAt: new Date('2026-10-18'),
+          createdAt: new Date('2026-10-01'),
+        },
+      ],
+      preferences: [{ key: 'social.follows', enabled: false }],
+    })),
+  },
+}));
+
 vi.mock('../coaching/trainer-profile.service.js', () => ({
   trainerProfileService: { deactivate: vi.fn(async () => ({ ok: true })) },
 }));
@@ -360,7 +377,12 @@ describe('exportAccountData (T-39.5, bug B-53)', () => {
       consentHistory: [{ id: 'e1', kind: 'AI', granted: true }],
       emailPreferences: { emailConfirmed: true, email: 'a@test.dev' },
       aiCallLog: [{ callType: 'MEAL_PLAN', provider: 'gemini' }],
+      push: {
+        devices: [{ platform: 'IOS', appVersion: '1.0.3' }],
+        preferences: [{ key: 'social.follows', enabled: false }],
+      },
     });
+    expect(JSON.stringify(data['privacy'])).not.toContain('PushToken');
   });
 
   it("resolves shopping lists through the user's own meal plans (no userId FK on ShoppingList)", async () => {

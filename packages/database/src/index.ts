@@ -317,6 +317,21 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
+  // Push notifications (docs/prd-2026-10/trainer-mode.md §7.2, §8.4, M4)
+  PushDeviceRepository,
+  pushDeviceRepository,
+  PushPreferenceRepository,
+  pushPreferenceRepository,
+  PushOutboxRepository,
+  pushOutboxRepository,
+  type IPushDeviceRepository,
+  type IPushPreferenceRepository,
+  type IPushOutboxRepository,
+  type PushDbClient,
+  type PushDeviceTarget,
+  type PushDeviceSummary,
+  type RegisterPushDeviceData,
+  type EnqueuePushData,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -422,6 +437,9 @@ export type {
   BookingSeries,
   BookingKind as BookingKindDb,
   BookingAttendance as BookingAttendanceDb,
+  PushDevice,
+  PushOutbox,
+  PushPlatform as PushPlatformDb,
   CoachingInvite,
   CoachingLink,
   CoachingNote,

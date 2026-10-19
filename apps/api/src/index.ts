@@ -40,6 +40,7 @@ import { dataRetentionWorker } from './workers/data-retention.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
+import { pushDeliveryWorker } from './workers/push-delivery.worker.js';
 import { recipeImageBackfillWorker } from './workers/recipe-image-backfill.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 import { uploadSweeperWorker } from './workers/upload-sweeper.worker.js';
@@ -299,6 +300,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Following housekeeping + the weekly moderation metrics line (plan §4.6)
   friendsMaintenanceWorker.start();
   coachingMaintenanceWorker.start();
+  // Push (trainer mode M4): booking reminders, the outbox → Expo, receipts and
+  // §10 retention. Always on; without EXPO_PUSH_ENABLED=true its client is a no-op.
+  pushDeliveryWorker.start();
 
   // Daily prune: expired sessions, AI usage + AI call logs older than 90 days
   dataRetentionWorker.start();
@@ -362,6 +366,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   weeklyEmailWorker.stop();
   friendsMaintenanceWorker.stop();
   coachingMaintenanceWorker.stop();
+  pushDeliveryWorker.stop();
   dataRetentionWorker.stop();
   uploadSweeperWorker.stop();
   await planTailoringWorker.stop();

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Notification } from '@chefer/database';
+import type { PushEnqueueOutcome } from '../notifications/push.service.js';
 import { CoachingNoticeService } from './coaching-notice.service.js';
 
 // Coaching notices (PRD 2026-10 §4.2, §4.3) on the Notification table.
@@ -29,6 +30,7 @@ function setup(existing: Notification | null = null, listed: Notification[] = []
     markCoachingRead: vi.fn(async () => true),
     withdrawCoaching: vi.fn(async () => 1),
   };
+  const push = { enqueue: vi.fn(async (): Promise<PushEnqueueOutcome> => 'queued') };
   const service = new CoachingNoticeService({
     notifications,
     trainers: {
@@ -41,9 +43,10 @@ function setup(existing: Notification | null = null, listed: Notification[] = []
         { id: CLIENT, firstName: 'Ioana', lastName: 'M', name: null, image: null },
       ]),
     },
+    push,
     now: () => NOW,
   });
-  return { service, notifications };
+  return { service, notifications, push };
 }
 
 describe('routineUpdated', () => {
@@ -273,5 +276,151 @@ describe('booking notices', () => {
     ]);
     await service.list(CLIENT, Number.POSITIVE_INFINITY);
     expect(notifications.listCoaching).toHaveBeenLastCalledWith(CLIENT, expect.any(Date), 30, []);
+  });
+});
+
+describe('push (trainer-mode.md §7.2): enqueued next to the notice, names and ids only', () => {
+  const ref = {
+    bookingId: 'b1',
+    startsAt: '2026-10-21T15:00:00.000Z',
+    timeZone: 'Europe/Bucharest',
+    weekly: false,
+    reason: null,
+  };
+
+  it('a request → the trainer, named by the client', async () => {
+    const { service, push } = setup();
+    await service.requestReceived(TRAINER, CLIENT);
+    expect(push.enqueue).toHaveBeenCalledWith({
+      userId: TRAINER,
+      kind: 'COACHING_REQUEST_RECEIVED',
+      actorId: CLIENT,
+      payload: {
+        title: 'New coaching request',
+        body: 'Ioana M asked you to coach them',
+        data: { clientId: CLIENT },
+      },
+    });
+  });
+
+  it('accepted / declined → the client, named by the trainer', async () => {
+    const { service, push } = setup();
+    await service.requestAnswered(CLIENT, TRAINER, true);
+    await service.requestAnswered(CLIENT, TRAINER, false);
+    expect(push.enqueue.mock.calls.map((c) => (c as unknown[])[0])).toEqual([
+      expect.objectContaining({
+        userId: CLIENT,
+        kind: 'COACHING_REQUEST_ANSWERED',
+        actorId: TRAINER,
+        payload: { title: 'Coaching request accepted', body: 'Ana accepted your request' },
+      }),
+      expect.objectContaining({
+        payload: { title: 'Coaching request declined', body: 'Ana declined your request' },
+      }),
+    ]);
+  });
+
+  it('routine changes push trainer → client only', async () => {
+    const { service, push } = setup();
+    await service.routineUpdated(TRAINER, CLIENT, 'CLIENT', [{ kind: 'schedule' }]);
+    expect(push.enqueue).not.toHaveBeenCalled();
+    await service.routineUpdated(CLIENT, TRAINER, 'TRAINER', [{ kind: 'schedule' }]);
+    expect(push.enqueue).toHaveBeenCalledWith({
+      userId: CLIENT,
+      kind: 'ROUTINE_CHANGED_BY_TRAINER',
+      actorId: TRAINER,
+      payload: { title: 'Routine updated', body: 'Ana updated your routine' },
+    });
+  });
+
+  it('"ended coaching" pushes only to the trainer, only when the client ended it', async () => {
+    const { service, push } = setup();
+    await service.ended(CLIENT, TRAINER, 'TRAINER', 'TRAINER');
+    await service.ended(TRAINER, CLIENT, 'CLIENT', 'SYSTEM');
+    expect(push.enqueue).not.toHaveBeenCalled();
+    await service.ended(TRAINER, CLIENT, 'CLIENT', 'CLIENT');
+    expect(push.enqueue).toHaveBeenCalledWith({
+      userId: TRAINER,
+      kind: 'COACHING_ENDED_FOR_TRAINER',
+      actorId: CLIENT,
+      payload: {
+        title: 'Coaching ended',
+        body: 'Ioana M ended coaching',
+        data: { clientId: CLIENT },
+      },
+    });
+  });
+
+  it('bookings: the time in the booking zone, the booking id — never a note or location', async () => {
+    const { service, push } = setup();
+    await service.booking(CLIENT, TRAINER, 'CREATED', ref);
+    await service.booking(CLIENT, TRAINER, 'CHANGED', ref);
+    await service.booking(CLIENT, TRAINER, 'CANCELLED', { ...ref, reason: 'Sick' });
+    const payloads = push.enqueue.mock.calls.map(
+      (c) => ((c as unknown[])[0] as { payload: unknown }).payload,
+    );
+    expect(payloads).toEqual([
+      {
+        title: 'New booking',
+        body: 'Ana booked you for Wed 21 Oct, 18:00',
+        data: { bookingId: 'b1' },
+      },
+      {
+        title: 'Booking changed',
+        body: 'Ana moved your booking to Wed 21 Oct, 18:00',
+        data: { bookingId: 'b1' },
+      },
+      {
+        title: 'Booking cancelled',
+        body: 'Ana cancelled your booking on Wed 21 Oct, 18:00',
+        data: { bookingId: 'b1' },
+      },
+    ]);
+    expect(JSON.stringify(payloads)).not.toContain('Sick');
+    expect(
+      push.enqueue.mock.calls.every(
+        (c) => ((c as unknown[])[0] as { kind: string }).kind === 'BOOKING_CHANGED_FOR_CLIENT',
+      ),
+    ).toBe(true);
+  });
+
+  it('a coached workout → the client, with the session id', async () => {
+    const { service, push } = setup();
+    await service.coachedWorkoutLogged(CLIENT, TRAINER, 'ws1');
+    expect(push.enqueue).toHaveBeenCalledWith({
+      userId: CLIENT,
+      kind: 'COACHED_WORKOUT_LOGGED',
+      actorId: TRAINER,
+      payload: {
+        title: 'Workout logged',
+        body: 'Ana logged today’s workout for you',
+        data: { workoutSessionId: 'ws1' },
+      },
+    });
+  });
+
+  it('a failed enqueue never fails the notice (and the notice is written first)', async () => {
+    const { service, push, notifications } = setup();
+    push.enqueue.mockRejectedValueOnce(new Error('db down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(service.requestAnswered(CLIENT, TRAINER, true)).resolves.toBeUndefined();
+    expect(notifications.upsertCoaching).toHaveBeenCalled();
+    // The rest of the notice work still ran.
+    expect(notifications.withdrawCoaching).toHaveBeenCalledWith(
+      TRAINER,
+      'COACHING_REQUEST',
+      CLIENT,
+    );
+    expect(warn).toHaveBeenCalledWith('[coaching] push enqueue failed:', 'Error');
+    warn.mockRestore();
+  });
+
+  it('a failed notice write enqueues no push', async () => {
+    const { service, push, notifications } = setup();
+    notifications.upsertCoaching.mockRejectedValueOnce(new Error('db down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await service.requestReceived(TRAINER, CLIENT);
+    expect(push.enqueue).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

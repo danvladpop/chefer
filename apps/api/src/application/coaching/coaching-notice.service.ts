@@ -12,12 +12,18 @@ import {
 import {
   COACHING_LIMITS,
   FALLBACK_TRAINER_NAME,
+  PUSH_COPY,
   TRAINER_MODE_API_LEVEL,
   type CoachingNoticeDto,
   type CoachingNoticeKind,
   type RoutineChange,
 } from '@chefer/types';
-import { displayNameOf, mergeRoutineChanges } from '@chefer/utils';
+import { bookingWhen, displayNameOf, mergeRoutineChanges } from '@chefer/utils';
+import {
+  pushService,
+  type PushEnqueueInput,
+  type PushService,
+} from '../notifications/push.service.js';
 
 // ─── Trainer coaching: in-app notices (PRD 2026-10 §4.2, §4.3) ────────────────
 // Rows in the existing Notification table, with coaching kinds that
@@ -40,7 +46,15 @@ import { displayNameOf, mergeRoutineChanges } from '@chefer/utils';
 // the newest booking of a kind replaces an older unread card.
 //
 // A notice never blocks the action that caused it: a failed write is logged
-// (no names, no ids) and swallowed. When the other account is being deleted,
+// (no names, no ids) and swallowed.
+//
+// Push (trainer-mode.md §7.2, M4): the §7.2 events also enqueue a push right
+// after their notice row (PushService: switches, throttle, dedupe). Coaching
+// notices are written AFTER the domain change commits (there is no
+// transaction to join here), so the push is enqueued with the notice, not
+// with the change; a failed enqueue never touches the notice. Pushes go one
+// way only where §7.2 says so: routine changes trainer → client, "ended
+// coaching" client → trainer. When the other account is being deleted,
 // the notice is written with the recipient as its own actor (the actor's
 // rows cascade away with the account) and the name kept in the payload.
 
@@ -117,6 +131,7 @@ export interface CoachingNoticeDeps {
   >;
   trainers: Pick<ITrainerProfileRepository, 'findMany'>;
   users: Pick<ISocialProfileRepository, 'findUsers'>;
+  push: Pick<PushService, 'enqueue'>;
   now: () => Date;
 }
 
@@ -124,6 +139,7 @@ const defaultDeps: CoachingNoticeDeps = {
   notifications: notificationRepository,
   trainers: trainerProfileRepository,
   users: socialProfileRepository,
+  push: pushService,
   now: () => new Date(),
 };
 
@@ -170,6 +186,14 @@ export class CoachingNoticeService {
         role: actorRole,
         changes: merged,
       });
+      if (actorRole === 'TRAINER') {
+        await this.push(async () => ({
+          userId: recipientId,
+          kind: 'ROUTINE_CHANGED_BY_TRAINER',
+          actorId,
+          payload: PUSH_COPY.routineChanged(await this.trainerName(actorId)),
+        }));
+      }
     });
   }
 
@@ -188,6 +212,18 @@ export class CoachingNoticeService {
         endedBy,
         ...(gone && { goneName: opts.otherGoneName }),
       });
+      // §7.2 "Maria ended coaching": the trainer hears when the CLIENT ended it.
+      if (!gone && otherRole === 'CLIENT' && endedBy === 'CLIENT') {
+        await this.push(async () => ({
+          userId: recipientId,
+          kind: 'COACHING_ENDED_FOR_TRAINER',
+          actorId: otherId,
+          payload: {
+            ...PUSH_COPY.coachingEnded(await this.clientName(otherId)),
+            data: { clientId: otherId },
+          },
+        }));
+      }
       // A stale "updated your routine" (or "booked you") card from them is moot now.
       if (!gone) {
         for (const kind of [
@@ -218,6 +254,23 @@ export class CoachingNoticeService {
     )[change];
     await this.safely(async () => {
       await this.write(clientId, kind, trainerId, { role: 'TRAINER', booking });
+      await this.push(async () => {
+        const trainer = await this.trainerName(trainerId);
+        // The time in the booking's own zone ("Tue 21 Oct, 18:00").
+        const when = bookingWhen(booking.startsAt, booking.timeZone);
+        const copy =
+          change === 'CREATED'
+            ? PUSH_COPY.bookingCreated(trainer, when)
+            : change === 'CHANGED'
+              ? PUSH_COPY.bookingChanged(trainer, when)
+              : PUSH_COPY.bookingCancelled(trainer, when);
+        return {
+          userId: clientId,
+          kind: 'BOOKING_CHANGED_FOR_CLIENT',
+          actorId: trainerId,
+          payload: { ...copy, data: { bookingId: booking.bookingId } },
+        };
+      });
       // A cancelled booking makes an unread "booked you" / "moved" card from the same booking moot.
       if (change === 'CANCELLED') {
         for (const stale of ['COACHING_BOOKING_CREATED', 'COACHING_BOOKING_CHANGED'] as const) {
@@ -237,18 +290,36 @@ export class CoachingNoticeService {
     workoutSessionId: string,
   ): Promise<void> {
     if (clientId === trainerId) return;
-    await this.safely(() =>
-      this.write(clientId, 'COACHING_WORKOUT_LOGGED', trainerId, {
+    await this.safely(async () => {
+      await this.write(clientId, 'COACHING_WORKOUT_LOGGED', trainerId, {
         role: 'TRAINER',
         workoutSessionId,
-      }),
-    );
+      });
+      await this.push(async () => ({
+        userId: clientId,
+        kind: 'COACHED_WORKOUT_LOGGED',
+        actorId: trainerId,
+        payload: {
+          ...PUSH_COPY.coachedWorkout(await this.trainerName(trainerId)),
+          data: { workoutSessionId },
+        },
+      }));
+    });
   }
 
   async requestReceived(trainerId: string, clientId: string): Promise<void> {
-    await this.safely(() =>
-      this.write(trainerId, 'COACHING_REQUEST', clientId, { role: 'CLIENT' }),
-    );
+    await this.safely(async () => {
+      await this.write(trainerId, 'COACHING_REQUEST', clientId, { role: 'CLIENT' });
+      await this.push(async () => ({
+        userId: trainerId,
+        kind: 'COACHING_REQUEST_RECEIVED',
+        actorId: clientId,
+        payload: {
+          ...PUSH_COPY.requestReceived(await this.clientName(clientId)),
+          data: { clientId },
+        },
+      }));
+    });
   }
 
   /** The request was cancelled, answered or expired: it leaves the trainer's notices. */
@@ -266,6 +337,12 @@ export class CoachingNoticeService {
         trainerId,
         { role: 'TRAINER' },
       );
+      await this.push(async () => ({
+        userId: clientId,
+        kind: 'COACHING_REQUEST_ANSWERED',
+        actorId: trainerId,
+        payload: PUSH_COPY.requestAnswered(await this.trainerName(trainerId), accepted),
+      }));
       await this.deps.notifications.withdrawCoaching(trainerId, 'COACHING_REQUEST', clientId);
     });
   }
@@ -338,6 +415,27 @@ export class CoachingNoticeService {
     await this.deps.notifications.upsertCoaching({ userId: recipientId, kind, actorId, payload });
   }
 
+  /** Enqueue the notice's push. Never fails the notice: a failure is logged by kind only. */
+  private async push(build: () => Promise<PushEnqueueInput>): Promise<void> {
+    try {
+      await this.deps.push.enqueue(await build());
+    } catch (err) {
+      console.warn('[coaching] push enqueue failed:', err instanceof Error ? err.name : 'unknown');
+    }
+  }
+
+  /** The trainer's display name for a push ("Ana"), "Your trainer" when unknown. */
+  private async trainerName(trainerId: string): Promise<string> {
+    const [profile] = await this.deps.trainers.findMany([trainerId]);
+    return profile?.displayName ?? capitalize(FALLBACK_TRAINER_NAME);
+  }
+
+  /** The client's display name for a push (never the email). */
+  private async clientName(clientId: string): Promise<string> {
+    const [user] = await this.deps.users.findUsers([clientId]);
+    return user ? displayNameOf(user) : displayNameOf({});
+  }
+
   private async safely(run: () => Promise<void>): Promise<void> {
     try {
       await run();
@@ -347,6 +445,10 @@ export class CoachingNoticeService {
       console.warn('[coaching] notice failed:', err instanceof Error ? err.name : 'unknown');
     }
   }
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function readPayload(row: Notification): NoticePayload | null {
