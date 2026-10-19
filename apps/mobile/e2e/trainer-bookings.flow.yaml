@@ -53,6 +53,7 @@ env:
           timeout: 5000
       - tapOn:
           id: 'tab-you'
+          retryTapIfNoChange: true
       - scrollUntilVisible:
           element:
             id: 'logout-button'
@@ -162,6 +163,15 @@ env:
     notVisible:
       id: 'booking-editor-title'
     timeout: 15000
+
+# A trainer's first booking asks once for notification permission (booking reminders, §7.3).
+- extendedWaitUntil:
+    visible: 'Allow'
+    timeout: 8000
+    optional: true
+- tapOn:
+    text: 'Allow'
+    optional: true
 
 # ── The block is on today's grid; its detail lists both clients ─────────────
 # A block is one button whose label is the whole line: "Tuesday 19:00 to 20:00, Mxabc + 1".

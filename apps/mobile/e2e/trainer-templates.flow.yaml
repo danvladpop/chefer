@@ -50,6 +50,7 @@ env:
           timeout: 5000
       - tapOn:
           id: 'tab-you'
+          retryTapIfNoChange: true
       - scrollUntilVisible:
           element:
             id: 'logout-button'
