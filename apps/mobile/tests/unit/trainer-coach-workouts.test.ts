@@ -1,7 +1,7 @@
 import type { SyncResultDto } from '@chefer/types';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
-import { outbox as ownerOutbox } from '../../src/features/gym/offline/outbox';
+import { createOutbox, outbox as ownerOutbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests, setGymOwner } from '../../src/features/gym/offline/owner';
 import { getRestTimer, resetRestTimerForTests } from '../../src/features/gym/rest-timer';
 import type { CoachedDoc } from '../../src/features/trainer-coach/coach-model';
@@ -283,5 +283,54 @@ describe('coached outbox', () => {
     expect(boxes.pendingCount(TRAINER)).toBe(1);
     await boxes.flushAll({ force: true });
     expect(boxes.pendingCount(TRAINER)).toBe(0);
+  });
+});
+
+describe('flush on enqueue (bug 2026-10-19: Finish everyone waited for the 30 s ticker)', () => {
+  const acked = () =>
+    jest.fn((_clientId: string, docs: CoachedDoc[]) =>
+      Promise.resolve(docs.map((d): SyncResultDto => ({ id: d.id, status: 'applied' }))),
+    );
+
+  it('enqueue on a fresh client box while online sends right away', async () => {
+    // Like startOutboxTriggers: a box's triggers flush it the moment they start.
+    const boxes = createCoachedOutboxes({
+      prefix: 'gym.coach.outbox-fresh',
+      isOnline: () => true,
+      getOwnerId: () => TRAINER,
+      getStampOwnerId: () => TRAINER,
+      startTriggers: (box) => {
+        void box.flush({ force: true });
+        return () => undefined;
+      },
+    });
+    const send = acked();
+    boxes.configure({ send });
+    boxes.start();
+
+    boxes.enqueue(MARIA, { ...makeDoc(70), bookingId: BOOKING });
+    boxes.enqueue(ION, { ...makeDoc(71), bookingId: BOOKING });
+    await settle();
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(boxes.pendingCount(TRAINER)).toBe(0);
+  });
+
+  it('outbox: a flush that skipped while an enqueue joined it is followed by a real one', async () => {
+    const box = createOutbox({
+      storageKey: 'gym.outbox-join-test',
+      isOnline: () => true,
+      getOwnerId: () => TRAINER,
+    });
+    const send = jest.fn((docs: { id: string }[]) =>
+      Promise.resolve(docs.map((d): SyncResultDto => ({ id: d.id, status: 'applied' }))),
+    );
+    box.configure({ send });
+    const empty = box.flush({ force: true }); // nothing queued yet: skips, still settling
+    box.enqueue(makeDoc(72)); // joins the settling flush
+    expect(await empty).toMatchObject({ status: 'skipped', reason: 'empty' });
+    await settle();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(box.getState().entries).toHaveLength(0);
   });
 });

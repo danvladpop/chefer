@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import type { CoachedWorkoutDto } from '@chefer/types';
@@ -11,15 +12,18 @@ import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 import { savePrefetchedStart } from '../../src/features/trainer-coach/coach-prefetch';
 import { CoachScreen } from '../../src/features/trainer-coach/coach-screen';
+import { startCoachedSync } from '../../src/features/trainer-coach/coach-sync';
 import { coachedOutboxes } from '../../src/features/trainer-coach/coached-outbox';
 import { coachedSessionStore } from '../../src/features/trainer-coach/coached-session-store';
 import { startCoaching } from '../../src/features/trainer-coach/coached-start';
 import {
+  finishCoachedGroup,
   finishCoachedWithDefaults,
   startCoachedWorkout,
 } from '../../src/features/trainer-coach/coached-workouts';
 import { LogCoachedWorkoutButton } from '../../src/features/trainer-coach/log-workout-button';
 import { WorkoutCard } from '../../src/features/trainer/client/workouts-tab';
+import { trpc } from '../../src/lib/trpc';
 import { makeQueryClient, renderWithTrpc, trpcError } from './friends-core-harness';
 import { makeBootstrap } from './gym-fixtures';
 import { booking, BOOKING, coachStart, ION, MARIA } from './trainer-coach-fixtures';
@@ -299,5 +303,53 @@ describe('mini bar and entry points', () => {
     expect(screen.getByTestId('trainer-workout-w1-logged-by')).toHaveTextContent('Logged by you');
     await render(<WorkoutCard workout={workout({})} onOpenHistory={jest.fn()} />);
     expect(screen.queryByTestId('trainer-workout-w1-logged-by')).toBeNull();
+  });
+});
+
+describe('sync after Finish everyone (bug 2026-10-19)', () => {
+  /** The booking detail's query plus GymSyncProvider's coached sync wiring, as in the app. */
+  function BookingDetailWithSync() {
+    const utils = trpc.useUtils();
+    trpc.trainer.bookings.get.useQuery({ bookingId: BOOKING });
+    useEffect(() => startCoachedSync(utils), [utils]);
+    return null;
+  }
+
+  it('uploads each client at once and the booking detail refetches on the ack', async () => {
+    startCoachedWorkout(coachStart(MARIA, 'Maria Pop'), BOOKING, { order: 0, group: true });
+    startCoachedWorkout(coachStart(ION, 'Ion Rusu'), BOOKING, { order: 1, group: true });
+    const r = await renderWithTrpc(
+      <BookingDetailWithSync />,
+      handlers({
+        'trainer.coach.sync': (input: unknown) => ({
+          results: (input as { docs: { id: string }[] }).docs.map((d) => ({
+            id: d.id,
+            status: 'applied',
+          })),
+        }),
+      }),
+    );
+    await settle();
+    const bookingReads = () => r.calls.filter((c) => c.path === 'trainer.bookings.get').length;
+    expect(bookingReads()).toBe(1);
+
+    finishCoachedGroup(BOOKING);
+    await settle(8);
+
+    const syncs = r.calls.filter((c) => c.path === 'trainer.coach.sync').map((c) => c.input);
+    expect(syncs).toEqual([
+      expect.objectContaining({
+        clientId: MARIA,
+        docs: [expect.objectContaining({ bookingId: BOOKING })],
+      }),
+      expect.objectContaining({
+        clientId: ION,
+        docs: [expect.objectContaining({ bookingId: BOOKING })],
+      }),
+    ]);
+    expect(coachedOutboxes.totalCount()).toBe(0);
+    // invalidateAfterCoaching: the open booking detail asks again (attendance, "Logged by you").
+    expect(bookingReads()).toBeGreaterThanOrEqual(2);
+    await r.unmount();
   });
 });

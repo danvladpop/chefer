@@ -155,7 +155,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
   let config: OutboxConfig | null = null;
   let inflight: Promise<FlushResult> | null = null;
   // Object, not a bare boolean: it is flipped by other calls across awaits.
-  const pending = { rerun: false };
+  const pending = { rerun: false, force: false };
   const rerunRequested = () => pending.rerun;
   const flushing = createExternalStore(() => false);
 
@@ -521,11 +521,21 @@ export function createOutbox(deps: OutboxDeps = {}) {
      */
     flush(options: { force?: boolean } = {}): Promise<FlushResult> {
       if (inflight) {
+        // Joined: if the running call can no longer serve this request (it skipped before
+        // any pass — e.g. a trigger's "empty" flush still settling when an enqueue arrives),
+        // it starts a follow-up flush on settling, and the caller gets that one's result.
         pending.rerun = true;
-        return inflight;
+        if (options.force) pending.force = true;
+        const current = inflight;
+        return current.then((result) => (inflight && inflight !== current ? inflight : result));
       }
+      pending.rerun = false;
+      pending.force = false;
       inflight = run(options.force ?? false).finally(() => {
         inflight = null;
+        // A request that arrived after the last pass looked (or while the run skipped) is
+        // still owed a flush; the pass loop clears `rerun` for everything it served.
+        if (pending.rerun) void outbox.flush({ force: pending.force });
       });
       return inflight;
     },
