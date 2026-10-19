@@ -177,8 +177,11 @@ describe('CoachView — one client, no booking', () => {
     expect(screen.queryByTestId('coach-finish-all')).not.toBeInTheDocument();
     fireEvent.click(await screen.findByTestId('coach-finish-this'));
 
-    const retry = await screen.findByTestId('coach-sync');
-    expect(retry).toHaveTextContent('1 workout waiting to upload');
+    // The sync line shows "Uploading…" until the failed sync settles.
+    await waitFor(() =>
+      expect(screen.getByTestId('coach-sync')).toHaveTextContent('1 workout waiting to upload'),
+    );
+    const retry = screen.getByTestId('coach-sync');
     expect(m.replace).not.toHaveBeenCalled();
     expect(window.localStorage.getItem('chefer.trainer-coach.client.maria')).toContain('COMPLETED');
     expect(syncInput(0)?.docs[0]?.['bookingId']).toBeNull();
