@@ -164,6 +164,21 @@ export interface EventMap {
   attendance_marked: { status: 'ATTENDED' | 'NO_SHOW' };
   coached_workout_started: { group: boolean };
   coached_workout_finished: Record<string, never>;
+  push_permission_prompted: { moment: 'trainer_mode' | 'first_booking' | 'coaching_request' };
+  push_permission_granted: Record<string, never>;
+  push_permission_denied: Record<string, never>;
+  push_opened: {
+    kind:
+      | 'COACHING_REQUEST_RECEIVED'
+      | 'COACHING_ENDED_FOR_TRAINER'
+      | 'BOOKING_REMINDER_TRAINER'
+      | 'COACHING_REQUEST_ANSWERED'
+      | 'ROUTINE_CHANGED_BY_TRAINER'
+      | 'BOOKING_CHANGED_FOR_CLIENT'
+      | 'BOOKING_REMINDER_CLIENT'
+      | 'COACHED_WORKOUT_LOGGED'
+      | 'SOCIAL_FOLLOW';
+  };
 
   // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
   // Never another user's id, a name or a search query.

@@ -266,6 +266,9 @@ model User {
   bookingsAsTrainer      Booking[]         @relation("BookingsAsTrainer")
   bookingsAsClient       BookingClient[]   @relation("BookingsAsClient")
   sessionsLoggedFor      WorkoutSession[]  @relation("SessionsLoggedFor")
+  pushDevices            PushDevice[]
+  pushPreferences        PushPreference[]
+  pushOutbox             PushOutbox[]
   coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
   coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
@@ -2080,4 +2083,66 @@ model BookingClient {
   @@id([bookingId, clientId])
   @@index([clientId, bookingId])
   @@map("booking_clients")
+}
+
+// ─── Push notifications (docs/prd-2026-10/trainer-mode.md §7.2, §8.4, M4) ─────
+
+enum PushPlatform {
+  IOS
+  ANDROID
+}
+
+/// One device's Expo push token. Unregistered on sign out; pruned when Expo says
+/// DeviceNotRegistered or after 90 days unseen. A token belongs to one user at a time.
+model PushDevice {
+  id            String       @id @default(cuid())
+  userId        String
+  expoPushToken String       @unique
+  platform      PushPlatform
+  appVersion    String
+  lastSeenAt    DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_devices")
+}
+
+/// A §7.2 switch the user turned off (or back on). A missing row = the default (on).
+model PushPreference {
+  userId  String
+  key     String // PUSH_PREFERENCE_KEYS in @chefer/types
+  enabled Boolean
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@map("push_preferences")
+}
+
+/// A push waiting to be sent (outbox pattern): written next to the in-app notice it
+/// mirrors, sent by push-delivery.worker. `dedupeKey` makes enqueues idempotent;
+/// `payload` = { title, body, data } with ids only in `data`. Deleted 7 days after sending.
+model PushOutbox {
+  id                String    @id @default(cuid())
+  userId            String
+  kind              String // PUSH_KINDS in @chefer/types
+  /// Who caused it (throttle: one push per recipient, kind and actor per 10 minutes).
+  actorId           String?
+  payload           Json
+  dedupeKey         String    @unique
+  createdAt         DateTime  @default(now())
+  sentAt            DateTime?
+  attempts          Int       @default(0)
+  lastError         String?
+  /// Expo push ticket ids, checked for receipts ~15 minutes later.
+  ticketIds         String[]  @default([])
+  receiptsCheckedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt, createdAt])
+  @@index([userId, kind, actorId, createdAt])
+  @@map("push_outbox")
 }
