@@ -6181,6 +6181,25 @@ Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (To
   attendance, cancellation, how many others — never their names) and as a trainer (own calendar with client
   counts only).
 
+- **Push notifications (M4, draft — the store build after 1.0.2).** Real push through the Expo push API, one
+  switch per event (§7.2):
+
+  ```
+  permission asked at a moment of value (first switch to trainer mode, a client's first booking card, after
+    sending a coaching request) — never at launch → getExpoPushTokenAsync → notifications.push.register
+  event (request received, client ended coaching, booking reminder for the trainer; request answered, routine
+    changed by the trainer, booking created/changed/cancelled, booking reminder, coached workout logged for the
+    client; follow request / new follower) → in-app notice + PushOutbox row (switch on, has a device, not
+    throttled: one per recipient, kind and actor per 10 minutes) → push-delivery.worker → Expo → the phone
+  tap → the app picks the mode first (trainer kinds → trainer mode, personal kinds → personal mode), then the
+    screen; data carries ids only, details are fetched
+  sign out → notifications.push.unregister; once push is registered, the phone stops scheduling local booking
+    reminders (the server sends them) so nothing fires twice
+  ```
+
+  Never in a push: food, weight, calories or the trainer's private notes. Quiet hours are the phone's own Focus /
+  Do Not Disturb.
+
 - **Turning trainer tools on** stays where it is (You → Trainer tools → turn-on screen): the switch only appears
   once tools are on.
 
