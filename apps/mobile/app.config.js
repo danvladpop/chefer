@@ -2,23 +2,39 @@
 // version ("Unexpected token '{'", eas-cli 23.1.0) while expo itself read it
 // fine — plain JS removes the loader variance. Typed via the JSDoc below.
 
-const { withEntitlementsPlist, withMainActivity } = require('expo/config-plugins');
+const fs = require('node:fs');
+const path = require('node:path');
+const { withMainActivity } = require('expo/config-plugins');
 
 const EAS_PROJECT_ID = 'f4d9a056-7f4d-4ee4-b185-2f0bcea37225';
 
-// expo-notifications adds the Push Notifications capability (aps-environment).
-// Chefer only schedules LOCAL notifications (gym reminders, rest timer), and a
-// free personal Apple team cannot sign apps with push — strip it. Re-add when
-// a paid team + real push arrive.
-const withoutPushEntitlement = (cfg) => {
-  // expo-notifications may set it on the config at plugin-evaluation time…
-  if (cfg.ios?.entitlements) delete cfg.ios.entitlements['aps-environment'];
-  // …and/or through the entitlements mod.
-  return withEntitlementsPlist(cfg, (c) => {
-    delete c.modResults['aps-environment'];
-    return c;
-  });
-};
+// ─── Push notifications (trainer mode M4, docs/prd-2026-10/trainer-mode.md §7.2) ─
+// NATIVE, needs a new store binary. Both pieces below change the runtime
+// fingerprint — expected for M4: a DRAFT PR merged only right before the store
+// build after 1.0.2, bundled with #177, so OTA updates never reach a binary
+// built without them.
+//  * iOS: expo-notifications adds the Push Notifications capability
+//    (`aps-environment`). Until M4 a `withoutPushEntitlement` plugin stripped
+//    it (a free personal team cannot sign push); team 45TS85YK89 is paid now,
+//    so the entitlement stays. EAS registers the capability and the APNs key.
+//  * Android: FCM needs google-services.json in the binary. It is never
+//    committed: EAS builds get it from the file env var GOOGLE_SERVICES_JSON
+//    (EAS hands the variable over as a path); a local build uses
+//    ./google-services.json only when that file exists (gitignored). Without
+//    either, the build still succeeds — the app then gets no push token and
+//    keeps the LOCAL booking reminders (src/features/notifications/push/).
+//    The fingerprint hashes the file's CONTENTS (not its path), so the CI OTA
+//    publish must see the same file as the store build — or OTA updates stop
+//    reaching Android binaries built with it.
+/** The google-services.json path for this build, or null when there is none. */
+function resolveGoogleServicesFile(env) {
+  const fromEnv = env.GOOGLE_SERVICES_JSON?.trim();
+  if (fromEnv) return fromEnv;
+  return fs.existsSync(path.join(__dirname, 'google-services.json'))
+    ? './google-services.json'
+    : null;
+}
+const GOOGLE_SERVICES_FILE = resolveGoogleServicesFile(process.env);
 
 // Phones start in portrait (1.0.2). The manifest no longer locks orientation
 // (see `orientation` below), so without this a phone held sideways would show
@@ -212,11 +228,10 @@ const config = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    // M4 push (FCM): see the block at the top. Part of the runtime fingerprint.
+    ...(GOOGLE_SERVICES_FILE ? { googleServicesFile: GOOGLE_SERVICES_FILE } : {}),
   },
   plugins: [
-    // FIRST on purpose: mods run in reverse registration order, so this one
-    // runs LAST — after expo-notifications has added the entitlement.
-    withoutPushEntitlement,
     'expo-router',
     // Face ID is never used (no requireAuthentication) — without `false` the plugin
     // writes a generic NSFaceIDUsageDescription (App Review 5.1.1, review R-07).
@@ -242,6 +257,8 @@ const config = {
     ],
     // Gym (gym_plan.md §5.6): offline store, cached exercise photos, local
     // reminders + rest-timer notifications. One native batch, one rebuild.
+    // M4: also remote push — the plugin's aps-environment entitlement is kept
+    // (see the push block at the top). The arguments stay LITERALS.
     'expo-sqlite',
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
@@ -259,8 +276,6 @@ const config = {
       '@sentry/react-native/expo',
       { url: 'https://de.sentry.io/', organization: 'chefer', project: 'chefer-mobile' },
     ],
-    // …and LAST too: config-level edits happen in registration order.
-    withoutPushEntitlement,
   ],
   // OTA updates via EAS Update. The fingerprint policy hashes the native
   // layer, so an update only reaches binaries with identical native code —

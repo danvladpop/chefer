@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
+import { markPushRegistered } from '../../src/features/notifications/push/push-store';
 import { useSignOut } from '../../src/features/settings/use-sign-out';
 import { makeDoc } from './gym-fixtures';
 
@@ -11,9 +12,15 @@ import { makeDoc } from './gym-fixtures';
 // More / Settings warn first, and say how many.
 
 const mockLogoutMutate = jest.fn();
+const mockUnregister = jest.fn(
+  (_input: unknown): Promise<unknown> => Promise.resolve({ ok: true }),
+);
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     auth: { logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) } },
+    useUtils: () => ({
+      client: { notifications: { push: { unregister: { mutate: mockUnregister } } } },
+    }),
   },
 }));
 jest.mock('../../src/lib/sign-out', () => ({ signOut: jest.fn(() => Promise.resolve()) }));
@@ -45,6 +52,7 @@ function renderHarness() {
 
 beforeEach(() => {
   mockLogoutMutate.mockClear();
+  mockUnregister.mockClear();
   setKvBackendForTests(createMemoryKvBackend());
   outbox.reload();
   activeSessionStore.clear();
@@ -103,5 +111,36 @@ describe('useSignOut — unsynced workout warning (UX-ACC-12)', () => {
     expect(await screen.findByTestId('so-warning-body')).toHaveTextContent(
       /2 workouts haven’t synced/,
     );
+  });
+});
+
+describe('useSignOut — push token (trainer mode M4, §7.2)', () => {
+  it('unregisters this device’s push token BEFORE the server logout (the session is still valid)', async () => {
+    markPushRegistered('ExponentPushToken[abc123]');
+    await renderHarness();
+    await fireEvent.press(screen.getByTestId('sign-out'));
+    await fireEvent.press(await screen.findByTestId('so-warning-confirm'));
+    expect(mockUnregister).toHaveBeenCalledWith({ token: 'ExponentPushToken[abc123]' });
+    expect(mockLogoutMutate).toHaveBeenCalledTimes(1);
+    expect(mockUnregister.mock.invocationCallOrder[0]).toBeLessThan(
+      mockLogoutMutate.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('best effort: a failed unregister never blocks the sign-out', async () => {
+    markPushRegistered('ExponentPushToken[abc123]');
+    mockUnregister.mockRejectedValueOnce(new Error('offline'));
+    await renderHarness();
+    await fireEvent.press(screen.getByTestId('sign-out'));
+    await fireEvent.press(await screen.findByTestId('so-warning-confirm'));
+    expect(mockLogoutMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('no push token on this device: straight to the logout', async () => {
+    await renderHarness();
+    await fireEvent.press(screen.getByTestId('sign-out'));
+    await fireEvent.press(await screen.findByTestId('so-warning-confirm'));
+    expect(mockUnregister).not.toHaveBeenCalled();
+    expect(mockLogoutMutate).toHaveBeenCalledTimes(1);
   });
 });

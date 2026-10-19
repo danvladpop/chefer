@@ -41,6 +41,8 @@ let mockMe: { role: string; planTier: string } | undefined;
 let mockMembers: { name: string }[] = [];
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    // useSignOut unregisters this device's push token first (M4); none is registered here.
+    useUtils: () => ({}),
     auth: {
       me: { useQuery: () => ({ data: mockMe }) },
       logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) },

@@ -22,6 +22,8 @@ jest.mock('@expo/vector-icons', () => {
 const mockLogoutMutate = jest.fn();
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    // useSignOut unregisters this device's push token first (M4); none is registered here.
+    useUtils: () => ({}),
     auth: { logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) } },
   },
 }));

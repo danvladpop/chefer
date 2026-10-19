@@ -15,6 +15,8 @@ import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useFriendsMe } from '../../friends/api/use-friends-me';
 import { BookingReminderSwitch } from '../../notifications/booking-reminder-switch';
+import { PushPreferencesCard } from '../../notifications/push/push-preferences-card';
+import { usePushActive } from '../../notifications/push/push-store';
 import { ShellTopBar } from '../../shell/shell-chrome';
 import { YouHelpSection, YouSignOutFooter } from '../../shell/you/you-footer';
 import { trainerFeedbackMailto } from '../../trainer/components/trainer-feedback-link';
@@ -29,8 +31,9 @@ import { switchShellMode } from '../switch-mode';
 // Then the trainer's own settings, moved from Trainer tools: the profile
 // (name clients see, gym line), Invites (the same sheet as Clients), the
 // read-only availability (it closes by itself at the client limit, no
-// switch), the trainer feedback mail, and Turn off trainer tools — which
-// also leaves trainer mode. Help, Sign out and the version line are personal
+// switch), Notifications (M4 trainer push switches; the local booking
+// reminders switch until push delivers them), the trainer feedback mail, and
+// Turn off trainer tools — which also leaves trainer mode. Help, Sign out and the version line are personal
 // You's own pieces.
 
 const COPY = TRAINER_MODE_COPY.you;
@@ -50,6 +53,7 @@ export function TrainerYouScreen() {
   const { badgeCount: personalWaiting } = useFriendsMe();
   const status = trpc.trainer.status.useQuery(undefined, { retry: false });
   const activeClients = status.data?.activeClients ?? 0;
+  const pushActive = usePushActive();
   // After turning off, trainer mode is gone: land on personal Today.
   const turnOff = useTurnOffTrainerTools({
     testID: 'trainer-you-turn-off-confirm',
@@ -97,13 +101,19 @@ export function TrainerYouScreen() {
             />
           </ListSection>
 
-          {/* M3 §7.3: local reminders an hour before each of the trainer's own bookings. */}
-          <View
-            testID="trainer-you-booking-reminders"
-            className="rounded-card border border-separator bg-surface px-4 py-2"
-          >
-            <BookingReminderSwitch role="trainer" testID="trainer-you-booking-reminders-switch" />
-          </View>
+          {/* M4 §6.8: the trainer push switches (once a device is registered). */}
+          <PushPreferencesCard screen="trainer" testID="trainer-you-push" />
+
+          {/* M3 §7.3: local reminders an hour before each of the trainer's own bookings —
+              until push delivers them (its `trainer.reminders` switch replaces this one). */}
+          {pushActive ? null : (
+            <View
+              testID="trainer-you-booking-reminders"
+              className="rounded-card border border-separator bg-surface px-4 py-2"
+            >
+              <BookingReminderSwitch role="trainer" testID="trainer-you-booking-reminders-switch" />
+            </View>
+          )}
 
           <YouHelpSection
             feedback={
