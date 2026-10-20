@@ -9,6 +9,7 @@ import { TrainerRequests } from '@/features/trainer/components/TrainerRequests';
 import { trpc } from '@/lib/trpc';
 import { Search, UserPlus } from 'lucide-react';
 import {
+  BOOKING_COPY,
   COACHING_COPY,
   COACHING_LIMITS,
   TRAINER_MODE_COPY,
@@ -97,6 +98,7 @@ export function TrainerClients() {
                 >
                   <option value="name">{copy.sortName}</option>
                   <option value="lastWorkout">{copy.sortLastWorkout}</option>
+                  <option value="nextBooking">{BOOKING_COPY.today.nextBooking}</option>
                 </select>
               </div>
             </div>

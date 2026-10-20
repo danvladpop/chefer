@@ -17,6 +17,7 @@ import {
   saveNoteInputSchema,
   saveTrainerRoutineInputSchema,
   setNextTargetInputSchema,
+  TRAINER_MODE_API_LEVEL,
   trainerDisplayNameSchema,
   trainerNameOrFallback,
   trainerRoutineDocSchema,
@@ -24,10 +25,11 @@ import {
 } from '..';
 
 describe('API levels', () => {
-  it('coaching is 6 and INTERVALS moved above it (levels are cumulative: 5 stays unused)', () => {
+  it('coaching is 6, trainer mode 8, and INTERVALS moved above both (levels are cumulative)', () => {
     expect(COACHING_API_LEVEL).toBe(6);
-    expect(INTERVALS_API_LEVEL).toBe(7);
-    expect(INTERVALS_API_LEVEL).toBeGreaterThan(COACHING_API_LEVEL);
+    expect(TRAINER_MODE_API_LEVEL).toBe(8);
+    expect(INTERVALS_API_LEVEL).toBe(9);
+    expect(INTERVALS_API_LEVEL).toBeGreaterThan(TRAINER_MODE_API_LEVEL);
   });
 });
 

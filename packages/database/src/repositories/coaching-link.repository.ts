@@ -5,6 +5,7 @@ import {
   type CoachingRequest,
 } from '@prisma/client';
 import { prisma } from '../client';
+import { cancelFutureBookingsTx } from './booking.repository';
 
 // ─── Trainer coaching: links (docs/trainer-platform/spec.md §5.1, §8) ─────────
 // The trainer ↔ client relationship. Access is decided ONLY from ACTIVE rows.
@@ -34,6 +35,10 @@ export interface JoinLinkData {
   /** The client's device-local date (YYYY-MM-DD) at join, stored as `CoachingLink.startedOn`; null = unknown. */
   startedOn: string | null;
   now: Date;
+  /** Trainer mode M3 (§10): the consent copy version the client agreed to (default 1). */
+  consentCopyVersion?: number;
+  /** The granted event's `documentVersion` (default: `documentVersion`), e.g. "<privacy>+coaching-v2". */
+  grantedDocumentVersion?: string;
 }
 
 export type JoinLinkResult =
@@ -79,6 +84,19 @@ export interface ICoachingLinkRepository {
   end(data: EndLinkData): Promise<CoachingLink | null>;
   /** Maintenance: deletes ENDED links that ended before `cutoff`. */
   deleteEndedBefore(cutoff: Date): Promise<number>;
+  /**
+   * Trainer mode M3 (§10): the client read a newer consent copy. One
+   * transaction: the ACTIVE link's `consentCopyVersion` is raised and a granted
+   * `COACHING_SHARING` event records it (`contextId` = the link). False when
+   * there is no ACTIVE link or it already has this version (idempotent).
+   */
+  acknowledgeConsentCopy(data: {
+    clientId: string;
+    version: number;
+    source: string;
+    documentVersion: string;
+    now: Date;
+  }): Promise<boolean>;
 }
 
 /** The transaction client handed to `prisma.$transaction(async (tx) => …)`. */
@@ -100,6 +118,10 @@ export interface StartLinkData {
    * it (`contextId` = the request), and the link keeps `requestId`.
    */
   writeGrantedEvent: boolean;
+  /** Trainer mode M3 (§10): stored on the link (default 1 = the pre-bookings copy). */
+  consentCopyVersion?: number;
+  /** The granted event's `documentVersion` (default: `documentVersion`). */
+  grantedDocumentVersion?: string;
 }
 
 /**
@@ -138,6 +160,12 @@ export async function startLinkTx(
         where: { trainerId: l.trainerId, clientId: l.clientId, hiddenAt: null },
         data: { hiddenAt: data.now },
       });
+      // Trainer mode M3: the old trainer's future bookings with this client are cancelled.
+      await cancelFutureBookingsTx(tx, {
+        trainerId: l.trainerId,
+        clientIds: [l.clientId],
+        now: data.now,
+      });
     }
   }
 
@@ -160,6 +188,9 @@ export async function startLinkTx(
       trainerLabel: data.trainerLabel,
       startedAt: data.now,
       startedOn: data.startedOn,
+      ...(data.consentCopyVersion !== undefined && {
+        consentCopyVersion: data.consentCopyVersion,
+      }),
     },
   });
   if (data.writeGrantedEvent) {
@@ -169,7 +200,7 @@ export async function startLinkTx(
         kind: 'COACHING_SHARING',
         granted: true,
         providers: [],
-        documentVersion: data.documentVersion,
+        documentVersion: data.grantedDocumentVersion ?? data.documentVersion,
         source: data.source,
         contextId: link.id,
         createdAt: data.now,
@@ -315,6 +346,12 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
           documentVersion: data.documentVersion,
           now: data.now,
           writeGrantedEvent: true,
+          ...(data.consentCopyVersion !== undefined && {
+            consentCopyVersion: data.consentCopyVersion,
+          }),
+          ...(data.grantedDocumentVersion !== undefined && {
+            grantedDocumentVersion: data.grantedDocumentVersion,
+          }),
         });
         return { status: 'joined', link, endedLinks } satisfies JoinLinkResult;
       });
@@ -356,7 +393,46 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
         where: { trainerId: data.trainerId, clientId: data.clientId, hiddenAt: null },
         data: { hiddenAt: data.now },
       });
+      // Trainer mode M3: the client's future bookings with this trainer are cancelled.
+      await cancelFutureBookingsTx(tx, {
+        trainerId: data.trainerId,
+        clientIds: [data.clientId],
+        now: data.now,
+      });
       return { ...link, status: 'ENDED', endedAt: data.now, endedBy: data.endedBy };
+    });
+  }
+
+  async acknowledgeConsentCopy(data: {
+    clientId: string;
+    version: number;
+    source: string;
+    documentVersion: string;
+    now: Date;
+  }): Promise<boolean> {
+    return prisma.$transaction(async (tx) => {
+      const link = await tx.coachingLink.findFirst({
+        where: { clientId: data.clientId, status: 'ACTIVE' },
+      });
+      if (!link) return false;
+      const raised = await tx.coachingLink.updateMany({
+        where: { id: link.id, status: 'ACTIVE', consentCopyVersion: { lt: data.version } },
+        data: { consentCopyVersion: data.version },
+      });
+      if (raised.count === 0) return false;
+      await tx.consentEvent.create({
+        data: {
+          userId: data.clientId,
+          kind: 'COACHING_SHARING',
+          granted: true,
+          providers: [],
+          documentVersion: data.documentVersion,
+          source: data.source,
+          contextId: link.id,
+          createdAt: data.now,
+        },
+      });
+      return true;
     });
   }
 

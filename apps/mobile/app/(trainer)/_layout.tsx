@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
-import { countPillText, haptics, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
+import { countPillText, haptics, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../src/components/icon';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
@@ -31,7 +31,6 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 export default function TrainerTabsLayout() {
   const colors = useThemeColors();
-  const reducedMotion = useReducedMotion();
   const available = useTrainerModeAvailability();
   const { requests } = useTrainerBadges();
   const { badgeCount: personalWaiting } = useFriendsMe();
@@ -53,12 +52,14 @@ export default function TrainerTabsLayout() {
       <Tabs
         initialRouteName="today"
         backBehavior="initialRoute"
-        // Premium motion #9: a selection haptic on every tab press and a short
-        // crossfade between tabs (none under reduced motion).
+        // A selection haptic on every tab press; tab switches are instant (MO-09:
+        // "tab switches are instant"). The bottom tabs' `fade` left a revisited tab
+        // blank now and then on iOS (Clients → Today rendered nothing), so this
+        // shell does not use it.
         screenListeners={{ tabPress: () => haptics.selection() }}
         screenOptions={{
           headerShown: false,
-          animation: reducedMotion ? 'none' : 'fade',
+          animation: 'none',
           tabBarActiveTintColor: colors.brand,
           tabBarInactiveTintColor: colors.labelSecondary,
           tabBarStyle: { backgroundColor: colors.surfaceRaised, borderTopColor: colors.separator },

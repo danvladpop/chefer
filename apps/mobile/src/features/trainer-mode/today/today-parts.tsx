@@ -97,40 +97,75 @@ function AdherenceTile({ adherence }: { adherence: number | null }) {
   );
 }
 
-/** §6.1 (4): active clients of 50, average adherence, quiet clients (CountUp numbers, MO-06). */
+/**
+ * §6.1 (4): active clients of 50, average adherence, quiet clients and (M3)
+ * bookings this week, done of scheduled (CountUp numbers, MO-06). With the
+ * bookings tile the four sit in two rows of two, readable at 320 pt.
+ */
 export function WeekStats({
   activeClients,
   maxClients,
   averageAdherence,
   quietClients,
+  bookingsThisWeek = null,
 }: {
   activeClients: number;
   maxClients: number;
   averageAdherence: number | null;
   quietClients: number;
+  bookingsThisWeek?: { scheduled: number; done: number } | null;
 }) {
+  const clients = (
+    <StatTile
+      testID="trainer-today-stat-clients"
+      value={String(activeClients)}
+      count={activeClients}
+      unit={COPY.activeOf(maxClients)}
+      label={COPY.activeClients}
+    />
+  );
+  const quiet = (
+    <StatTile
+      testID="trainer-today-stat-quiet"
+      value={String(quietClients)}
+      count={quietClients}
+      label={COPY.quietClients}
+      accessibilityHint={COPY.quietHint(COACHING_LIMITS.inactiveDays)}
+    />
+  );
   return (
     <View className="gap-2">
       <Text accessibilityRole="header" className="text-title3 font-bold text-label">
         {COPY.thisWeek}
       </Text>
-      <StatTiles testID="trainer-today-stats">
-        <StatTile
-          testID="trainer-today-stat-clients"
-          value={String(activeClients)}
-          count={activeClients}
-          unit={COPY.activeOf(maxClients)}
-          label={COPY.activeClients}
-        />
-        <AdherenceTile adherence={averageAdherence} />
-        <StatTile
-          testID="trainer-today-stat-quiet"
-          value={String(quietClients)}
-          count={quietClients}
-          label={COPY.quietClients}
-          accessibilityHint={COPY.quietHint(COACHING_LIMITS.inactiveDays)}
-        />
-      </StatTiles>
+      {bookingsThisWeek ? (
+        <View testID="trainer-today-stats" className="gap-2">
+          <StatTiles>
+            {clients}
+            <AdherenceTile adherence={averageAdherence} />
+          </StatTiles>
+          <StatTiles>
+            <StatTile
+              testID="trainer-today-stat-bookings"
+              value={String(bookingsThisWeek.done)}
+              count={bookingsThisWeek.done}
+              unit={COPY.activeOf(bookingsThisWeek.scheduled)}
+              label={COPY.bookingsThisWeek}
+              accessibilityLabel={`${COPY.bookingsThisWeek}: ${COPY.bookingsDone(
+                bookingsThisWeek.done,
+                bookingsThisWeek.scheduled,
+              )}`}
+            />
+            {quiet}
+          </StatTiles>
+        </View>
+      ) : (
+        <StatTiles testID="trainer-today-stats">
+          {clients}
+          <AdherenceTile adherence={averageAdherence} />
+          {quiet}
+        </StatTiles>
+      )}
     </View>
   );
 }

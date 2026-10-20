@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { consentEventRepository, Prisma, prisma, uploadedFileRepository } from '@chefer/database';
+import {
+  bookingRepository,
+  consentEventRepository,
+  Prisma,
+  prisma,
+  uploadedFileRepository,
+} from '@chefer/database';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
@@ -26,6 +32,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findLatestByKind: vi.fn(async () => null),
     },
     uploadedFileRepository: { fileNamesForUser: vi.fn(async () => []) },
+    bookingRepository: {
+      cancelFutureForClient: vi.fn(async () => ({ clientRows: 0, bookings: 0 })),
+      listForExport: vi.fn(async () => ({ asClient: [], asTrainer: [] })),
+    },
     prisma: {
       user: {
         findUnique: vi.fn(),
@@ -783,5 +793,141 @@ describe('exportAccountData: coaching section', () => {
     expect(json).not.toContain('trainer-id');
     expect(json).not.toContain('client-id');
     expect(json).not.toContain('@');
+  });
+
+  // Trainer mode M3 (trainer-mode.md §8.2): bookings on both sides, other clients as counts only.
+  it('exports your bookings as a client and your calendar as a trainer, never other clients', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      email: 'me@test.dev',
+    } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.trainerProfile.findMany).mockResolvedValue([
+      { userId: 'trainer-id', displayName: 'Ana' },
+    ] as never);
+    const place = (clientId: string, attendance = 'SCHEDULED') => ({
+      bookingId: 'b',
+      clientId,
+      workoutRef: null,
+      attendance,
+      attendanceAt: null,
+      workoutSessionId: null,
+    });
+    const booking = (over: Record<string, unknown>) => ({
+      id: 'booking-id',
+      trainerId: 'trainer-id',
+      seriesId: 'series-id',
+      kind: 'BOOKING',
+      startsAt: new Date('2026-10-20T16:00:00Z'),
+      durationMin: 60,
+      timeZone: 'Europe/Bucharest',
+      location: 'Studio 2',
+      note: 'Bring a towel',
+      cancelledAt: null,
+      cancelReason: null,
+      version: 1,
+      createdAt: new Date('2026-10-01T00:00:00Z'),
+      updatedAt: new Date('2026-10-01T00:00:00Z'),
+      clients: [],
+      ...over,
+    });
+    vi.mocked(bookingRepository.listForExport).mockResolvedValueOnce({
+      asClient: [
+        booking({ clients: [place('u1', 'ATTENDED'), place('other-client-id')] }),
+        booking({
+          id: 'booking-id-2',
+          startsAt: new Date('2026-10-27T16:00:00Z'),
+          cancelledAt: new Date('2026-10-26T09:00:00Z'),
+          cancelReason: 'Sick',
+          clients: [place('u1', 'CANCELLED')],
+        }),
+      ],
+      asTrainer: [
+        booking({
+          trainerId: 'u1',
+          location: 'Gym',
+          note: null,
+          clients: [place('client-a-id'), place('client-b-id')],
+        }),
+        booking({
+          trainerId: 'u1',
+          kind: 'BLOCK',
+          durationMin: 30,
+          location: null,
+          note: 'Lunch',
+          cancelledAt: new Date('2026-10-19T08:00:00Z'),
+        }),
+      ],
+    } as never);
+
+    const out = (await exportAccountData('u1')) as { coaching: Record<string, unknown> };
+    const coaching = out.coaching as {
+      asClient: { bookings: unknown[] };
+      asTrainer: { bookings: unknown[] };
+    };
+
+    expect(bookingRepository.listForExport).toHaveBeenCalledWith('u1');
+    expect(coaching.asClient.bookings).toEqual([
+      {
+        startsAt: '2026-10-20T16:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        durationMin: 60,
+        trainer: 'Ana',
+        location: 'Studio 2',
+        note: 'Bring a towel',
+        attendance: 'ATTENDED',
+        cancelledAt: null,
+        cancelReason: null,
+        otherClients: 1,
+      },
+      {
+        startsAt: '2026-10-27T16:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        durationMin: 60,
+        trainer: 'Ana',
+        location: 'Studio 2',
+        note: 'Bring a towel',
+        attendance: 'CANCELLED',
+        cancelledAt: '2026-10-26T09:00:00.000Z',
+        cancelReason: 'Sick',
+        otherClients: 0,
+      },
+    ]);
+    expect(coaching.asTrainer.bookings).toEqual([
+      {
+        startsAt: '2026-10-20T16:00:00.000Z',
+        kind: 'BOOKING',
+        durationMin: 60,
+        timeZone: 'Europe/Bucharest',
+        location: 'Gym',
+        note: null,
+        cancelledAt: null,
+        cancelReason: null,
+        clients: 2,
+      },
+      {
+        startsAt: '2026-10-20T16:00:00.000Z',
+        kind: 'BLOCK',
+        durationMin: 30,
+        timeZone: 'Europe/Bucharest',
+        location: null,
+        note: 'Lunch',
+        cancelledAt: '2026-10-19T08:00:00.000Z',
+        cancelReason: null,
+        clients: 0,
+      },
+    ]);
+    const json = JSON.stringify(coaching);
+    for (const id of [
+      'other-client-id',
+      'client-a-id',
+      'client-b-id',
+      'trainer-id',
+      'booking-id',
+      'series-id',
+    ]) {
+      expect(json).not.toContain(id);
+    }
   });
 });

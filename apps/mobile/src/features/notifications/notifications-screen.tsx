@@ -7,10 +7,12 @@ import {
   refreshNotificationPermission,
   useNotificationPermission,
 } from '../../lib/use-notification-permission';
+import { useCoachingStatus } from '../coaching/use-coaching-status';
 import { ensureRestNotificationPermission } from '../gym/rest-timer';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { WeeklyUpdatesCard } from '../preferences/weekly-updates-card';
 import { TrainButton } from '../shell/train/train-button';
+import { BookingReminderSwitch } from './booking-reminder-switch';
 import { FoodNudgeSwitches } from './food-nudge-switches';
 
 // Settings → Notifications (UX-PO-08, WP-13): every reminder Chefer can send, in
@@ -108,6 +110,17 @@ function RestTimerAlertsCard() {
   );
 }
 
+/** Trainer mode §7.3: a client's "Booking reminders" — only for someone who has a trainer. */
+function BookingRemindersCard() {
+  const { data } = useCoachingStatus();
+  if (!data?.trainer) return null;
+  return (
+    <View testID="notifications-bookings" className={CARD}>
+      <BookingReminderSwitch role="client" testID="notifications-booking-reminders" />
+    </View>
+  );
+}
+
 export function NotificationsScreen() {
   const colors = useThemeColors();
   return (
@@ -136,6 +149,7 @@ export function NotificationsScreen() {
       >
         <WeeklyUpdatesCard />
         <TrainingRemindersRow />
+        <BookingRemindersCard />
         <View testID="notifications-food-nudges" className={CARD}>
           <Text accessibilityRole="header" className="text-headline font-semibold text-label">
             Food nudges

@@ -280,6 +280,8 @@ export function sessionRow(doc: WorkoutSessionDoc, userId = 'u1'): SessionWithCh
     clientUpdatedAt: new Date(doc.clientUpdatedAt),
     engineVersion: doc.engineVersion,
     rotationAppliedAt: null,
+    loggedById: null,
+    bookingId: null,
     workoutType: doc.workoutType ?? null,
     createdAt: T0,
     updatedAt: T0,

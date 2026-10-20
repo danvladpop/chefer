@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoachingNoticeDto } from '@chefer/types';
-import { noticeViews } from './notice-view';
+import { clientNoticeView, noticeViews } from './notice-view';
 
 const client = { id: 'c1', name: 'Ada', role: 'CLIENT' as const };
 const trainer = { id: 't1', name: 'Ana', role: 'TRAINER' as const };
@@ -66,5 +66,62 @@ describe('client notices', () => {
   it('a routine card without a change list has no detail line', () => {
     const [view] = noticeViews([notice({ other: trainer, changes: [] })], 'client');
     expect(view?.detail).toBeNull();
+  });
+});
+
+describe('booking notices (trainer mode M3, §7.1)', () => {
+  const TZ = 'Europe/Bucharest';
+  const booking = (over: Partial<NonNullable<CoachingNoticeDto['booking']>> = {}) => ({
+    bookingId: 'b1',
+    startsAt: '2026-10-21T15:00:00.000Z',
+    timeZone: TZ,
+    weekly: false,
+    reason: null,
+    ...over,
+  });
+
+  it('created (one-off and weekly), changed and cancelled read with the time and open the booking', () => {
+    const at = (n: Partial<CoachingNoticeDto>) =>
+      clientNoticeView(notice({ other: trainer, ...n }), TZ);
+    expect(at({ kind: 'BOOKING_CREATED', booking: booking() })).toMatchObject({
+      text: 'Ana booked you for Wed 21 Oct, 18:00',
+      href: '/coaching/bookings/b1',
+    });
+    expect(at({ kind: 'BOOKING_CREATED', booking: booking({ weekly: true }) })?.text).toBe(
+      'Ana booked you for Wed 21 Oct, 18:00, every week',
+    );
+    expect(at({ kind: 'BOOKING_CHANGED', booking: booking() })?.text).toBe(
+      'Ana moved your booking to Wed 21 Oct, 18:00',
+    );
+    expect(
+      at({ kind: 'BOOKING_CANCELLED', booking: booking({ reason: 'I am ill' }) }),
+    ).toMatchObject({
+      text: 'Ana cancelled your booking on Wed 21 Oct, 18:00',
+      detail: 'I am ill',
+    });
+  });
+
+  it('a coached workout opens that session in history', () => {
+    expect(
+      clientNoticeView(
+        notice({ other: trainer, kind: 'COACHED_WORKOUT_LOGGED', workoutSessionId: 's1' }),
+        TZ,
+      ),
+    ).toMatchObject({ text: 'Ana logged a workout for you', href: '/gym/history/s1' });
+  });
+
+  it('never shows on the trainer side', () => {
+    const kinds = [
+      'BOOKING_CREATED',
+      'BOOKING_CHANGED',
+      'BOOKING_CANCELLED',
+      'COACHED_WORKOUT_LOGGED',
+    ] as const;
+    expect(
+      noticeViews(
+        kinds.map((kind, i) => notice({ id: `n${i}`, kind, booking: booking() })),
+        'trainer',
+      ),
+    ).toEqual([]);
   });
 });

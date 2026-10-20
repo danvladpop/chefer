@@ -26,6 +26,7 @@ import {
 import { Icon } from '../../components/icon';
 import { useActiveSessionRecord } from '../gym/offline/active-session-store';
 import { getGymOwner } from '../gym/offline/owner';
+import { openCoachedLogger, useCoachedMiniBarGroups } from '../trainer-coach/coached-mini-bar';
 
 // ─── Active-workout mini bar (plan: "Target navigation → the mini bar") ─────
 // While a workout runs, a slim bar rides above the tab bar on every tab, the
@@ -89,31 +90,26 @@ function minutesSince(iso: string, now: number): number {
   return Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
 }
 
-export function WorkoutMiniBar() {
-  const record = useActiveSessionRecord();
+/** One bar: the live icon, a title and a detail line, "Resume". */
+function MiniBarView({
+  testID,
+  title,
+  detail,
+  accessibilityLabel,
+  accessibilityHint,
+  onPress,
+}: {
+  testID: string;
+  title: string;
+  detail: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
+  onPress: () => void;
+}) {
   const colors = useThemeColors();
-  const [now, setNow] = useState(() => Date.now());
   // Large screens: line up with the screens' readable column instead of
   // stretching "Resume" a window's width away from the workout's name.
   const { gutter } = useReadableLayout();
-  const owner = getGymOwner();
-  const running =
-    record !== null &&
-    record.pausedAt === null &&
-    (owner === null || record.ownerId === null || record.ownerId === owner);
-
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, [running]);
-
-  if (!running) return null;
-  const minutes = minutesSince(record.doc.startedAt, now);
-  const done = record.doc.exercises.filter((exercise) =>
-    exercise.sets.some((set) => set.completedAt !== null),
-  ).length;
-
   return (
     <Animated.View
       entering={barEntering}
@@ -122,11 +118,11 @@ export function WorkoutMiniBar() {
       style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
     >
       <PressableScale
-        testID="workout-mini-bar"
+        testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={`${record.doc.name}, in progress, ${minutes} minutes`}
-        accessibilityHint="Opens your workout"
-        onPress={() => router.push('/gym/workout')}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        onPress={onPress}
         className="min-h-12 flex-row items-center gap-3 rounded-control bg-brand px-4 py-2 shadow-sm"
       >
         <View>
@@ -135,14 +131,85 @@ export function WorkoutMiniBar() {
         </View>
         <View className="min-w-0 flex-1">
           <Text className="text-callout font-semibold text-brand-on" numberOfLines={1}>
-            {record.doc.name}
+            {title}
           </Text>
           <Text className="text-caption text-brand-on/80" numberOfLines={1}>
-            {minutes} min · {done} of {record.doc.exercises.length} exercises
+            {detail}
           </Text>
         </View>
         <Text className="text-callout font-semibold text-brand-on">Resume</Text>
       </PressableScale>
     </Animated.View>
+  );
+}
+
+/** Ticks every 30 s while `active`, so the minutes stay current. */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+function OwnerMiniBar() {
+  const record = useActiveSessionRecord();
+  const owner = getGymOwner();
+  const running =
+    record !== null &&
+    record.pausedAt === null &&
+    (owner === null || record.ownerId === null || record.ownerId === owner);
+  const now = useNow(running);
+
+  if (!running) return null;
+  const minutes = minutesSince(record.doc.startedAt, now);
+  const done = record.doc.exercises.filter((exercise) =>
+    exercise.sets.some((set) => set.completedAt !== null),
+  ).length;
+
+  return (
+    <MiniBarView
+      testID="workout-mini-bar"
+      title={record.doc.name}
+      detail={`${minutes} min · ${done} of ${record.doc.exercises.length} exercises`}
+      accessibilityLabel={`${record.doc.name}, in progress, ${minutes} minutes`}
+      accessibilityHint="Opens your workout"
+      onPress={() => router.push('/gym/workout')}
+    />
+  );
+}
+
+/**
+ * Trainer mode M3 (§5.1): a coached workout in progress gets its own bar in BOTH modes — "Coaching
+ * Maria" (a group: "Coaching Maria + 1") — and opens the coached logger. It sits under the
+ * trainer's own workout bar when both run.
+ */
+function CoachedMiniBars() {
+  const groups = useCoachedMiniBarGroups();
+  const now = useNow(groups.length > 0);
+  return groups.map((group, index) => {
+    const minutes = minutesSince(group.startedAt, now);
+    return (
+      <MiniBarView
+        key={group.bookingKey}
+        testID={index === 0 ? 'coached-mini-bar' : `coached-mini-bar-${index}`}
+        title={group.label}
+        detail={`${minutes} min · ${group.dayName}`}
+        accessibilityLabel={`${group.label}, in progress, ${minutes} minutes`}
+        accessibilityHint="Opens the coached workout"
+        onPress={() => openCoachedLogger(group)}
+      />
+    );
+  });
+}
+
+export function WorkoutMiniBar() {
+  return (
+    <>
+      <OwnerMiniBar />
+      <CoachedMiniBars />
+    </>
   );
 }

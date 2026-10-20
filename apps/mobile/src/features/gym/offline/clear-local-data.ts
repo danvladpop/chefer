@@ -3,6 +3,8 @@ import { resetLandingCacheForTests as resetLandingCache } from '../../navigation
 import { setHealthConsentDeclined } from '../../privacy/health-declined-store';
 import { REVIEW_PROMPT_KEY } from '../../review/review-store';
 import { clearPendingRebalance } from '../../tracker/rebalance-store';
+import { coachedOutboxes } from '../../trainer-coach/coached-outbox';
+import { coachedSessionStore } from '../../trainer-coach/coached-session-store';
 import { resetTrainerModeAvailableCache, SHELL_MODE_KEY } from '../../trainer-mode/mode-store';
 import { resetModeForTests as resetModeStore } from '../mode-store';
 import { resetRestTimerForTests as resetRestTimerStore } from '../rest-timer';
@@ -83,5 +85,8 @@ export async function clearLocalUserData(opts: { keepGymData: boolean }): Promis
     resetRestTimerStore();
     resetCardioTimerStore();
     resetSessionCorrectionsStore();
+    // Trainer mode M3: coached workouts follow the trainer's own (kept on expiry, wiped here).
+    coachedSessionStore.reload();
+    coachedOutboxes.reload();
   }
 }

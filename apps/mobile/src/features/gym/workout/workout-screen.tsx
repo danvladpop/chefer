@@ -32,10 +32,7 @@ import { captureGymEvent } from '../analytics';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
-import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
-import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
-import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
@@ -74,6 +71,7 @@ import {
   workoutProgress,
 } from './workout-model';
 import { ExerciseMenuSheet, TechniqueSheet, WhySheet, type SwapScope } from './workout-sheets';
+import { useWorkoutSource } from './workout-source';
 
 // Active workout (gym_plan.md §1.3 / §5.3). Rendering rules that keep a tick
 // cheap: cards and set rows are memoised; the reducer preserves the identity
@@ -94,6 +92,8 @@ type SheetState =
 
 const ROUTINE_OFFLINE_REASON =
   'Changing your routine needs a connection. This applies to today only.';
+const COACHED_ROUTINE_REASON =
+  'Changes here apply to today only. Edit their routine from their profile.';
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
@@ -119,8 +119,21 @@ function leaveWorkout(): void {
 }
 
 export function WorkoutScreen() {
-  const { session, finish, discard, saveForLater, resume } = useActiveWorkout();
-  const { data: bootstrap } = useGymBootstrap();
+  // Trainer mode M3: the same logger runs a coached client's workout (workout-source.tsx).
+  const {
+    session,
+    finish,
+    discard,
+    saveForLater,
+    resume,
+    bootstrap,
+    pausedAt,
+    coached,
+    get: getDoc,
+    dispatch,
+  } = useWorkoutSource();
+  const isCoached = coached !== null;
+  const leave = coached?.onLeave ?? leaveWorkout;
   const { cardioLogging } = useFlags();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
@@ -133,7 +146,6 @@ export function WorkoutScreen() {
   const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
   const sessionId = session?.id ?? null;
-  const pausedAt = useActiveSessionPausedAt();
   // 10 Oct redesign: the new shell draws the brand header and list foot.
   const shellV2 = useShellV2();
   const colors = useThemeColors();
@@ -247,17 +259,17 @@ export function WorkoutScreen() {
   const handlers = useMemo<SetRowHandlers>(
     () => ({
       onTick: (seId, setId) => {
-        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const se = getDoc()?.exercises.find((e) => e.id === seId);
         const set = se?.sets.find((s) => s.id === setId);
         if (!se || !set) return;
         if (set.completedAt !== null) {
-          dispatchWorkout({ type: 'uncompleteSet', seId, setId });
+          dispatch({ type: 'uncompleteSet', seId, setId });
           setRirPendingId((prev) => (prev === seId ? null : prev));
           return;
         }
         const olderBest = live.current.bootstrap?.olderBests?.[se.exerciseId];
         const before = set.isWarmup ? null : livePr(se, live.current.prior, olderBest);
-        const next = dispatchWorkout(
+        const next = dispatch(
           {
             type: 'completeSet',
             seId,
@@ -274,17 +286,21 @@ export function WorkoutScreen() {
           after.lastSetRir === null &&
           workingSets(after).every((s) => s.completedAt !== null);
         setRirPendingId((prev) => (finishedExercise ? seId : prev === seId ? prev : null));
-        const pr = after && !set.isWarmup ? livePr(after, live.current.prior, olderBest) : null;
+        const pr =
+          after && !set.isWarmup && !isCoached
+            ? livePr(after, live.current.prior, olderBest)
+            : null;
         if (pr?.setId === setId && before?.kind !== pr.kind) haptics.success();
         else haptics.tick();
       },
       onWeight: (seId, setId, kg) => {
-        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const se = getDoc()?.exercises.find((e) => e.id === seId);
         const set = se?.sets.find((s) => s.id === setId);
         if (!se || !set) return;
         const old = set.weightKg;
-        dispatchWorkout({ type: 'editSet', seId, setId, weightKg: kg });
-        offerWeighted(lookup(se.exerciseId), profile, kg);
+        dispatch({ type: 'editSet', seId, setId, weightKg: kg });
+        // A coached workout never offers to change the TRAINER's own gym settings.
+        if (!isCoached) offerWeighted(lookup(se.exerciseId), profile, kg);
         if (set.isWarmup) return;
         // Carry a weight change to the later unticked sets that still had the
         // old weight — changing set 1 almost always means the rest too.
@@ -295,7 +311,7 @@ export function WorkoutScreen() {
             later.completedAt === null &&
             sameKg(later.weightKg, old)
           ) {
-            dispatchWorkout({ type: 'editSet', seId, setId: later.id, weightKg: kg });
+            dispatch({ type: 'editSet', seId, setId: later.id, weightKg: kg });
           }
         }
       },
@@ -303,11 +319,11 @@ export function WorkoutScreen() {
       // that still matched the old value, exactly like weight above — a
       // reps change on set 1 almost always means the rest too.
       onReps: (seId, setId, reps) => {
-        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const se = getDoc()?.exercises.find((e) => e.id === seId);
         const set = se?.sets.find((s) => s.id === setId);
         if (!se || !set) return;
         const old = set.reps;
-        dispatchWorkout({ type: 'editSet', seId, setId, reps });
+        dispatch({ type: 'editSet', seId, setId, reps });
         if (set.isWarmup) return;
         for (const later of se.sets) {
           if (
@@ -316,7 +332,7 @@ export function WorkoutScreen() {
             later.completedAt === null &&
             later.reps === old
           ) {
-            dispatchWorkout({ type: 'editSet', seId, setId: later.id, reps });
+            dispatch({ type: 'editSet', seId, setId: later.id, reps });
           }
         }
       },
@@ -326,24 +342,24 @@ export function WorkoutScreen() {
       // no confirm — the ⋯ and long-press both land here — and restored by
       // Undo, in place, with its values and tick.
       onLongPress: (seId, setId) => {
-        const se = getResumableSession()?.exercises.find((e) => e.id === seId);
+        const se = getDoc()?.exercises.find((e) => e.id === seId);
         const index = se?.sets.findIndex((s) => s.id === setId) ?? -1;
         const set = se && index >= 0 ? se.sets[index] : undefined;
         const label = se ? setLabelOf(se, setId) : null;
         if (!se || !set) return;
-        dispatchWorkout({ type: 'removeSet', seId, setId });
+        dispatch({ type: 'removeSet', seId, setId });
         haptics.warning();
         snackbar.show({
           message: `Removed ${label?.toLowerCase() ?? 'set'}`,
           actionLabel: 'Undo',
           durationMs: 8000,
           onAction: () => {
-            dispatchWorkout({ type: 'restoreSet', seId, set, index });
+            dispatch({ type: 'restoreSet', seId, set, index });
           },
         });
       },
     }),
-    [openSheet, snackbar, offerWeighted, lookup, profile],
+    [openSheet, snackbar, offerWeighted, lookup, profile, getDoc, dispatch, isCoached],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
@@ -413,6 +429,8 @@ export function WorkoutScreen() {
       lookup,
       prior,
       olderBests,
+      // A coached workout only knows the client's last exposure: no live PR badge from that.
+      ...(isCoached && { noLivePr: true }),
       handlers,
       onSheet: openSheet,
       onToggle: (seId) =>
@@ -425,12 +443,12 @@ export function WorkoutScreen() {
           ),
         })),
       onRir: (seId, rir: Rir | null) => {
-        dispatchWorkout({ type: 'setRir', seId, rir });
+        dispatch({ type: 'setRir', seId, rir });
         if (rir !== null) setRirPendingId((prev) => (prev === seId ? null : prev));
       },
       onRirDismiss: (seId) => setRirPendingId((prev) => (prev === seId ? null : prev)),
-      onSkip: (seId, skipped) => dispatchWorkout({ type: 'skipExercise', seId, skipped }),
-      onAddSet: (seId) => dispatchWorkout({ type: 'addSet', seId, newSetId: newId() }),
+      onSkip: (seId, skipped) => dispatch({ type: 'skipExercise', seId, skipped }),
+      onAddSet: (seId) => dispatch({ type: 'addSet', seId, newSetId: newId() }),
       onLayoutY: (seId, y) => {
         layoutY.current.set(seId, y);
         if (pendingScrollId.current === seId) scheduleScroll();
@@ -438,9 +456,21 @@ export function WorkoutScreen() {
       // T-42.3: "Log it" on a cardio entry — one completeSet carrying the
       // cardio fields instead of weightKg/reps (weightKg/reps stay 0/0).
       onLogCardio: (seId, setId, fields) =>
-        dispatchWorkout({ type: 'completeSet', seId, setId, weightKg: 0, reps: 0, ...fields }),
+        dispatch({ type: 'completeSet', seId, setId, weightKg: 0, reps: 0, ...fields }),
     }),
-    [unit, profile, trainerLines, lookup, prior, olderBests, handlers, openSheet, scheduleScroll],
+    [
+      unit,
+      profile,
+      trainerLines,
+      lookup,
+      prior,
+      olderBests,
+      handlers,
+      openSheet,
+      scheduleScroll,
+      dispatch,
+      isCoached,
+    ],
   );
 
   // ── Finish / discard / minimise ────────────────────────────────────────────
@@ -450,6 +480,11 @@ export function WorkoutScreen() {
       setFinishing(true);
       try {
         const doc = await finish(carryOverExerciseIds);
+        if (doc && coached) {
+          // Stays "finishing" (no empty-state flash) while the coached screen moves on.
+          coached.onFinished(doc);
+          return;
+        }
         if (doc) {
           captureGymEvent('workout_finished', {
             durationMin: Math.round(
@@ -472,7 +507,7 @@ export function WorkoutScreen() {
       }
       setFinishing(false);
     },
-    [closeSheet, finish],
+    [closeSheet, finish, coached],
   );
 
   // The names shown in the finish sheet's "N exercises not started" body and
@@ -480,14 +515,18 @@ export function WorkoutScreen() {
   const unstarted = useMemo(() => (session ? unstartedExercises(session) : []), [session]);
 
   const onFinishPress = useCallback(() => {
-    const doc = getResumableSession();
+    if (coached?.onFinishPress) {
+      coached.onFinishPress();
+      return;
+    }
+    const doc = getDoc();
     if (!doc) return;
     const { done, planned } = workoutProgress(doc);
     if (done < planned || done === 0) {
       setMoveUnstarted(true);
       openSheet({ kind: 'finish' });
     } else void doFinish();
-  }, [doFinish, openSheet]);
+  }, [doFinish, openSheet, coached, getDoc]);
 
   const onFinishConfirm = useCallback(() => {
     const ids =
@@ -498,26 +537,26 @@ export function WorkoutScreen() {
   const onSaveForLater = useCallback(() => {
     closeSheet();
     saveForLater();
-    leaveWorkout();
-  }, [closeSheet, saveForLater]);
+    leave();
+  }, [closeSheet, saveForLater, leave]);
 
   const onDiscardConfirm = useCallback(() => {
     closeSheet();
     setFinishing(true);
     discard();
-    leaveWorkout();
-  }, [closeSheet, discard]);
+    leave();
+  }, [closeSheet, discard, leave]);
 
   // Android hardware back: never drop out of a running workout by accident.
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (!getResumableSession()) return false;
+        if (!getDoc()) return false;
         openSheet({ kind: 'minimise' });
         return true;
       });
       return () => sub.remove();
-    }, [openSheet]),
+    }, [openSheet, getDoc]),
   );
 
   // ── Picker (swap / add) ────────────────────────────────────────────────────
@@ -525,7 +564,7 @@ export function WorkoutScreen() {
     (picked: ExerciseDto) => {
       const request = sheetRef.current;
       closeSheet();
-      const doc = getResumableSession();
+      const doc = getDoc();
       if (!doc || request?.kind !== 'picker') return;
       const { lookup: find, profile: equipment, bootstrap: cached } = live.current;
       const today = localDate();
@@ -542,7 +581,7 @@ export function WorkoutScreen() {
           isDeload: doc.isDeload,
           isFirstForPattern: isFirstForPattern(doc, picked, position, find),
         });
-        dispatchWorkout({
+        dispatch({
           type: 'addExercise',
           newSeId: newId(),
           exerciseId: picked.id,
@@ -569,7 +608,7 @@ export function WorkoutScreen() {
         isDeload: doc.isDeload,
         isFirstForPattern: isFirstForPattern(doc, picked, se.position, find),
       });
-      dispatchWorkout({
+      dispatch({
         type: 'swapExercise',
         seId: se.id,
         exerciseId: picked.id,
@@ -588,7 +627,7 @@ export function WorkoutScreen() {
         );
       }
     },
-    [closeSheet, swapRoutine],
+    [closeSheet, swapRoutine, getDoc, dispatch],
   );
 
   // ── Supersets made in the workout (plan-library-supersets S2) ─────────────
@@ -597,12 +636,12 @@ export function WorkoutScreen() {
   const onGroupSuperset = useCallback(
     (seIds: string[], alsoRoutine: boolean) => {
       closeSheet();
-      const doc = getResumableSession();
+      const doc = getDoc();
       if (!doc) return;
       const { supersets: groups, bootstrap: cached } = live.current;
       const slotIds = alsoRoutine ? routineSlotsOf(doc, seIds, cached?.activeRoutine) : null;
       const derived = derivedSupersetGroups(doc, groups);
-      dispatchWorkout({
+      dispatch({
         type: 'createSuperset',
         seIds,
         ...(derived ? { derivedGroups: derived } : {}),
@@ -615,20 +654,20 @@ export function WorkoutScreen() {
         );
       }
     },
-    [closeSheet, editRoutine],
+    [closeSheet, editRoutine, getDoc, dispatch],
   );
 
   const applyUngroup = useCallback(
     (seId: string, alsoRoutine: boolean) => {
       closeSheet();
-      const doc = getResumableSession();
+      const doc = getDoc();
       if (!doc) return;
       const { supersets: groups, bootstrap: cached } = live.current;
       const slot = groups.get(seId);
       const slotIds =
         alsoRoutine && slot ? routineSlotsOf(doc, slot.memberIds, cached?.activeRoutine) : null;
       const derived = derivedSupersetGroups(doc, groups);
-      dispatchWorkout({
+      dispatch({
         type: 'ungroupSuperset',
         seId,
         ...(derived ? { derivedGroups: derived } : {}),
@@ -642,14 +681,14 @@ export function WorkoutScreen() {
         );
       }
     },
-    [closeSheet, editRoutine],
+    [closeSheet, editRoutine, getDoc, dispatch],
   );
 
   // Ungroup is immediate unless the routine has the same superset — then a
   // small sheet asks whether to change the routine too.
   const onUngroupPress = useCallback(
     (seId: string) => {
-      const doc = getResumableSession();
+      const doc = getDoc();
       const { supersets: groups, bootstrap: cached } = live.current;
       const slot = groups.get(seId);
       if (!doc || !slot) return;
@@ -669,7 +708,7 @@ export function WorkoutScreen() {
       setUngroupAlsoRoutine(false);
       openSheet({ kind: 'ungroup', seId, label: slot.label });
     },
-    [applyUngroup, openSheet],
+    [applyUngroup, openSheet, getDoc],
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -681,7 +720,7 @@ export function WorkoutScreen() {
             testID="workout-empty"
             title="No workout in progress"
             description="Start one from Today."
-            action={{ label: 'Back to Today', onPress: leaveWorkout, testID: 'workout-empty-back' }}
+            action={{ label: 'Back to Today', onPress: leave, testID: 'workout-empty-back' }}
           />
         )}
       </Screen>
@@ -702,16 +741,21 @@ export function WorkoutScreen() {
     content && (content.kind === 'weight' || content.kind === 'reps')
       ? (contentSe?.sets.find((s) => s.id === content.setId) ?? null)
       : null;
-  const routineBlockedReason = !contentSe?.routineExerciseId
-    ? 'This exercise isn’t in your routine, so a swap applies to today only.'
-    : !bootstrap?.activeRoutine
-      ? 'No active routine to update. This swap applies to today only.'
-      : !online
-        ? 'Changing your routine needs a connection. This swap applies to today only.'
-        : null;
+  // Trainer mode M3: a coached swap is the client's today only — their routine is edited from client detail.
+  const routineBlockedReason = isCoached
+    ? COACHED_ROUTINE_REASON
+    : !contentSe?.routineExerciseId
+      ? 'This exercise isn’t in your routine, so a swap applies to today only.'
+      : !bootstrap?.activeRoutine
+        ? 'No active routine to update. This swap applies to today only.'
+        : !online
+          ? 'Changing your routine needs a connection. This swap applies to today only.'
+          : null;
   // WP-04: a freestyle session (no routine) or an exercise outside the routine
   // has no "routine" to change, so Swap skips the scope page ("Just today").
-  const swapAsksScope = session.routineId !== null && Boolean(contentSe?.routineExerciseId);
+  const swapAsksScope =
+    !isCoached && session.routineId !== null && Boolean(contentSe?.routineExerciseId);
+  const title = coached?.title ?? session.name;
   const unticked = planned - done;
   // Skipped exercises can't join a superset; ones added mid-workout can.
   const pickable = exercises.filter((se) => !se.skipped);
@@ -723,12 +767,12 @@ export function WorkoutScreen() {
     >
       {shellV2 ? (
         <WorkoutHeader
-          name={session.name}
+          name={title}
           startedAt={session.startedAt}
           done={done}
           planned={planned}
           finishing={finishing}
-          onMinimise={leaveWorkout}
+          onMinimise={leave}
           onFinish={onFinishPress}
         />
       ) : (
@@ -737,7 +781,7 @@ export function WorkoutScreen() {
             testID="workout-minimise"
             accessibilityRole="button"
             accessibilityLabel="Minimise workout"
-            onPress={leaveWorkout}
+            onPress={leave}
             className="h-11 w-11 items-center justify-center rounded-full bg-surface-sunken"
           >
             <Icon name="chevronDown" color={colors.label} />
@@ -748,7 +792,7 @@ export function WorkoutScreen() {
               numberOfLines={2}
               className="text-headline font-semibold text-label"
             >
-              {session.name}
+              {title}
             </Text>
             <View className="flex-row items-center gap-2">
               <ElapsedTime startedAt={session.startedAt} testID="workout-elapsed" />
@@ -774,6 +818,8 @@ export function WorkoutScreen() {
           </Button>
         </View>
       )}
+
+      {coached?.accessory ?? null}
 
       {notice ? (
         <View className="bg-brand-tint px-4 py-2">
@@ -936,7 +982,7 @@ export function WorkoutScreen() {
         }}
         onSkip={() => {
           if (contentSe) {
-            dispatchWorkout({
+            dispatch({
               type: 'skipExercise',
               seId: contentSe.id,
               skipped: !contentSe.skipped,
@@ -948,21 +994,21 @@ export function WorkoutScreen() {
           // No confirm: Undo puts it back in place with its sets and ticks.
           if (contentSe) {
             const exercise = contentSe;
-            dispatchWorkout({ type: 'removeExercise', seId: exercise.id });
+            dispatch({ type: 'removeExercise', seId: exercise.id });
             haptics.warning();
             snackbar.show({
               message: `Removed ${contentMeta?.name ?? 'exercise'}`,
               actionLabel: 'Undo',
               durationMs: 8000,
               onAction: () => {
-                dispatchWorkout({ type: 'restoreExercise', exercise, index: contentIndex });
+                dispatch({ type: 'restoreExercise', exercise, index: contentIndex });
               },
             });
           }
           closeSheet();
         }}
         onAddSet={() => {
-          if (contentSe) dispatchWorkout({ type: 'addSet', seId: contentSe.id, newSetId: newId() });
+          if (contentSe) dispatch({ type: 'addSet', seId: contentSe.id, newSetId: newId() });
           closeSheet();
         }}
         onRemoveSet={() => {
@@ -974,16 +1020,16 @@ export function WorkoutScreen() {
             : [];
           const target = working.find((s) => s.completedAt === null) ?? working[0];
           if (contentSe && target) {
-            dispatchWorkout({ type: 'removeSet', seId: contentSe.id, setId: target.id });
+            dispatch({ type: 'removeSet', seId: contentSe.id, setId: target.id });
           }
           closeSheet();
         }}
         onMove={(direction) => {
-          if (contentSe) dispatchWorkout({ type: 'moveExercise', seId: contentSe.id, direction });
+          if (contentSe) dispatch({ type: 'moveExercise', seId: contentSe.id, direction });
           closeSheet();
         }}
         onSaveNote={(note) => {
-          if (contentSe) dispatchWorkout({ type: 'setNote', seId: contentSe.id, notes: note });
+          if (contentSe) dispatch({ type: 'setNote', seId: contentSe.id, notes: note });
           closeSheet();
         }}
         {...(contentSe && !contentSe.skipped && pickable.length >= 2
@@ -1005,7 +1051,8 @@ export function WorkoutScreen() {
         })}
         initialKeys={content?.kind === 'superset' && content.seId ? [content.seId] : []}
         routineOption={{
-          available: (keys) => routineSlotsOf(session, keys, bootstrap?.activeRoutine) !== null,
+          available: (keys) =>
+            !isCoached && routineSlotsOf(session, keys, bootstrap?.activeRoutine) !== null,
           blockedReason: online ? null : ROUTINE_OFFLINE_REASON,
         }}
         onApply={onGroupSuperset}
@@ -1146,7 +1193,7 @@ export function WorkoutScreen() {
         cancelLabel="Keep going"
         onConfirm={() => {
           closeSheet();
-          leaveWorkout();
+          leave();
         }}
       />
     </Screen>

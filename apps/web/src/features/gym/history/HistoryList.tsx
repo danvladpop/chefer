@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
+import { BOOKING_COPY, type GymBootstrap, type SessionSummaryDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { collectPrs, groupSessionsByWeek, sessionStatsOf, weekdayDateLabel } from '@chefer/utils';
 import { GymCard } from '../shared/gym-card';
@@ -111,7 +111,14 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
                 >
                   <Link
                     href={`/gym/history/${session.id}`}
-                    aria-label={`${session.name}, ${day}, ${stats.spoken}`}
+                    aria-label={[
+                      session.name,
+                      day,
+                      stats.spoken,
+                      session.loggedBy && BOOKING_COPY.coach.loggedBy(session.loggedBy.name),
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
                     className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-3 pl-4 pr-1 hover:bg-gray-50"
                   >
                     <span className="min-w-0">
@@ -121,6 +128,15 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
                       <span className="block text-xs text-gray-500">
                         {`${day} · ${stats.text}`}
                       </span>
+                      {/* Trainer mode M3: a coached workout ("Logged by Ana"). */}
+                      {session.loggedBy && (
+                        <span
+                          className="block text-xs text-gray-500"
+                          data-testid="gym-history-logged-by"
+                        >
+                          {BOOKING_COPY.coach.loggedBy(session.loggedBy.name)}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[#944a00]" aria-hidden="true">
                       ›

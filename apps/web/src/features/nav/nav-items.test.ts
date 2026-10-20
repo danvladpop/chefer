@@ -244,6 +244,15 @@ describe('trainer mode (trainer-mode.md §5.3)', () => {
     expect(isTrainerClientPath('/trainers/x')).toBe(false);
   });
 
+  it('booking detail and the coached logger light up Schedule, not Clients (M3)', () => {
+    const clients = TRAINER_MODE_NAV_ITEMS.find((i) => i.href === '/trainer/clients')!;
+    const schedule = TRAINER_MODE_NAV_ITEMS.find((i) => i.href === '/trainer/schedule')!;
+    for (const path of ['/trainer/bookings/b1', '/trainer/coach/b1']) {
+      expect(isItemActive(path, clients)).toBe(false);
+      expect(isItemActive(path, schedule)).toBe(true);
+    }
+  });
+
   it('replaces "Clients" in the Food and Gym secondary lists', () => {
     for (const mode of ['food', 'gym'] as const) {
       expect(navFor(mode, { trainer: true, ...on }).secondary).not.toContain(TRAINER_NAV_ITEM);

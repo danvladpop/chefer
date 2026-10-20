@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, TEMPLATE_COPY, type CoachedExerciseDto } from '@chefer/types';
+import { BOOKING_COPY, COACHING_COPY, TEMPLATE_COPY, type CoachedExerciseDto } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -13,15 +13,18 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { deviceTimeZone, todayIn, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
+import { LogCoachedWorkoutButton } from '../../trainer-coach/log-workout-button';
+import { useBookingEditor } from '../../trainer-mode/bookings/booking-editor';
 import { AssignTemplateSheet } from '../../trainer-mode/templates/assign-sheet';
 import { useTrainerModeAvailability } from '../../trainer-mode/use-trainer-mode';
 import { CoachingCard } from '../components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { AdherenceTab } from './adherence-tab';
+import { BookingsTab } from './bookings-tab';
 import { ExerciseHistorySheet } from './history-sheet';
 import { NotesTab } from './notes-tab';
 import { isClientUnavailable, useTrainerClientName } from './use-trainer-client';
@@ -36,20 +39,33 @@ import { WorkoutsTab } from './workouts-tab';
 // only they can change it. There is deliberately no control here to change a client's training style.
 // Trainer mode M2 (trainer-mode.md §6.5): "Assign a template" opens the assign sheet with this client
 // ticked — only while trainer mode is available (flag off: this screen is unchanged).
+// Trainer mode M3 (§6.5): "Add a booking" (the editor with this client ticked) and a Bookings tab
+// (`trainer.client.bookings`), trainer mode only; `initialTab` opens a tab (Today's sessions delivered).
 
-type Tab = 'workouts' | 'adherence' | 'notes';
+export type ClientTab = 'workouts' | 'adherence' | 'notes' | 'bookings';
+type Tab = ClientTab;
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
-export function ClientScreen({ clientId }: { clientId: string }) {
+export function ClientScreen({
+  clientId,
+  initialTab = 'workouts',
+}: {
+  clientId: string;
+  initialTab?: ClientTab;
+}) {
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const { name, firstName, keepItSimple: listKeepItSimple } = useTrainerClientName(clientId);
-  const [tab, setTab] = useState<Tab>('workouts');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [history, setHistory] = useState<{ exerciseId: string; name: string } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const trainerMode = useTrainerModeAvailability();
+  const bookingEditor = useBookingEditor();
+  const trainerStatus = trpc.trainer.status.useQuery(undefined, { enabled: trainerMode });
+  // The Bookings tab exists in trainer mode only.
+  const shownTab: Tab = tab === 'bookings' && !trainerMode ? 'workouts' : tab;
   const overview = trpc.trainer.client.overview.useQuery({ clientId, today: localDate() });
   const remove = trpc.trainer.clients.remove.useMutation({
     meta: { silent: true },
@@ -129,12 +145,34 @@ export function ClientScreen({ clientId }: { clientId: string }) {
               {TEMPLATE_COPY.assign.fromClient}
             </Button>
           ) : null}
+          {trainerMode ? (
+            <Button
+              testID="trainer-client-add-booking"
+              variant="outline"
+              onPress={() =>
+                bookingEditor.open({
+                  kind: 'new',
+                  prefill: {
+                    date: todayIn(deviceTimeZone()),
+                    client: { clientId, name },
+                    location: trainerStatus.data?.gymLine ?? null,
+                  },
+                })
+              }
+            >
+              {BOOKING_COPY.clientDetail.addBooking}
+            </Button>
+          ) : null}
+          {trainerMode ? (
+            <LogCoachedWorkoutButton clientId={clientId} firstName={firstName} />
+          ) : null}
         </CoachingCard>
 
         <SegmentedControl<Tab>
           testID="trainer-client-tabs"
           accessibilityLabel="Client sections"
-          value={tab}
+          {...(trainerMode ? { size: 'xs' as const } : {})}
+          value={shownTab}
           onChange={setTab}
           options={[
             {
@@ -152,13 +190,22 @@ export function ClientScreen({ clientId }: { clientId: string }) {
               label: COACHING_COPY.trainer.tabs.notes,
               testID: 'trainer-client-tab-notes',
             },
+            ...(trainerMode
+              ? [
+                  {
+                    value: 'bookings' as const,
+                    label: BOOKING_COPY.clientDetail.tab,
+                    testID: 'trainer-client-tab-bookings',
+                  },
+                ]
+              : []),
           ]}
         />
 
-        {tab === 'workouts' ? (
+        {shownTab === 'workouts' ? (
           <WorkoutsTab clientId={clientId} firstName={firstName} onOpenHistory={openHistory} />
         ) : null}
-        {tab === 'adherence' ? (
+        {shownTab === 'adherence' ? (
           overview.isPending ? (
             <View testID="trainer-adherence-loading" className="items-center py-10">
               <ActivityIndicator />
@@ -169,7 +216,8 @@ export function ClientScreen({ clientId }: { clientId: string }) {
             <AdherenceTab adherence={overview.data.adherence} />
           )
         ) : null}
-        {tab === 'notes' ? <NotesTab clientId={clientId} firstName={firstName} /> : null}
+        {shownTab === 'bookings' ? <BookingsTab clientId={clientId} /> : null}
+        {shownTab === 'notes' ? <NotesTab clientId={clientId} firstName={firstName} /> : null}
 
         <Button
           testID="trainer-client-remove"
@@ -186,6 +234,7 @@ export function ClientScreen({ clientId }: { clientId: string }) {
         exercise={history}
         onClose={() => setHistory(null)}
       />
+      {bookingEditor.sheet}
       {trainerMode ? (
         <AssignTemplateSheet
           testID="trainer-client-assign-sheet"

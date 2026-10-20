@@ -5,10 +5,12 @@ import {
   gymProfileRepository,
   Prisma,
   routineRepository,
+  trainerProfileRepository,
   workoutSessionRepository,
   type IExerciseRepository,
   type IGymProfileRepository,
   type IRoutineRepository,
+  type ITrainerProfileRepository,
   type IWorkoutSessionRepository,
   type SessionDocWriteData,
   type StoredSessionSnapshot,
@@ -19,12 +21,20 @@ import type {
   SessionSummaryDto,
   SyncResultDto,
   UpsertSessionsResultDto,
+  WorkoutSessionDetailDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
 import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
 import { filterSessionExercisesForLevel } from './client-level.js';
-import { readCarryOver, toJson, toRoutineDto, toSessionDoc } from './mappers.js';
+import {
+  loggedByIds,
+  readCarryOver,
+  toJson,
+  toRoutineDto,
+  toSessionDoc,
+  withLoggedBy,
+} from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
 
 // ─── WorkoutSessionService (gym_plan.md §4.1 / §5.2) ─────────────────────────
@@ -48,6 +58,17 @@ import { progressionService, type ProgressionService } from './progression.servi
 
 type RoutineCache = Map<string, RoutineDto | null>;
 
+/**
+ * Trainer mode M3 (§8.3): a coached sync — the trainer logs on the client's
+ * behalf. `loggedById` is the caller (never input); `bookingIds` maps doc id →
+ * the (already verified) booking it was logged in. Every set is a confirmed
+ * load: the trainer saw it lifted.
+ */
+export interface CoachedSyncOptions {
+  loggedById: string;
+  bookingIds: ReadonlyMap<string, string | null>;
+}
+
 export class WorkoutSessionService {
   constructor(
     private readonly sessionRepo: IWorkoutSessionRepository = workoutSessionRepository,
@@ -58,9 +79,17 @@ export class WorkoutSessionService {
       IGymProfileRepository,
       'findByUserId' | 'update'
     > = gymProfileRepository,
+    private readonly trainers: Pick<
+      ITrainerProfileRepository,
+      'findMany'
+    > = trainerProfileRepository,
   ) {}
 
-  async upsertMany(userId: string, docs: WorkoutSessionDoc[]): Promise<UpsertSessionsResultDto> {
+  async upsertMany(
+    userId: string,
+    docs: WorkoutSessionDoc[],
+    coached?: CoachedSyncOptions,
+  ): Promise<UpsertSessionsResultDto> {
     const results = new Map<number, SyncResultDto>();
     const touched = new Set<string>();
     const completedDocs: WorkoutSessionDoc[] = [];
@@ -86,7 +115,7 @@ export class WorkoutSessionService {
         results.set(index, { id: doc.id, status: 'rejected', reason: invalid });
         continue;
       }
-      const result = await this.applyOne(userId, doc, routines, touched);
+      const result = await this.applyOne(userId, doc, routines, touched, coached);
       results.set(index, result);
       // T-36.3: fold carry-over for every COMPLETED doc that landed (written
       // or an identical re-send) — re-sends are idempotent (nextCarryOver
@@ -114,7 +143,13 @@ export class WorkoutSessionService {
     return { results: finalResults };
   }
 
-  async get(userId: string, id: string, level = 0): Promise<WorkoutSessionDoc> {
+  /** `loggedBy`: the caller renders "Logged by Ana" (trainer mode M3, level 8+ or web). */
+  async get(
+    userId: string,
+    id: string,
+    level = 0,
+    loggedBy = false,
+  ): Promise<WorkoutSessionDetailDto> {
     const row = await this.sessionRepo.findByIdForUser(userId, id);
     if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Workout not found.' });
     const doc = toSessionDoc(row);
@@ -122,17 +157,26 @@ export class WorkoutSessionService {
       userId,
       doc.exercises.map((e) => e.exerciseId),
     );
-    return {
-      ...doc,
-      exercises: filterSessionExercisesForLevel(doc.exercises, trackingTypeById, level),
-    };
+    const names = loggedBy ? await this.trainerNames(loggedByIds([row])) : null;
+    return withLoggedBy<WorkoutSessionDetailDto>(
+      {
+        ...doc,
+        exercises: filterSessionExercisesForLevel(doc.exercises, trackingTypeById, level),
+      },
+      row.loggedById,
+      names,
+    );
   }
 
-  /** History, newest first. Cursor is opaque ("<startedAt ISO>|<id>"). */
+  /**
+   * History, newest first. Cursor is opaque ("<startedAt ISO>|<id>").
+   * `loggedBy`: the caller renders "Logged by Ana" (trainer mode M3, level 8+ or web).
+   */
   async list(
     userId: string,
     input: { cursor?: string | undefined; limit: number },
     level = 0,
+    loggedBy = false,
   ): Promise<{ items: SessionSummaryDto[]; nextCursor: string | null }> {
     const rows = await this.sessionRepo.listForUser(userId, {
       cursor: decodeCursor(input.cursor),
@@ -144,13 +188,18 @@ export class WorkoutSessionService {
       userId,
       page.flatMap((r) => r.exercises.map((e) => e.exerciseId)),
     );
+    const names = loggedBy ? await this.trainerNames(loggedByIds(page)) : null;
     return {
       items: page.map((r) => {
         const summary = toSessionSummary(toSessionDoc(r));
-        return {
-          ...summary,
-          exercises: filterSessionExercisesForLevel(summary.exercises, trackingTypeById, level),
-        };
+        return withLoggedBy(
+          {
+            ...summary,
+            exercises: filterSessionExercisesForLevel(summary.exercises, trackingTypeById, level),
+          },
+          r.loggedById,
+          names,
+        );
       }),
       nextCursor:
         rows.length > input.limit && last ? `${last.startedAt.toISOString()}|${last.id}` : null,
@@ -175,6 +224,12 @@ export class WorkoutSessionService {
 
   // ─── internals ───────────────────────────────────────────────────────────
 
+  private async trainerNames(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.trainers.findMany(ids);
+    return new Map(rows.map((t) => [t.userId, t.displayName]));
+  }
+
   /** exerciseId → trackingType for the client-level filter (T-42.2, Δ2.1). */
   private async trackingTypesFor(
     userId: string,
@@ -191,13 +246,17 @@ export class WorkoutSessionService {
     doc: WorkoutSessionDoc,
     routines: RoutineCache,
     touched: Set<string>,
+    coached?: CoachedSyncOptions,
   ): Promise<SyncResultDto> {
     const rotation = await this.rotationFor(userId, doc, routines);
-    const write = toWriteData(doc);
+    const write = toWriteData(doc, coached !== undefined);
+    const coachedWrite = coached
+      ? { loggedById: coached.loggedById, bookingId: coached.bookingIds.get(doc.id) ?? null }
+      : undefined;
 
     let res;
     try {
-      res = await this.writeWithRetry(userId, write, rotation);
+      res = await this.writeWithRetry(userId, write, rotation, coachedWrite);
     } catch (err) {
       const reason = knownWriteFailure(err);
       if (reason) return { id: doc.id, status: 'rejected', reason };
@@ -252,12 +311,14 @@ export class WorkoutSessionService {
     userId: string,
     write: SessionDocWriteData,
     rotation: { routineId: string; nextDayId: string | null } | null,
+    coached?: { loggedById: string; bookingId: string | null },
   ) {
+    const opts = { rotation, ...(coached && { coached }) };
     try {
-      return await this.sessionRepo.upsertDocument(userId, write, { rotation });
+      return await this.sessionRepo.upsertDocument(userId, write, opts);
     } catch (err) {
       if (!isPrismaCode(err, 'P2002')) throw err;
-      return this.sessionRepo.upsertDocument(userId, write, { rotation });
+      return this.sessionRepo.upsertDocument(userId, write, opts);
     }
   }
 
@@ -328,7 +389,8 @@ export function validateDoc(
   return null;
 }
 
-function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
+/** `confirmLoads`: a coached workout — every load is confirmed (null = confirmed in the column). */
+function toWriteData(doc: WorkoutSessionDoc, confirmLoads = false): SessionDocWriteData {
   return {
     id: doc.id,
     routineId: doc.routineId,
@@ -374,7 +436,7 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
         inclinePct: s.inclinePct ?? null,
         caloriesKcal: s.caloriesKcal ?? null,
         avgHeartRateBpm: s.avgHeartRateBpm ?? null,
-        loadConfirmed: s.loadConfirmed ?? null,
+        loadConfirmed: confirmLoads ? null : (s.loadConfirmed ?? null),
       })),
     })),
   };

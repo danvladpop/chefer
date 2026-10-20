@@ -23,6 +23,8 @@ import {
   type ProgressionState,
   type ReminderTimes,
   type RoutineDto,
+  type SessionSummaryDto,
+  type WorkoutSessionDetailDto,
   type WorkoutSessionDoc,
 } from '@chefer/types';
 import type { ExerciseLookup } from '@chefer/utils';
@@ -230,6 +232,26 @@ export function toEquipmentProfile(row: GymProfile | null): EquipmentProfile {
 }
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
+
+/**
+ * Trainer mode M3: a coached workout's summary (or `gym.session.get` detail)
+ * carries `loggedBy: { name }`
+ * ("Logged by Ana"). `names` maps trainer user ids → display names; only
+ * passed for callers at TRAINER_MODE_API_LEVEL or web (absent otherwise).
+ */
+export function withLoggedBy<T extends SessionSummaryDto | WorkoutSessionDetailDto>(
+  summary: T,
+  loggedById: string | null,
+  names: ReadonlyMap<string, string> | null,
+): T {
+  if (!names || !loggedById) return summary;
+  return { ...summary, loggedBy: { name: names.get(loggedById) ?? FALLBACK_TRAINER_NAME } };
+}
+
+/** Distinct `loggedById`s of these rows (the trainers whose names `withLoggedBy` needs). */
+export function loggedByIds(rows: readonly { loggedById: string | null }[]): string[] {
+  return [...new Set(rows.flatMap((r) => (r.loggedById ? [r.loggedById] : [])))];
+}
 
 /** Stored rows → the same WorkoutSessionDoc shape the phone uploads (schemaVersion 1). */
 export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {

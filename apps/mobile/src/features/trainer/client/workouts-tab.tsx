@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import type { CoachedExerciseDto, CoachedWorkoutDto } from '@chefer/types';
 import { Badge, Button, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
+import { loggedByYouLabel } from '../../trainer-coach/history-labels';
 import { CoachingCard } from '../components/coaching-card';
 import {
   doneAsPlannedText,
@@ -68,6 +69,8 @@ export function WorkoutCard({
   onOpenHistory: (exercise: CoachedExerciseDto) => void;
 }) {
   const typeLine = workoutTypeLine(workout);
+  // Trainer mode M3: a workout this trainer logged in a session reads "Logged by you".
+  const loggedBy = loggedByYouLabel(workout);
   return (
     <CoachingCard testID={`trainer-workout-${workout.id}`} className="gap-2">
       <View className="flex-row items-center gap-2">
@@ -75,6 +78,11 @@ export function WorkoutCard({
           {workout.name}
         </Text>
         {workout.isDeload ? <Badge variant="secondary">Deload</Badge> : null}
+        {loggedBy ? (
+          <Badge testID={`trainer-workout-${workout.id}-logged-by`} variant="secondary">
+            {loggedBy}
+          </Badge>
+        ) : null}
       </View>
       <Text
         testID={`trainer-workout-${workout.id}-when`}

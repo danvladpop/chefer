@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
+import { openBookingInMode } from '../trainer-mode/open-booking';
+import { bookingReminderTarget } from './booking-reminders';
 import { foodNudgeNotificationUrl } from './food-nudges';
 import { weeklyNotificationUrl } from './weekly-notifications';
 
 // Opens the plan or the recap when a weekly notification is tapped (audit
 // P2-5), and the log or the plan when a food nudge is (UX-PO-08) — both while
-// the app runs and from a cold start. Only notifications tagged by
-// weekly-notifications.ts or food-nudges.ts carry a route; gym reminders and
+// the app runs and from a cold start. A booking reminder (trainer-mode.md §7.3)
+// opens that booking in the right mode — the trainer's in trainer mode, the
+// client's in personal mode (§5.1: the mode switches before navigating).
+// Only notifications tagged by weekly-notifications.ts, food-nudges.ts or
+// booking-reminders.ts carry a route; gym reminders and
 // the rest timer are ignored. Mounted once in the root layout; inert while signed out
 // (the signed-in routes don't exist then).
 
@@ -21,11 +26,13 @@ export function useNotificationLinks(signedIn: boolean): void {
       if (!response) return;
       const id = response.notification.request.identifier;
       const data = response.notification.request.content.data;
+      const booking = bookingReminderTarget(data);
       const url = weeklyNotificationUrl(data) ?? foodNudgeNotificationUrl(data);
-      if (!url || handled.current === `${id}:${response.notification.date}`) return;
+      if ((!url && !booking) || handled.current === `${id}:${response.notification.date}`) return;
       handled.current = `${id}:${response.notification.date}`;
       try {
-        router.push(url);
+        if (booking) openBookingInMode(booking);
+        else if (url) router.push(url);
       } catch {
         // navigator not mounted yet — the user lands on Home instead
       }

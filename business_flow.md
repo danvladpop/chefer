@@ -6146,6 +6146,41 @@ Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (To
   Delete a template → gone from the library; clients keep their copies ("Based on Lower body A" stays as text)
   ```
 
+- **Bookings and the coached workout (M3, §6.2–§6.7, §6.9).**
+
+  ```
+  Schedule (mobile: Day default / Week; web: Week default / Day) — one trainer.bookings.range per week
+    + / long-press (mobile) / click a slot (web) → booking editor (sheet)
+      Booking | Blocked time · clients (≤ 6 active) · date + start (5-min) · 30/45/60/90 or custom ·
+      repeat weekly (12 weeks default, ≤ 52) · workout per client (next routine day | a day | a template,
+      assigned on save) · location · note the clients see · "Overlaps with 18:00 Maria" (save still allowed)
+      → trainer.bookings.create → each client: "Ana booked you for Tue 21 Oct, 18:00" (one per series)
+    move: web drag, mobile through the editor; repeats ask "This booking / This and following"
+    cancel: scope + reason → clients notified; cancelled bookings stay greyed
+  Booking detail → Start (from 15 min before) → coached workout logger
+    "Coaching Maria", group bookings switch between clients (each keeps its own workout),
+    Finish this client / everyone → trainer.coach.sync → the client's history: "Logged by Ana",
+    progression as if the client logged it, attendance ATTENDED (= a session delivered)
+    mobile works offline: prefetched prescriptions, a separate coached outbox synced on reconnect
+  Attended / No-show per client on the detail; unmarked past bookings → "Mark attendance" on Today
+  Trainer Today: next booking (Start), later today, bookings this week, sessions delivered this month
+  ```
+
+  Client side: an upcoming-booking card on Today and Train ("Session with Ana · Tue 18:00 · Gym Fit Center",
+  "with 1 other", never other names) for the next booking within 7 days → read-only detail; Your trainer lists
+  upcoming bookings; local reminders an hour before (mobile, Settings → Notifications "Booking reminders"; trainers
+  get theirs while in trainer mode). Ending a coaching cancels the client's future booking places in the same
+  transaction; past bookings and coached workouts stay with the client.
+
+- **Consent copy v2 (§10).** The coaching consent adds "book sessions with you" and "log workouts for you". New
+  links record v2; clients who agreed to v1 see a one-time notice "What’s new with Ana: bookings and logged
+  workouts" (Leave · Got it → `coaching.acknowledgeConsentUpdate`), never a re-consent gate. Booking and
+  coached-workout notices reach mobile clients from API level 8 (`TRAINER_MODE_API_LEVEL`); older binaries never
+  receive them.
+- **Data export.** The account export lists bookings: as a client (start, zone, duration, trainer, place, note,
+  attendance, cancellation, how many others — never their names) and as a trainer (own calendar with client
+  counts only).
+
 - **Turning trainer tools on** stays where it is (You → Trainer tools → turn-on screen): the switch only appears
   once tools are on.
 

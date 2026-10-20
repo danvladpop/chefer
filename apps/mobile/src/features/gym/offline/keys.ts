@@ -23,6 +23,17 @@ export const KV_KEYS = {
   /** `Time today:` choice remembered per weekday (T-36.6): `{ "0": 30 }`; absent = Full. */
   timeToday: 'gym.today.time-today',
   /**
+   * Trainer mode M3 — coached workouts (trainer-mode.md §6.7, §12 "fully offline"). PREFIXES: one key
+   * per record. `gym.`-prefixed on purpose: like the trainer's own workouts they survive a session
+   * expiry (upload on re-login) and are wiped by a chosen sign-out (counted in its warning first).
+   * In-progress coached workouts: `${coachActive}.${bookingKey}.${clientId}` (bookingKey `none` = no booking).
+   */
+  coachActive: 'gym.coach.active',
+  /** Prefetched `trainer.coach.start` answers: `${coachPrefetch}.${bookingKey}.${clientId}`. */
+  coachPrefetch: 'gym.coach.prefetch',
+  /** One outbox per client, synced through `trainer.coach.sync`: `${coachOutbox}.${clientId}`. */
+  coachOutbox: 'gym.coach.outbox',
+  /**
    * Trainer coaching (WP-18, lane D) — device-local, no server state. NOT `gym.`-prefixed on purpose:
    * sign-out wipes everything outside `gym.` (they belong to the account), and an invite code kept
    * across a sign-in is written after that wipe.

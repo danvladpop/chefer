@@ -1,5 +1,6 @@
 import type { TrainerProfile } from '@prisma/client';
 import { prisma } from '../client';
+import { cancelFutureBookingsTx } from './booking.repository';
 import { closePendingRequestsTx } from './coaching-link.repository';
 
 // ─── Trainer coaching: trainer profiles (docs/trainer-platform/spec.md §5.1) ──
@@ -176,6 +177,12 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
             contextId: l.id,
             createdAt: data.now,
           })),
+        });
+        // Trainer mode M3: every client's future bookings with this trainer are cancelled.
+        await cancelFutureBookingsTx(tx, {
+          trainerId: userId,
+          clientIds: links.map((l) => l.clientId),
+          now: data.now,
         });
       }
       await tx.coachingNote.updateMany({

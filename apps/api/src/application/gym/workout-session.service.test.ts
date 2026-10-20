@@ -427,6 +427,49 @@ describe('WorkoutSessionService delete / discard / get / list', () => {
     await expect(service.get(USER, doc.id)).resolves.toEqual(doc);
   });
 
+  // Trainer mode M3: the detail says who logged a coached workout, whatever its date.
+  describe('get — "Logged by" (trainer mode M3)', () => {
+    function coachedSetup(loggedById: string | null) {
+      const doc = sessionDoc();
+      const repo = makeMemorySessionRepo().repo;
+      vi.mocked(repo.findByIdForUser).mockResolvedValue({ ...sessionRow(doc), loggedById });
+      const trainers = {
+        findMany: vi.fn().mockResolvedValue([{ userId: 'trainer-1', displayName: 'Ana' }]),
+      };
+      const service = new WorkoutSessionService(
+        repo,
+        makeRoutineRepo(),
+        makeExerciseRepo(),
+        { recompute: vi.fn() },
+        makeProfileRepo(),
+        trainers,
+      );
+      return { doc, service, trainers };
+    }
+
+    it('carries loggedBy for a coached workout when the caller understands trainer mode', async () => {
+      const { doc, service, trainers } = coachedSetup('trainer-1');
+      await expect(service.get(USER, doc.id, 0, true)).resolves.toEqual({
+        ...doc,
+        loggedBy: { name: 'Ana' },
+      });
+      expect(trainers.findMany).toHaveBeenCalledWith(['trainer-1']);
+    });
+
+    it('omits loggedBy below level 8 (an older mobile bundle) and never looks the trainer up', async () => {
+      const { doc, service, trainers } = coachedSetup('trainer-1');
+      const read = await service.get(USER, doc.id, 0, false);
+      expect(read).not.toHaveProperty('loggedBy');
+      expect(trainers.findMany).not.toHaveBeenCalled();
+    });
+
+    it('omits loggedBy on the client’s own workout', async () => {
+      const { doc, service, trainers } = coachedSetup(null);
+      await expect(service.get(USER, doc.id, 0, true)).resolves.toEqual(doc);
+      expect(trainers.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   it('round-trips a session that owns its superset letters (S-D3)', async () => {
     const base = sessionDoc();
     const doc = {
@@ -481,5 +524,35 @@ describe('WorkoutSessionService delete / discard / get / list', () => {
     await expect(service.list(USER, { limit: 5, cursor: 'garbage' })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
+  });
+});
+
+// Trainer mode M3 (trainer-mode.md §8.3): a coached sync through the same path.
+describe('upsertMany — coached (trainer.coach.sync)', () => {
+  it('stamps the trainer and the booking on the write, and every set is a confirmed load', async () => {
+    const { service, memory } = setup();
+    const doc = sessionDoc({ status: 'COMPLETED' });
+    const first = doc.exercises[0];
+    if (!first?.sets[0]) throw new Error('fixture: a set');
+    first.sets[0] = { ...first.sets[0], loadConfirmed: false };
+    const res = await service.upsertMany(USER, [doc], {
+      loggedById: 'trainer-1',
+      bookingIds: new Map([[doc.id, 'b1']]),
+    });
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+    const [, write, opts] = vi.mocked(memory.repo.upsertDocument).mock.calls[0] as unknown as [
+      string,
+      { exercises: { sets: { loadConfirmed: boolean | null }[] }[] },
+      { coached?: { loggedById: string; bookingId: string | null } },
+    ];
+    expect(opts.coached).toEqual({ loggedById: 'trainer-1', bookingId: 'b1' });
+    expect(write.exercises.flatMap((e) => e.sets.map((s) => s.loadConfirmed))).not.toContain(false);
+  });
+
+  it('the owner’s own sync carries no coached stamp (an existing one is left alone)', async () => {
+    const { service, memory } = setup();
+    await service.upsertMany(USER, [sessionDoc()]);
+    const opts = vi.mocked(memory.repo.upsertDocument).mock.calls[0]?.[2] as { coached?: unknown };
+    expect(opts).not.toHaveProperty('coached');
   });
 });

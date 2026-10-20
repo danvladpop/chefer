@@ -10,6 +10,7 @@ import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock } from 'lucide-react';
+import { BOOKING_COPY } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
 import {
   effortLabelForRpe,
@@ -94,6 +95,9 @@ export default function GymHistoryDetailPage() {
   }
 
   const duration = durationLabel(session.startedAt, session.finishedAt);
+  // Trainer mode M3: a coached workout ("Logged by Ana"). `session.get` carries it for any
+  // date; the bootstrap summary (12-week window) is the fallback.
+  const loggedBy = session.loggedBy ?? bootstrap?.recentSessions.find((s) => s.id === id)?.loggedBy;
   const isActivity = isLoggedWorkout(session);
   const activityEffort = isActivity
     ? session.exercises.flatMap((e) => e.sets).find((x) => x.intensityRpe !== undefined)
@@ -128,6 +132,11 @@ export default function GymHistoryDetailPage() {
               </span>
             )}
           </p>
+          {loggedBy && (
+            <p className="mt-1 text-sm text-neutral-500" data-testid="gym-history-logged-by">
+              {BOOKING_COPY.coach.loggedBy(loggedBy.name)}
+            </p>
+          )}
         </div>
         <SessionOptionsMenu
           testId="gym-history-options"

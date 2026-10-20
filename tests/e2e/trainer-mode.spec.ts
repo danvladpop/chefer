@@ -114,7 +114,8 @@ test.describe('Trainer mode (phone)', () => {
     await tabBar.getByRole('link', { name: 'Schedule' }).click();
     await page.waitForURL('**/trainer/schedule');
     await expectOneH1(page, 'Schedule');
-    await expect(page.getByTestId('trainer-coming-soon')).toBeVisible();
+    // M3: the calendar replaced "coming soon"; below sm it opens on the Day view.
+    await expect(page.getByTestId('schedule-day-strip')).toBeVisible();
 
     // No horizontal scroll with three segments in the header.
     const overflow = await page.evaluate(

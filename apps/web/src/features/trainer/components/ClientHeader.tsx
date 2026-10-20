@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { useTrainerClientsHref } from '@/features/nav/mode-context';
 import { ArrowLeft } from 'lucide-react';
-import { COACHING_COPY } from '@chefer/types';
+import { BOOKING_COPY, COACHING_COPY } from '@chefer/types';
 import { Badge } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { firstName } from '../format';
 
-export type ClientTab = 'routine' | 'workouts' | 'adherence';
+export type ClientTab = 'routine' | 'workouts' | 'adherence' | 'bookings';
 
 /**
  * One client: back to the list, the name (the page's one h1) and the tabs
- * (Routine · Workouts · Adherence). Tabs are links, so each is a real URL.
+ * (Routine · Workouts · Adherence, + Bookings in trainer mode). Tabs are links, so each is a real URL.
  * A client in "Keep it simple" gets a badge and a line saying only they can
  * change it: the trainer never has a control for the training style (PRD 2026-10 §4.3).
  */
@@ -23,6 +23,7 @@ export function ClientHeader({
   keepItSimple = false,
   confirmLeave,
   actions,
+  showBookings = false,
 }: {
   clientId: string;
   name: string;
@@ -33,6 +34,8 @@ export function ClientHeader({
   confirmLeave?: () => boolean;
   /** Header actions beside the name (trainer mode M2: "Assign a template"). */
   actions?: React.ReactNode;
+  /** Trainer mode M3: the Bookings tab (§6.5). */
+  showBookings?: boolean;
 }) {
   const guard = (e: React.MouseEvent) => {
     if (confirmLeave && !confirmLeave()) e.preventDefault();
@@ -44,6 +47,15 @@ export function ClientHeader({
     { key: 'routine', label: tabs.routine, href: `${base}/routine` },
     { key: 'workouts', label: tabs.workouts, href: base },
     { key: 'adherence', label: tabs.adherence, href: `${base}?tab=adherence` },
+    ...(showBookings
+      ? [
+          {
+            key: 'bookings' as const,
+            label: BOOKING_COPY.clientDetail.tab,
+            href: `${base}?tab=bookings`,
+          },
+        ]
+      : []),
   ];
   return (
     <header className="flex flex-col gap-3">

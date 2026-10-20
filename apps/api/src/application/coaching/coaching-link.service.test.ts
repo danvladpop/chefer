@@ -44,6 +44,7 @@ const link = (over: Partial<CoachingLink> = {}): CoachingLink => ({
   startedOn: null,
   endedAt: null,
   endedBy: null,
+  consentCopyVersion: 2,
   ...over,
 });
 const profile = (over: Partial<GymProfile> = {}): GymProfile =>
@@ -77,6 +78,7 @@ function setup(opts: Opts = {}) {
     join: vi.fn(async () => joinResults.shift() ?? ({ status: 'invite_unavailable' } as const)),
     end: vi.fn(async () => link({ status: 'ENDED' })),
     deleteEndedBefore: vi.fn(),
+    acknowledgeConsentCopy: vi.fn(async () => true),
   };
   const content = {
     lastWorkoutDates: vi.fn(async () => new Map<string, string>()),
@@ -109,6 +111,7 @@ function setup(opts: Opts = {}) {
     content,
     notices,
     requests: { clientRequest: vi.fn(async () => null) },
+    bookings: { nextStartsByClient: vi.fn(async () => new Map<string, Date>()) },
     now: () => NOW,
   });
   return { service, links, content, notices };
@@ -128,6 +131,8 @@ describe('join', () => {
       maxActiveClients: COACHING_LIMITS.maxActiveClients,
       startedOn: null,
       now: NOW,
+      consentCopyVersion: 2,
+      grantedDocumentVersion: `${LEGAL_VERSIONS.privacy}+coaching-v2`,
     });
     expect(status).toEqual({
       trainer: { name: 'Ana', since: '2026-10-01T09:00:00.000Z' },
@@ -337,6 +342,7 @@ describe('listClients', () => {
       inactiveDays: 7,
       routineChangedByClientAt: null,
       keepItSimple: false,
+      nextBookingAt: null,
     });
     // The week is the trainer's device-local week (Mon 5 Oct – Sun 11 Oct).
     expect(content.countSessions).toHaveBeenCalledWith([CLIENT], '2026-10-05', '2026-10-11');
@@ -404,5 +410,37 @@ describe('listClients', () => {
     );
     expect((await service.listClients(TRAINER, '2026-10-07'))[0]?.week.goal).toBe(4);
     expect((await service.listClients(TRAINER, '2026-09-30'))[0]?.week.goal).toBe(2);
+  });
+});
+
+// Trainer mode M3 (trainer-mode.md §10): consent copy v2 is a one-time notice, never a gate.
+describe('consent copy v2', () => {
+  it('a client who agreed to v1 sees consentUpdate at level 8; v2 sees null', async () => {
+    const old = setup({ current: link({ consentCopyVersion: 1 }) });
+    expect((await old.service.status(CLIENT, 8)).consentUpdate).toEqual({
+      trainerName: 'Ana',
+      version: 2,
+    });
+    const fresh = setup({ current: link() });
+    expect((await fresh.service.status(CLIENT, 8)).consentUpdate).toBeNull();
+  });
+
+  it('below level 8 the field is absent (an installed bundle never meets it); web (Infinity) gets it', async () => {
+    const { service } = setup({ current: link({ consentCopyVersion: 1 }) });
+    expect(await service.status(CLIENT, 6)).not.toHaveProperty('consentUpdate');
+    expect((await service.status(CLIENT, Number.POSITIVE_INFINITY)).consentUpdate).not.toBeNull();
+    expect(await setup().service.status(CLIENT, 8)).toMatchObject({ consentUpdate: null });
+  });
+
+  it('acknowledge records v2 with the versioned consent document', async () => {
+    const { service, links } = setup({ current: link({ consentCopyVersion: 1 }) });
+    expect(await service.acknowledgeConsentUpdate(CLIENT, 'mobile')).toEqual({ ok: true });
+    expect(links.acknowledgeConsentCopy).toHaveBeenCalledWith({
+      clientId: CLIENT,
+      version: 2,
+      source: 'mobile',
+      documentVersion: `${LEGAL_VERSIONS.privacy}+coaching-v2`,
+      now: NOW,
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Keyboard, RefreshControl, View } from 'react-native';
 import {
+  BOOKING_COPY,
   COACHING_COPY,
   COACHING_LIMITS,
   TRAINER_MODE_COPY,
@@ -31,11 +32,13 @@ import { useTrainerBadges } from '../use-trainer-mode';
 // ─── Clients (docs/prd-2026-10/trainer-mode.md §6.4) ──────────────────────────
 // Trainer tools' home as a tab root: Requests at the top (Accept / Decline),
 // the capacity line ("23 of 50 clients"), then the client cards — searchable
-// from 8 clients, sortable by name or last workout (next booking joins in
-// M3). "Invite a client" sits in the top bar and opens the invite flow as a
-// sheet. Turning tools off and the profile moved to trainer You (§6.8).
+// from 8 clients, sortable by name, last workout or next booking (M3).
+// "Invite a client" sits in the top bar and opens the invite flow as a sheet.
+// Turning tools off and the profile moved to trainer You (§6.8).
 
 const COPY = TRAINER_MODE_COPY.clients;
+
+/** M3 (§6.4): "Next booking" joins the sorts (soonest first, none last). */
 
 const SORT_OPTIONS = [
   { value: 'name', label: COPY.sortName, testID: 'trainer-clients-sort-name' },
@@ -43,6 +46,11 @@ const SORT_OPTIONS = [
     value: 'lastWorkout',
     label: COPY.sortLastWorkout,
     testID: 'trainer-clients-sort-last-workout',
+  },
+  {
+    value: 'nextBooking',
+    label: BOOKING_COPY.today.nextBooking,
+    testID: 'trainer-clients-sort-next-booking',
   },
 ] as const satisfies readonly { value: ClientSort; label: string; testID: string }[];
 
@@ -72,7 +80,8 @@ export function ClientsScreen() {
   const rows = clients.data ?? [];
   const searchable = rows.length >= TRAINER_MODE_LIMITS.clientSearchFrom;
   // The query only filters while the field is shown (a client who leaves can hide it mid-search).
-  const shown = sortClients(searchable ? filterClients(rows, query) : rows, sort);
+  const filtered = searchable ? filterClients(rows, query) : rows;
+  const shown = sortClients(filtered, sort);
 
   const invite = (
     <IconButton
@@ -134,6 +143,7 @@ export function ClientsScreen() {
                 <SegmentedControl
                   testID="trainer-clients-sort"
                   accessibilityLabel={COPY.sortLabel}
+                  size="xs"
                   options={SORT_OPTIONS}
                   value={sort}
                   onChange={setSort}

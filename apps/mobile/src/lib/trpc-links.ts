@@ -2,7 +2,7 @@
 // contract tests (Node) exercise the exact link stack the app ships.
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import superjson from 'superjson';
-import { COACHING_API_LEVEL } from '@chefer/types';
+import { TRAINER_MODE_API_LEVEL } from '@chefer/types';
 
 export interface TrpcLinkOptions {
   /** Full tRPC endpoint URL, e.g. http://localhost:3001/trpc */
@@ -39,7 +39,11 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
     // COACHING_SHARING consent-history label, so the API only sends those fields from level >= 6 (an
     // installed 1.0.1 binary at 4 never gets them). Levels are cumulative: this bundle implements 5
     // vacuously (INTERVALS moved to 7, see client-level.ts).
-    'x-chefer-api-level': String(COACHING_API_LEVEL),
+    // Bumped to 8 for trainer mode M3 (TRAINER_MODE_API_LEVEL): level 8 is the first to render the
+    // booking / coached-workout notices (BOOKING_* / COACHED_WORKOUT_LOGGED), the one-time consent v2
+    // notice (`coaching.status.consentUpdate`) and the "Logged by" history label, so the API filters
+    // those out below 8. Level 7 is implemented vacuously (INTERVALS moved to 9).
+    'x-chefer-api-level': String(TRAINER_MODE_API_LEVEL),
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }

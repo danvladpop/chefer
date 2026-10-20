@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { onlineManager, useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
+import { startCoachedSync } from '../../trainer-coach/coach-sync';
+import { coachedOutboxes } from '../../trainer-coach/coached-outbox';
 import { startRestNotifications } from '../rest-timer';
 import { reconcileActiveSession } from '../use-active-workout';
 import { activeSessionStore } from './active-session-store';
@@ -75,6 +77,8 @@ export function GymSyncProvider({
     const { changed } = setGymOwner(userId);
     if (changed) clearGymQueries(queryClient);
     reconcileActiveSession(userId);
+    // Trainer mode M3: coached workouts queued for clients upload once the trainer is confirmed.
+    void coachedOutboxes.flushAll({ force: true });
     void outbox
       .flush({ force: true })
       .then(() =>
@@ -122,8 +126,11 @@ export function GymSyncProvider({
       getOwnerId: getConfirmedGymOwner,
     });
     const stopRestNotifications = startRestNotifications();
+    // Trainer mode M3: the coached outboxes (`trainer.coach.sync`, one per client) — never this one.
+    const stopCoachedSync = startCoachedSync(utils);
     return () => {
       outbox.configure(null);
+      stopCoachedSync();
       stopTriggers();
       stopCheckpoint();
       stopRestNotifications();

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CoachingNoticeList,
   NoticeCard,
@@ -9,9 +9,20 @@ import {
 } from '@/features/coaching/components/CoachingNoticeList';
 import { formatDayWithWeekday } from '@/features/coaching/lib/dates';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import {
+  BookingEditor,
+  type EditorTarget,
+} from '@/features/trainer-bookings/components/BookingEditor';
+import {
+  NextBookingCard,
+  SessionsDelivered,
+  TodaysBookings,
+  UnmarkedAttendance,
+} from '@/features/trainer-bookings/components/TodayBookings';
+import { useNow } from '@/features/trainer-bookings/use-bookings';
 import { InviteSheet } from '@/features/trainer/components/InviteSheet';
 import { trpc } from '@/lib/trpc';
-import { ChevronRight, UserPlus, UsersRound } from 'lucide-react';
+import { CalendarPlus, ChevronRight, UserPlus, UsersRound } from 'lucide-react';
 import {
   COACHING_LIMITS,
   TRAINER_MODE_COPY,
@@ -19,12 +30,13 @@ import {
   type TrainerDashboardSummaryDto,
 } from '@chefer/types';
 import { Button, buttonVariants, CountUp, pressCard, ProgressRing } from '@chefer/ui';
-import { cn } from '@chefer/utils';
+import { cn, deviceTimeZone, newBookingSlot, utcToZoned } from '@chefer/utils';
 import { QueryError } from './QueryError';
 
-// ─── Trainer Today (trainer-mode.md §6.1, M1) ─────────────────────────────────
-// What needs the trainer now: the requests card, this week's numbers, and who
-// needs attention (quiet clients, client notices). Booking parts arrive in M3.
+// ─── Trainer Today (trainer-mode.md §6.1, M1 + M3) ────────────────────────────
+// What needs the trainer now: the requests card, the next booking (Start) and
+// the rest of today, this week's numbers, who needs attention (quiet clients,
+// past bookings without attendance, client notices) and sessions delivered.
 // Polled like `trainer.badges`, so a new request shows here within a minute.
 
 const copy = TRAINER_MODE_COPY.today;
@@ -96,9 +108,14 @@ function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
         </Stat>
         {summary.bookingsThisWeek && (
           <Stat label={copy.bookingsThisWeek} testId="trainer-stat-bookings">
-            <span className="text-sm font-medium text-gray-900">
-              {copy.bookingsDone(summary.bookingsThisWeek.done, summary.bookingsThisWeek.scheduled)}
-            </span>
+            {/* MO-06 count-up on the done number; the line reads "3 done · 5 scheduled". */}
+            <CountUp
+              value={summary.bookingsThisWeek.done}
+              format={(n) =>
+                copy.bookingsDone(Math.round(n), summary.bookingsThisWeek?.scheduled ?? 0)
+              }
+              className="text-sm font-medium text-gray-900"
+            />
           </Stat>
         )}
         <Stat label={copy.adherence} hint={copy.adherenceHint} testId="trainer-stat-adherence">
@@ -136,17 +153,25 @@ function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
   );
 }
 
-function NeedsAttention({ summary }: { summary: TrainerDashboardSummaryDto }) {
+function NeedsAttention({
+  summary,
+  timeZone,
+}: {
+  summary: TrainerDashboardSummaryDto;
+  timeZone: string;
+}) {
   const { views, dismiss } = useCoachingNoticeViews('trainer');
   const quiet = summary.quietClients;
+  const unmarked = summary.unmarkedAttendance ?? [];
   return (
     <section aria-labelledby="trainer-today-attention" className="flex flex-col gap-2">
       <h2 id="trainer-today-attention" className="font-semibold text-gray-900">
         {copy.needsAttention}
       </h2>
-      {quiet.length === 0 && views.length === 0 && (
+      {quiet.length === 0 && views.length === 0 && unmarked.length === 0 && (
         <p className="rounded-2xl border bg-white p-4 text-sm text-gray-600">{copy.allCaughtUp}</p>
       )}
+      <UnmarkedAttendance bookings={unmarked} timeZone={timeZone} />
       {quiet.length > 0 && (
         <ul className="flex flex-col gap-2" aria-label={copy.quietClients}>
           {quiet.map((client) => (
@@ -195,7 +220,13 @@ function NeedsAttention({ summary }: { summary: TrainerDashboardSummaryDto }) {
   );
 }
 
-function EmptyState({ onInvite }: { onInvite: () => void }) {
+function EmptyState({
+  onInvite,
+  onAddBooking,
+}: {
+  onInvite: () => void;
+  onAddBooking: () => void;
+}) {
   return (
     <section
       aria-labelledby="trainer-today-empty"
@@ -210,13 +241,16 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
         <Button type="button" className="min-h-11" onClick={onInvite}>
           <UserPlus className="h-4 w-4" aria-hidden="true" /> {copy.inviteClient}
         </Button>
-        {/* Straight into a new template (M2); "Add a booking" joins with bookings (M3), as on mobile. */}
+        {/* Straight into a new template (M2) or the booking editor (M3), as on mobile. */}
         <Link
           href="/trainer/workouts/new"
           className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11')}
         >
           {copy.buildTemplate}
         </Link>
+        <Button type="button" variant="outline" className="min-h-11" onClick={onAddBooking}>
+          <CalendarPlus className="h-4 w-4" aria-hidden="true" /> {copy.addBooking}
+        </Button>
       </div>
     </section>
   );
@@ -224,6 +258,11 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
 
 export function TrainerToday() {
   const [inviting, setInviting] = useState(false);
+  const [editor, setEditor] = useState<EditorTarget | null>(null);
+  const timeZone = useMemo(deviceTimeZone, []);
+  const now = useNow();
+  const today = utcToZoned(now, timeZone).date;
+  const addBooking = () => setEditor({ mode: 'create', ...newBookingSlot(null, now, timeZone) });
   const summary = trpc.trainer.dashboard.summary.useQuery(
     { today: localDate() },
     {
@@ -251,20 +290,33 @@ export function TrainerToday() {
           {data.requestsWaiting > 0 && <RequestsCard count={data.requestsWaiting} />}
           {data.activeClients === 0 ? (
             <>
-              <EmptyState onInvite={() => setInviting(true)} />
+              <EmptyState onInvite={() => setInviting(true)} onAddBooking={addBooking} />
               {/* A trainer whose last client left still sees that notice. */}
               <CoachingNoticeList side="trainer" />
             </>
           ) : (
             <>
+              {/* M3 servers send the booking parts; an M1 server leaves them undefined. */}
+              {data.nextBooking !== undefined && (
+                <NextBookingCard
+                  booking={data.nextBooking}
+                  timeZone={timeZone}
+                  today={today}
+                  now={now}
+                  onAdd={addBooking}
+                />
+              )}
+              <TodaysBookings bookings={data.todayBookings ?? []} timeZone={timeZone} />
               <ThisWeek summary={data} />
-              <NeedsAttention summary={data} />
+              <NeedsAttention summary={data} timeZone={timeZone} />
+              <SessionsDelivered rows={data.sessionsDelivered ?? []} />
             </>
           )}
         </>
       )}
 
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
+      <BookingEditor target={editor} onClose={() => setEditor(null)} />
     </div>
   );
 }

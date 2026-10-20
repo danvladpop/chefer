@@ -1,6 +1,11 @@
 'use client';
 
 import { useOptionalAppMode } from '@/features/nav/mode-context';
+import {
+  AddBookingButton,
+  ClientBookingsTab,
+} from '@/features/trainer-bookings/components/ClientBookings';
+import { LogWorkoutButton } from '@/features/trainer-coach/components/LogWorkoutButton';
 import { AssignFromClientButton } from '@/features/trainer-templates/components/AssignFromClientButton';
 import { COACHING_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
@@ -14,7 +19,13 @@ import { RemoveClientButton } from './RemoveClientButton';
 import { WorkoutsTab } from './WorkoutsTab';
 
 /** /trainer/[clientId]: Workouts or Adherence, with the private notes beside (xl) or below. */
-export function ClientView({ clientId, tab }: { clientId: string; tab: 'workouts' | 'adherence' }) {
+export function ClientView({
+  clientId,
+  tab,
+}: {
+  clientId: string;
+  tab: 'workouts' | 'adherence' | 'bookings';
+}) {
   const overview = useClientOverview(clientId);
   // Templates live in trainer mode: without it (flag off) the header is unchanged.
   const trainerMode = useOptionalAppMode()?.trainerModeAvailable ?? false;
@@ -50,18 +61,31 @@ export function ClientView({ clientId, tab }: { clientId: string; tab: 'workouts
   }
 
   const name = overview.data.client.name;
+  // Bookings live in trainer mode (M3): without it the tab falls back to Workouts.
+  const active = tab === 'bookings' && !trainerMode ? 'workouts' : tab;
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
       <ClientHeader
         clientId={clientId}
         name={name}
-        active={tab}
+        active={active}
+        showBookings={trainerMode}
         keepItSimple={overview.data.client.keepItSimple}
-        actions={trainerMode ? <AssignFromClientButton clientId={clientId} /> : undefined}
+        actions={
+          trainerMode ? (
+            <>
+              <AssignFromClientButton clientId={clientId} />
+              <AddBookingButton clientId={clientId} name={name} />
+              <LogWorkoutButton clientId={clientId} name={name} />
+            </>
+          ) : undefined
+        }
       />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="min-w-0">
-          {tab === 'adherence' ? (
+          {active === 'bookings' ? (
+            <ClientBookingsTab clientId={clientId} />
+          ) : active === 'adherence' ? (
             <AdherenceView adherence={overview.data.adherence} />
           ) : (
             <WorkoutsTab clientId={clientId} />

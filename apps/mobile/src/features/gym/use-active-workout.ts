@@ -173,18 +173,29 @@ export function dispatchWorkout(
   if (!record) return null;
   const next = workoutReducer(record.doc, { ...action, at: nowIso() });
   activeSessionStore.set(next, record.ownerId);
-
-  if (action.type === 'completeSet') {
-    const outcome = setTickOutcome(
-      next,
-      options.supersets ?? NO_SUPERSETS,
-      action.seId,
-      action.setId,
-    );
-    if (outcome.kind === 'rest') startRest(outcome.restSec, outcome.seId);
-    else if (outcome.kind === 'advance') skipRest();
-  }
+  restAfterAction(next, action, options);
   return next;
+}
+
+/**
+ * The rest timer's reaction to an action already applied and persisted (`next`): a WORKING-set tick
+ * starts the rest, or skips it inside a superset round. Shared with the coached logger (trainer mode
+ * M3), which persists its own records.
+ */
+export function restAfterAction(
+  next: WorkoutSessionDoc,
+  action: WorkoutActionInput,
+  options: DispatchOptions = {},
+): void {
+  if (action.type !== 'completeSet') return;
+  const outcome = setTickOutcome(
+    next,
+    options.supersets ?? NO_SUPERSETS,
+    action.seId,
+    action.setId,
+  );
+  if (outcome.kind === 'rest') startRest(outcome.restSec, outcome.seId);
+  else if (outcome.kind === 'advance') skipRest();
 }
 
 /**

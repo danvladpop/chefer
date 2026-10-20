@@ -95,4 +95,15 @@ describe('TrainerClients', () => {
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'lastWorkout' } });
     expect(names().map((n) => n.slice(0, 3))).toEqual(['Zoe', 'Ion', 'Ana']);
   });
+
+  it('sorts by next booking (M3): soonest first, none last', () => {
+    m.rows = [
+      client(1, 'Zoe', null),
+      { ...client(2, 'Ana', null), nextBookingAt: '2026-10-22T15:00:00.000Z' },
+      { ...client(3, 'Ion', null), nextBookingAt: '2026-10-20T15:00:00.000Z' },
+    ];
+    render(<TrainerClients />);
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'nextBooking' } });
+    expect(names().map((n) => n.slice(0, 3))).toEqual(['Ion', 'Ana', 'Zoe']);
+  });
 });

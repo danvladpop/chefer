@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import {
+  bookingIdInputSchema,
   cancelCoachingRequestInputSchema,
   COACHING_COPY,
   COACHING_LIMITS,
@@ -12,10 +13,12 @@ import {
   trainerIdInputSchema,
   type CoachingAvailabilityDto,
 } from '@chefer/types';
+import { bookingService } from '../application/coaching/booking.service.js';
 import { coachingInviteService } from '../application/coaching/coaching-invite.service.js';
 import { coachingLinkService } from '../application/coaching/coaching-link.service.js';
 import { coachingNoticeService } from '../application/coaching/coaching-notice.service.js';
 import { coachingRequestService } from '../application/coaching/coaching-request.service.js';
+import { contractLevelOf } from '../lib/client-contract-level.js';
 import { canBeTrainer, isCoachingEnabledFor } from '../lib/coaching-flags.js';
 import { coachingProcedure } from '../lib/coaching-middleware.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
@@ -53,12 +56,26 @@ export const coachingRouter = router({
   }),
   join: coachingProcedure.input(joinInputSchema).mutation(({ ctx, input }) => {
     assertWithinRateLimit('coaching.join', ctx.user.id, COACHING_LIMITS.joinPerHour, HOUR_MS);
-    return coachingLinkService.join(ctx.user.id, input.code, sourceOf(ctx), input.localDate);
+    return coachingLinkService.join(
+      ctx.user.id,
+      input.code,
+      sourceOf(ctx),
+      input.localDate,
+      contractLevelOf(ctx),
+    );
   }),
-  status: coachingProcedure.query(({ ctx }) => coachingLinkService.status(ctx.user.id)),
+  status: coachingProcedure.query(({ ctx }) =>
+    coachingLinkService.status(ctx.user.id, contractLevelOf(ctx)),
+  ),
+  /** Trainer mode M3 (§10): the client read the v2 consent copy ("bookings and logged workouts"). */
+  acknowledgeConsentUpdate: coachingProcedure.mutation(({ ctx }) =>
+    coachingLinkService.acknowledgeConsentUpdate(ctx.user.id, sourceOf(ctx)),
+  ),
   leave: coachingProcedure
     .input(leaveInputSchema)
-    .mutation(({ ctx }) => coachingLinkService.leave(ctx.user.id, sourceOf(ctx))),
+    .mutation(({ ctx }) =>
+      coachingLinkService.leave(ctx.user.id, sourceOf(ctx), contractLevelOf(ctx)),
+    ),
 
   // ─── Find a trainer + coaching requests (PRD 2026-10 §4.1) ───────────────────
   /** Trainers only, by NAME only; needs no Following. The query is never logged. */
@@ -97,7 +114,9 @@ export const coachingRouter = router({
     .mutation(({ ctx }) => coachingRequestService.cancel(ctx.user.id, sourceOf(ctx))),
 
   // ─── Notices (PRD 2026-10 §4.2, §4.3) — both sides read the same list ────────
-  notices: coachingProcedure.query(({ ctx }) => coachingNoticeService.list(ctx.user.id)),
+  notices: coachingProcedure.query(({ ctx }) =>
+    coachingNoticeService.list(ctx.user.id, contractLevelOf(ctx)),
+  ),
   dismissNotice: coachingProcedure
     .input(dismissCoachingNoticeInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -106,4 +125,14 @@ export const coachingRouter = router({
       }
       return { ok: true as const };
     }),
+
+  // ─── Bookings, the client's side (trainer mode M3, §6.9) ────────────────────
+  bookings: router({
+    /** Not ended yet (cancelled ones until they start), soonest first, the next 14 days. */
+    upcoming: coachingProcedure.query(({ ctx }) => bookingService.upcomingForClient(ctx.user.id)),
+    /** NOT_FOUND "This booking isn't available" unless it is the caller's own. */
+    get: coachingProcedure
+      .input(bookingIdInputSchema)
+      .query(({ ctx, input }) => bookingService.getForClient(ctx.user.id, input.bookingId)),
+  }),
 });

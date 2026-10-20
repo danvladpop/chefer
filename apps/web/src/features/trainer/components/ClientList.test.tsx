@@ -13,6 +13,11 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+vi.mock('@chefer/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@chefer/utils')>()),
+  deviceTimeZone: () => 'Europe/Bucharest',
+}));
+
 afterEach(cleanup);
 
 const maria: ClientRowDto = {
@@ -44,6 +49,16 @@ describe('ClientList', () => {
       'Routine changed by Maria · 3 Oct',
     );
     expect(within(row).queryByTestId('trainer-client-quiet')).toBeNull();
+  });
+
+  it('shows the next booking line (M3) only when there is one', () => {
+    render(<ClientList clients={[maria]} />);
+    expect(screen.queryByTestId('trainer-client-next-booking')).toBeNull();
+    cleanup();
+    render(<ClientList clients={[{ ...maria, nextBookingAt: '2026-10-20T15:00:00.000Z' }]} />);
+    expect(screen.getByTestId('trainer-client-next-booking')).toHaveTextContent(
+      'Next booking: Tue 20 Oct, 18:00',
+    );
   });
 
   it('flags a client who logged nothing for 7 days, and a client with no workout yet', () => {

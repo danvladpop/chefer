@@ -195,3 +195,83 @@ describe('list', () => {
     ]);
   });
 });
+
+// Trainer mode M3 (trainer-mode.md §7.1, §9): booking and coached-workout notices.
+describe('booking notices', () => {
+  const ref = {
+    bookingId: 'b1',
+    startsAt: '2026-10-20T15:00:00.000Z',
+    timeZone: 'Europe/Bucharest',
+    weekly: true,
+    reason: null,
+  };
+
+  it('writes the booking reference — never a name, a note or a location', async () => {
+    const { service, notifications } = setup();
+    await service.booking(CLIENT, TRAINER, 'CREATED', ref);
+    expect(notifications.upsertCoaching).toHaveBeenCalledWith({
+      userId: CLIENT,
+      kind: 'COACHING_BOOKING_CREATED',
+      actorId: TRAINER,
+      payload: { role: 'TRAINER', booking: ref },
+    });
+  });
+
+  it('a cancel withdraws the unread "booked you" card of the same booking', async () => {
+    const { service, notifications } = setup(
+      row({ kind: 'COACHING_BOOKING_CREATED', payload: { role: 'TRAINER', booking: ref } }),
+    );
+    await service.booking(CLIENT, TRAINER, 'CANCELLED', { ...ref, reason: 'Sick' });
+    expect(notifications.withdrawCoaching).toHaveBeenCalledWith(
+      CLIENT,
+      'COACHING_BOOKING_CREATED',
+      TRAINER,
+    );
+  });
+
+  it('coaching ended withdraws stale booking cards too', async () => {
+    const { service, notifications } = setup();
+    await service.ended(CLIENT, TRAINER, 'TRAINER', 'TRAINER');
+    for (const kind of ['COACHING_BOOKING_CREATED', 'COACHING_BOOKING_CHANGED']) {
+      expect(notifications.withdrawCoaching).toHaveBeenCalledWith(CLIENT, kind, TRAINER);
+    }
+  });
+
+  it('below level 8 the new kinds are filtered out in the query; at 8 (and web) they are listed with their payload', async () => {
+    const listed = [
+      row({
+        id: 'n2',
+        kind: 'COACHING_BOOKING_CANCELLED',
+        payload: { role: 'TRAINER', booking: { ...ref, reason: 'Sick' } },
+      }),
+      row({
+        id: 'n3',
+        kind: 'COACHING_WORKOUT_LOGGED',
+        payload: { role: 'TRAINER', workoutSessionId: 's1' },
+      }),
+    ];
+    const { service, notifications } = setup(null, listed);
+
+    await service.list(CLIENT, 6);
+    expect(notifications.listCoaching).toHaveBeenLastCalledWith(CLIENT, expect.any(Date), 30, [
+      'COACHING_BOOKING_CREATED',
+      'COACHING_BOOKING_CHANGED',
+      'COACHING_BOOKING_CANCELLED',
+      'COACHING_WORKOUT_LOGGED',
+    ]);
+
+    const out = await service.list(CLIENT, 8);
+    expect(notifications.listCoaching).toHaveBeenLastCalledWith(CLIENT, expect.any(Date), 30, []);
+    expect(out).toEqual([
+      expect.objectContaining({
+        id: 'n2',
+        kind: 'BOOKING_CANCELLED',
+        other: { id: TRAINER, name: 'Ana', role: 'TRAINER' },
+        booking: { ...ref, reason: 'Sick' },
+      }),
+      expect.objectContaining({ id: 'n3', kind: 'COACHED_WORKOUT_LOGGED', workoutSessionId: 's1' }),
+    ]);
+    await service.list(CLIENT, Number.POSITIVE_INFINITY);
+    expect(notifications.listCoaching).toHaveBeenLastCalledWith(CLIENT, expect.any(Date), 30, []);
+  });
+});

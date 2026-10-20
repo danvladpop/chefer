@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { localDateSchema } from '@chefer/types';
 import { effectiveLevel } from '../../application/gym/client-level.js';
 import { gymBootstrapService } from '../../application/gym/gym-bootstrap.service.js';
+import { understandsTrainerMode } from '../../lib/client-contract-level.js';
 import { isCoachingEnabledFor } from '../../lib/coaching-flags.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
 import { gymExportRouter } from './export.router.js';
@@ -37,7 +38,11 @@ export const gymRouter = router({
         },
         effectiveLevel(ctx.clientApiLevel),
         // Trainer coaching gates on the RAW header level, not the effective one (spec §10).
-        { rawLevel: ctx.clientApiLevel, enabled: isCoachingEnabledFor(ctx.user) },
+        {
+          rawLevel: ctx.clientApiLevel,
+          enabled: isCoachingEnabledFor(ctx.user),
+          loggedBy: understandsTrainerMode(ctx),
+        },
       ),
     ),
   library: gymLibraryRouter,

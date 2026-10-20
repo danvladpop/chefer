@@ -262,6 +262,10 @@ model User {
   coachingNotesAbout     CoachingNote[]    @relation("CoachingNotesAbout")
   routinesEdited         Routine[]         @relation("RoutineEditedBy")
   workoutTemplates       WorkoutTemplate[] @relation("WorkoutTemplates")
+  bookingSeries          BookingSeries[]   @relation("BookingSeries")
+  bookingsAsTrainer      Booking[]         @relation("BookingsAsTrainer")
+  bookingsAsClient       BookingClient[]   @relation("BookingsAsClient")
+  sessionsLoggedFor      WorkoutSession[]  @relation("SessionsLoggedFor")
   coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
   coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
@@ -1521,10 +1525,15 @@ model WorkoutSession {
   engineVersion     Int
   rotationAppliedAt DateTime? // set once, when completion advanced Routine.nextDayId
   workoutType       WorkoutType? // simple training mode; null on routine/freestyle workouts from older binaries
+  /// Trainer mode M3 (§8.3): set by the server when a trainer logged it for the owner ("Logged by Ana").
+  loggedById        String?
+  /// The booking it was coached in, if any (no FK: bookings are pruned with the coaching link).
+  bookingId         String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedBy  User?             @relation("SessionsLoggedFor", fields: [loggedById], references: [id], onDelete: SetNull)
   exercises SessionExercise[]
 
   @@index([userId, localDate])
@@ -1645,6 +1654,11 @@ enum NotificationKind {
   COACHING_REQUEST_DECLINED // client ← trainer declined
   COACHING_ROUTINE_UPDATED // the other side changed the client's routine; payload = the changes
   COACHING_ENDED // the other side (or the system) ended the coaching; payload = { by, trainerName }
+  // Trainer mode M3 (trainer-mode.md §7.1), client side; filtered out below API level 8.
+  COACHING_BOOKING_CREATED // payload = { bookingId, startsAt, timeZone, weekly }
+  COACHING_BOOKING_CHANGED // payload = { bookingId, startsAt, timeZone }
+  COACHING_BOOKING_CANCELLED // payload = { bookingId, startsAt, timeZone, reason }
+  COACHING_WORKOUT_LOGGED // payload = { workoutSessionId }
 }
 
 enum ReportReason {
@@ -1851,17 +1865,20 @@ enum CoachingEndedBy {
 /// The migration adds a raw-SQL partial unique index (one ACTIVE link per client):
 ///   CREATE UNIQUE INDEX coaching_links_one_active_trainer ON coaching_links ("clientId") WHERE status = 'ACTIVE';
 model CoachingLink {
-  id           String             @id @default(cuid())
-  trainerId    String
-  clientId     String
-  status       CoachingLinkStatus @default(ACTIVE)
-  inviteCode   String? // provenance, no FK (invites are pruned)
-  requestId    String? // provenance when it started from a coaching request (no FK, requests are pruned)
-  trainerLabel String? // copied from the invite, trainer-private
-  startedAt    DateTime           @default(now())
-  startedOn    String? // the client's device-local YYYY-MM-DD at join; null on links that predate it or joins without `localDate`
-  endedAt      DateTime?
-  endedBy      CoachingEndedBy?
+  id                 String             @id @default(cuid())
+  trainerId          String
+  clientId           String
+  status             CoachingLinkStatus @default(ACTIVE)
+  inviteCode         String? // provenance, no FK (invites are pruned)
+  requestId          String? // provenance when it started from a coaching request (no FK, requests are pruned)
+  trainerLabel       String? // copied from the invite, trainer-private
+  startedAt          DateTime           @default(now())
+  startedOn          String? // the client's device-local YYYY-MM-DD at join; null on links that predate it or joins without `localDate`
+  endedAt            DateTime?
+  endedBy            CoachingEndedBy?
+  /// The coaching consent copy version the client agreed to (COACHING_CONSENT_COPY_VERSION).
+  /// Older links read 1 and get a one-time "what's new" notice (trainer-mode.md §10).
+  consentCopyVersion Int                @default(1)
 
   trainer User @relation("CoachingAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
   client  User @relation("CoachingAsClient", fields: [clientId], references: [id], onDelete: Cascade)
@@ -1982,4 +1999,85 @@ model WorkoutTemplateExercise {
 
   @@index([templateId])
   @@map("workout_template_exercises")
+}
+
+// ─── Trainer mode: bookings (docs/prd-2026-10/trainer-mode.md §8.2) ───────────
+
+enum BookingKind {
+  BOOKING
+  BLOCK // blocked time: no clients
+}
+
+enum BookingAttendance {
+  SCHEDULED
+  ATTENDED // a "session delivered"
+  NO_SHOW
+  CANCELLED // the booking (or this client's place in it) was cancelled, or the coaching ended
+}
+
+/// A weekly repeat. Its occurrences are materialised as Booking rows up to
+/// `endsOn`; "this and following" edits end the old series and start a new one.
+model BookingSeries {
+  id             String   @id @default(cuid())
+  trainerId      String
+  weekday        Int // 0 = Monday … 6 = Sunday, in `timeZone`
+  startLocalTime String // "HH:MM" in `timeZone`
+  durationMin    Int
+  timeZone       String // IANA
+  startsOn       String // first local date "YYYY-MM-DD"
+  endsOn         String // last local date (inclusive)
+  createdAt      DateTime @default(now())
+
+  trainer  User      @relation("BookingSeries", fields: [trainerId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([trainerId])
+  @@map("booking_series")
+}
+
+/// One slot in a trainer's calendar. Stored as a UTC instant plus the zone it
+/// was made in. Cancelled bookings stay (greyed in history); never hard-deleted
+/// except by retention (24 months after the coaching ended).
+model Booking {
+  id           String      @id @default(cuid())
+  trainerId    String
+  seriesId     String?
+  kind         BookingKind
+  startsAt     DateTime
+  durationMin  Int
+  timeZone     String
+  location     String? // ≤ 60
+  note         String? // ≤ 200, shown to the client(s)
+  cancelledAt  DateTime?
+  cancelReason String? // ≤ 200, shown to the client(s)
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  trainer User            @relation("BookingsAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
+  series  BookingSeries?  @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  clients BookingClient[]
+
+  @@index([trainerId, startsAt])
+  @@index([seriesId])
+  @@map("bookings")
+}
+
+/// A client's place in a booking.
+model BookingClient {
+  bookingId        String
+  clientId         String
+  /// {kind: 'NEXT_DAY'} | {kind: 'ROUTINE_DAY', routineDayId}; null = NEXT_DAY.
+  workoutRef       Json?
+  attendance       BookingAttendance @default(SCHEDULED)
+  attendanceAt     DateTime?
+  /// The coached workout logged in this booking.
+  workoutSessionId String?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  client  User    @relation("BookingsAsClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([bookingId, clientId])
+  @@index([clientId, bookingId])
+  @@map("booking_clients")
 }

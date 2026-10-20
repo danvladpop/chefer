@@ -13,6 +13,7 @@ import {
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
+import { loggedByLabel } from '../../trainer-coach/history-labels';
 import { sessionRowAccessibilityActions, useSessionActions } from '../history/use-session-actions';
 import { useIsOnline } from '../library-screens/online-status';
 import { LogWorkoutAction } from '../today/log-workout-form';
@@ -128,6 +129,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
             {group.sessions.map((session, index) => {
               const stats = sessionStatsOf(session, prSessionIds.has(session.id));
               const date = weekdayDateLabel(session.localDate);
+              const loggedBy = loggedByLabel(session);
               return (
                 <View
                   key={session.id}
@@ -140,7 +142,9 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
                   <Pressable
                     testID={`${testID}-row-${session.id}`}
                     accessibilityRole="button"
-                    accessibilityLabel={`${session.name}, ${date}, ${stats.spoken}`}
+                    accessibilityLabel={[session.name, date, stats.spoken, loggedBy]
+                      .filter(Boolean)
+                      .join(', ')}
                     {...sessionRowAccessibilityActions(actions, session)}
                     onPress={() =>
                       router.push({ pathname: '/gym/session/[id]', params: { id: session.id } })
@@ -154,6 +158,14 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
                       <Text className="text-subhead text-label-secondary">
                         {`${date} · ${stats.text}`}
                       </Text>
+                      {loggedBy ? (
+                        <Text
+                          testID={`${testID}-row-${session.id}-logged-by`}
+                          className="text-subhead text-label-secondary"
+                        >
+                          {loggedBy}
+                        </Text>
+                      ) : null}
                     </View>
                     <Icon name="chevronRight" color={colors.labelTertiary} size={18} />
                   </Pressable>
