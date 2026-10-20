@@ -7,7 +7,7 @@ import { TrainerRoutineEditor } from './TrainerRoutineEditor';
 
 type SaveOptions = {
   onSuccess?: (saved: TrainerRoutineDto) => void;
-  onError?: (err: { data?: { conflict?: { current: RoutineDto } } }) => void;
+  onError?: (err: { data?: { conflict?: { kind: 'routine'; current: RoutineDto } } }) => void;
 };
 
 const m = vi.hoisted(
@@ -227,7 +227,7 @@ describe('TrainerRoutineEditor', () => {
       lastEditedByOther: { name: 'Maria', at: '2026-10-04T09:00:00.000Z' },
       days: [],
     };
-    m.saveOptions.onError?.({ data: { conflict: { current } } });
+    m.saveOptions.onError?.({ data: { conflict: { kind: 'routine', current } } });
 
     // The dialog renders asynchronously with the Sheet's presence; flush a tick via findBy in a follow-up.
     return screen.findByText('Maria changed this routine while you were editing').then(() => {
@@ -352,5 +352,17 @@ describe('TrainerRoutineEditor', () => {
       expect(input.routine.days[0]).toMatchObject({ name: 'Day A', workoutType: 'LOWER_BODY' });
       expect(input.routine.days[0]?.exercises).toHaveLength(2);
     });
+  });
+  it('captions a day copied from a template "Based on …" (trainer mode M2)', () => {
+    const r = routine();
+    const [first] = r.days;
+    if (first)
+      first.template = { templateId: 't1', name: 'Lower body A', version: 2, deleted: false };
+    m.routine = r;
+    render(<TrainerRoutineEditor clientId="c1" />);
+    const captions = screen.getAllByTestId('trainer-day-based-on');
+    expect(captions[0]).toHaveTextContent('Based on Lower body A');
+    // Plain text, never a link.
+    expect(captions[0]?.closest('a')).toBeNull();
   });
 });

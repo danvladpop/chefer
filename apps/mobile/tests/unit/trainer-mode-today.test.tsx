@@ -144,7 +144,7 @@ describe('Trainer Today', () => {
     expect(screen.queryByTestId('trainer-today-stats')).toBeNull();
     expect(screen.queryByTestId('trainer-today-attention')).toBeNull();
     await user.press(screen.getByTestId('trainer-today-build-template'));
-    expect(router.navigate).toHaveBeenCalledWith('/(trainer)/workouts');
+    expect(router.push).toHaveBeenCalledWith('/trainer/templates/new');
     await user.press(screen.getByTestId('trainer-today-invite'));
     await settle();
     expect(screen.getByTestId('trainer-invite-sheet-title')).toHaveTextContent('Invite a client');

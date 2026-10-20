@@ -1,7 +1,12 @@
 // Pure draft reducer for the routine editor (gym_plan.md §5.4). Ids are
 // passed IN (never generated here — same convention as the workout reducer
 // in @chefer/utils), so replaying actions in a test is deterministic.
-import { COACHING_LIMITS, type ExerciseMeta, type WorkoutType } from '@chefer/types';
+import {
+  COACHING_LIMITS,
+  GYM_MAX_WEIGHT_KG,
+  type ExerciseMeta,
+  type WorkoutType,
+} from '@chefer/types';
 import {
   createSuperset,
   defaultTargetRir,
@@ -66,7 +71,9 @@ export type RoutineDraftAction =
   | { type: 'setRestSec'; dayKey: string; exerciseKey: string; restSec: number }
   | { type: 'setTargetRir'; dayKey: string; exerciseKey: string; targetRir: number }
   /** Trainer coaching: the trainer edits the cue (clamped, '' = none); the client's "Remove note" passes null. */
-  | { type: 'setTrainerNote'; dayKey: string; exerciseKey: string; note: string | null };
+  | { type: 'setTrainerNote'; dayKey: string; exerciseKey: string; note: string | null }
+  /** Trainer mode M2: a template row's starting weight in kg (clamped to 0–1000); null clears it. */
+  | { type: 'setDefaultLoad'; dayKey: string; exerciseKey: string; weightKg: number | null };
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
@@ -304,6 +311,15 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
           const note = action.note?.slice(0, COACHING_LIMITS.trainerNoteMaxChars) ?? '';
           return { ...e, trainerNote: note === '' ? null : note };
         }),
+      );
+
+    case 'setDefaultLoad':
+      return updateDay(draft, action.dayKey, (d) =>
+        updateExercise(d, action.exerciseKey, (e) => ({
+          ...e,
+          defaultLoadKg:
+            action.weightKg === null ? null : clamp(action.weightKg, 0, GYM_MAX_WEIGHT_KG),
+        })),
       );
 
     default:

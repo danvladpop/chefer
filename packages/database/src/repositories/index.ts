@@ -136,6 +136,7 @@ export {
   type RoutineDayWithExercises,
   type RoutineCreateData,
   type RoutineDayWriteData,
+  type RoutineDayTemplateStamp,
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
@@ -387,6 +388,19 @@ export {
   type CoachedSessionCursor,
   type ActiveRoutineStamp,
 } from './coaching-content.repository';
+
+// Trainer mode templates (docs/prd-2026-10/trainer-mode.md §6.6)
+export {
+  WorkoutTemplateRepository,
+  workoutTemplateRepository,
+  type IWorkoutTemplateRepository,
+  type WorkoutTemplateWithExercises,
+  type TemplateExerciseWriteData,
+  type TemplateWriteData,
+  type ReplaceTemplateResult,
+  type TemplateAssignmentRow,
+  type TemplateNameRow,
+} from './workout-template.repository';
 
 export {
   RecipeImageRepository,

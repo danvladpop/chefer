@@ -90,6 +90,7 @@ export {
   type RoutineDayWithExercises,
   type RoutineCreateData,
   type RoutineDayWriteData,
+  type RoutineDayTemplateStamp,
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
@@ -278,6 +279,16 @@ export {
   type CoachedSessionRow,
   type CoachedSessionCursor,
   type ActiveRoutineStamp,
+  // Trainer mode templates (docs/prd-2026-10/trainer-mode.md §6.6)
+  WorkoutTemplateRepository,
+  workoutTemplateRepository,
+  type IWorkoutTemplateRepository,
+  type WorkoutTemplateWithExercises,
+  type TemplateExerciseWriteData,
+  type TemplateWriteData,
+  type ReplaceTemplateResult,
+  type TemplateAssignmentRow,
+  type TemplateNameRow,
   // Phase 1 guardrails: uploaded photos ledger + upload references
   UploadedFileRepository,
   uploadedFileRepository,
@@ -387,6 +398,8 @@ export type {
   Notification,
   // Trainer coaching (docs/trainer-platform/spec.md §5.1)
   TrainerProfile,
+  WorkoutTemplate,
+  WorkoutTemplateExercise,
   CoachingInvite,
   CoachingLink,
   CoachingNote,

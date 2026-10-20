@@ -22,6 +22,7 @@ export function ClientHeader({
   active,
   keepItSimple = false,
   confirmLeave,
+  actions,
 }: {
   clientId: string;
   name: string;
@@ -30,6 +31,8 @@ export function ClientHeader({
   keepItSimple?: boolean | undefined;
   /** The routine editor asks before leaving with unsaved changes; return false to stay. */
   confirmLeave?: () => boolean;
+  /** Header actions beside the name (trainer mode M2: "Assign a template"). */
+  actions?: React.ReactNode;
 }) {
   const guard = (e: React.MouseEvent) => {
     if (confirmLeave && !confirmLeave()) e.preventDefault();
@@ -44,7 +47,7 @@ export function ClientHeader({
   ];
   return (
     <header className="flex flex-col gap-3">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Link
           href={clientsHref}
           onClick={guard}
@@ -59,6 +62,7 @@ export function ClientHeader({
             {COACHING_COPY.trainerProfile.keepItSimple}
           </Badge>
         )}
+        {actions && <div className="flex min-w-0 flex-wrap gap-2 sm:ml-auto">{actions}</div>}
       </div>
       {keepItSimple && (
         <p

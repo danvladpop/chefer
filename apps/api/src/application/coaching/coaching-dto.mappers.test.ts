@@ -11,6 +11,7 @@ import {
   toCoachedWorkoutDto,
   toInviteDto,
   toRoutineDtoForTrainer,
+  toTemplateRef,
   toTrainerRoutineDto,
 } from './coaching-dto.mappers.js';
 
@@ -378,6 +379,11 @@ function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays {
         name: 'Day A',
         plannedWeekday: 0,
         workoutType: null,
+        templateId: null,
+        templateVersion: null,
+        templateAssignedAt: null,
+        templateName: null,
+        editedSinceTemplate: false,
         exercises: [
           row('re1', 'squat', {
             trainerNote: 'knees out',
@@ -506,5 +512,37 @@ describe('toRoutineDtoForTrainer (the CONFLICT payload)', () => {
     expect(rows[0]?.trainerNote).toBe('knees out');
     expect(rows.every((e) => e.notes === null)).toBe(true);
     expect(JSON.stringify(dto)).not.toContain('SECRET');
+  });
+});
+
+// Trainer mode M2: "Based on Lower body A" on a copied day (trainer-mode.md §6.6).
+describe('toTemplateRef', () => {
+  const copied = { templateId: 't1', templateName: 'Lower body A', templateVersion: 2 };
+  const live = (over: object = {}) =>
+    new Map([
+      ['t1', { id: 't1', trainerId: 'tr', name: 'Lower body B', deletedAt: null, ...over }],
+    ]);
+
+  it('a day that was not copied has no ref', () => {
+    expect(
+      toTemplateRef({ templateId: null, templateName: null, templateVersion: null }, live()),
+    ).toBeNull();
+  });
+
+  it('a live template shows its current name', () => {
+    expect(toTemplateRef(copied, live())).toEqual({
+      templateId: 't1',
+      name: 'Lower body B',
+      version: 2,
+      deleted: false,
+    });
+  });
+
+  it('a deleted or purged template is plain text with the name stored at assignment', () => {
+    expect(toTemplateRef(copied, live({ deletedAt: new Date() }))).toMatchObject({
+      name: 'Lower body A',
+      deleted: true,
+    });
+    expect(toTemplateRef(copied, new Map())).toMatchObject({ name: 'Lower body A', deleted: true });
   });
 });

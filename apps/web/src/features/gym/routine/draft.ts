@@ -46,6 +46,12 @@ export interface DraftExercise {
    * owner's `toRoutineDoc`.
    */
   trainerNote?: string | null;
+  /**
+   * Trainer mode templates (M2): the starting weight the template suggests,
+   * kg. `undefined`/`null` = none (each client's history decides). Only the
+   * template editor reads or writes it; never part of a routine document.
+   */
+  defaultLoadKg?: number | null;
 }
 
 export interface DraftDay {
@@ -315,7 +321,14 @@ export type DraftAction =
       patch: Partial<
         Pick<
           DraftExercise,
-          'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes' | 'trainerNote'
+          | 'sets'
+          | 'repMin'
+          | 'repMax'
+          | 'targetRir'
+          | 'restSec'
+          | 'notes'
+          | 'trainerNote'
+          | 'defaultLoadKg'
         >
       >;
     }

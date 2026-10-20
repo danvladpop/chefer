@@ -82,10 +82,10 @@ export default defineConfig({
     // WP-18 trainer coaching: each spec registers its own trainer and client
     // accounts in separate contexts (no saved session). Needs the API with
     // FEATURE_FLAGS=coaching and TRAINER_ALLOWLIST=* (trainer-mode.spec.ts
-    // also needs trainerMode in FEATURE_FLAGS).
+    // and trainer-templates.spec.ts also need trainerMode in FEATURE_FLAGS).
     {
       name: 'coaching',
-      testMatch: /(trainer(-mode)?|coaching-[a-z]+)\.spec\.ts/,
+      testMatch: /(trainer(-mode|-templates)?|coaching-[a-z]+)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
 

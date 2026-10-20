@@ -13,10 +13,15 @@ export function TrainerNoteField({
   clientName,
   value,
   onChange,
+  label,
+  hint,
 }: {
   clientName: string;
   value: string;
   onChange: (value: string) => void;
+  /** A template's note is for every client who gets it ("Note for clients"). Default "Note for {client}". */
+  label?: string;
+  hint?: string;
 }) {
   const copy = COACHING_COPY.trainer;
   const id = useId();
@@ -27,7 +32,7 @@ export function TrainerNoteField({
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {copy.noteForClient(clientName)}
+        {label ?? copy.noteForClient(clientName)}
       </label>
       <textarea
         id={id}
@@ -43,7 +48,7 @@ export function TrainerNoteField({
       />
       <div className="flex min-w-0 items-start justify-between gap-2">
         <p id={hintId} className="min-w-0 text-xs text-gray-500">
-          {copy.noteForClientHint(clientName)}
+          {hint ?? copy.noteForClientHint(clientName)}
         </p>
         <p className={cn('shrink-0 text-xs', tooLong ? 'text-red-700' : 'text-gray-500')}>
           {value.length} / {max}

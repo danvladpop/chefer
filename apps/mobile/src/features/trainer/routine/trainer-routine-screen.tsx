@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import {
   COACHING_COPY,
   editorLabel,
+  TEMPLATE_COPY,
   type ExerciseMeta,
   type NextTargetDto,
   type RoutineDto,
@@ -59,6 +60,7 @@ import { NextTargetLine } from './next-target-line';
 // (the existing D5c override, set through `trainer.client.setNextTarget`) and a curated-only picker.
 // Save is version-checked: a stale save opens the shared conflict sheet naming the client (Keep mine /
 // Use the other version). Online-only, like the client's own editor. Every call is checked per request.
+// Trainer mode M2 (trainer-mode.md §6.6): a day copied from a template reads "Based on Lower body A".
 // PRD 2026-10 §4.3: each day carries the client's My week workout type through load and save (a
 // type-only day, "Yoga" with no exercises, is kept as is) and the trainer can set or change it.
 
@@ -424,14 +426,30 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
                     />
                   );
                 },
-                renderDayDetail: (d) => (
-                  <DayWorkoutType
-                    testID={`trainer-routine-type-${d.key}`}
-                    day={d}
-                    clientName={firstName}
-                    onPress={() => setTypeDayKey(d.key)}
-                  />
-                ),
+                renderDayDetail: (d) => {
+                  // Trainer mode M2: a day copied from a template says so (older APIs omit it).
+                  const template = d.id
+                    ? server?.days.find((s) => s.id === d.id)?.template
+                    : undefined;
+                  return (
+                    <>
+                      {template ? (
+                        <Text
+                          testID={`trainer-routine-based-on-${d.key}`}
+                          className="text-caption text-label-secondary"
+                        >
+                          {TEMPLATE_COPY.basedOn(template.name)}
+                        </Text>
+                      ) : null}
+                      <DayWorkoutType
+                        testID={`trainer-routine-type-${d.key}`}
+                        day={d}
+                        clientName={firstName}
+                        onPress={() => setTypeDayKey(d.key)}
+                      />
+                    </>
+                  );
+                },
               }}
             />
           </View>

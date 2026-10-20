@@ -189,6 +189,8 @@ export default function RootLayout() {
                     <Stack.Screen name="trainer/invite" />
                     <Stack.Screen name="trainer/[clientId]/index" />
                     <Stack.Screen name="trainer/[clientId]/routine" />
+                    {/* Trainer mode M2 (trainer-mode.md §6.6): a workout template; `new` makes one. */}
+                    <Stack.Screen name="trainer/templates/[id]" />
                     <Stack.Screen name="coaching/index" />
                     {/* PRD 2026-10 §4.1: Find a trainer and a trainer's card ("Ask to coach me"). */}
                     <Stack.Screen name="coaching/find" />

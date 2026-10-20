@@ -93,6 +93,18 @@ const dashboard = vi.hoisted(() => ({
 vi.mock('../../application/coaching/trainer-dashboard.service.js', () => ({
   trainerDashboardService: dashboard,
 }));
+const templates = vi.hoisted(() => ({
+  list: vi.fn(async () => 'list'),
+  get: vi.fn(async () => 'get'),
+  create: vi.fn(async () => 'create'),
+  save: vi.fn(async () => 'save'),
+  delete: vi.fn(async () => 'delete'),
+  assign: vi.fn(async () => 'assign'),
+  updateClients: vi.fn(async () => 'updateClients'),
+}));
+vi.mock('../../application/coaching/workout-template.service.js', () => ({
+  workoutTemplateService: templates,
+}));
 vi.mock('../../application/coaching/coaching-invite.service.js', () => ({
   coachingInviteService: { list: vi.fn(), create: vi.fn(), revoke: vi.fn() },
 }));
@@ -336,4 +348,90 @@ it('trainer.dashboard.summary rejects a malformed date before the service', asyn
     code: 'BAD_REQUEST',
   });
   expect(dashboard.summary).not.toHaveBeenCalled();
+});
+
+// Trainer mode M2 (trainer-mode.md §9): trainer.templates.* are the trainer's own
+// documents. Clients named in assign / updateClients are checked per client by
+// the service (a per-client result), so the router only needs an active trainer.
+const templateDoc = {
+  name: 'Lower body A',
+  workoutType: null,
+  exercises: [
+    {
+      exerciseId: 'squat',
+      sets: 3,
+      repMin: 6,
+      repMax: 8,
+      targetRir: 2,
+      restSec: 120,
+      supersetGroup: null,
+      defaultLoadKg: 60,
+      trainerNote: null,
+    },
+  ],
+};
+describe.each([
+  ['list', () => caller().templates.list(), [ME]],
+  ['get', () => caller().templates.get({ templateId: 't1' }), [ME, 't1']],
+  ['create', () => caller().templates.create(templateDoc), [ME, templateDoc]],
+  [
+    'save',
+    () => caller().templates.save({ templateId: 't1', template: templateDoc, expectedVersion: 1 }),
+    [ME, { templateId: 't1', template: templateDoc, expectedVersion: 1 }],
+  ],
+  ['delete', () => caller().templates.delete({ templateId: 't1' }), [ME, 't1']],
+  [
+    'assign',
+    () =>
+      caller().templates.assign({
+        templateId: 't1',
+        targets: [{ clientId: CLIENT, mode: 'ADD_DAY' }],
+      }),
+    [ME, { templateId: 't1', targets: [{ clientId: CLIENT, mode: 'ADD_DAY' }] }],
+  ],
+  [
+    'updateClients',
+    () => caller().templates.updateClients({ templateId: 't1', clientIds: [CLIENT] }),
+    [ME, { templateId: 't1', clientIds: [CLIENT] }],
+  ],
+] as const)('trainer.templates.%s', (name, call, args) => {
+  const reaches = () => templates[name];
+
+  it('an active trainer reaches the service with their own id', async () => {
+    await expect(call()).resolves.toBe(name);
+    expect(reaches()).toHaveBeenCalledWith(...args);
+  });
+
+  it('coaching off: NOT_FOUND; trainer tools off: FORBIDDEN TRAINER_TOOLS_OFF', async () => {
+    world.flag = false;
+    await expect(call()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    world.flag = true;
+    world.trainerOn = false;
+    await expect(call()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: COACHING_COPY.server.trainerToolsOff,
+    });
+    expect(reaches()).not.toHaveBeenCalled();
+  });
+});
+
+describe('trainer.templates input limits', () => {
+  it('more than 20 exercises is a BAD_REQUEST before the service', async () => {
+    const big = {
+      ...templateDoc,
+      exercises: Array.from({ length: 21 }, () => templateDoc.exercises[0]!),
+    };
+    await expect(caller().templates.create(big)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(templates.create).not.toHaveBeenCalled();
+  });
+
+  it('REPLACE_DAY without a day is a BAD_REQUEST before the service', async () => {
+    await expect(
+      caller().templates.assign({
+        templateId: 't1',
+        targets: [{ clientId: CLIENT, mode: 'REPLACE_DAY' }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(templates.assign).not.toHaveBeenCalled();
+  });
 });

@@ -1,4 +1,4 @@
-import type { RoutineDto } from '@chefer/types';
+import type { RoutineDto, WorkoutTemplateDto } from '@chefer/types';
 
 // ─── Structured CONFLICT payloads ─────────────────────────────────────────────
 // A TRPCError's `cause` never reaches the client, so conflicts that clients
@@ -7,7 +7,10 @@ import type { RoutineDto } from '@chefer/types';
 // errorFormatter (lib/trpc.ts) copies to `error.data.conflict`. Everything
 // else gets `data.conflict: null`. Additive: new kinds extend the union.
 
-export type ConflictPayload = { kind: 'routine'; current: RoutineDto };
+export type ConflictPayload =
+  | { kind: 'routine'; current: RoutineDto }
+  /** `trainer.templates.save` (trainer mode M2): the template as stored now. */
+  | { kind: 'template'; current: WorkoutTemplateDto };
 
 export class ConflictCause extends Error {
   constructor(readonly payload: ConflictPayload) {

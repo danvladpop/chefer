@@ -30,7 +30,13 @@ import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
 import { WorkoutTypeSheet } from '@/features/gym/shared/workout-type-sheet';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, COACHING_LIMITS, editorLabel, type RoutineDto } from '@chefer/types';
+import {
+  COACHING_COPY,
+  COACHING_LIMITS,
+  editorLabel,
+  TEMPLATE_COPY,
+  type RoutineDto,
+} from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { supersetSlot, userFacingErrorMessage, type ExerciseLookup } from '@chefer/utils';
 import { draftFromOwnRoutine } from '../fill-from-mine';
@@ -142,7 +148,8 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
       refresh();
     },
     onError: (err) => {
-      if (err.data?.conflict) setConflictCurrent(err.data.conflict.current);
+      // A routine save only ever conflicts on the routine (templates have their own kind).
+      if (err.data?.conflict?.kind === 'routine') setConflictCurrent(err.data.conflict.current);
       else setSaveError(userFacingErrorMessage(err));
     },
   });
@@ -273,14 +280,30 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
     />
   );
 
-  const renderDayExtra = (day: DraftDay) => (
-    <DayWorkoutTypeRow
-      day={day}
-      clientName={firstName}
-      onEdit={() => setTypeDayKey(day.key)}
-      onClear={() => dispatch({ type: 'set_day_workout_type', dayKey: day.key, workoutType: null })}
-    />
-  );
+  const renderDayExtra = (day: DraftDay) => {
+    // Trainer mode M2: a day copied from one of the trainer's templates (plain text, even once deleted).
+    const basedOn = day.id ? routine.days.find((d) => d.id === day.id)?.template : null;
+    return (
+      <div className="flex min-w-0 flex-col gap-2">
+        {basedOn && (
+          <p
+            className="min-w-0 break-words text-xs text-gray-500"
+            data-testid="trainer-day-based-on"
+          >
+            {TEMPLATE_COPY.basedOn(basedOn.name)}
+          </p>
+        )}
+        <DayWorkoutTypeRow
+          day={day}
+          clientName={firstName}
+          onEdit={() => setTypeDayKey(day.key)}
+          onClear={() =>
+            dispatch({ type: 'set_day_workout_type', dayKey: day.key, workoutType: null })
+          }
+        />
+      </div>
+    );
+  };
   const typeDay = draft.days.find((d) => d.key === typeDayKey) ?? null;
 
   const adjustTarget: OverrideTargetSheetTarget | null = adjusting

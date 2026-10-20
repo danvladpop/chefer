@@ -4,11 +4,13 @@ import {
   coachingNoteRepository,
   coachingRequestRepository,
   trainerProfileRepository,
+  workoutTemplateRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
   type ICoachingNoteRepository,
   type ICoachingRequestRepository,
   type ITrainerProfileRepository,
+  type IWorkoutTemplateRepository,
 } from '@chefer/database';
 import { COACHING_RETENTION, LEGAL_VERSIONS } from '@chefer/types';
 import { trainerProfileService } from '../application/coaching/trainer-profile.service.js';
@@ -24,12 +26,17 @@ import { logger } from '../lib/logger.js';
 //   4. expire coaching requests past their 14 days (withdrawn consent events);
 //   5. delete answered / cancelled / expired requests after `requestAfterAnswerDays` (30);
 //   6. the allowlist sweep: a trainer no longer on TRAINER_ALLOWLIST stops being
-//      a trainer (PRD 2026-10 §4.3; also enforced lazily on their next request).
+//      a trainer (PRD 2026-10 §4.3; also enforced lazily on their next request);
+//   7. hard-delete workout templates soft-deleted more than
+//      `TEMPLATE_SOFT_DELETE_DAYS` (30) ago (trainer-mode.md §10). Clients'
+//      copies keep their stored template name, so nothing else changes.
 // Every step is idempotent; the "done today" marker is only set when all steps
 // succeeded, so a failed step retries on the next tick.
 
 const TICK_INTERVAL_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Trainer mode §10: a deleted template is purged this many days later. */
+export const TEMPLATE_SOFT_DELETE_DAYS = COACHING_RETENTION.templateSoftDeleteDays;
 
 function daysBefore(now: Date, days: number): Date {
   return new Date(now.getTime() - days * DAY_MS);
@@ -48,6 +55,7 @@ export interface CoachingMaintenanceDeps {
   links: Pick<ICoachingLinkRepository, 'deleteEndedBefore'>;
   requests: Pick<ICoachingRequestRepository, 'expireDue' | 'deleteAnsweredBefore'>;
   trainers: Pick<ITrainerProfileRepository, 'listActiveWithEmail'>;
+  templates: Pick<IWorkoutTemplateRepository, 'purgeDeletedBefore'>;
   /** TrainerProfileService.enforceAllowlist: true when it turned trainer tools off. */
   enforceAllowlist: (user: { id: string; email: string }) => Promise<boolean>;
 }
@@ -58,6 +66,7 @@ const defaultDeps: CoachingMaintenanceDeps = {
   links: coachingLinkRepository,
   requests: coachingRequestRepository,
   trainers: trainerProfileRepository,
+  templates: workoutTemplateRepository,
   enforceAllowlist: (user) => trainerProfileService.enforceAllowlist(user),
 };
 
@@ -68,6 +77,7 @@ export interface CoachingHousekeepingResult {
   expiredRequests: number;
   prunedRequests: number;
   trainersRemoved: number;
+  prunedTemplates: number;
 }
 
 export class CoachingMaintenanceWorker {
@@ -117,6 +127,7 @@ export class CoachingMaintenanceWorker {
       expiredRequests: 0,
       prunedRequests: 0,
       trainersRemoved: 0,
+      prunedTemplates: 0,
     };
     let failed = false;
     const step = async (name: string, run: () => Promise<void>): Promise<void> => {
@@ -162,6 +173,12 @@ export class CoachingMaintenanceWorker {
           result.trainersRemoved += 1;
         }
       }
+    });
+
+    await step('prune deleted templates', async () => {
+      result.prunedTemplates = await this.deps.templates.purgeDeletedBefore(
+        daysBefore(now, TEMPLATE_SOFT_DELETE_DAYS),
+      );
     });
 
     if (!failed) this.lastDay = day;

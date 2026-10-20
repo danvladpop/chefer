@@ -102,7 +102,7 @@ export default function RoutineEditPage() {
       setConflictCurrent(null);
     },
     onError: (err) => {
-      if (err.data?.conflict) {
+      if (err.data?.conflict?.kind === 'routine') {
         setConflictCurrent(err.data.conflict.current);
       } else {
         // UX-GYM-22: never the raw server text (Zod JSON, transport errors).

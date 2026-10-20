@@ -81,6 +81,8 @@ export const COACHING_RETENTION = {
   inviteAfterExpiryDays: 30,
   /** Answered, cancelled and expired coaching requests are deleted this many days later. */
   requestAfterAnswerDays: 30,
+  /** Trainer mode §10: a deleted (hidden) template is purged this many days later. Clients' copies stay. */
+  templateSoftDeleteDays: 30,
   /**
    * Q-7: whether a client's data export includes the trainer's private notes
    * about them. Default false: the trainer is an independent controller of the

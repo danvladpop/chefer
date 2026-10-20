@@ -141,7 +141,7 @@ describe('TrainerToday', () => {
     const empty = screen.getByTestId('trainer-today-empty');
     expect(within(empty).getByRole('link', { name: 'Build a template' })).toHaveAttribute(
       'href',
-      '/trainer/workouts',
+      '/trainer/workouts/new',
     );
     // Bookings arrive in M3: no "Add a booking" until then (mobile alike).
     expect(within(empty).queryByRole('link', { name: 'Add a booking' })).toBeNull();

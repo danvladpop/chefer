@@ -10,7 +10,8 @@ import { localDateSchema } from '../gym/schemas';
 /** Spec §8.5. Change here only. */
 export const TRAINER_MODE_LIMITS = {
   templatesPerTrainer: 200,
-  exercisesPerTemplate: 30,
+  /** Spec §6.6 says 30; a routine day holds at most 20 (the routine doc schema), and a template is copied into one. */
+  exercisesPerTemplate: 20,
   templateNameMaxChars: 40,
   clientsPerBooking: 6,
   /** A weekly repeat runs 12 weeks unless the trainer picks an end date. */
@@ -156,7 +157,5 @@ export const TRAINER_MODE_COPY = {
   comingSoon: {
     scheduleTitle: 'Your calendar is on its way',
     scheduleBody: 'Bookings and blocked time arrive in a coming update.',
-    workoutsTitle: 'Templates are on their way',
-    workoutsBody: 'Build a workout once, give it to any client — in a coming update.',
   },
 } as const;

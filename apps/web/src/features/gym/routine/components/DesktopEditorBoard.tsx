@@ -22,10 +22,11 @@ import {
 } from '@dnd-kit/sortable';
 import { GripVertical, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
-import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
+import { cn, isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftDay, DraftExercise, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
+import type { EditorRole } from './PhoneEditorList';
 import { SupersetHeading } from './SupersetHeading';
 
 export interface DesktopEditorBoardProps {
@@ -42,6 +43,10 @@ export interface DesktopEditorBoardProps {
   renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
   /** Trainer coaching seam: a block under each day's header (the day's workout type). */
   renderDayExtra?: (day: DraftDay) => ReactNode;
+  /** `template` (trainer mode M2): one wide column, no day header, day drag or "Add day". */
+  role?: EditorRole;
+  /** A day holds at most this many exercises: "Add exercise" turns off at the limit. */
+  exerciseLimit?: number;
 }
 
 /** The subset of dnd-kit's internal Transform shape useSortable() gives us. */
@@ -82,7 +87,10 @@ export function DesktopEditorBoard({
   renderAttribution,
   renderExtra,
   renderDayExtra,
+  role = 'routine',
+  exerciseLimit,
 }: DesktopEditorBoardProps) {
+  const isTemplate = role === 'template';
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -179,19 +187,23 @@ export function DesktopEditorBoard({
               onOpenPicker={onOpenPicker}
               onOpenSuperset={onOpenSuperset}
               onSwap={onSwap}
+              isTemplate={isTemplate}
+              {...(exerciseLimit !== undefined ? { exerciseLimit } : {})}
               {...(renderAttribution ? { renderAttribution } : {})}
               {...(renderExtra ? { renderExtra } : {})}
               {...(renderDayExtra ? { renderDayExtra } : {})}
             />
           ))}
-          <button
-            type="button"
-            onClick={onAddDay}
-            className="flex h-24 w-48 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-gray-300 text-sm font-medium text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
-          >
-            <Plus className="h-5 w-5" />
-            Add day
-          </button>
+          {!isTemplate && (
+            <button
+              type="button"
+              onClick={onAddDay}
+              className="flex h-24 w-48 shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-gray-300 text-sm font-medium text-gray-400 transition-colors hover:border-gray-400 hover:text-gray-600"
+            >
+              <Plus className="h-5 w-5" />
+              Add day
+            </button>
+          )}
         </div>
       </SortableContext>
 
@@ -225,6 +237,8 @@ interface DayColumnProps {
   renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
   /** Trainer coaching seam: a block under each day's header (the day's workout type). */
   renderDayExtra?: (day: DraftDay) => ReactNode;
+  isTemplate: boolean;
+  exerciseLimit?: number;
 }
 
 function DayColumn({
@@ -238,6 +252,8 @@ function DayColumn({
   renderAttribution,
   renderExtra,
   renderDayExtra,
+  isTemplate,
+  exerciseLimit,
 }: DayColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: day.key,
@@ -252,31 +268,36 @@ function DayColumn({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-3"
+      className={cn(
+        'flex shrink-0 flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-3',
+        isTemplate ? 'w-full max-w-3xl' : 'w-72',
+      )}
       data-testid="routine-editor-day"
     >
-      <DayHeaderFields
-        name={day.name}
-        plannedWeekday={day.plannedWeekday}
-        onRename={(name) => dispatch({ type: 'rename_day', dayKey: day.key, name })}
-        onWeekdayChange={(weekday) =>
-          dispatch({ type: 'set_day_weekday', dayKey: day.key, weekday })
-        }
-        onDuplicate={() => dispatch({ type: 'duplicate_day', dayKey: day.key })}
-        onDelete={() => dispatch({ type: 'delete_day', dayKey: day.key })}
-        canDelete={canDelete}
-        leading={
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            aria-label="Drag to reorder this day"
-            className="flex h-9 w-6 shrink-0 cursor-grab touch-none items-center justify-center text-gray-400 hover:text-gray-600 active:cursor-grabbing"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-        }
-      />
+      {!isTemplate && (
+        <DayHeaderFields
+          name={day.name}
+          plannedWeekday={day.plannedWeekday}
+          onRename={(name) => dispatch({ type: 'rename_day', dayKey: day.key, name })}
+          onWeekdayChange={(weekday) =>
+            dispatch({ type: 'set_day_weekday', dayKey: day.key, weekday })
+          }
+          onDuplicate={() => dispatch({ type: 'duplicate_day', dayKey: day.key })}
+          onDelete={() => dispatch({ type: 'delete_day', dayKey: day.key })}
+          canDelete={canDelete}
+          leading={
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              aria-label="Drag to reorder this day"
+              className="flex h-9 w-6 shrink-0 cursor-grab touch-none items-center justify-center text-gray-400 hover:text-gray-600 active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          }
+        />
+      )}
       {renderDayExtra?.(day)}
 
       <SortableContext
@@ -326,6 +347,7 @@ function DayColumn({
           variant="outline"
           size="sm"
           className="min-h-11 min-w-0 whitespace-nowrap"
+          disabled={exerciseLimit !== undefined && day.exercises.length >= exerciseLimit}
           onClick={() => onOpenPicker(day.key)}
         >
           <Plus className="h-4 w-4 shrink-0" /> Add exercise

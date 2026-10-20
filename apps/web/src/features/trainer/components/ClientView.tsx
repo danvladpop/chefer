@@ -1,5 +1,7 @@
 'use client';
 
+import { useOptionalAppMode } from '@/features/nav/mode-context';
+import { AssignFromClientButton } from '@/features/trainer-templates/components/AssignFromClientButton';
 import { COACHING_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -14,6 +16,8 @@ import { WorkoutsTab } from './WorkoutsTab';
 /** /trainer/[clientId]: Workouts or Adherence, with the private notes beside (xl) or below. */
 export function ClientView({ clientId, tab }: { clientId: string; tab: 'workouts' | 'adherence' }) {
   const overview = useClientOverview(clientId);
+  // Templates live in trainer mode: without it (flag off) the header is unchanged.
+  const trainerMode = useOptionalAppMode()?.trainerModeAvailable ?? false;
 
   if (overview.isError && isClientUnavailable(overview.error)) return <ClientUnavailable />;
   if (overview.isError) {
@@ -53,6 +57,7 @@ export function ClientView({ clientId, tab }: { clientId: string; tab: 'workouts
         name={name}
         active={tab}
         keepItSimple={overview.data.client.keepItSimple}
+        actions={trainerMode ? <AssignFromClientButton clientId={clientId} /> : undefined}
       />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="min-w-0">

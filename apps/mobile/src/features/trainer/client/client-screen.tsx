@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type CoachedExerciseDto } from '@chefer/types';
+import { COACHING_COPY, TEMPLATE_COPY, type CoachedExerciseDto } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -17,6 +17,8 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
+import { AssignTemplateSheet } from '../../trainer-mode/templates/assign-sheet';
+import { useTrainerModeAvailability } from '../../trainer-mode/use-trainer-mode';
 import { CoachingCard } from '../components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { AdherenceTab } from './adherence-tab';
@@ -32,6 +34,8 @@ import { WorkoutsTab } from './workouts-tab';
 // available"), which this screen shows instead of an error.
 // PRD 2026-10 §4.3: a client who trains in "Keep it simple" gets a badge in the header and a line saying
 // only they can change it. There is deliberately no control here to change a client's training style.
+// Trainer mode M2 (trainer-mode.md §6.5): "Assign a template" opens the assign sheet with this client
+// ticked — only while trainer mode is available (flag off: this screen is unchanged).
 
 type Tab = 'workouts' | 'adherence' | 'notes';
 
@@ -44,6 +48,8 @@ export function ClientScreen({ clientId }: { clientId: string }) {
   const [tab, setTab] = useState<Tab>('workouts');
   const [history, setHistory] = useState<{ exerciseId: string; name: string } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const trainerMode = useTrainerModeAvailability();
   const overview = trpc.trainer.client.overview.useQuery({ clientId, today: localDate() });
   const remove = trpc.trainer.clients.remove.useMutation({
     meta: { silent: true },
@@ -114,6 +120,15 @@ export function ClientScreen({ clientId }: { clientId: string }) {
           >
             Edit routine
           </Button>
+          {trainerMode ? (
+            <Button
+              testID="trainer-client-assign-template"
+              variant="outline"
+              onPress={() => setAssignOpen(true)}
+            >
+              {TEMPLATE_COPY.assign.fromClient}
+            </Button>
+          ) : null}
         </CoachingCard>
 
         <SegmentedControl<Tab>
@@ -171,6 +186,14 @@ export function ClientScreen({ clientId }: { clientId: string }) {
         exercise={history}
         onClose={() => setHistory(null)}
       />
+      {trainerMode ? (
+        <AssignTemplateSheet
+          testID="trainer-client-assign-sheet"
+          visible={assignOpen}
+          onClose={() => setAssignOpen(false)}
+          preselectedClientId={clientId}
+        />
+      ) : null}
       <ConfirmSheet
         testID="trainer-client-remove-confirm"
         visible={removeOpen}

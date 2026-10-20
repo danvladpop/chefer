@@ -44,6 +44,8 @@ export const APP_ROUTES = [
   '/trainer/settings',
   '/trainer/schedule',
   '/trainer/workouts',
+  // M2: a new template renders its empty editor without any data.
+  '/trainer/workouts/new',
   '/coaching/join/ZZZZZZZZZZ',
   // Find a trainer (PRD 2026-10 §4.1): the search page, and a trainer id that
   // does not exist (the uniform "This trainer isn't available" state).

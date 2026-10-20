@@ -215,6 +215,11 @@ function fullRoutine(): FriendRoutineRow {
         name: 'Pull',
         plannedWeekday: null,
         workoutType: null,
+        templateId: null,
+        templateVersion: null,
+        templateAssignedAt: null,
+        templateName: null,
+        editedSinceTemplate: false,
         exercises: [re('custom-row', 0, ExerciseTrackingType.WEIGHT_REPS)],
       },
       {
@@ -224,6 +229,11 @@ function fullRoutine(): FriendRoutineRow {
         name: 'Push',
         plannedWeekday: 0,
         workoutType: null,
+        templateId: null,
+        templateVersion: null,
+        templateAssignedAt: null,
+        templateName: null,
+        editedSinceTemplate: false,
         exercises: [
           re('bench-press', 1, ExerciseTrackingType.WEIGHT_REPS),
           re('rowing', 0, ExerciseTrackingType.DURATION_DISTANCE),

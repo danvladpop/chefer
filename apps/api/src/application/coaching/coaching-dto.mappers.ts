@@ -3,7 +3,9 @@ import type {
   CoachingInvite,
   CoachingLink,
   Exercise,
+  RoutineDayWithExercises,
   RoutineWithDays,
+  TemplateNameRow,
 } from '@chefer/database';
 import {
   FALLBACK_TRAINER_NAME,
@@ -15,6 +17,7 @@ import {
   type InviteState,
   type LastEditedByOtherDto,
   type NextTargetDto,
+  type RoutineDayTemplateRefDto,
   type RoutineDto,
   type TrainerRoutineDto,
 } from '@chefer/types';
@@ -170,6 +173,34 @@ export interface TrainerRoutineInput {
   exercises: readonly Exercise[];
   /** Next-session panel data per routine-exercise id; absent = a row without one (cardio, timed). */
   next: ReadonlyMap<string, NextTargetDto>;
+  /** Trainer mode M2: the templates the days were copied from (deleted ones included); absent = none known. */
+  templates?: ReadonlyMap<string, TemplateNameRow> | undefined;
+}
+
+/**
+ * "Based on Lower body A" (trainer-mode.md §6.6): the template's name now, or
+ * the name stored on the day once the template is deleted (or purged).
+ */
+export function toTemplateRef(
+  day: Pick<RoutineDayWithExercises, 'templateId' | 'templateName' | 'templateVersion'>,
+  templates: ReadonlyMap<string, TemplateNameRow> | undefined,
+): RoutineDayTemplateRefDto | null {
+  if (!day.templateId) return null;
+  const live = templates?.get(day.templateId);
+  if (live?.deletedAt === null) {
+    return {
+      templateId: day.templateId,
+      name: live.name,
+      version: day.templateVersion ?? 1,
+      deleted: false,
+    };
+  }
+  return {
+    templateId: day.templateId,
+    name: day.templateName ?? live?.name ?? '',
+    version: day.templateVersion ?? 1,
+    deleted: true,
+  };
 }
 
 /** Stamp of a change by the CLIENT after the link started (the trainer's own saves are never "other"). */
@@ -202,6 +233,7 @@ export function toTrainerRoutineDto(input: TrainerRoutineInput): TrainerRoutineD
       name: d.name,
       plannedWeekday: d.plannedWeekday,
       workoutType: d.workoutType,
+      template: toTemplateRef(d, input.templates),
       exercises: d.exercises.map((e) => ({
         id: e.id,
         exerciseId: e.exerciseId,
