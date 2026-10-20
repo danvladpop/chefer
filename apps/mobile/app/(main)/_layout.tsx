@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Redirect, Tabs, usePathname } from 'expo-router';
-import { countPillText, haptics, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
+import { countPillText, haptics, useThemeColors } from '@chefer/ui-mobile';
 import { Icon, type IconName } from '../../src/components/icon';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
@@ -41,7 +41,6 @@ export default function MainTabsLayout() {
   const shellV2 = useShellV2();
   const pathname = usePathname();
   const colors = useThemeColors();
-  const reducedMotion = useReducedMotion();
   useSyncLandingCache();
   // Same in-app Following badge the old More tabs carried, now on You — plus,
   // for an active trainer, what waits in trainer mode (trainer-mode.md §7.1).
@@ -63,12 +62,14 @@ export default function MainTabsLayout() {
       <Tabs
         initialRouteName="home"
         backBehavior="initialRoute"
-        // Premium motion #9: a selection haptic on every tab press and a short
-        // crossfade between tabs (none under reduced motion).
+        // A selection haptic on every tab press; tab switches are instant (MO-09:
+        // "tab switches are instant"). The bottom tabs' `fade` left a revisited tab
+        // blank now and then on iOS (Clients → Today in the trainer shell), so
+        // neither shell uses it.
         screenListeners={{ tabPress: () => haptics.selection() }}
         screenOptions={{
           headerShown: false,
-          animation: reducedMotion ? 'none' : 'fade',
+          animation: 'none',
           tabBarActiveTintColor: colors.brand,
           tabBarInactiveTintColor: colors.labelSecondary,
           tabBarStyle: { backgroundColor: colors.surfaceRaised, borderTopColor: colors.separator },
