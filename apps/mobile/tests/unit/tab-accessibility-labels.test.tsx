@@ -1,5 +1,6 @@
 import { Platform, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
+import { haptics } from '@chefer/ui-mobile';
 import FoodTabsLayout from '../../app/(food)/_layout';
 import GymTabsLayout from '../../app/(gym)/_layout';
 import MainTabsLayout from '../../app/(main)/_layout';
@@ -165,6 +166,21 @@ describe('new shell tab order', () => {
       initialRouteName: 'home',
       backBehavior: 'initialRoute',
     });
+  });
+
+  // MO-09: tab switches are instant. The bottom tabs' `fade` left a revisited
+  // tab blank now and then on iOS (the whole scene invisible until another tab
+  // press), so the bar keeps only the selection haptic.
+  it('switches tabs instantly, with a selection haptic on every press', async () => {
+    const selection = jest.spyOn(haptics, 'selection').mockImplementation(() => undefined);
+    await render(<MainTabsLayout />);
+    const props = mockTabsProps[0] as {
+      screenOptions: { animation?: string };
+      screenListeners: { tabPress: () => void };
+    };
+    expect(props.screenOptions.animation).toBe('none');
+    props.screenListeners.tabPress();
+    expect(selection).toHaveBeenCalledTimes(1);
   });
 });
 
