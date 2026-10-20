@@ -124,6 +124,12 @@ These come from `CLAUDE.md`, and the WP docs assume them.
 | Mobile end-to-end flow worth guarding                                      | `apps/mobile/e2e/*.flow.yaml` (Maestro, local only)                                             |
 | Web UI                                                                     | Existing Vitest/RTL, plus Playwright where a flow changes                                       |
 
+**Tests that format or window dates must pin the clock** (`jest.useFakeTimers({ now })` /
+`vi.setSystemTime`, restored afterwards) **or build their fixtures relative to today.** A literal
+date such as `2026-10-20` passes for weeks and then turns master CI red on a calendar day (a date
+that renders as "Today", a fixture that slides out of the 1M window, a year that changes the label),
+and a red CI blocks every deploy. Check by running the file with the clock shifted past the date.
+
 ## 5. Verification ladder (orchestrator, on the integrated branch)
 
 Run every level. **Never mark a level passed that you could not run.** Say so in the PR instead.

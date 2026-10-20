@@ -1,6 +1,6 @@
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { PersonalRecord, SessionSummaryDto, WeekSummary } from '@chefer/types';
-import { addDaysLocal } from '@chefer/utils';
+import { addDaysLocal, weekStartOf } from '@chefer/utils';
 import ProgressScreen from '../../app/progress';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
@@ -48,6 +48,7 @@ jest.mock('../../src/features/privacy/use-health-consent', () => ({
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
 const TODAY = localDate();
+const THIS_WEEK_START = weekStartOf(TODAY);
 
 function monthly(days: number, logged: number[]) {
   return {
@@ -154,15 +155,12 @@ const week = (weekStart: string, status: WeekSummary['status'], sessions = 3): W
 const GYM = makeBootstrap({
   recentSessions: [session('s3', 2, 70), session('s2', 9, 65), session('s1', 40, 60)],
   streak: { current: 7, best: 7, flexTokens: 1, thisWeekSessions: 2, thisWeekGoal: 4 },
+  // Relative to today: a fixed run of weeks falls out of the 1M window as the calendar moves on.
   weeks: [
-    week('2026-08-17', 'met'),
-    week('2026-08-24', 'met'),
-    week('2026-08-31', 'flex'),
-    week('2026-09-07', 'met'),
-    week('2026-09-14', 'met'),
-    week('2026-09-21', 'met'),
-    week('2026-09-28', 'met'),
-    week('2026-10-05', 'current', 2),
+    ...(['met', 'met', 'flex', 'met', 'met', 'met', 'met'] as const).map((status, i) =>
+      week(addDaysLocal(THIS_WEEK_START, (i - 7) * 7), status),
+    ),
+    week(THIS_WEEK_START, 'current', 2),
   ],
 });
 
