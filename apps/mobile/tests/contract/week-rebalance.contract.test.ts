@@ -266,9 +266,11 @@ describe('old clients (no rebalanceMode) keep today’s behaviour', () => {
       expect(first.previousRecipeId.length).toBeGreaterThan(0);
       expect(first.newRecipeId.length).toBeGreaterThan(0);
     } else if (out.rebalance === null) {
-      // Logged on the server's today (every Monday, MONDAY is today): the day fit
-      // absorbs a small log, and only a big miss goes on to the week rebalance.
-      expect(MONDAY).toBe(localDateStr(new Date()));
+      // The server treats a date within a day of its own as the client's today
+      // (clientToday): on a Monday or a Tuesday, MONDAY is "today", the day fit
+      // absorbs a small log and only a big miss goes on to the week rebalance.
+      // The response then carries that day fit.
+      expect((out as { dayFit?: unknown }).dayFit).toBeTruthy();
     } else {
       expect(out.rebalance).toMatchObject({ rebalanced: false, swaps: [] });
     }
