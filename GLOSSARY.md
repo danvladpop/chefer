@@ -98,3 +98,33 @@ _Avoid_: Code, referral
 **Coaching request**:
 A client's ask to be coached, which the trainer accepts or declines.
 _Avoid_: Application, follow request
+
+## Trainer mode
+
+**Personal mode**:
+Chefer as it is for anyone: your own food and training.
+_Avoid_: Private mode, client mode
+
+**Trainer mode**:
+The second app shell for coaching (Schedule · Clients · Today · Workouts · You), available to active trainers. The mode is remembered per device, not per account.
+_Avoid_: Coach mode, pro mode
+
+**Template**:
+A reusable workout a trainer builds once and assigns to clients. Assigning makes a copy that is the client's own.
+_Avoid_: Program, plan, master workout
+
+**Booking**:
+A time slot in a trainer's calendar with one or more clients.
+_Avoid_: Session, appointment, class
+
+**Blocked time**:
+A time slot in a trainer's calendar with no client (a break, the trainer's own training, unavailable).
+_Avoid_: Busy event
+
+**Coached workout**:
+A workout the trainer logged on the client's behalf ("Logged by Ana"). It belongs to the client.
+_Avoid_: Trainer session
+
+**Session delivered**:
+A booking the trainer marked attended for a given client. It is the unit trainers bill by.
+_Avoid_: Credit, paid session

@@ -25,6 +25,7 @@ import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
 import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
+import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -131,6 +132,10 @@ export default function RootLayout() {
                     {/* Mobile UX revamp: the one-tab-bar shell (`mobileShellV2`)
                     and the old Gym/Cookbook tabs, pushed from it. */}
                     <Stack.Screen name="(main)" />
+                    {/* Trainer mode (docs/prd-2026-10/trainer-mode.md §5.2): the second
+                    shell, for active trainers with `trainerMode`; the switch on You
+                    replaces it with (main) and back (ShellCrossfade). */}
+                    <Stack.Screen name="(trainer)" />
                     <Stack.Screen name="training/routine" />
                     <Stack.Screen name="training/exercises" />
                     <Stack.Screen name="training/stats" />
@@ -210,6 +215,8 @@ export default function RootLayout() {
             <ForegroundLandingHost signedIn={token !== null} />
             {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}
             <ShellFlagHost signedIn={token !== null} />
+            {/* Trainer mode §5.1: caches "available" for the next cold start, falls back to personal. */}
+            <TrainerModeHost signedIn={token !== null} />
             {/* M1-6: crash reports carry the account id (not name/email). */}
             <CrashReportingUserHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useTrainerClientsHref } from '@/features/nav/mode-context';
 import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
 import { COACHING_COPY } from '@chefer/types';
@@ -18,6 +19,7 @@ export function RemoveClientButton({
 }) {
   const copy = COACHING_COPY.trainer;
   const router = useRouter();
+  const clientsHref = useTrainerClientsHref();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const remove = trpc.trainer.clients.remove.useMutation({
@@ -25,7 +27,7 @@ export function RemoveClientButton({
     onSuccess: () => {
       setOpen(false);
       void utils.trainer.clients.list.invalidate();
-      router.push('/trainer');
+      router.push(clientsHref);
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
   });

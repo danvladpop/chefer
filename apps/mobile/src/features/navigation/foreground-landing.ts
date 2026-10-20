@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { router, useSegments } from 'expo-router';
+import type { AppShellMode } from '@chefer/types';
 import type { LandingSurface } from '@chefer/utils';
+import { landingShellModeSync } from '../trainer-mode/mode-store';
 import { landingSurfaceSync } from './use-landing';
 
 // ─── Foreground re-landing (UX-PO-10, T-04.3) ───────────────────────────────────
@@ -13,6 +15,9 @@ import { landingSurfaceSync } from './use-landing';
 // workout, a recipe, an onboarding step, a deep link or notification target) is
 // an in-flight flow and is never yanked. Within the right surface it does
 // nothing: it picks Food vs Gym, it does not shuffle tabs.
+// Trainer mode (trainer-mode.md §5.1) is never left this way: the (trainer)
+// tabs are no Food/Gym surface, and a device in trainer mode stays put even
+// if a personal tab root somehow has focus — switching modes is the user's.
 
 export const RELAND_AFTER_MS = 30 * 60 * 1000;
 
@@ -31,7 +36,9 @@ export type RelandHref = '/(food)' | '/today';
 export function relandTarget(
   segments: readonly string[],
   surface: LandingSurface,
+  shellMode: AppShellMode = 'personal',
 ): RelandHref | null {
+  if (shellMode === 'trainer') return null;
   const group = segments[0];
   if (group === '(food)' && surface === 'gym') return '/today';
   if (group === '(gym)' && surface === 'food') return '/(food)';
@@ -59,7 +66,11 @@ export function useForegroundRelanding(enabled: boolean): void {
       const left = backgroundedAt;
       backgroundedAt = null;
       if (!shouldReland(left, Date.now())) return;
-      const target = relandTarget(segmentsRef.current, landingSurfaceSync());
+      const target = relandTarget(
+        segmentsRef.current,
+        landingSurfaceSync(),
+        landingShellModeSync(),
+      );
       if (target) router.replace(target);
     });
     return () => subscription.remove();

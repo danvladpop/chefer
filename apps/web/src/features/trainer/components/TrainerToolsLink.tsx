@@ -1,14 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { useOptionalAppMode } from '@/features/nav/mode-context';
 import { ChevronRight, UsersRound } from 'lucide-react';
 import { COACHING_COPY } from '@chefer/types';
 import { useTrainerStatus } from '../use-trainer-status';
 
-/** Profile row → /trainer. Only for an account that may use (or already uses) trainer tools. */
+/**
+ * Profile row → /trainer. Only for an account that may use (or already uses)
+ * trainer tools, and gone once trainer mode replaces it (trainer-mode.md §6.9).
+ */
 export function TrainerToolsLink() {
   const { canBeTrainer, active, displayName } = useTrainerStatus();
-  if (!canBeTrainer && !active) return null;
+  const trainerModeAvailable = useOptionalAppMode()?.trainerModeAvailable ?? false;
+  if (trainerModeAvailable || (!canBeTrainer && !active)) return null;
   return (
     <Link
       href="/trainer"

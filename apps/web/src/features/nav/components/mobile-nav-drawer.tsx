@@ -11,6 +11,7 @@ import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
 import { ModeSwitch } from './mode-switch';
+import { modeSwapFade } from './nav-count-badge';
 
 // ─── Mobile navigation drawer ─────────────────────────────────────────────────
 // Holds the Food | Gym switch, the active mode's destinations that don't fit
@@ -23,7 +24,7 @@ interface MobileNavDrawerProps {
 
 export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
   const pathname = usePathname();
-  const { nav } = useAppMode();
+  const { mode, nav, trainerModeAvailable } = useAppMode();
 
   // Navigating from inside the drawer should dismiss it. Keyed on pathname so
   // it fires after the route actually changes, not on click.
@@ -62,7 +63,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
 
       {/* Secondary nav links */}
       <nav aria-label="More" className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
-        <ul className="space-y-0.5">
+        <ul key={mode} className={cn('space-y-0.5', modeSwapFade(trainerModeAvailable))}>
           {nav.secondary.map((item) => {
             const { href, label, icon: Icon } = item;
             const active = isItemActive(pathname, item);

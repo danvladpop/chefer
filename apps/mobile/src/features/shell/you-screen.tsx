@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import {
   CountPill,
@@ -8,24 +6,22 @@ import {
   ListSection,
   Screen,
   Stagger,
-  Text,
   useFirstEntrance,
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon, type IconName } from '../../components/icon';
 import { track } from '../../lib/analytics';
-import { getWebUrl } from '../../lib/api-url';
-import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { trpc } from '../../lib/trpc';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
-import { openLegal } from '../legal/open-legal';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
-import { useSignOut } from '../settings/use-sign-out';
+import { ModeSwitchSection } from '../trainer-mode/mode-switch-row';
+import { useTrainerBadges, useTrainerModeAvailability } from '../trainer-mode/use-trainer-mode';
 import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { ShellTopBar } from './shell-chrome';
 import { ShellPreviewSection } from './shell-preview-row';
 import { YouFeedbackRow } from './you/feedback-row';
+import { YouHelpSection, YouSignOutFooter } from './you/you-footer';
 
 // ─── You (plan: "You"; 10 Oct redesign board "You") ─────────────────────────
 // The old Food More and Gym More tabs, the header gear and the avatar, merged
@@ -35,6 +31,11 @@ import { YouFeedbackRow } from './you/feedback-row';
 // Google's account pages group: what you've done, how the app behaves, who
 // you share with, help. Every row is a push (Send feedback opens a sheet);
 // sign out is the one destructive row, at the bottom.
+// Trainer mode (trainer-mode.md §6.9): for an active trainer with the
+// `trainerMode` flag, the first row is "Switch to trainer mode" with the
+// trainer badge, and "Trainer tools" goes (trainer mode replaces it). A user
+// who may be a trainer but hasn't turned the tools on keeps "Trainer tools":
+// it leads to the turn-on screen.
 
 type Row = { title: string; subtitle?: string; href: Href; icon: IconName; testID: string };
 
@@ -87,11 +88,11 @@ export function YouScreen() {
   const colors = useThemeColors();
   // MO-03: the sections rise in on the first visit of the session only.
   const firstEntrance = useFirstEntrance('you');
-  const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
   // WP-18: "Your trainer" for everyone while coaching is on, "Trainer tools" for allowed trainers.
   const coaching = useCoachingAvailability();
-  const signOut = useSignOut('you-sign-out-confirm');
+  const trainerMode = useTrainerModeAvailability();
+  const trainerBadges = useTrainerBadges();
   // Same cached query (and staleTime) as Profile's household row.
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
   const household = householdSummary(members.map((m) => m.name));
@@ -112,6 +113,14 @@ export function YouScreen() {
       <KeyboardAwareScrollView testID="you-scroll" contentContainerClassName="gap-6 px-4 pb-8">
         <Stagger enabled={firstEntrance}>
           <ShellTopBar />
+
+          {trainerMode ? (
+            <ModeSwitchSection
+              to="trainer"
+              waiting={trainerBadges.total}
+              testID="you-switch-to-trainer"
+            />
+          ) : null}
 
           <TierRow />
 
@@ -151,7 +160,7 @@ export function YouScreen() {
                 onPress={() => router.push(YOUR_TRAINER_ITEM.href)}
               />
             ) : null}
-            {coaching.canBeTrainer ? (
+            {coaching.canBeTrainer && !trainerMode ? (
               <ListRow
                 testID="you-trainer-tools"
                 title={TRAINER_TOOLS_ITEM.label}
@@ -163,54 +172,9 @@ export function YouScreen() {
 
           <ShellPreviewSection footer="Admins and test builds only." />
 
-          <ListSection title="Help">
-            <YouFeedbackRow />
-            <ListRow
-              testID="you-support"
-              title="Support"
-              icon={<Icon name="help" color={colors.brand} />}
-              onPress={() => void Linking.openURL(getWebUrl('/support'))}
-            />
-            <ListRow
-              testID="you-terms"
-              title="Terms"
-              icon={<Icon name="legal" color={colors.brand} />}
-              onPress={() => openLegal('terms')}
-            />
-            <ListRow
-              testID="you-privacy"
-              title="Privacy"
-              icon={<Icon name="legal" color={colors.brand} />}
-              onPress={() => openLegal('privacy')}
-            />
-          </ListSection>
+          <YouHelpSection feedback={<YouFeedbackRow />} />
 
-          <ListSection>
-            <ListRow
-              testID="logout-button"
-              title={signOut.isPending ? 'Signing out…' : 'Sign out'}
-              icon={<Icon name="signOut" color={colors.danger} />}
-              destructive
-              disabled={signOut.isPending}
-              onPress={signOut.request}
-            />
-          </ListSection>
-          {signOut.confirmSheet}
-
-          {/* R-15: "Version 1.0.1" for everyone; long-press for the support line. */}
-          <Pressable
-            testID="build-info"
-            accessibilityLabel={showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
-            onLongPress={() => setShowBuildDetails((shown) => !shown)}
-            delayLongPress={600}
-            className="min-h-11 items-center justify-center"
-          >
-            <View>
-              <Text className="text-center text-caption text-label-tertiary">
-                {showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
-              </Text>
-            </View>
-          </Pressable>
+          <YouSignOutFooter />
         </Stagger>
       </KeyboardAwareScrollView>
     </Screen>

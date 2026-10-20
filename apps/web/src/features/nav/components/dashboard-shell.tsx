@@ -36,6 +36,12 @@ const TITLE_MAP: [string, string][] = [
   ['/preferences', 'Preferences'],
   ['/premium', 'Premium'],
   ['/admin', 'Admin'],
+  // Trainer mode (trainer-mode.md §5.3); /trainer and a client's pages keep "Chefer".
+  ['/trainer/today', 'Today'],
+  ['/trainer/schedule', 'Schedule'],
+  ['/trainer/clients', 'Clients'],
+  ['/trainer/workouts', 'Workouts'],
+  ['/trainer/settings', 'Trainer settings'],
   ['/coaching/find', 'Find a trainer'],
   ['/coaching/trainers', 'Find a trainer'],
   ['/onboarding', 'Get Started'],

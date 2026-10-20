@@ -154,6 +154,17 @@ export interface EventMap {
   list_shared: { scope: 'whatsLeft' | 'everything' };
   cook_finished: Record<string, never>;
 
+  // ─── Trainer mode (trainer-mode.md §11) — no PII, counts and enums only ───────
+  trainer_mode_switched: { to: 'personal' | 'trainer' };
+  template_created: Record<string, never>;
+  template_assigned: { clients: number };
+  template_clients_updated: { clients: number };
+  booking_created: { repeat: boolean; clients: number };
+  booking_cancelled: { scope: 'THIS' | 'FOLLOWING' };
+  attendance_marked: { status: 'ATTENDED' | 'NO_SHOW' };
+  coached_workout_started: { group: boolean };
+  coached_workout_finished: Record<string, never>;
+
   // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
   // Never another user's id, a name or a search query.
   friends_opened: { source: 'more' | 'settings' | 'link' };

@@ -9,6 +9,8 @@ import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navi
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
 import { ShellV2Forward } from '../../src/features/shell/shell-forward';
 import { useShellV2 } from '../../src/features/shell/shell-store';
+import { landingShellModeSync } from '../../src/features/trainer-mode/mode-store';
+import { TRAINER_TODAY_HREF } from '../../src/features/trainer-mode/switch-mode';
 import { getToken } from '../../src/lib/auth-store';
 import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
@@ -54,17 +56,20 @@ export default function FoodTabsLayout() {
   if (onboardingPending || onboardingUnfinished) {
     return <Redirect href="/onboarding" />;
   }
+  // Trainer mode §5.1: a device last left in trainer mode (and, as far as the
+  // last answer knows, still allowed it) opens straight into trainer Today —
+  // decided from the KV cache, so personal Today never flashes first.
   if (shellV2) {
-    let landing: '/train' | undefined;
-    if (claimLanding(token)) {
-      if (pathname === '/' && landingSurfaceSync() === 'gym') landing = '/train';
+    let landing: '/train' | typeof TRAINER_TODAY_HREF | undefined;
+    if (claimLanding(token) && pathname === '/') {
+      if (landingShellModeSync() === 'trainer') landing = TRAINER_TODAY_HREF;
+      else if (landingSurfaceSync() === 'gym') landing = '/train';
     }
     return <ShellV2Forward landing={landing} />;
   }
-  if (claimLanding(token)) {
-    if (pathname === '/' && landingSurfaceSync() === 'gym') {
-      return <Redirect href="/today" />;
-    }
+  if (claimLanding(token) && pathname === '/') {
+    if (landingShellModeSync() === 'trainer') return <Redirect href={TRAINER_TODAY_HREF} />;
+    if (landingSurfaceSync() === 'gym') return <Redirect href="/today" />;
   }
 
   return (

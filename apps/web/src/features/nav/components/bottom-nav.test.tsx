@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { navFor, type AppMode } from '../nav-items';
@@ -14,7 +15,15 @@ vi.mock('next/link', () => ({
 let mockPathname = '/dashboard';
 vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }));
 let mockMode: AppMode = 'food';
-vi.mock('../mode-context', () => ({ useAppMode: () => ({ nav: navFor(mockMode) }) }));
+let mockBadges: Record<string, number> = {};
+vi.mock('../mode-context', () => ({
+  useAppMode: () => ({
+    mode: mockMode,
+    nav: navFor(mockMode),
+    navBadges: mockBadges,
+    trainerModeAvailable: mockMode === 'trainer',
+  }),
+}));
 
 afterEach(cleanup);
 
@@ -41,5 +50,28 @@ describe('BottomNav', () => {
     mockPathname = '/gym';
     render(<BottomNav onOpenMore={() => undefined} />);
     expect(tabLabels()).toEqual(['Today', 'Routine', 'Exercises', 'Stats', 'More']);
+  });
+});
+
+describe('BottomNav in trainer mode (trainer-mode.md §5.3, §7.1)', () => {
+  it('reads Schedule · Clients · Today · Workouts · More, Today lit on /trainer/today', () => {
+    mockMode = 'trainer';
+    mockPathname = '/trainer/today';
+    mockBadges = {};
+    render(<BottomNav onOpenMore={() => undefined} />);
+    expect(tabLabels()).toEqual(['Schedule', 'Clients', 'Today', 'Workouts', 'More']);
+    expect(screen.getByRole('link', { current: 'page' }).getAttribute('href')).toBe(
+      '/trainer/today',
+    );
+  });
+
+  it('Clients carries the pending-request count, with an accessible name', () => {
+    mockMode = 'trainer';
+    mockPathname = '/trainer/today';
+    mockBadges = { '/trainer/clients': 2 };
+    render(<BottomNav onOpenMore={() => undefined} />);
+    const clients = screen.getByRole('link', { name: /Clients/ });
+    expect(clients).toHaveAccessibleName(/^Clients\s*, 2 things waiting$/);
+    expect(within(clients).getByTestId('nav-count-badge').textContent).toBe('2');
   });
 });

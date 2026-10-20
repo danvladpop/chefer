@@ -9,8 +9,8 @@ import { COACHING_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { ClientList } from './ClientList';
-import { InviteList } from './InviteList';
 import { InviteSheet } from './InviteSheet';
+import { InvitesSection } from './InvitesSection';
 import { TrainerRequests } from './TrainerRequests';
 import { TrainerSettings } from './TrainerSettings';
 
@@ -28,16 +28,8 @@ export function ClientsView({
   activeClients: number | null;
 }) {
   const copy = COACHING_COPY.trainer;
-  const utils = trpc.useUtils();
   const [inviting, setInviting] = useState(false);
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() }, { retry: false });
-  const invites = trpc.trainer.invites.list.useQuery(undefined, { retry: false });
-  const revoke = trpc.trainer.invites.revoke.useMutation({
-    onSuccess: () => void utils.trainer.invites.list.invalidate(),
-  });
-
-  const open = (invites.data ?? []).filter((i) => i.state === 'OPEN');
-  const past = (invites.data ?? []).filter((i) => i.state !== 'OPEN');
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
@@ -75,18 +67,7 @@ export function ClientsView({
         <ClientList clients={clients.data ?? []} />
       )}
 
-      {(open.length > 0 || past.length > 0) && (
-        <section aria-labelledby="trainer-invites-title" className="flex flex-col gap-2">
-          <h2 id="trainer-invites-title" className="font-semibold text-gray-900">
-            Invites
-          </h2>
-          <InviteList
-            invites={[...open, ...past]}
-            revoking={revoke.isPending}
-            onRevoke={(code) => revoke.mutate({ code })}
-          />
-        </section>
-      )}
+      <InvitesSection />
 
       <TrainerSettings
         displayName={displayName}

@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarDays,
   Dumbbell,
+  House,
   ListChecks,
   Repeat,
   Settings,
@@ -12,6 +13,7 @@ import {
   Sunrise,
   TrendingUp,
   User,
+  UserCog,
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
@@ -20,9 +22,12 @@ import {
 // Single source of truth shared by the desktop SideBar, the mobile BottomNav,
 // and the mobile MobileNavDrawer. Adding a route here surfaces it everywhere.
 //
-// Two modes (gym_plan.md D3): Food (the original app) and Gym. The shell shows
-// one mode's items at a time; `deriveMode` decides which from the pathname and
-// the `chefer_mode` cookie so the server renders the right nav with no flash.
+// Two modes (gym_plan.md D3): Food (the original app) and Gym, plus a third,
+// Trainer (docs/prd-2026-10/trainer-mode.md §5.3), for an active trainer with
+// the `trainerMode` flag on. The shell shows one mode's items at a time;
+// `deriveMode` decides which from the pathname and the `chefer_mode` cookie so
+// the server renders the right nav with no flash. The functions are pure: the
+// caller passes whether trainer mode is available (`NavOptions`).
 
 export interface NavItem {
   href: string;
@@ -37,6 +42,8 @@ export interface NavItem {
   exact?: boolean;
   /** Extra route prefixes that also light this item up (e.g. the workout under Today). */
   alsoActiveFor?: readonly string[];
+  /** Extra routes no prefix can name (Trainer Clients also lights on `/trainer/<clientId>`). */
+  alsoActiveWhen?: (pathname: string) => boolean;
 }
 
 // Food IA (audit P2-2 / P2-8, PM review §5): Today · Plan · Shop · Cookbook
@@ -102,6 +109,55 @@ export const GYM_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
  */
 export const TRAINER_NAV_ITEM: NavItem = { href: '/trainer', label: 'Clients', icon: UsersRound };
 
+// ─── Trainer mode (trainer-mode.md §5.3) ──────────────────────────────────────
+
+/** `/trainer/<segment>` routes that are trainer-mode tabs, not a client id. */
+export const TRAINER_MODE_SEGMENTS = [
+  'today',
+  'schedule',
+  'clients',
+  'workouts',
+  'settings',
+] as const;
+
+/** `/trainer/<clientId>` and its sub-routes (client detail, routine editor). */
+export function isTrainerClientPath(pathname: string): boolean {
+  const segment = /^\/trainer\/([^/]+)/.exec(pathname)?.[1];
+  if (segment === undefined) return false;
+  return !(TRAINER_MODE_SEGMENTS as readonly string[]).includes(segment);
+}
+
+/** Trainer mode in sidebar order: Today first. */
+export const TRAINER_MODE_NAV_ITEMS: readonly NavItem[] = [
+  { href: '/trainer/today', label: 'Today', icon: House },
+  { href: '/trainer/schedule', label: 'Schedule', icon: CalendarDays },
+  {
+    href: '/trainer/clients',
+    label: 'Clients',
+    icon: UsersRound,
+    alsoActiveWhen: isTrainerClientPath,
+  },
+  { href: '/trainer/workouts', label: 'Workouts', icon: Dumbbell },
+] as const;
+
+/** The phone tab bar: Today in the middle, as in Food mode and the mobile app (§5.3). */
+export const TRAINER_MODE_TAB_BAR_HREFS = [
+  '/trainer/schedule',
+  '/trainer/clients',
+  '/trainer/today',
+  '/trainer/workouts',
+] as const;
+
+export const TRAINER_MODE_TAB_BAR_ITEMS: readonly NavItem[] = TRAINER_MODE_TAB_BAR_HREFS.map(
+  (href) => TRAINER_MODE_NAV_ITEMS.find((item) => item.href === href)!,
+);
+
+/** Trainer mode's drawer / lower sidebar group (trainer You on web, §6.8). */
+export const TRAINER_MODE_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
+  { href: '/trainer/settings', label: 'Trainer settings', icon: UserCog },
+  { href: '/profile', label: 'Profile', icon: User },
+] as const;
+
 /**
  * The four destinations that get a permanent slot in the mobile tab bar. The
  * fifth slot is the "More" button, which opens the drawer holding the rest.
@@ -148,21 +204,47 @@ export function isItemActive(pathname: string, item: NavItem): boolean {
   if (item.exact ? pathname === item.href : isNavItemActive(pathname, item.href)) {
     return true;
   }
+  if (item.alsoActiveWhen?.(pathname)) return true;
   return (item.alsoActiveFor ?? []).some((prefix) => isNavItemActive(pathname, prefix));
 }
 
 // ─── Modes ────────────────────────────────────────────────────────────────────
 
-export type AppMode = 'food' | 'gym';
+export type AppMode = 'food' | 'gym' | 'trainer';
+
+/**
+ * Whether trainer mode is available to the user (flag on + trainer tools
+ * active; `isTrainerModeAvailable`). Off, everything behaves as before trainer
+ * mode existed: `/trainer*` is neutral and a remembered `trainer` reads as food.
+ */
+export interface NavOptions {
+  trainerMode?: boolean;
+}
 
 /** Cookie holding the last mode used (read server-side by the dashboard layout). */
 export const MODE_COOKIE = 'chefer_mode';
 
 /** Where each mode's switch lands. */
-export const MODE_HOME: Record<AppMode, string> = { food: '/dashboard', gym: '/gym' };
+export const MODE_HOME: Record<AppMode, string> = {
+  food: '/dashboard',
+  gym: '/gym',
+  trainer: '/trainer/today',
+};
 
 export function parseMode(value: string | null | undefined): AppMode | null {
-  return value === 'food' || value === 'gym' ? value : null;
+  return value === 'food' || value === 'gym' || value === 'trainer' ? value : null;
+}
+
+/**
+ * The remembered mode, if it may still be used: a `trainer` cookie falls back
+ * to none (so food) once trainer mode is gone (§5.1 "Losing trainer status").
+ */
+export function rememberedMode(
+  value: string | null | undefined,
+  opts: NavOptions = {},
+): AppMode | null {
+  const mode = parseMode(value);
+  return mode === 'trainer' && !opts.trainerMode ? null : mode;
 }
 
 export function isGymPath(pathname: string): boolean {
@@ -171,11 +253,13 @@ export function isGymPath(pathname: string): boolean {
 
 /**
  * The mode a page belongs to. `/gym*` is always Gym; a Food destination is
- * always Food; routes that belong to neither (profile, preferences, premium,
- * admin …) keep whatever mode the user was last in (the cookie).
+ * always Food; `/trainer*` is Trainer while trainer mode is available; routes
+ * that belong to none (profile, preferences, premium, admin …) keep whatever
+ * mode the user was last in (the cookie).
  */
-export function modeOfPath(pathname: string): AppMode | null {
+export function modeOfPath(pathname: string, opts: NavOptions = {}): AppMode | null {
   if (isGymPath(pathname)) return 'gym';
+  if (opts.trainerMode && isNavItemActive(pathname, '/trainer')) return 'trainer';
   // Profile and Preferences are account pages both modes reach from the user
   // menu, so they must not force Food.
   const accountPages = ['/profile', '/preferences'];
@@ -185,8 +269,12 @@ export function modeOfPath(pathname: string): AppMode | null {
   return null;
 }
 
-export function deriveMode(pathname: string, cookieMode: string | null | undefined): AppMode {
-  return modeOfPath(pathname) ?? parseMode(cookieMode) ?? 'food';
+export function deriveMode(
+  pathname: string,
+  cookieMode: string | null | undefined,
+  opts: NavOptions = {},
+): AppMode {
+  return modeOfPath(pathname, opts) ?? rememberedMode(cookieMode, opts) ?? 'food';
 }
 
 export interface ModeNav {
@@ -200,8 +288,17 @@ export interface ModeNav {
   secondary: readonly NavItem[];
 }
 
-export function navFor(mode: AppMode, opts: { trainer?: boolean } = {}): ModeNav {
-  const extra = opts.trainer ? [TRAINER_NAV_ITEM] : [];
+export function navFor(mode: AppMode, opts: { trainer?: boolean } & NavOptions = {}): ModeNav {
+  if (mode === 'trainer') {
+    return {
+      all: [...TRAINER_MODE_NAV_ITEMS, ...TRAINER_MODE_SECONDARY_NAV_ITEMS],
+      primary: TRAINER_MODE_NAV_ITEMS,
+      tabBar: TRAINER_MODE_TAB_BAR_ITEMS,
+      secondary: TRAINER_MODE_SECONDARY_NAV_ITEMS,
+    };
+  }
+  // With trainer mode available the Trainer segment replaces "Clients" (§5.3).
+  const extra = opts.trainer && !opts.trainerMode ? [TRAINER_NAV_ITEM] : [];
   if (mode === 'gym') {
     return {
       all: [...GYM_NAV_ITEMS, ...GYM_SECONDARY_NAV_ITEMS, ...extra],

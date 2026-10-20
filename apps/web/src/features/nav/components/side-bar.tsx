@@ -9,6 +9,7 @@ import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
 import { isItemActive, type NavItem } from '../nav-items';
 import { ModeSwitch } from './mode-switch';
+import { modeSwapFade, NavCountBadge } from './nav-count-badge';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 // Desktop-only (lg+) full navigation rail. Below lg the BottomNav and
@@ -21,7 +22,7 @@ interface SideBarProps {
 
 export function SideBar({ className }: SideBarProps) {
   const pathname = usePathname();
-  const { nav } = useAppMode();
+  const { mode, nav, navBadges, trainerModeAvailable } = useAppMode();
 
   return (
     <aside className={cn('flex h-dvh w-56 shrink-0 flex-col border-r bg-white', className)}>
@@ -40,12 +41,16 @@ export function SideBar({ className }: SideBarProps) {
 
       {/* Nav links — the tab bar's destinations first, then what the phone
           keeps under More, so both shells share one grouping (P2-8). */}
-      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-4">
-        <NavList items={nav.primary} pathname={pathname} />
+      <nav
+        key={mode}
+        aria-label="Primary"
+        className={cn('flex-1 overflow-y-auto px-3 py-4', modeSwapFade(trainerModeAvailable))}
+      >
+        <NavList items={nav.primary} pathname={pathname} badges={navBadges} />
         {nav.secondary.length > 0 && (
           <>
             <div className="mx-3 my-3 border-t" role="presentation" />
-            <NavList items={nav.secondary} pathname={pathname} />
+            <NavList items={nav.secondary} pathname={pathname} badges={navBadges} />
           </>
         )}
       </nav>
@@ -63,7 +68,15 @@ export function SideBar({ className }: SideBarProps) {
   );
 }
 
-function NavList({ items, pathname }: { items: readonly NavItem[]; pathname: string }) {
+function NavList({
+  items,
+  pathname,
+  badges,
+}: {
+  items: readonly NavItem[];
+  pathname: string;
+  badges: Readonly<Record<string, number>>;
+}) {
   return (
     <ul className="space-y-0.5">
       {items.map((item) => {
@@ -89,7 +102,8 @@ function NavList({ items, pathname }: { items: readonly NavItem[]; pathname: str
                 )}
                 aria-hidden="true"
               />
-              {label}
+              <span className="min-w-0 flex-1">{label}</span>
+              <NavCountBadge count={badges[href] ?? 0} />
             </Link>
           </li>
         );

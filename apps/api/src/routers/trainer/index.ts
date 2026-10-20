@@ -1,5 +1,6 @@
 import { mergeRouters, router } from '../../lib/trpc.js';
 import { trainerClientRouter } from './client.router.js';
+import { trainerModeRouter } from './mode.router.js';
 import { trainerProfileRouter } from './profile.router.js';
 
 // trainer.* tRPC namespace (docs/trainer-platform/spec.md §7.2): the trainer
@@ -8,5 +9,6 @@ import { trainerProfileRouter } from './profile.router.js';
 // (`coach.*` is Adaptive Chef's weekly review: a different feature.)
 export const trainerRouter = mergeRouters(
   trainerProfileRouter,
+  trainerModeRouter,
   router({ client: trainerClientRouter }),
 );

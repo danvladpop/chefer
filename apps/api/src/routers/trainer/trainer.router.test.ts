@@ -86,6 +86,13 @@ const links = vi.hoisted(() => ({
 vi.mock('../../application/coaching/coaching-link.service.js', () => ({
   coachingLinkService: links,
 }));
+const dashboard = vi.hoisted(() => ({
+  badges: vi.fn(async () => 'badges'),
+  summary: vi.fn(async () => 'summary'),
+}));
+vi.mock('../../application/coaching/trainer-dashboard.service.js', () => ({
+  trainerDashboardService: dashboard,
+}));
 vi.mock('../../application/coaching/coaching-invite.service.js', () => ({
   coachingInviteService: { list: vi.fn(), create: vi.fn(), revoke: vi.fn() },
 }));
@@ -298,4 +305,35 @@ describe('trainer.* wiring', () => {
     world.trainerOn = false;
     await expect(caller().status()).resolves.toBe('status');
   });
+});
+
+// Trainer mode (trainer-mode.md §9): an active trainer's own counts, no client named.
+describe.each([
+  ['badges', () => caller().badges(), () => dashboard.badges],
+  [
+    'dashboard.summary',
+    () => caller().dashboard.summary({ today: '2026-10-18' }),
+    () => dashboard.summary,
+  ],
+] as const)('trainer.%s', (_name, call, reaches) => {
+  it('an active trainer reaches the service with their own id', async () => {
+    await call();
+    expect(reaches()).toHaveBeenCalledWith(ME, ...(_name === 'badges' ? [] : ['2026-10-18']));
+  });
+
+  it('coaching off: NOT_FOUND; trainer tools off: FORBIDDEN TRAINER_TOOLS_OFF', async () => {
+    world.flag = false;
+    await expect(call()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    world.flag = true;
+    world.trainerOn = false;
+    await expect(call()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(reaches()).not.toHaveBeenCalled();
+  });
+});
+
+it('trainer.dashboard.summary rejects a malformed date before the service', async () => {
+  await expect(caller().dashboard.summary({ today: '18/10/2026' })).rejects.toMatchObject({
+    code: 'BAD_REQUEST',
+  });
+  expect(dashboard.summary).not.toHaveBeenCalled();
 });

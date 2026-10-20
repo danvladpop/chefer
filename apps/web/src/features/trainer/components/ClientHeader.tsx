@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useTrainerClientsHref } from '@/features/nav/mode-context';
 import { ArrowLeft } from 'lucide-react';
 import { COACHING_COPY } from '@chefer/types';
 import { Badge } from '@chefer/ui';
@@ -31,6 +34,7 @@ export function ClientHeader({
   const guard = (e: React.MouseEvent) => {
     if (confirmLeave && !confirmLeave()) e.preventDefault();
   };
+  const clientsHref = useTrainerClientsHref();
   const tabs = COACHING_COPY.trainer.tabs;
   const base = `/trainer/${encodeURIComponent(clientId)}`;
   const items: { key: ClientTab; label: string; href: string }[] = [
@@ -42,7 +46,7 @@ export function ClientHeader({
     <header className="flex flex-col gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <Link
-          href="/trainer"
+          href={clientsHref}
           onClick={guard}
           aria-label={COACHING_COPY.trainer.clients}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"

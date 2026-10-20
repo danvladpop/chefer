@@ -42,7 +42,7 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
         {title}
       </p>
 
-      {/* Food | Gym below lg — the SideBar carries it at lg+. */}
+      {/* Food | Gym (| Trainer) below lg — the SideBar carries it at lg+. */}
       <ModeSwitch compact className="lg:hidden" />
 
       {!isLoading && user && (

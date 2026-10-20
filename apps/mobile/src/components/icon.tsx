@@ -85,6 +85,19 @@ const GLYPHS = {
   trainerTools: 'clipboard-outline',
   clients: 'people-outline',
   clientGone: 'person-remove-outline',
+  // Trainer mode (trainer-mode.md §5.2): the second shell's tab bar and rows.
+  // Today and You reuse `today` / `you` (the same as personal mode).
+  schedule: 'calendar-clear-outline',
+  scheduleActive: 'calendar-clear',
+  clientsActive: 'people',
+  workouts: 'barbell-outline',
+  workoutsActive: 'barbell',
+  switchMode: 'swap-horizontal-outline',
+  invite: 'person-add-outline',
+  availability: 'checkmark-done-outline',
+  requests: 'mail-unread-outline',
+  quiet: 'moon-outline',
+  turnOff: 'power-outline',
 } as const satisfies Record<string, keyof typeof Ionicons.glyphMap>;
 
 export type IconName = keyof typeof GLYPHS;
