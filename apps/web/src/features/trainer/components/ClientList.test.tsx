@@ -18,7 +18,10 @@ vi.mock('@chefer/utils', async (importOriginal) => ({
   deviceTimeZone: () => 'Europe/Bucharest',
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const maria: ClientRowDto = {
   clientId: 'c1',
@@ -52,6 +55,9 @@ describe('ClientList', () => {
   });
 
   it('shows the next booking line (M3) only when there is one', () => {
+    // The label is relative to today ("Today, 18:00" on the day itself): pin the clock before it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-12T09:00:00.000Z'));
     render(<ClientList clients={[maria]} />);
     expect(screen.queryByTestId('trainer-client-next-booking')).toBeNull();
     cleanup();
