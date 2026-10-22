@@ -7,7 +7,7 @@
 ### 10.1 What happened (checked 2026-10-22)
 
 - Mealime was discontinued on 21 October 2026. Its users are pointed to Meals Hub inside Albertsons Companies grocery apps. The notice says "All personal data will be deleted when the Mealime application is shut down" and offers no export. Source: <https://www.mealime.com/closing>.
-- Public recipe pages on mealime.com still load and carry schema.org Recipe JSON-LD. Chefer's link import reads them (PR for lane L). That is what makes "bring your recipes" honest for now. It may stop working whenever those pages go.
+- Public recipe pages on mealime.com still load and carry schema.org Recipe JSON-LD. Chefer's link import reads them (PR #185). That is what makes "bring your recipes" honest for now. It may stop working whenever those pages go.
 - Chefer covers the same core loop (weekly plan → swap → one aisle-sorted list → cook mode, plus diet filters). It adds household allergy safety, EUR/RON prices, link/video import, a gym log and free export. The web page that makes the comparison is `/switch/mealime`.
 
 ### 10.2 Store policy: where the name "Mealime" may and may not go
@@ -53,7 +53,7 @@ Use this for a few weeks while people look for a replacement:
 
 (101 characters.) It's generic and store-safe, and adds the terms "meal planner" and "import recipes" once.
 
-### 10.6 Web side (already shipped in the lane L PR)
+### 10.6 Web side (shipped in PR #185)
 
 - `/switch/mealime` is in `sitemap.xml` and linked from the public footer. Its title is "A Mealime alternative for weekly meal plans | Chefer". It has store badges with campaign `switch-mealime` (Play Console → acquisition by `utm_campaign`) and fires the `switch_page_viewed` PostHog event.
 - **Time box:** review in 4–6 weeks (around 2026-12-01). Check Search Console impressions for the page, `switch_page_viewed` counts and `switch-mealime` installs. If they're negligible, leave the page up (it's cheap), drop the promo text and move on.
