@@ -54,13 +54,15 @@ export const APP_ROUTES = [
   // Email-link pages (P2-5): without a token they render the invalid-link state.
   '/unsubscribe',
   '/verify-email',
+  // Public marketing page (market review 2026-10, lane L): no app shell.
+  '/switch/mealime',
 ] as const;
 
 /**
  * Routes served outside the app shell (the `(auth)` group: no tab bar / sidebar,
  * so no "Primary" navigation landmark to wait for).
  */
-const SHELL_LESS_ROUTES: readonly string[] = ['/unsubscribe', '/verify-email'];
+const SHELL_LESS_ROUTES: readonly string[] = ['/unsubscribe', '/verify-email', '/switch/mealime'];
 
 /** True for a route that renders without the app shell's primary navigation. */
 export function isShellLess(route: string): boolean {
