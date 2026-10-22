@@ -17,7 +17,7 @@ import {
   type WeeklyEmailRecipient,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { formatBodyWeight, formatMoney, toDisplayCurrency } from '@chefer/utils';
+import { formatBodyWeight, formatMoney, toDisplayCurrency, weekLabel } from '@chefer/utils';
 import { bulkDailyAllowance } from '../../lib/email/config.js';
 import {
   EmailQuotaError,
@@ -86,19 +86,8 @@ export function mondayLocal(now: Date, offsetWeeks = 0): Date {
   return monday;
 }
 
-// A fixed table, not Intl: ICU versions disagree on "Sep" vs "Sept".
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthOf = (date: Date): string => MONTHS[date.getUTCMonth()] ?? '';
-
-/** "22–28 Sep", or "29 Sep – 5 Oct" across a month boundary. `monday` is UTC midnight. */
-export function weekLabel(monday: Date): string {
-  const sunday = new Date(monday.getTime() + 6 * DAY_MS);
-  const startMonth = monthOf(monday);
-  const endMonth = monthOf(sunday);
-  return startMonth === endMonth
-    ? `${monday.getUTCDate()}–${sunday.getUTCDate()} ${endMonth}`
-    : `${monday.getUTCDate()} ${startMonth} – ${sunday.getUTCDate()} ${endMonth}`;
-}
+/** "22–28 Sep" — moved to @chefer/utils (lane E2: the recap screen uses it too). */
+export { weekLabel };
 
 /** "YYYY-MM-DD" of a UTC-midnight date. */
 function isoDate(date: Date): string {
