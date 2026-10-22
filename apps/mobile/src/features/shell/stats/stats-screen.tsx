@@ -33,7 +33,11 @@ import {
   STATS_RANGE_SPAN,
   STATS_RANGES,
   statsBucketDays,
+  summarizeWeightTrend,
+  TREND_WEIGHT_EXPLAINER,
+  trendChangeText,
   weightChangeTone,
+  weightTrendSeries,
   withoutKcalLines,
   type StatsRangeDays,
 } from '@chefer/utils';
@@ -46,7 +50,6 @@ import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { openPremium } from '../../premium/open-premium';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
 import { ActionButton, BoardCard, CardLink, SectionTitle } from '../today/parts';
-import { weightChangeText } from '../today/today-helpers';
 import { WeightField } from '../today/weight-card';
 import { eatingStats, MIN_LOGGED_DAYS, signedPct } from './stats-helpers';
 import { StrengthTab } from './strength-tab';
@@ -264,23 +267,27 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
   );
   const barTop = niceTicks({ min: 0, max: barMax * 1.05 }).max;
 
-  // Every fetched weigh-in stays editable; the chart and the change follow the range.
+  // Every fetched weigh-in stays editable; the chart and the change follow the
+  // range. Lane D1: the bold line is the trend weight (@chefer/utils), fed by
+  // every fetched weigh-in so it has warmed up by the range start; the dots
+  // are the readings. The change is the trend's, never painted as a failure.
   const weights = weightQuery.data ?? [];
   const since = Date.now() - range * DAY_MS;
-  const inRange = weights.filter((w) => new Date(w.recordedAt).getTime() >= since);
+  const series = weightTrendSeries(weights);
+  const inRange = series.filter((p) => p.recordedAt.getTime() >= since);
   const latestWeight = weights.at(-1)?.weightKg;
-  const weightChange = weightChangeText(inRange, system, STATS_RANGE_SPAN[range]);
-  const firstInRange = inRange.at(0)?.weightKg;
-  const lastInRange = inRange.at(-1)?.weightKg;
-  const tone =
-    firstInRange != null && lastInRange != null && inRange.length > 1
-      ? weightChangeTone(lastInRange - firstInRange, preferences?.chefProfile?.goal)
-      : 'neutral';
+  const trendNow = series.length > 1 ? series.at(-1)?.trendKg : undefined;
+  const trendSummary = summarizeWeightTrend(series, { windowDays: range });
+  const weightChange = trendChangeText(trendSummary, system, STATS_RANGE_SPAN[range]);
+  const tone = trendSummary
+    ? weightChangeTone(trendSummary.changeKg, preferences?.chefProfile?.goal)
+    : 'neutral';
   // Time axis: x in days since epoch, so a two-week gap between weigh-ins looks like one.
-  const weightData = inRange.map((w) => ({
-    x: new Date(w.recordedAt).getTime() / DAY_MS,
-    y: bodyWeightInUnit(w.weightKg, system),
+  const weightData = inRange.map((p) => ({
+    x: p.recordedAt.getTime() / DAY_MS,
+    y: bodyWeightInUnit(p.weightKg, system),
   }));
+  const trendData = inRange.map((p) => bodyWeightInUnit(p.trendKg, system));
   const weightLabels = (() => {
     const firstX = weightData.at(0)?.x;
     const lastX = weightData.at(-1)?.x;
@@ -452,6 +459,11 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                   No weigh-ins yet.
                 </Text>
               )}
+              {trendNow != null ? (
+                <Text testID="progress-weight-trend" className="text-subhead text-label-secondary">
+                  {`Trend ${formatBodyWeight(trendNow, system)}`}
+                </Text>
+              ) : null}
               {weightChange ? (
                 <Text
                   testID="progress-weight-change"
@@ -487,18 +499,27 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
               <ActivityIndicator color={colors.brand} />
             </View>
           ) : inRange.length > 1 ? (
-            <LineChart
-              testID="progress-weight-chart"
-              accessibilityLabel={`Weight over the last ${STATS_RANGE_SPAN[range]}, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
-              data={weightData}
-              {...(weightLabels && { xLabels: weightLabels })}
-              color={colors.brand}
-              niceTicks
-              height={150}
-            />
+            <View className="gap-2">
+              <LineChart
+                testID="progress-weight-chart"
+                accessibilityLabel={`Weight over the last ${STATS_RANGE_SPAN[range]}, last weigh-in ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}${trendNow != null ? `, trend ${formatBodyWeight(trendNow, system)}` : ''}`}
+                data={weightData}
+                trend={trendData}
+                {...(weightLabels && { xLabels: weightLabels })}
+                color={colors.brand}
+                niceTicks
+                height={150}
+              />
+              <Text
+                testID="progress-weight-explainer"
+                className="text-caption text-label-secondary"
+              >
+                {TREND_WEIGHT_EXPLAINER}
+              </Text>
+            </View>
           ) : weights.length > 0 ? (
             <Text testID="progress-weight-few" className="text-subhead text-label-secondary">
-              {`Weigh in twice within ${STATS_RANGE_SPAN[range]} to see a trend here.`}
+              {`Weigh in twice within ${STATS_RANGE_SPAN[range]} to see your trend here.`}
             </Text>
           ) : null}
 

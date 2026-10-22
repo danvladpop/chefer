@@ -2,7 +2,13 @@
 // Pure functions over already-loaded inputs — no I/O, fully unit-tested.
 // CoachService (coach.service.ts) does the loading and persistence.
 
-import { calorieFloor, isMinorAge } from '@chefer/utils';
+import {
+  calorieFloor,
+  isMinorAge,
+  summarizeWeightTrend,
+  weightTrendSeries,
+  type WeightTrendSummary,
+} from '@chefer/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,8 +34,10 @@ export interface ReviewMetrics {
   avgDailyKcal: number;
   /** Mean protein (g) over the days that were actually logged (0 when none). */
   avgDailyProteinG: number;
-  /** EWMA weight trend in kg/week, or null without enough data. */
+  /** Trend-weight rate in kg/week, or null without enough data. */
   weightTrendKg: number | null;
+  /** How the trend weight moved over the window (null without enough data). */
+  weightTrend: WeightTrendSummary | null;
 }
 
 export interface AdjustmentInput {
@@ -52,11 +60,12 @@ export interface AdjustmentInput {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const EWMA_ALPHA = 0.25;
-/** Minimum weight points for a trend. */
+/** Minimum weigh-in days inside the window for a trend. */
 const MIN_TREND_POINTS = 5;
-/** Minimum span (days, first→last point) for a trend. */
+/** Minimum span (days, first→last weigh-in) for a trend. */
 const MIN_TREND_SPAN_DAYS = 10;
+/** The window the coach reads the trend over (older weigh-ins only warm it up). */
+export const TREND_WINDOW_DAYS = 28;
 /** Below this adherence the coach fixes the habit, not the numbers. */
 const MIN_ADHERENCE_PCT = 50;
 /** One conservative step per review. */
@@ -70,58 +79,26 @@ const FLOOR_BMR_FACTOR = 1.1;
 /** Safe ceiling above TDEE for upward adjustments. */
 const CEILING_OVER_TDEE_KCAL = 500;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+// ─── Weight trend (shared trend weight, @chefer/utils weight-trend.ts) ──────
 
-// ─── Weight trend (EWMA, MacroFactor-style smoothing) ────────────────────────
-
-/**
- * Exponentially-weighted moving average trend over raw weigh-ins, expressed
- * in kg/week. Returns null unless there are ≥5 points spanning ≥10 days —
- * anything less is scale noise, not a trend.
- */
-/** Faster than this between two weigh-ins is a typo, not physiology. */
-const MAX_PLAUSIBLE_KG_PER_DAY = 3;
+const utcDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * Drops weigh-ins that jump more than 3 kg/day from the last kept point
- * (a 1000 kg or 8 kg typo), so one bad entry can't flip the coach's read of
- * a plateau (audit F-DASH-3-1). Input must be sorted oldest first.
+ * How the trend weight moved over the 28 days up to `asOf`, from the same
+ * smoothing the charts draw. Null unless ≥5 weigh-in days span ≥10 days —
+ * anything less is scale noise, not a trend. Typo readings (more than 3 kg a
+ * day) are dropped, so one bad entry can't flip a plateau (audit F-DASH-3-1).
  */
-export function dropWeightOutliers(sorted: WeightPoint[]): WeightPoint[] {
-  const kept: WeightPoint[] = [];
-  for (const point of sorted) {
-    const prev = kept[kept.length - 1];
-    if (prev) {
-      const days = Math.max(1, (point.recordedAt.getTime() - prev.recordedAt.getTime()) / DAY_MS);
-      if (Math.abs(point.weightKg - prev.weightKg) > MAX_PLAUSIBLE_KG_PER_DAY * days) continue;
-    }
-    kept.push(point);
-  }
-  return kept;
-}
-
-export function computeEwmaTrendKgPerWeek(
+export function computeWeightTrend(
   points: WeightPoint[],
-  alpha: number = EWMA_ALPHA,
-): number | null {
-  const sorted = dropWeightOutliers(
-    [...points].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime()),
-  );
-  if (sorted.length < MIN_TREND_POINTS) return null;
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-  if (!first || !last) return null;
-  const spanDays = (last.recordedAt.getTime() - first.recordedAt.getTime()) / DAY_MS;
-  if (spanDays < MIN_TREND_SPAN_DAYS) return null;
-
-  let ewma = first.weightKg;
-  for (const point of sorted.slice(1)) {
-    ewma = alpha * point.weightKg + (1 - alpha) * ewma;
-  }
-
-  const deltaKg = ewma - first.weightKg;
-  const perWeek = (deltaKg / spanDays) * 7;
-  return Math.round(perWeek * 1000) / 1000;
+  asOf: Date = new Date(),
+): WeightTrendSummary | null {
+  return summarizeWeightTrend(weightTrendSeries(points, { dayKey: utcDay }), {
+    windowDays: TREND_WINDOW_DAYS,
+    asOf: utcDay(asOf),
+    minWeighIns: MIN_TREND_POINTS,
+    minSpanDays: MIN_TREND_SPAN_DAYS,
+  });
 }
 
 // ─── Week metrics ─────────────────────────────────────────────────────────────
@@ -129,6 +106,7 @@ export function computeEwmaTrendKgPerWeek(
 export function computeReviewMetrics(
   weekLogs: ReviewDayLog[],
   weightPoints: WeightPoint[],
+  asOf: Date = new Date(),
 ): ReviewMetrics {
   const loggedDays = weekLogs.filter((l) => l.mealCount > 0);
   const adherencePct = Math.round((loggedDays.length / 7) * 100);
@@ -136,11 +114,13 @@ export function computeReviewMetrics(
     loggedDays.length > 0
       ? Math.round(loggedDays.reduce((s, l) => s + pick(l), 0) / loggedDays.length)
       : 0;
+  const weightTrend = computeWeightTrend(weightPoints, asOf);
   return {
     adherencePct,
     avgDailyKcal: avgOf((l) => l.totalKcal),
     avgDailyProteinG: avgOf((l) => l.totalProtein ?? 0),
-    weightTrendKg: computeEwmaTrendKgPerWeek(weightPoints),
+    weightTrendKg: weightTrend?.kgPerWeek ?? null,
+    weightTrend,
   };
 }
 

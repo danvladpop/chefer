@@ -26,7 +26,10 @@ import {
   isLoggedDay,
   localDateStr,
   PROGRESS_RANGES,
+  summarizeWeightTrend,
+  TREND_WEIGHT_EXPLAINER,
   weightChangeTone,
+  weightTrendSeries,
   type ProgressRange,
   type WeightChangeTone,
 } from '@chefer/utils';
@@ -54,13 +57,14 @@ const RANGE_OPTIONS = PROGRESS_RANGES.map((n) => ({
 
 const TONE_CLASS: Record<WeightChangeTone, string> = {
   positive: 'text-positive',
-  negative: 'text-danger',
+  // Adherence-neutral (lane D1): a change away from the goal is not a failure.
+  negative: 'text-label',
   neutral: 'text-label',
 };
 
 const TONE_SUFFIX: Record<WeightChangeTone, string> = {
   positive: ', in line with your goal',
-  negative: ', away from your goal',
+  negative: '',
   neutral: '',
 };
 
@@ -177,21 +181,22 @@ function LegacyProgressScreen() {
   // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
   const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
   const weights = weightQuery.data ?? [];
+  // Lane D1: the bold line is the trend weight (@chefer/utils) and the change
+  // is the trend's over the 90 days — a direction, never painted as a failure.
+  const series = weightTrendSeries(weights);
   const latestWeight = weights.at(-1)?.weightKg;
-  const firstWeight = weights.at(0)?.weightKg;
-  const weightDelta =
-    latestWeight != null && firstWeight != null && weights.length > 1
-      ? latestWeight - firstWeight
-      : null;
+  const trendSummary = summarizeWeightTrend(series, { windowDays: 90 });
+  const weightDelta = trendSummary?.changeKg ?? null;
   const tone =
     weightDelta != null ? weightChangeTone(weightDelta, preferences?.chefProfile?.goal) : 'neutral';
 
   // Time axis: x in days since epoch, so a two-week gap between weigh-ins
   // looks like one.
-  const weightData = weights.map((w) => ({
-    x: new Date(w.recordedAt).getTime() / DAY_MS,
-    y: bodyWeightInUnit(w.weightKg, system),
+  const weightData = series.map((p) => ({
+    x: p.recordedAt.getTime() / DAY_MS,
+    y: bodyWeightInUnit(p.weightKg, system),
   }));
+  const trendData = series.map((p) => bodyWeightInUnit(p.trendKg, system));
   const weightLabels = (() => {
     const firstX = weightData.at(0)?.x;
     const lastX = weightData.at(-1)?.x;
@@ -382,7 +387,7 @@ function LegacyProgressScreen() {
               </Text>
               {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
                 <Text className="text-sm text-label-tertiary">
-                  Change (90d):{' '}
+                  Trend change (90d):{' '}
                   <Text
                     testID="progress-weight-change"
                     // Colour alone doesn't tell a screen reader which way is good.
@@ -407,16 +412,21 @@ function LegacyProgressScreen() {
               <ActivityIndicator color={colors.brand} />
             </View>
           ) : weights.length > 0 ? (
-            <LineChart
-              testID="progress-weight-chart"
-              accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
-              data={weightData}
-              trend={weightData.map((p) => p.y)}
-              {...(weightLabels && { xLabels: weightLabels })}
-              color={colors.positive}
-              niceTicks
-              height={170}
-            />
+            <>
+              <LineChart
+                testID="progress-weight-chart"
+                accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
+                data={weightData}
+                trend={trendData}
+                {...(weightLabels && { xLabels: weightLabels })}
+                color={colors.positive}
+                niceTicks
+                height={170}
+              />
+              <Text testID="progress-weight-explainer" variant="muted" className="mt-1 text-xs">
+                {TREND_WEIGHT_EXPLAINER}
+              </Text>
+            </>
           ) : (
             <Text testID="progress-weight-empty" variant="muted" className="mb-2 text-sm">
               No weight entries yet. Log your first entry below.

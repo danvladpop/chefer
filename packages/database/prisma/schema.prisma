@@ -668,7 +668,7 @@ model ChefReview {
   weekStart              DateTime // UTC midnight of the reviewed week's Monday
   adherencePct           Int
   avgDailyKcal           Int
-  weightTrendKg          Float? // EWMA delta over the window; null until enough data
+  weightTrendKg          Float? // trend-weight rate, kg/week (lane D1); null until enough data
   adjustmentKcal         Int
   savedEur               Float? // pantry savings surfaced in the review (F3 seam)
   reviewText             String
