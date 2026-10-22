@@ -4511,15 +4511,28 @@ T-12.2), not the PostHog SDK: no native module, no runtime-fingerprint change.
 
 ```
 app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + background flush
-                     track('app_opened', {})
+  │                 (a no-op unless EXPO_PUBLIC_POSTHOG_KEY + _HOST were set at
+  │                  bundle time — the OTA job's repo variables, §13)
+  │
+SessionUserHost (src/components/session-user-host.tsx, mounted once the token is read)
+  ├─ signed out ─────────────────► setCurrentUserId(null)
+  ├─ signed in, user.me resolves ► setCurrentUserId(me.id)   (also Sentry's user)
+  ├─ sign-out (signOut())  ──────► resetAnalyticsOnSignOut(): id null, "linked" OFF
+  ├─ another account's id arrives without a sign-out ► "linked" OFF
+  └─ identity settled (signed out / me answered / me failed / 5 s offline cap)
+        └─► app_opened { from: 'launch' }   once per cold start
+     AppState: back to the foreground after 30+ min in the background
+        └─► app_opened { from: 'resume' }   (D1/D7/D30 retention)
   │
   distinct_id = a random session id, generated once per cold start,
-                NEVER written to storage (AC1)
+                NEVER written to storage (AC1); such events carry
+                $process_person_profile: false → no PostHog person
   │
   consent (device-local, default { anonymous: true, linked: false } — Q-8):
     anonymous off  → track() queues nothing, fetch is never called (AC3)
     linked on + signed in → distinct_id becomes the account id on the very
-                             next event (AC2); off → sign-out resets it to off
+                             next event (AC2), with a PostHog person;
+                             sign-out or an account switch resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   rendered only when the transport is enabled (PostHog key + host set at
@@ -4528,6 +4541,13 @@ Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
+
+**What this means for the numbers (2026-10-22, Q18 reversed).** Event counts and
+same-launch funnels cover everyone who leaves anonymous counts on. Per-person
+retention and multi-day funnels cover only users who turned linking on, because
+an unlinked id lasts one cold start. `docs/beta-dashboard.sql` gives everyone's
+retention from our own tables. The events and the PostHog dashboard spec are in
+`docs/analytics-funnel.md`.
 
 The choice is stored per account/device only (another browser, another phone,
 or a new device starts at the Q-8 defaults). The card links to

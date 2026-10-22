@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Keyboard, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -29,6 +29,7 @@ import {
 } from '../src/features/recipes/video-draft-form';
 import { TrainButton } from '../src/features/shell/train/train-button';
 import { useIsPremium } from '../src/hooks/use-is-premium';
+import { track } from '../src/lib/analytics';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
 import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
@@ -140,20 +141,27 @@ export default function ImportRecipeScreen() {
     keepLabel: 'Keep reviewing',
   });
 
+  // Where the preview being reviewed came from, for `recipe_imported` on save.
+  const importVia = useRef<'link' | 'text' | 'video'>('link');
   const previewMutation = trpc.recipe.importPreview.useMutation({
     meta: { silent: true },
-    onSuccess: (data) => {
+    onSuccess: (data, input) => {
+      importVia.current = 'url' in input && input.url ? 'link' : 'text';
       setPreview(data);
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
     },
   });
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
     meta: { silent: true },
-    onSuccess: (data) => setVideoPreview(data),
+    onSuccess: (data) => {
+      importVia.current = 'video';
+      setVideoPreview(data);
+    },
   });
   const saveMutation = trpc.recipe.importSave.useMutation({
     meta: { silent: true },
     onSuccess: (saved) => {
+      track('recipe_imported', { via: importVia.current });
       void utils.recipe.list.invalidate();
       guard.release();
       snackbar.show({ message: recipeFormCopy.save.saved, tone: 'success' });

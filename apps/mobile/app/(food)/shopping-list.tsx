@@ -50,6 +50,7 @@ import { useIsOnline } from '../../src/hooks/use-is-online';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnits } from '../../src/hooks/use-units';
 import { track } from '../../src/lib/analytics';
+import { trackListToggled } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
@@ -133,6 +134,7 @@ export default function ShoppingListScreen() {
       );
       return { previous };
     },
+    onSuccess: (_data, vars) => trackListToggled(vars),
     onError: (_err, _vars, context) => {
       if (context?.previous) {
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);

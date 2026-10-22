@@ -6,6 +6,7 @@ import { cancelAllGymReminders } from '../features/gym/reminders/cancel-reminder
 import { clearBookingReminders } from '../features/notifications/booking-reminders';
 import { clearFoodNudges } from '../features/notifications/food-nudges';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
+import { resetAnalyticsOnSignOut } from './analytics';
 import { clearToken, getSessionQueryClient } from './auth-store';
 
 // UX-ACC-02 / UX-ACC-12: THE way an account leaves this phone. More, Settings,
@@ -64,6 +65,9 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
       clearPendingOnboarding();
       resetOnboardingGate();
     });
+    // Usage analytics: stop using the account id and turn "Link usage to my
+    // account" off, so the next account on this phone starts unlinked.
+    await stage(() => resetAnalyticsOnSignOut());
     await clearToken();
   })().finally(() => {
     inflight = null;

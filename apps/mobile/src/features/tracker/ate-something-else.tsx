@@ -82,6 +82,7 @@ export function AteSomethingElseBody({
       carbs: 0,
       fat: 0,
       unknownMacros: ['carbs', 'fat'],
+      method: 'quick_add',
     });
   };
 
@@ -161,6 +162,7 @@ export function AteSomethingElseBody({
                   carbs: r.carbs,
                   fat: r.fat,
                   ...(r.unknownMacros && { unknownMacros: r.unknownMacros }),
+                  method: 'recent',
                 })
               }
               className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
