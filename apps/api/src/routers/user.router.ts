@@ -6,8 +6,10 @@ import { authService } from '../application/auth/auth.service.js';
 import { socialAuthService } from '../application/auth/social-auth.service.js';
 import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
 import { deleteAccount, exportAccountData } from '../application/user/account-data.service.js';
+import { buildExportArchive } from '../application/user/export-archive.service.js';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
+import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { adminProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
 const userService = new UserService(new PrismaUserRepository(), emailPreferencesService);
@@ -172,6 +174,19 @@ export const userRouter = router({
    */
   exportData: protectedProcedure.query(async ({ ctx }) => {
     return exportAccountData(ctx.user.id);
+  }),
+
+  /**
+   * G1 "Download my data": the same data as `exportData`, as a ZIP of
+   * `chefer-data.json` + human-friendly CSVs + a README, base64-encoded.
+   * Additive — shipped binaries keep calling `exportData`. A mutation: each
+   * call builds a fresh archive and counts against the caller's limit.
+   */
+  exportArchive: protectedProcedure.mutation(async ({ ctx }) => {
+    // A deliberate, occasional action; the bucket allows retries after a
+    // dropped download without letting a loop rebuild the archive all day.
+    assertWithinRateLimit('user.exportArchive', ctx.user.id, 5, 15 * 60 * 1000);
+    return buildExportArchive(ctx.user.id);
   }),
 
   /**

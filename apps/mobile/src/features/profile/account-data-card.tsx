@@ -8,8 +8,14 @@ import {
   type SocialProvider,
 } from '@chefer/types';
 import { Button, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
-import { shareExportFile } from '../../lib/share-file';
+import {
+  DATA_EXPORT_COPY as EXPORT_COPY,
+  exportErrorMessage,
+  exportSizeBucket,
+  userFacingErrorMessage,
+} from '@chefer/utils';
+import { track } from '../../lib/analytics';
+import { canShareBinaryFiles, shareExportFile, ZIP_MIME } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
 import { markAccountDeleted } from '../auth/account-deleted-notice';
@@ -22,12 +28,15 @@ import { TrainButton } from '../shell/train/train-button';
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
 // deletion inside the app for apps that create accounts (F-M-PROF-1-1).
-// T-39.5 (bug B-53): a real, named export file (`chefer-export-YYYY-MM-DD.json`)
-// instead of an unnamed text blob in the share sheet.
+// T-39.5 (bug B-53): a real, named export file instead of an unnamed text
+// blob in the share sheet. G1 (market review 2026-10): it is now the ZIP
+// (`user.exportArchive`: the full JSON + spreadsheet CSVs + a README), shared
+// as `chefer-export-YYYY-MM-DD.zip`. An Android binary without expo-sharing
+// can't share a binary file, so it keeps the JSON export (`user.exportData`).
 // 11 Oct restyle: the shell's card, named text styles and colour roles (the
 // delete sheet keeps the kit's Sheet buttons).
 
-function exportFilename(): string {
+function jsonFilename(): string {
   return `chefer-export-${new Date().toISOString().slice(0, 10)}.json`;
 }
 
@@ -39,17 +48,36 @@ export function AccountDataCard() {
   const [exportError, setExportError] = useState<string | null>(null);
   // FB7-02: same confirm sheet + unsynced-workout guard as More / Settings.
   const signOutAction = useSignOut('profile-sign-out-confirm');
+  const exportArchive = trpc.user.exportArchive.useMutation({ meta: { silent: true } });
 
   async function exportData() {
     setExporting(true);
     setExportError(null);
     try {
-      const data = await utils.user.exportData.fetch();
-      const shared = await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
+      let shared: boolean;
+      if (canShareBinaryFiles()) {
+        const archive = await exportArchive.mutateAsync();
+        shared = await shareExportFile(archive.filename, archive.base64, ZIP_MIME, 'base64');
+        if (shared) {
+          track('data_export_downloaded', {
+            format: 'zip',
+            sizeBucket: exportSizeBucket(archive.bytes),
+          });
+        }
+      } else {
+        const json = JSON.stringify(await utils.user.exportData.fetch(), null, 2);
+        shared = await shareExportFile(jsonFilename(), json);
+        if (shared) {
+          track('data_export_downloaded', {
+            format: 'json',
+            sizeBucket: exportSizeBucket(json.length),
+          });
+        }
+      }
       // UX-ACC-22: only when the share sheet was actually used — a cancel is silence.
-      if (shared) show({ message: 'Your export is ready.', tone: 'success' });
-    } catch {
-      setExportError("Couldn't prepare your data. Please try again.");
+      if (shared) show({ message: EXPORT_COPY.ready, tone: 'success' });
+    } catch (err) {
+      setExportError(exportErrorMessage(err));
     } finally {
       setExporting(false);
     }
@@ -72,12 +100,13 @@ export function AccountDataCard() {
           testID="profile-your-data-copy"
           className="w-full min-w-0 text-subhead text-label-secondary"
         >
-          Export everything Chefer stores about you, or delete your account for good.
+          {EXPORT_COPY.intro}
         </Text>
       </View>
       <View className="gap-2">
         <TrainButton
-          label="Export my data"
+          testID="profile-download-data"
+          label={EXPORT_COPY.button}
           variant="outline"
           icon="share"
           loading={exporting}

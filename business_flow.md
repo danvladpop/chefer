@@ -4797,9 +4797,42 @@ every non-null `User.aiDataConsentAt` gets a `source: migration` AI
 `ConsentEvent` with the ORIGINAL timestamp, idempotently, so the log is the
 source of truth even for pre-existing accounts.
 
-### Data export (bug B-53)
+### Data export (bug B-53; G1 full export, market review 2026-10)
+
+> **G1 (2026-10-22):** "Download my data" is a ZIP on web and on mobile — the same
+> JSON, plus spreadsheet CSVs and a README. Free for everyone. `user.exportData`
+> stays for shipped binaries and for the fallback below.
 
 ```
+Profile → Privacy & data → Your data → "Download my data" (web /profile, mobile Privacy section)
+  │
+  └─ user.exportArchive (mutation; 5 per 15 min per user → "Try again in 15 minutes.")
+        └─ buildExportArchive(userId)                     export-archive.service.ts
+              collectAccountData(userId)  ← the exportData object below (typed)
+              gym.export.csv              ← reused as csv/workouts.csv
+              recipe names for the ids in plans and logs
+              └─ buildArchive() (pure, export-archive.ts, fflate)
+                    chefer-export-YYYY-MM-DD.zip
+                      README.txt          what each file is
+                      chefer-data.json    everything (= user.exportData)
+                      csv/food-log.csv  weights.csv  profile-and-targets.csv
+                          target-changes.csv  meal-plans.csv (weeks + saved weeks)
+                          recipes.csv (yours + saved)  shopping-lists.csv
+                          workouts.csv  routines.csv  personal-records.csv
+                          following.csv  coaching.csv      (UTF-8 BOM, CRLF, formulas neutralised)
+        Built synchronously: 3 years of logs + 600 workouts zips in well under a second
+        to < 2 MB (export-archive.test.ts), so there is no background job.
+        A new data type (e.g. body measurements) = rows in collectAccountData + one
+        CSV_SECTIONS entry; the README lists it automatically.
+  │
+  ├─ web:    base64 → Blob (application/zip) → download, Toast "Your export is ready."
+  ├─ mobile: shareExportFile(filename, base64, ZIP_MIME, 'base64') → share sheet,
+  │          Snackbar "Your export is ready." (only when shared, UX-ACC-22)
+  │          An Android binary without expo-sharing (canShareBinaryFiles() false)
+  │          can't share a binary file → the JSON export below, as before.
+  └─ event data_export_downloaded { format: zip|json, sizeBucket }
+
+Before G1, and still on that fallback:
 Profile → Your data → "Download my data" / "Export my data"
   │
   └─ user.exportData ──► exportAccountData(userId)
@@ -4808,7 +4841,10 @@ Profile → Your data → "Download my data" / "Export my data"
               recipes, chefReviews, shoppingLists — resolved through the
               user's own meal-plan ids, since ShoppingList has no userId)
         gym  (gymProfile, routines, workoutSessions, exerciseProgressions,
-              trainingPauses, customExercises)
+              trainingPauses, customExercises; G1: personalRecords — the PR
+              timeline, oldest first — and exerciseNames, id → name)
+        food, G1 additive: savedRecipes (the recipes behind favourites),
+              targetChanges (§29)
         feedback
         privacy (consentHistory — every ConsentEvent; emailPreferences;
                  aiCallLog — type/provider/time only, never model output)

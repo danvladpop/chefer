@@ -207,4 +207,8 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Data portability (G1/G2, market review 2026-10) — enums and buckets only ─
+  /** "Download my data" produced a file the user kept (a cancelled share is not counted). */
+  data_export_downloaded: { format: 'zip' | 'json'; sizeBucket: '<100kb' | '100kb-1mb' | '1mb+' };
 }
