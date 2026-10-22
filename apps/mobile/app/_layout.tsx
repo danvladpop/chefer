@@ -20,6 +20,7 @@ import {
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
+import { MealReminderHost } from '../src/features/notifications/use-meal-reminders';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
@@ -224,6 +225,8 @@ export default function RootLayout() {
             <PendingJoinHost signedIn={token !== null} />
             {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
             <FoodNudgeHost signedIn={token !== null} />
+            {/* Lane E1: keeps the opt-in meal-time reminders scheduled. */}
+            <MealReminderHost signedIn={token !== null} />
             {/* Trainer mode §7.3: local reminders 60 min before each booking (client and trainer). */}
             <BookingReminderHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}

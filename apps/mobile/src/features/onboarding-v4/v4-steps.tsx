@@ -7,12 +7,14 @@ import {
   cn,
   ONBOARDING_V4_COPY as COPY,
   eatsEverything,
+  ENGAGEMENT_COPY,
   isQuickSafetyOn,
   ONBOARDING_V4_GOAL_TILES,
   ONBOARDING_V4_JOB_TILES,
   ONBOARDING_V4_QUICK_SAFETY,
   type SafetyPickerValue,
 } from '@chefer/utils';
+import { NotificationsOffRow } from '../../components/notifications-off-row';
 import { BiscuitStage, V4Caption, V4Chip, V4Heading, V4Tick, V4Tile, V4TileGrid } from './v4-ui';
 
 // Presentational V4 steps — no tRPC here; onboarding-v4.tsx owns the saves.
@@ -675,6 +677,50 @@ function TrainProgramFields({
           </PressableScale>
         ) : null}
       </View>
+    </>
+  );
+}
+
+/**
+ * Lane E1 — "Remind me at mealtimes?": the planned meals with their suggested
+ * times (read-only here; Settings → Notifications edits them). The footer's
+ * "Yes, remind me" is where the OS permission is asked.
+ */
+export function RemindersStep({
+  rows,
+  refused,
+}: {
+  rows: { slot: string; label: string; time: string }[];
+  refused: boolean;
+}) {
+  return (
+    <>
+      <BiscuitStage loop="cooking" size={150} />
+      <V4Heading
+        title={ENGAGEMENT_COPY.remindersStepTitle}
+        lede={ENGAGEMENT_COPY.remindersStepBody}
+      />
+      <View className="gap-1.5" testID="onb-v4-reminders-times">
+        {rows.map((r) => (
+          <View
+            key={r.slot}
+            className="min-h-[52px] flex-row items-center gap-3 rounded-control border border-separator bg-surface px-3"
+          >
+            <Text
+              numberOfLines={1}
+              className="min-w-0 flex-1 text-callout font-semibold text-label"
+            >
+              {r.label}
+            </Text>
+            <Text className="text-callout text-label-secondary">{r.time}</Text>
+          </View>
+        ))}
+      </View>
+      {refused ? (
+        <NotificationsOffRow testID="onb-v4-reminders-off" message={ENGAGEMENT_COPY.remindersOff} />
+      ) : (
+        <V4Caption>{ENGAGEMENT_COPY.remindersStepLater}</V4Caption>
+      )}
     </>
   );
 }

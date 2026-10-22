@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
 import { JobsSection } from '@/features/preferences/components/jobs-section';
+import { MealRemindersSection } from '@/features/preferences/components/meal-reminders-section';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import {
   WeeklyEmailToggles,
@@ -138,6 +139,8 @@ export default async function PreferencesPage() {
       <AutoPlanToggle initialEnabled={autoPlanWeekly} isPremium={isPremium} />
       <JobsSection initialJobs={jobs} />
       {emailPrefs && <WeeklyEmailToggles initial={emailPrefs} />}
+      {/* Lane E1: the phone's mealtime reminders, shown and edited here. */}
+      <MealRemindersSection />
     </div>
   );
 }

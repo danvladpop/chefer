@@ -197,4 +197,10 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
+  /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
+  meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
+  /** E1: a Settings change (either platform); `meals` = meals with a reminder. */
+  meal_reminders_changed: { enabled: boolean; meals: number; surface: 'mobile' | 'web' };
 }
