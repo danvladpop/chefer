@@ -1,5 +1,11 @@
-import { ingredientRepository, mealPlanRepository, recipeLineRepository } from '@chefer/database';
-import type { RecipeLineWrite } from '@chefer/database';
+import {
+  curatedRecipeDraftRepository,
+  ingredientRepository,
+  mealPlanRepository,
+  recipeLineRepository,
+} from '@chefer/database';
+import type { ApprovedCuratedDraft, RecipeLineWrite } from '@chefer/database';
+import { CURATED_MEAL_TYPES, curatedDraftRecipeSchema } from '@chefer/types';
 import {
   SWAP_BREAKFAST_POOL,
   SWAP_DINNER_POOL,
@@ -7,7 +13,7 @@ import {
   SWAP_SNACK_POOL,
 } from '../ai/fixtures/swap-recipes.fixture.js';
 import { RECIPE_LIBRARY } from '../ai/fixtures/week-plan.fixture.js';
-import type { MealType, RecipeData } from '../ai/types.js';
+import type { MealType, NutritionInfo, RecipeData } from '../ai/types.js';
 import { computeFixtureNutrition, withComputedNutrition } from './computed-nutrition.js';
 import {
   EXTRA_BREAKFAST_POOL,
@@ -94,6 +100,109 @@ export const CURATED_POOL_BY_TYPE: Record<MealType, RecipeData[]> = {
   ].map(curated),
 };
 
+// ─── Ingested slice (market review F1) ────────────────────────────────────────
+// Recipes an admin ingested from a link and APPROVED (curated-ingest service)
+// join the fixture pool at runtime. Only APPROVED drafts load — a draft in any
+// other state has no recipe row and never reaches a user. Refreshed by
+// ensureCuratedRecipes (every caller awaits it before reading the pool) when
+// stale or invalidated by a review.
+
+const INGESTED_TTL_MS = 5 * 60_000;
+
+function emptyPools(): Record<MealType, RecipeData[]> {
+  return { breakfast: [], lunch: [], dinner: [], snack: [] };
+}
+
+let ingestedPools = emptyPools();
+let ingestedLoadedAt = 0;
+let mergedPools: Record<MealType, RecipeData[]> = CURATED_POOL_BY_TYPE;
+let mealTypeById: Map<string, MealType> | null = null;
+
+/** An approved draft as a pool entry; null when its stored draft does not parse. */
+export function approvedDraftToRecipeData({
+  draft,
+  recipe,
+}: ApprovedCuratedDraft): RecipeData | null {
+  const parsed = curatedDraftRecipeSchema.safeParse(draft.draft);
+  if (!parsed.success) return null;
+  const d = parsed.data;
+  return {
+    id: recipe.id,
+    name: d.name,
+    description: d.description,
+    ingredients: d.ingredients,
+    instructions: d.instructions,
+    nutritionInfo: recipe.nutritionInfo as unknown as NutritionInfo,
+    cuisineType: d.cuisineType,
+    dietaryTags: d.dietaryTags,
+    prepTimeMins: d.prepTimeMins,
+    cookTimeMins: d.cookTimeMins,
+    servings: d.servings,
+    imageUrl: recipe.imageUrl,
+  };
+}
+
+/** Sets the ingested slice (exported for tests; production goes through ensureCuratedRecipes). */
+export function setIngestedCuratedRecipes(approved: ApprovedCuratedDraft[]): void {
+  const pools = emptyPools();
+  for (const row of approved) {
+    const recipe = approvedDraftToRecipeData(row);
+    if (!recipe) continue;
+    for (const type of row.draft.mealTypes) {
+      if ((CURATED_MEAL_TYPES as readonly string[]).includes(type)) {
+        pools[type as MealType].push(recipe);
+      }
+    }
+  }
+  ingestedPools = pools;
+  ingestedLoadedAt = Date.now();
+  mergedPools = {
+    breakfast: [...CURATED_POOL_BY_TYPE.breakfast, ...pools.breakfast],
+    lunch: [...CURATED_POOL_BY_TYPE.lunch, ...pools.lunch],
+    dinner: [...CURATED_POOL_BY_TYPE.dinner, ...pools.dinner],
+    snack: [...CURATED_POOL_BY_TYPE.snack, ...pools.snack],
+  };
+  mealTypeById = null;
+}
+
+/** Forces the next ensureCuratedRecipes to reload the ingested slice (after a review). */
+export function invalidateIngestedCuratedRecipes(): void {
+  ingestedLoadedAt = 0;
+}
+
+/** The ingested slice alone, by meal type (coverage report). */
+export function ingestedCuratedPools(): Record<MealType, RecipeData[]> {
+  return ingestedPools;
+}
+
+/** The whole free pool: the authored fixtures plus approved ingested recipes. */
+export function curatedPoolByType(): Record<MealType, RecipeData[]> {
+  return mergedPools;
+}
+
+/** A curated recipe's meal type (its first, when an ingested one fills several). */
+export function curatedMealTypeOf(id: string): MealType | undefined {
+  if (!mealTypeById) {
+    mealTypeById = new Map();
+    for (const type of CURATED_MEAL_TYPES) {
+      for (const recipe of mergedPools[type]) {
+        if (!mealTypeById.has(recipe.id)) mealTypeById.set(recipe.id, type);
+      }
+    }
+  }
+  return mealTypeById.get(id);
+}
+
+async function refreshIngested(): Promise<void> {
+  if (Date.now() - ingestedLoadedAt < INGESTED_TTL_MS) return;
+  try {
+    setIngestedCuratedRecipes(await curatedRecipeDraftRepository.findApproved());
+  } catch (err) {
+    // The fixture pool keeps serving; the next call retries.
+    console.warn('[curated-recipes] could not load ingested recipes', err);
+  }
+}
+
 /**
  * Minimum SAFE recipes a meal type must keep after filtering for a free plan
  * to generate — below this the week would be too repetitive to feel usable,
@@ -107,12 +216,13 @@ export const MIN_SAFE_POOL_SIZE = 3;
  * MIN_SAFE_POOL_SIZE.
  */
 export function safeCuratedPools(prefs: SafetyPrefs | null): Record<MealType, RecipeData[]> {
-  if (!hasSafetyPrefs(prefs)) return CURATED_POOL_BY_TYPE;
+  const pools = curatedPoolByType();
+  if (!hasSafetyPrefs(prefs)) return pools;
   return {
-    breakfast: filterSafeRecipes(CURATED_POOL_BY_TYPE.breakfast, prefs),
-    lunch: filterSafeRecipes(CURATED_POOL_BY_TYPE.lunch, prefs),
-    dinner: filterSafeRecipes(CURATED_POOL_BY_TYPE.dinner, prefs),
-    snack: filterSafeRecipes(CURATED_POOL_BY_TYPE.snack, prefs),
+    breakfast: filterSafeRecipes(pools.breakfast, prefs),
+    lunch: filterSafeRecipes(pools.lunch, prefs),
+    dinner: filterSafeRecipes(pools.dinner, prefs),
+    snack: filterSafeRecipes(pools.snack, prefs),
   };
 }
 
@@ -122,8 +232,10 @@ let ensured = false;
  * Idempotently upserts the curated pool into the recipes table. Called lazily
  * before the first free-tier plan generation of this process — safe to run on
  * an existing dev database (upsert by fixed ID, no destructive operations).
+ * Every call also refreshes the ingested slice when it is stale.
  */
 export async function ensureCuratedRecipes(): Promise<void> {
+  await refreshIngested();
   if (ensured) return;
 
   const all = Object.values(CURATED_POOL_BY_TYPE).flat();

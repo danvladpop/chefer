@@ -44,6 +44,7 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+39. [Curated Recipe Ingest & Pool Coverage (admin)](#39-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
 
 ---
 
@@ -6222,3 +6223,48 @@ success moment ──► maybeRequestReview(trigger)
 
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
+
+---
+
+## 39. Curated Recipe Ingest & Pool Coverage (admin, market review F1/F2)
+
+Web admin only (`/admin/recipes`, every procedure `adminProcedure`). Free users never see a draft:
+only approval creates the CURATED recipe the free pool serves. Code: `CuratedIngestService`
+(infrastructure.md §7).
+
+```
+Admin pastes a link (/admin/recipes) ──► curatedAdmin.ingest
+  │   normalise URL · already in the queue/pool? → CONFLICT
+  │   today's links ≥ CURATED_INGEST_DAILY_CAP? → TOO_MANY_REQUESTS ("cap used up, resets at midnight UTC")
+  └─► draft row EXTRACTING ──► background extraction (queue polls every 4 s)
+        │ video link → captions → subtitles → Whisper (VideoRecipeService)
+        │ web link   → page text (SSRF-guarded) → annotated extraction (no invented method)
+        │ → rewriteRecipeProse (Chefer's voice, facts kept)   fail → prose stays ORIGINAL + checklist line
+        │ → match lines to GLOBAL catalog slugs · guess meal type from the name
+        ├─ provider quota / 429 → FAILED "The AI provider's quota is used up…" (Try again later)
+        ├─ other failure / duplicate canonical link → FAILED with the reason
+        └─ DRAFT ("Needs review")
+
+Admin reviews (/admin/recipes/[id]) ──► curatedAdmin.get (live review)
+  │   edit name, description, times, servings, meal slots, tags, lines (catalog match / candidates), steps
+  │   "Rewrite in Chefer's voice" → curatedAdmin.rewriteProse   · Save → curatedAdmin.update
+  │   hand-edited prose → EDITED
+  ├─ Reject (+ reason) → REJECTED (the link may be pasted again later)
+  └─ Approve → curatedAdmin.approve
+        gates: complete · prose not ORIGINAL · every line on a global catalog row · amounts convert to grams
+               · no line name hiding an allergen its catalog row reveals
+        fail → BAD_REQUEST listing every blocker
+        pass → diet tags derived from the ingredients (claimed diet tags replaced)
+             → ONE transaction: CURATED recipe (sourceUrl, no creator, no creator image, PENDING image)
+               + catalog lines + computed nutrition, draft → APPROVED
+             → image worker generates the picture · pool slice reloads
+             → the recipe is now drawn for free plans, swaps, Discover — safety-filtered like any curated recipe
+
+In the pool ──► "Take out of the pool" → curatedAdmin.unpublish → UNPUBLISHED
+                (no new plans draw it; plans that already hold it keep it)
+
+Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAdmin.coverage
+    counts by meal type × diet (as served) / allergen-free / prep+cook band / cuisine,
+    the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
+    red = that household repeats a recipe within 2 weeks, amber = within 4
+```
