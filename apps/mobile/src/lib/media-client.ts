@@ -89,6 +89,16 @@ export function uploadErrorFrom(status: number | null, body: unknown, bytes: num
   return new Error(SOMETHING_WRONG_MESSAGE);
 }
 
+/** Encodes bytes as base64 — photos sent through tRPC (packaged products, ADR 0002). */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
 /** Decodes base64 (as returned by expo-image-picker) into bytes. */
 export function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);

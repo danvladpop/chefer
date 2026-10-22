@@ -906,3 +906,4 @@ export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';
 export * from './biscuit';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+export * from './packaged-product';

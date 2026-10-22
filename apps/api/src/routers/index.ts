@@ -19,6 +19,7 @@ import { recipeRouter } from './recipe.router.js';
 import { safetyRouter } from './safety.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
 import { targetsRouter } from './targets.router.js';
+import { productsRouter } from './products.router.js';
 import { trackerRouter } from './tracker.router.js';
 import { trainerRouter } from './trainer/index.js';
 import { trainingRouter } from './training.router.js';
@@ -54,6 +55,7 @@ export const appRouter = router({
   shoppingList: shoppingListRouter,
   targets: targetsRouter,
   tracker: trackerRouter,
+  products: productsRouter,
   trainer: trainerRouter,
   training: trainingRouter,
   user: userRouter,

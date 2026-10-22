@@ -317,6 +317,12 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
+  // Packaged products (ADR 0002)
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -435,6 +441,8 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  // Packaged products (ADR 0002)
+  PackagedProduct,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -444,6 +452,7 @@ export {
   IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
+  PackagedProductSource,
   UserRole,
   PostStatus,
   Prisma,

@@ -84,6 +84,8 @@ export interface RecentAggregate {
   recipeId?: string;
   customName?: string;
   estimatedBy?: 'vision' | 'manual';
+  /** The packaged product a custom entry was logged from (ADR 0002). */
+  productId?: string;
   mealType: string;
   kcal: number;
   protein: number;
@@ -123,6 +125,7 @@ export function aggregateRecents(days: RecentLogDay[], limit = 15): RecentAggreg
           customName: entry.custom.name,
           estimatedBy: entry.custom.estimatedBy,
         }),
+        ...(entry.custom && entry.product && { productId: entry.product.id }),
         mealType: entry.mealType,
         kcal: entry.kcal,
         protein: entry.protein,

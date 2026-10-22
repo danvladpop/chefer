@@ -14,6 +14,7 @@ import type {
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
+  NutritionLabelReading,
   MealPlanDayRequest,
   MealPlanInput,
   RecipeData,
@@ -217,6 +218,15 @@ export class ChainAIService implements IAIService {
       'analyzeMealPhoto',
       'vision',
       (s) => s.analyzeMealPhoto(imageBase64, mimeType),
+      { imageBase64, mimeType },
+    );
+  }
+
+  readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {
+    return this.run(
+      'readNutritionLabel',
+      'vision',
+      (s) => s.readNutritionLabel(imageBase64, mimeType),
       { imageBase64, mimeType },
     );
   }

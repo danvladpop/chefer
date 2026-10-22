@@ -460,3 +460,12 @@ export {
   type IUploadReferenceRepository,
   type PurgeResult,
 } from './upload-reference.repository';
+
+// Packaged products (ADR 0002): the Open Food Facts cache + users' own products
+export {
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
+} from './packaged-product.repository';
