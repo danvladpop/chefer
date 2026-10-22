@@ -9,6 +9,7 @@ import { isPremiumUser } from '../../lib/entitlements.js';
 import { reserveAiSwap, reserveChatMessage } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
 import { trainingSummaryService } from '../gym/training-summary.service.js';
+import { householdAccess } from '../household/household-access.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -194,6 +195,8 @@ export class ChatService {
     user: UserProfile,
     plan: WeekPlanDto | null,
     actions: ChatAction[] = [],
+    /** ADR 0002: whose week and list the tools change — the owner's for a partner. */
+    planUser: UserProfile = user,
   ): ChatTools {
     return {
       swapMeal: async ({ dayOfWeek, mealType, occurrence }) => {
@@ -219,16 +222,16 @@ export class ChatService {
           }
           slotIndex = target.index;
         }
-        const reservation = await reserveAiSwap(user);
+        const reservation = await reserveAiSwap(planUser);
         const before = (ofType[(occurrence ?? 1) - 1] ?? ofType[0])?.m.recipe.name;
         const swapped = await mealPlanService
           .swapRecipe(
-            user.id,
+            planUser.id,
             plan.planId,
             dayOfWeek,
             mealType,
             undefined,
-            isPremiumUser(user),
+            isPremiumUser(planUser),
             slotIndex,
           )
           .catch(async (err: unknown) => {
@@ -265,7 +268,12 @@ export class ChatService {
           .filter((i) => i.name.length > 0)
           .slice(0, 20);
         if (cleaned.length === 0) return 'No valid items given.';
-        const { added } = await shoppingListService.addCustomItems(user.id, plan.planId, cleaned);
+        const { added } = await shoppingListService.addCustomItems(
+          planUser.id,
+          plan.planId,
+          cleaned,
+          user.id,
+        );
         actions.push({
           kind: 'shopping',
           label: `Added to your shopping list: ${added.join(', ')}`,
@@ -420,7 +428,15 @@ export class ChatService {
     // attempt was ours, not the user's.
     const reservation = await reserveChatMessage(user);
 
-    const plan = await mealPlanService.getActive(user.id);
+    // ADR 0002: a partner chats about the household's week, at their own portion.
+    const household = await householdAccess.scope(user.id);
+    const planUser = await householdAccess.planUser(user, household);
+    const plan = await mealPlanService.getActive(
+      planUser.id,
+      household.role === 'PARTNER'
+        ? { viewer: { userId: user.id, portion: household.portion } }
+        : {},
+    );
     const contextSummary = await this.buildContextSummary(user, plan);
 
     // UX-FOOD-21: what the tools did this turn, for the "View / Undo" chips.
@@ -428,7 +444,7 @@ export class ChatService {
     const context: ChatContext = {
       userId: user.id,
       contextSummary,
-      tools: this.buildTools(user, plan, actions),
+      tools: this.buildTools(user, plan, actions, planUser),
     };
     try {
       // Cost tracking: /api/chat is a plain Express route with no AI call

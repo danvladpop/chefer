@@ -161,7 +161,7 @@ export class HouseholdService {
   constructor(private readonly repo: IHouseholdMemberRepository = householdMemberRepository) {}
 
   /** The user's members, after converting any legacy servingSize. */
-  async list(userId: string): Promise<HouseholdMember[]> {
+  async list(userId: string): Promise<(HouseholdMember & { claimedBy: string | null })[]> {
     await this.migrateLegacyServingSize(userId);
     return this.repo.findByUserId(userId);
   }

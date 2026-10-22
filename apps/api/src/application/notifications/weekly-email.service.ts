@@ -36,6 +36,7 @@ import { unsubscribeUrl, type UnsubscribeScope } from '../../lib/email/tokens.js
 import { isPremiumUser } from '../../lib/entitlements.js';
 import { env } from '../../lib/env.js';
 import { weekStartUtc } from '../coach/coach.service.js';
+import { householdPlanScope } from '../meal-plan/plan-for-date.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 
@@ -194,6 +195,8 @@ export interface WeeklyEmailDeps {
   reviews: Pick<IChefReviewRepository, 'findByUserAndWeek'>;
   /** This week's shopping-list estimate in EUR (what the list page shows). */
   listTotalEur: (user: UserProfile) => Promise<number | null>;
+  /** ADR 0002: whose plan the email shows — the household owner's for a partner. */
+  planUserId: (userId: string) => Promise<string>;
   appUrl: string;
   unsubscribeUrl: (userId: string, scope: UnsubscribeScope) => string;
   sendDelayMs: number;
@@ -242,6 +245,7 @@ export class WeeklyEmailService {
       reviews: chefReviewRepository,
       listTotalEur: async (user) =>
         (await shoppingListService.getForWeek(user, 0)).estimatedTotalEur,
+      planUserId: async (userId) => (await householdPlanScope(userId)).planUserId,
       appUrl: env.APP_URL,
       unsubscribeUrl,
       sendDelayMs: DEFAULT_SEND_DELAY_MS,
@@ -360,7 +364,10 @@ export class WeeklyEmailService {
 
   /** Null when there is nothing planned this week — no "ready" email for an empty week. */
   async buildWeekReady(user: WeeklyEmailRecipient, now: Date): Promise<RenderedEmail | null> {
-    const plan = await this.deps.mealPlans.findByWeekStart(user.id, mondayLocal(now));
+    const plan = await this.deps.mealPlans.findByWeekStart(
+      await this.deps.planUserId(user.id),
+      mondayLocal(now),
+    );
     if (!plan) return null;
 
     const slots = plan.days.flatMap((d) => (Array.isArray(d.meals) ? (d.meals as Slot[]) : []));
@@ -413,7 +420,7 @@ export class WeeklyEmailService {
         isoDate(new Date(weekEnd.getTime() - DAY_MS)),
       ),
       this.deps.reviews.findByUserAndWeek(user.id, weekStart),
-      this.deps.mealPlans.findByWeekStart(user.id, mondayLocal(now, 1)),
+      this.deps.mealPlans.findByWeekStart(await this.deps.planUserId(user.id), mondayLocal(now, 1)),
     ]);
 
     const targets = resolveDailyTargets(profile ?? null);

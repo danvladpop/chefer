@@ -198,6 +198,17 @@ export const PLAN_FEATURES = {
     description: 'How many household members can share your plan.',
     upsell: false,
   },
+  householdPartners: {
+    // Household sharing (ADR 0002): how many partners — people with their own
+    // account — may join one household. Billing is on hold, so both tiers get
+    // the same number; paid seats would be an edit to THIS entry, read only
+    // through householdAccess.canInvite. 4 partners + the owner = 5 profiles.
+    free: 4,
+    premium: 4,
+    label: 'People who share your plan',
+    description: 'How many people with their own Chefer account can join your household.',
+    upsell: false,
+  },
   gymTraining: {
     // Free on purpose (gym_plan.md D9): the whole gym side — library, routines,
     // offline logging, progression and stats — is free on every tier. A future

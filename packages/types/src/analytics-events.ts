@@ -207,4 +207,25 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Household sharing (ADR 0002) — enums and counts only ────────────────────
+  household_invite_created: { via: 'share' | 'copy' };
+  household_invite_opened: {
+    state:
+      | 'OK'
+      | 'NOT_FOUND'
+      | 'SELF'
+      | 'ALREADY_JOINED'
+      | 'IN_OTHER_HOUSEHOLD'
+      | 'HAS_PARTNERS'
+      | 'PROFILE_TAKEN'
+      | 'USED'
+      | 'REVOKED'
+      | 'EXPIRED';
+    signedIn: boolean;
+  };
+  household_joined: { editedSafety: boolean };
+  household_left: { by: 'partner' | 'owner' };
+  shared_list_synced: { remoteChanges: number };
+  shared_plan_conflict: Record<string, never>;
 }

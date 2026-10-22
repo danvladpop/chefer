@@ -15,5 +15,7 @@ export const removeSlotInputSchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
   mealType: planSlotMealTypeSchema,
   slotIndex: z.number().int().min(0).max(20),
+  /** ADR 0002: the recipe the client expects there; anything else is a CONFLICT. Optional, additive. */
+  expectedRecipeId: z.string().min(1).optional(),
 });
 export type RemoveSlotInput = z.infer<typeof removeSlotInputSchema>;

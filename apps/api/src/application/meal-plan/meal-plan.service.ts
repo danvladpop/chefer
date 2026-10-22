@@ -24,6 +24,7 @@ import {
 import {
   AI_CONSENT_REQUIRED_MESSAGE,
   FRIENDS_COPY,
+  HOUSEHOLD_SHARING_COPY,
   type addRecipeToWeekInputSchema,
   type PlanTailoring,
   type PlanTrainingBasis,
@@ -59,6 +60,7 @@ import type {
   SwapInput,
   WeekPlanResponse,
 } from '../../lib/ai/index.js';
+import { ConflictCause } from '../../lib/conflict.js';
 import {
   ensureCuratedRecipes,
   findSafetyIssues,
@@ -517,6 +519,14 @@ export interface PlanViewOptions {
   householdScaling?: boolean;
   /** UX-06 (T-06.1): the viewer's `trainingDayTargets` entitlement (the bump is applied, not previewed). */
   trainingAccess?: boolean;
+  /**
+   * ADR 0002: a partner viewing the household owner's plan. The plan, safety,
+   * shape and cost stay the owner's; targets, training days and logged meals
+   * are the partner's own, and every slot shows at the partner's `portion` (the
+   * claimed profile's portionFactor) — the owner's targets-driven portions,
+   * refit notice and targets never reach the partner.
+   */
+  viewer?: { userId: string; portion: number };
 }
 
 // ─── Week helper ──────────────────────────────────────────────────────────────
@@ -2186,11 +2196,14 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    const refitNotice = portionRefitNotice(plan.portionRefit);
+    // ADR 0002: a partner's own targets/training, at their own portion.
+    const partner = userId && view.viewer && view.viewer.userId !== userId ? view.viewer : null;
+    const personId = partner?.userId ?? userId;
+    const refitNotice = partner ? null : portionRefitNotice(plan.portionRefit);
     const [recipeRows, safetyCtx, targets, shape, tailoringRow] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadSafetyContext(userId) : Promise.resolve(null),
-      userId ? this.loadTargets(userId) : Promise.resolve(null),
+      personId ? this.loadTargets(personId) : Promise.resolve(null),
       // wave-1 T-07.6: `planned` used to be reliable only on `generate`'s own
       // response (no shape snapshot was kept per-read) — a plain reload of
       // an unplanned day fell back to a generic "no meals" line with no
@@ -2224,7 +2237,7 @@ export class MealPlanService {
           );
           return [];
         }
-        const portion = slotPortion(m.portion);
+        const portion = partner ? partner.portion : slotPortion(m.portion);
         protein += ((row.nutritionInfo as unknown as NutritionInfo).protein ?? 0) * portion;
         return [
           {
@@ -2284,7 +2297,8 @@ export class MealPlanService {
       }),
       ...(tailoring && { tailoring }),
       ...(safetyCtx && { tableSafety: safetyCtx.table }),
-      ...(userId && (await this.trainingPayload(userId, plan.weekStartDate, view.trainingAccess))),
+      ...(personId &&
+        (await this.trainingPayload(personId, plan.weekStartDate, view.trainingAccess))),
       ...(refitNotice && { portionRefit: refitNotice }),
     };
   }
@@ -2446,6 +2460,38 @@ export class MealPlanService {
         fit,
       )),
     };
+  }
+
+  /**
+   * ADR 0002: with two people on one week, a change may be aimed at a slot the
+   * other person just changed. When the client says which recipe it expects to
+   * replace, a slot holding anything else is a CONFLICT carrying what it holds
+   * now — checked before any AI call, so a stale tap never costs a generation.
+   */
+  async assertSlotUnchanged(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    slotIndex: number | undefined,
+    expectedRecipeId: string | undefined,
+  ): Promise<void> {
+    if (expectedRecipeId === undefined) return;
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    const meals = (plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ??
+      []) as PlanMealSlotJson[];
+    const slot =
+      slotIndex !== undefined ? meals[slotIndex] : meals.find((m) => m.type === mealType);
+    if (slot?.type === mealType && slot.recipeId === expectedRecipeId) return;
+    throw new TRPCError({
+      code: 'CONFLICT',
+      message: HOUSEHOLD_SHARING_COPY.conflictSomeone,
+      cause: new ConflictCause({
+        kind: 'mealSlot',
+        current: { dayOfWeek, mealType, recipeId: slot?.type === mealType ? slot.recipeId : null },
+      }),
+    });
   }
 
   /** Undo the last targets refit of a plan (the Meals notice's Undo). */
@@ -3464,7 +3510,7 @@ export class MealPlanService {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
     const dto = await this.assemblePlanDto(plan, userId, view);
-    return this.withLoggedMeals(userId, plan.weekStartDate, dto);
+    return this.withLoggedMeals(view.viewer?.userId ?? userId, plan.weekStartDate, dto);
   }
 
   /**
