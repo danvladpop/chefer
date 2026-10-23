@@ -27,11 +27,22 @@ describe('candidateKey / candidateXp', () => {
 
 describe('mealSourceId', () => {
   it('uses the slot index, then the recipe, then a custom entry id', () => {
-    expect(mealSourceId({ mealType: 'dinner', slotIndex: 2, recipeId: 'r1' })).toBe('dinner:2');
-    expect(mealSourceId({ mealType: 'lunch', slotIndex: 0 })).toBe('lunch:0');
-    expect(mealSourceId({ mealType: 'lunch', recipeId: 'r9' })).toBe('lunch:r9');
-    expect(mealSourceId({ entryId: 'e5' })).toBe('custom:e5');
-    expect(mealSourceId({ mealType: 'snack', entryId: 'e5' })).toBe('custom:e5');
+    const date = '2026-10-22';
+    expect(mealSourceId({ date, mealType: 'dinner', slotIndex: 2, recipeId: 'r1' })).toBe(
+      '2026-10-22:dinner:2',
+    );
+    expect(mealSourceId({ date, mealType: 'lunch', slotIndex: 0 })).toBe('2026-10-22:lunch:0');
+    expect(mealSourceId({ date, mealType: 'lunch', recipeId: 'r9' })).toBe('2026-10-22:lunch:r9');
+    expect(mealSourceId({ date, entryId: 'e5' })).toBe('2026-10-22:custom:e5');
+    expect(mealSourceId({ date, mealType: 'snack', entryId: 'e5' })).toBe('2026-10-22:custom:e5');
+    expect(mealSourceId({ date, index: 3 })).toBe('2026-10-22:custom:#3');
+  });
+
+  it('never repeats across days (the ledger key is unique per user, not per day)', () => {
+    const slot = { mealType: 'dinner', slotIndex: 2 } as const;
+    expect(mealSourceId({ date: '2026-10-22', ...slot })).not.toBe(
+      mealSourceId({ date: '2026-10-23', ...slot }),
+    );
   });
 });
 

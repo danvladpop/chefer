@@ -32,16 +32,24 @@ export function candidateXp(c: Pick<ProgressCandidate, 'lines'>): number {
 
 // ─── Meals ────────────────────────────────────────────────────────────────────
 
-/** `dinner:2` (slot index, else recipe id) for a recipe entry, `custom:<entryId>` otherwise. */
+/**
+ * `2026-10-22:dinner:2` (slot index, else recipe id) for a recipe entry,
+ * `2026-10-22:custom:<entryId>` for a custom one. The date is part of the id:
+ * the ledger key is unique per user, and "dinner slot 2" recurs every day.
+ * `index` (the entry's position in the day) covers legacy custom entries that
+ * were stored without an `entryId`.
+ */
 export function mealSourceId(entry: {
+  date: string;
   mealType?: PlanSlotMealType;
   slotIndex?: number;
   recipeId?: string;
   entryId?: string;
+  index?: number;
 }): string {
   const ref = entry.slotIndex ?? entry.recipeId;
-  if (entry.mealType && ref !== undefined) return `${entry.mealType}:${ref}`;
-  return `custom:${entry.entryId ?? ''}`;
+  if (entry.mealType && ref !== undefined) return `${entry.date}:${entry.mealType}:${ref}`;
+  return `${entry.date}:custom:${entry.entryId ?? `#${entry.index ?? 0}`}`;
 }
 
 export function mealCandidate(input: {
