@@ -13,7 +13,7 @@ export function summaryFixture(overrides: Partial<ProgressSummary> = {}): Progre
   return {
     xp: { total: 1240, level: 7, xpIntoLevel: 340, xpForLevel: 500 },
     rank: { id: 'LINE_COOK', title: 'Line Cook', minLevel: 5 },
-    nextRank: { id: 'CHEF_DE_PARTIE', title: 'Chef de Partie', minLevel: 10 },
+    nextRank: { id: 'CHEF_DE_PARTIE', title: 'Chef de Partie', minLevel: 8 },
     flame: {
       current: 6,
       best: 9,

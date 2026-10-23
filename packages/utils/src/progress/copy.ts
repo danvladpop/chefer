@@ -181,9 +181,27 @@ export function dishCookedLabel(times: number): string {
 }
 
 /** "340 / 500 XP to Chef de Partie", or the top-rank line. */
-export function xpToRankLine(xpIntoLevel: number, xpForLevel: number, nextRank: string | null) {
+/**
+ * What this level's bar fills up to: the next rank's title when the next level
+ * starts it (Lv 7 → "Chef de Partie"), else the next level ("Lv 6") — the bar
+ * is per level, so "to Chef de Partie" at Lv 5 would promise it at 380 XP.
+ */
+export function xpTargetLabel(
+  level: number,
+  nextRank: { title: string; minLevel: number } | null,
+): string {
+  return nextRank && nextRank.minLevel === level + 1 ? nextRank.title : levelLabel(level + 1);
+}
+
+/** "261 / 380 XP to Lv 6", "340 / 500 XP to Chef de Partie", or the top-rank line. */
+export function xpToRankLine(
+  xpIntoLevel: number,
+  xpForLevel: number,
+  level: number,
+  nextRank: { title: string; minLevel: number } | null,
+): string {
   if (nextRank === null) return PROGRESS_COPY.maxRank;
-  return `${xpIntoLevel} / ${xpForLevel} ${PROGRESS_COPY.xpToRank} ${nextRank}`;
+  return `${xpIntoLevel} / ${xpForLevel} ${PROGRESS_COPY.xpToRank} ${xpTargetLabel(level, nextRank)}`;
 }
 
 /** "Welcome to the kitchen" intro body: "1,240 XP and 6 badges earned from…". */
@@ -410,7 +428,7 @@ export function allProgressCopyStrings(): string[] {
     dishCookedLabel(1),
     dishCookedLabel(2),
     dishCookedLabel(5),
-    xpToRankLine(340, 500, 'Chef de Partie'),
+    xpToRankLine(340, 500, 7, { title: 'Chef de Partie', minLevel: 8 }),
     introBackdatedLine(1240, 6),
     unlockLine('Home Chef', 2),
     levelUpLine(8, 'Chef de Partie'),

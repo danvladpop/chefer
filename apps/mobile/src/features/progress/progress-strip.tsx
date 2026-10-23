@@ -39,7 +39,7 @@ export function ProgressStripView({
   const showLevel = settings.showXp;
   const inline = width >= INLINE_ACTIVE_DAYS_MIN_WIDTH;
   const flameText = flame.current > 0 ? flameWeeksShort(flame.current) : null;
-  const xpLine = xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, nextRank?.title ?? null);
+  const xpLine = xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, xp.level, nextRank);
   const activeDays = `${Math.min(flame.thisWeek.activeDays, flame.thisWeek.goal)} of ${flame.thisWeek.goal}`;
 
   const a11y = [

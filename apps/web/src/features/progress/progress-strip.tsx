@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import type { ProgressSummary } from '@chefer/types';
 import { pressCard, ProgressBar, ProgressRing } from '@chefer/ui';
-import { activeDaysLabel, cn, flameWeeksLabel, levelLabel, PROGRESS_COPY } from '@chefer/utils';
+import {
+  activeDaysLabel,
+  cn,
+  flameWeeksLabel,
+  levelLabel,
+  PROGRESS_COPY,
+  xpTargetLabel,
+} from '@chefer/utils';
 import { PROGRESS_WEB_COPY } from './copy';
 import { FlameDots } from './flame-dots';
 import { FlameSheet } from './flame-sheet';
@@ -64,7 +71,7 @@ export function ProgressStrip({ summary }: { summary: ProgressSummary }) {
                   {nextRank ? (
                     <>
                       {xp.xpIntoLevel} / {xp.xpForLevel} {PROGRESS_COPY.xpToRank}{' '}
-                      <strong>{nextRank.title}</strong>
+                      <strong>{xpTargetLabel(xp.level, nextRank)}</strong>
                     </>
                   ) : (
                     PROGRESS_COPY.maxRank

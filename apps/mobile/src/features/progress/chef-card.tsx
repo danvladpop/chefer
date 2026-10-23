@@ -36,7 +36,7 @@ export function ChefCard() {
       testID="chef-card"
       pressScale="card"
       accessibilityRole="button"
-      accessibilityLabel={`${rank.title}, ${levelLabel(xp.level)}. ${xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, nextRank?.title ?? null)}.${flame.current > 0 ? ` ${chefCardFlameLabel(flame.current)}.` : ''}${badges ? ` ${PROGRESS_COPY.achievementsTitle}: ${badges}.` : ''}`}
+      accessibilityLabel={`${rank.title}, ${levelLabel(xp.level)}. ${xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, xp.level, nextRank)}.${flame.current > 0 ? ` ${chefCardFlameLabel(flame.current)}.` : ''}${badges ? ` ${PROGRESS_COPY.achievementsTitle}: ${badges}.` : ''}`}
       accessibilityHint={PROGRESS_COPY.achievementsTitle}
       onPress={() => router.push('/achievements')}
       className="gap-3 rounded-card border border-separator bg-brand-tint p-4"
@@ -64,7 +64,7 @@ export function ChefCard() {
             <Text className="text-callout font-semibold text-brand"> · {levelLabel(xp.level)}</Text>
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, nextRank?.title ?? null)}
+            {xpToRankLine(xp.xpIntoLevel, xp.xpForLevel, xp.level, nextRank)}
           </Text>
           <ProgressBar
             testID="chef-card-bar"
