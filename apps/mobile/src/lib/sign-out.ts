@@ -6,6 +6,7 @@ import { cancelAllGymReminders } from '../features/gym/reminders/cancel-reminder
 import { clearBookingReminders } from '../features/notifications/booking-reminders';
 import { clearFoodNudges } from '../features/notifications/food-nudges';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
+import { clearTodayWidget } from '../features/widget/today-widget';
 import { clearToken, getSessionQueryClient } from './auth-store';
 
 // UX-ACC-02 / UX-ACC-12: THE way an account leaves this phone. More, Settings,
@@ -59,6 +60,8 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
     await stage(() => clearFoodNudges());
     // Trainer mode §7.3: the booking reminders name this account's sessions.
     await stage(() => clearBookingReminders());
+    // C4: the home-screen widget shows this account's day.
+    await stage(() => clearTodayWidget());
     await stage(() => {
       clearRegisterDraft();
       clearPendingOnboarding();
