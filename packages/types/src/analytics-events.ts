@@ -1,3 +1,4 @@
+import type { CoachReason } from './coach-review';
 import type { PremiumJobId, PremiumSource } from './plan-features';
 import type { PlanSlot } from './plan-shape';
 
@@ -207,4 +208,7 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+  // Lane D2 (market review 2026-10): the explained coach.
+  day_incomplete_set: { incomplete: boolean };
+  coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
 }

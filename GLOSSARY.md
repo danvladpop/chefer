@@ -209,3 +209,12 @@ _Avoid_: weight entry (in user copy), measurement
 The smoothed line through the weigh-ins (an exponentially weighted average, α = 0.1 a day, gaps handled in time); what
 charts draw bold and what the Adaptive Chef reads. "Trend" for short in copy.
 _Avoid_: average weight, moving average (in user copy), real weight
+
+**Partly logged day**:
+A logged day the user marked as incomplete. It still counts as logged, but the weekly review leaves it out of its
+averages.
+_Avoid_: missed day, bad day, incomplete day (in user copy)
+
+**Complete day**:
+A logged day not marked as partly logged; what the weekly review averages over.
+_Avoid_: full day, good day

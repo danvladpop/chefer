@@ -108,6 +108,7 @@ function wireDay(entries: LoggedMealEntry[], skippedSlots: SlotRefJson[] = []) {
       totalProtein: 0,
       totalCarbs: 0,
       totalFat: 0,
+      incomplete: false,
       updatedAt: new Date(),
     };
   });
@@ -305,6 +306,7 @@ describe('other writes keep a day’s skips and drop replacesSlot where it no lo
       totalProtein: 40,
       totalCarbs: 0,
       totalFat: 0,
+      incomplete: false,
       updatedAt: new Date(),
     });
     const day = wireDay([]);
@@ -333,6 +335,7 @@ describe('getDay — exposes skips and replacements additively', () => {
     totalProtein: 40,
     totalCarbs: 0,
     totalFat: 0,
+    incomplete: false,
     updatedAt: new Date(),
     ...extra,
   });

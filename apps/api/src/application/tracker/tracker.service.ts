@@ -169,6 +169,11 @@ export interface DayTrackerData {
    */
   numbersMode?: NumbersMode;
   proteinGuide?: ProteinGuide;
+  /**
+   * Lane D2: the user marked this day as partly logged, so the weekly review
+   * leaves it out of its averages. Additive: older clients ignore it.
+   */
+  incomplete?: boolean;
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -396,6 +401,7 @@ export const trackerService = {
           }
         : null,
       skippedSlots,
+      incomplete: log?.incomplete ?? false,
       numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
       proteinGuide: buildProteinGuide(proteinG, plannedMeals.length),
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
@@ -637,6 +643,19 @@ export const trackerService = {
   },
 
   /** Undo of `skipSlot`. A no-op when the slot is not skipped (a retried Undo). */
+  /**
+   * Lane D2: "Partly logged day". The day still counts as logged, but the
+   * Adaptive Chef leaves it out of its intake average and complete-days rule.
+   */
+  async setDayIncomplete(
+    userId: string,
+    dateStr: string,
+    incomplete: boolean,
+  ): Promise<{ date: string; incomplete: boolean }> {
+    const stored = await dailyLogRepository.setIncomplete(userId, dayDate(dateStr), incomplete);
+    return { date: dateStr, incomplete: stored };
+  },
+
   async unskipSlot(
     userId: string,
     dateStr: string,

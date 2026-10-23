@@ -650,6 +650,10 @@ model DailyLog {
   // Deliberately NOT part of loggedMeals: shipped clients iterate the entries
   // and sum them, and a skipped meal is not food. Additive, defaults to [].
   skippedSlots Json     @default("[]")
+  // Lane D2: the user marked the day as partly logged. It still counts as a
+  // logged day, but the Adaptive Chef leaves it out of its intake average and
+  // its "complete days" rule. Additive, defaults to false.
+  incomplete   Boolean  @default(false)
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -683,6 +687,9 @@ model ChefReview {
   // written before this column existed read false (unlabelled) until the next
   // weekly review replaces them.
   aiGenerated            Boolean   @default(false)
+  // Lane D2: the deterministic "why" behind the week's suggestion
+  // (@chefer/types coachExplanationSchema). Null on rows written before it.
+  explanation            Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
