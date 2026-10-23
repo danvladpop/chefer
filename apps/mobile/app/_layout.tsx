@@ -24,6 +24,7 @@ import { useNotificationLinks } from '../src/features/notifications/use-notifica
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
+import { ProgressHost } from '../src/features/progress/progress-host';
 import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
@@ -224,6 +225,9 @@ export default function RootLayout() {
             <PendingJoinHost signedIn={token !== null} />
             {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
             <FoodNudgeHost signedIn={token !== null} />
+            {/* Kitchen progress: retries unsent cook finishes, shows the inbox (snackbars, level-up) and
+                keeps the gentle reminder set. Gated inside; the cook retry runs for everyone. */}
+            <ProgressHost signedIn={token !== null} />
             {/* Trainer mode §7.3: local reminders 60 min before each booking (client and trainer). */}
             <BookingReminderHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
