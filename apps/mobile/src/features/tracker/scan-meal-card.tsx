@@ -409,7 +409,9 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           )}
           {/* Lane A3 (MO-01 press feedback via Chip): photos miss hidden fat. */}
           <View testID="scan-hidden-fat" className="gap-1.5">
-            <Text className="text-xs font-medium text-gray-700">{HIDDEN_FAT_COPY.question}</Text>
+            <Text className="text-xs font-medium text-label-secondary">
+              {HIDDEN_FAT_COPY.question}
+            </Text>
             <Text variant="muted" className="text-xs">
               {HIDDEN_FAT_COPY.hint}
             </Text>
@@ -425,7 +427,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               ))}
             </View>
             {fatExtra.kcal > 0 && (
-              <Text testID="scan-hidden-fat-added" className="text-xs text-gray-600">
+              <Text testID="scan-hidden-fat-added" className="text-xs text-label-secondary">
                 {HIDDEN_FAT_COPY.addedLine(fatExtra.kcal, fatExtra.fat)}
               </Text>
             )}
