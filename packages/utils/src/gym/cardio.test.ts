@@ -9,6 +9,7 @@ import {
   formatDurationMinutes,
   pace,
   toMetres,
+  profileDistanceUnit,
 } from './cardio';
 
 describe('formatDurationMinutes', () => {
@@ -129,5 +130,14 @@ describe('cardio catalogue presets (T-42.1)', () => {
   it("distanceUnitFor: every other entry follows the user's profile distance unit", () => {
     expect(distanceUnitFor('treadmill-run', 'MI')).toBe('MI');
     expect(distanceUnitFor('outdoor-cycle', 'KM')).toBe('KM');
+  });
+});
+
+describe('profileDistanceUnit (G3)', () => {
+  it('uses the saved choice, else the unit that goes with the weight unit', () => {
+    expect(profileDistanceUnit({ unit: 'KG', distanceUnit: 'MI' })).toBe('MI');
+    expect(profileDistanceUnit({ unit: 'LB', distanceUnit: null })).toBe('MI');
+    expect(profileDistanceUnit({ unit: 'KG' })).toBe('KM');
+    expect(profileDistanceUnit(null)).toBe('KM');
   });
 });
