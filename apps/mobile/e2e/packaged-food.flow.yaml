@@ -1,7 +1,7 @@
 # Packaged foods (ADR 0002, lane A1): Log sheet → Scan barcode → a photo of a
 # real EAN-13 from the library → decoded on the server → Open Food Facts →
 # product card (allergen line, "Data from Open Food Facts") → log 15 g. Then
-# a typed in-store barcode nobody publishes → not found → "Enter it yourself"
+# a typed barcode Open Food Facts doesn't have → not found → "Enter it yourself"
 # → save → log. Needs network for Open Food Facts on the first run (later
 # runs hit Chefer's cache).
 #
@@ -99,8 +99,9 @@ appId: dev.chefer.app.dev
     id: 'log-sheet-scan-barcode'
 - tapOn:
     id: 'product-barcode-input'
-# An in-store "20" EAN-13 with a valid check digit: never on Open Food Facts.
-- inputText: '2000000000008'
+# A valid EAN-13 that Open Food Facts doesn't have (checked 2026-10-23; the
+# in-store "20…" range is NOT safe — 2000000000008 is a real product there).
+- inputText: '2931415926532'
 - tapOn:
     id: 'product-barcode-find'
 # A re-run finds the product saved last time ("Your product"): skip the form.
@@ -121,6 +122,10 @@ appId: dev.chefer.app.dev
       - tapOn:
           id: 'product-form-kcal'
       - inputText: '380'
+      # Close the number pad (its Done bar) before tapping below it.
+      - tapOn:
+          text: 'Done'
+          optional: true
       - scrollUntilVisible:
           element:
             id: 'product-form-allergen-gluten'

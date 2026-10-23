@@ -5,8 +5,8 @@ import { makeUser, type ContractUser } from './friends-helpers';
 // save your own product, find it by barcode and by name, log it by servings,
 // see it in Recents — plus privacy (another user can't see or log it) and the
 // premium label scan's gate. Throwaway users only; nothing touches alice.
-// Nothing here reaches Open Food Facts: the barcodes are the user's own
-// (looked up before OFF) or in-store "20" prefixes nobody publishes.
+// Nothing here reaches Open Food Facts: every barcode looked up is the user's
+// own product, which the lookup answers before ever calling OFF.
 
 const TODAY = new Date().toISOString().slice(0, 10);
 // A 64×64 white PNG: decodes fine and holds no barcode.
