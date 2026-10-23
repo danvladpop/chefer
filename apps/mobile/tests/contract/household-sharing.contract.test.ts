@@ -133,7 +133,7 @@ describe('invite → join (ADR 0002)', () => {
     expect(claimed).toMatchObject({ hasAccount: true, isYou: false });
     expect(claimed?.allergies).toEqual(expect.arrayContaining(['Peanuts', 'Sesame']));
     const own = await partner.api.preferences.get.query();
-    expect(own?.dietaryPreferences?.allergies).toEqual(
+    expect(own.dietaryPreferences?.allergies).toEqual(
       expect.arrayContaining(['Peanuts', 'Sesame']),
     );
 
@@ -222,7 +222,9 @@ describe('the shared week', () => {
 
   it('generating the week stays with the owner', async () => {
     if (!enabled) return;
-    const err = await partner.api.mealPlan.generate.mutate({ weekOffset: 0 }).catch((e) => e);
+    const err = await partner.api.mealPlan.generate
+      .mutate({ weekOffset: 0 })
+      .catch((e: unknown) => e);
     expect(codeOf(err)).toBe('FORBIDDEN');
     expect((err as Error).message).toContain('Dan');
     const add = await partner.api.household.add
