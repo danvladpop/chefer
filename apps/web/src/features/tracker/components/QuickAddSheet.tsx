@@ -626,6 +626,18 @@ export function QuickAddSheet({
                 <Barcode className="h-4 w-4" aria-hidden />
                 {PACKAGED_PRODUCT_COPY.scanBarcode}
               </button>
+              {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
+              {!replacesSlot && (
+                <button
+                  type="button"
+                  data-testid="log-sheet-type-it"
+                  onClick={() => setView('text')}
+                  className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
+                >
+                  <PencilLine className="h-4 w-4" aria-hidden />
+                  {FOOD_TEXT_COPY.entry}
+                </button>
+              )}
             </div>
 
             {(logRecipeMutation.isError || logCustomMutation.isError) && (
@@ -1094,18 +1106,6 @@ export function QuickAddSheet({
             )}
 
             <div className="flex flex-wrap gap-4 border-t border-neutral-100 pt-3">
-              {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
-              {!replacesSlot && (
-                <button
-                  type="button"
-                  data-testid="log-sheet-type-it"
-                  onClick={() => setView('text')}
-                  className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
-                >
-                  <PencilLine className="h-4 w-4" aria-hidden />
-                  {FOOD_TEXT_COPY.entry}
-                </button>
-              )}
               <button
                 type="button"
                 data-testid="log-sheet-manual"
