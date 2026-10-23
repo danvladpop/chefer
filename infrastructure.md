@@ -2156,7 +2156,7 @@ are deleted by `coaching-maintenance.worker`; never booking notes, locations or 
 
 ### Kitchen progress schema (`docs/gamification-2026-10/tech-plan.md` §2, ADR 0002, additive only)
 
-One additive migration (`packages/database/prisma/migrations/20261023120000_kitchen_progress/`): five new tables, no
+One additive migration (`packages/database/prisma/migrations/20261023140000_kitchen_progress/`): five new tables, no
 change to any existing column. Dates are device-local `YYYY-MM-DD` strings (like `WorkoutSession.localDate`), never
 timestamps; no migration SQL reads the server clock.
 
