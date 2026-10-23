@@ -2,6 +2,7 @@
 
 import { Check } from 'lucide-react';
 import { WELLNESS_COPY } from '@chefer/utils';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import type { Goal } from '../types';
 
 const GOALS: {
@@ -83,6 +84,9 @@ export function StepGoal({
   goodFood = false,
   onGoodFood,
 }: StepGoalProps) {
+  // Lane E3: the goal's kcal effect is a nutrition figure; protein-only and
+  // "Hide numbers" users see the goal without it.
+  const { show } = useNumbersMode();
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -149,13 +153,15 @@ export function StepGoal({
               <div>
                 <p className="font-semibold">{label}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-                <span
-                  className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    selected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {calorieEffect}
-                </span>
+                {show.kcal && (
+                  <span
+                    className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      selected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {calorieEffect}
+                  </span>
+                )}
               </div>
             </button>
           );
