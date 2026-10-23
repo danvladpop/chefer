@@ -67,8 +67,10 @@ describe('normaliseOffProduct', () => {
   it('says allergens are unknown when OFF neither lists any nor has the ingredients', () => {
     expect(normaliseOffProduct('12345670', { product_name: 'X' }).allergensKnown).toBe(false);
     expect(
-      normaliseOffProduct('12345670', { product_name: 'X', states_tags: ['en:ingredients-completed'] })
-        .allergensKnown,
+      normaliseOffProduct('12345670', {
+        product_name: 'X',
+        states_tags: ['en:ingredients-completed'],
+      }).allergensKnown,
     ).toBe(true);
   });
 

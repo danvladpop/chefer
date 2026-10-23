@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Chip, DONE_FIELD_PROPS, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
 import {
   PACKAGED_PRODUCT_COPY,
   type PackagedProductView,
   type ProductAllergenWarning,
   type ProductAmount,
 } from '@chefer/types';
+import { Button, Chip, DONE_FIELD_PROPS, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
 import {
   formatNumber,
   productAllergenLine,
@@ -82,7 +82,11 @@ export function ProductCard({
       <View className="flex-row items-center gap-3">
         <RecipeImage imageUrl={product.imageUrl} className="h-12 w-12 rounded-lg" />
         <View className="min-w-0 flex-1">
-          <Text testID="product-name" numberOfLines={2} className="text-sm font-semibold text-gray-900">
+          <Text
+            testID="product-name"
+            numberOfLines={2}
+            className="text-sm font-semibold text-gray-900"
+          >
             {name}
           </Text>
           <Text className="text-xs text-gray-500">
@@ -141,7 +145,11 @@ export function ProductCard({
               <Chip
                 key={value}
                 testID={`product-amount-${value}`}
-                label={unit === 'g' ? `${value} g` : `${formatNumber(value, { maximumFractionDigits: 1 })}`}
+                label={
+                  unit === 'g'
+                    ? `${value} g`
+                    : `${formatNumber(value, { maximumFractionDigits: 1 })}`
+                }
                 selected={amountValue === value}
                 onPress={() => setAmountText(String(value))}
               />
@@ -190,7 +198,11 @@ export function ProductCard({
         </View>
       )}
       {error && (
-        <Text testID="product-log-error" accessibilityLiveRegion="polite" className="text-sm text-red-600">
+        <Text
+          testID="product-log-error"
+          accessibilityLiveRegion="polite"
+          className="text-sm text-red-600"
+        >
           {error}
         </Text>
       )}

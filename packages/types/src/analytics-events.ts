@@ -209,4 +209,3 @@ export interface EventMap {
   packaged_product_created: { source: 'label' | 'manual' };
   packaged_product_logged: { unit: 'g' | 'serving'; allergenWarning: boolean };
 }
-

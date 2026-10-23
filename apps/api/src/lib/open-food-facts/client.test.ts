@@ -20,7 +20,10 @@ function client(fetchImpl: ReturnType<typeof vi.fn>, now = () => 1_000_000) {
 describe('OpenFoodFactsClient.lookup', () => {
   it('asks the v2 product endpoint with a named User-Agent and normalises the hit', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
-      json(200, { status: 1, product: { product_name: 'Oat drink', nutriments: { 'energy-kcal_100g': 46 } } }),
+      json(200, {
+        status: 1,
+        product: { product_name: 'Oat drink', nutriments: { 'energy-kcal_100g': 46 } },
+      }),
     );
     const result = await client(fetchImpl).lookup('7394376616037');
     expect(result).toMatchObject({ found: true, product: { name: 'Oat drink', kcalPer100g: 46 } });
@@ -42,12 +45,12 @@ describe('OpenFoodFactsClient.lookup', () => {
   });
 
   it('throws OffUnavailableError on 429, 5xx and network errors', async () => {
-    await expect(client(vi.fn().mockResolvedValue(json(429, {}))).lookup('12345670')).rejects.toBeInstanceOf(
-      OffUnavailableError,
-    );
-    await expect(client(vi.fn().mockResolvedValue(json(503, {}))).lookup('12345670')).rejects.toBeInstanceOf(
-      OffUnavailableError,
-    );
+    await expect(
+      client(vi.fn().mockResolvedValue(json(429, {}))).lookup('12345670'),
+    ).rejects.toBeInstanceOf(OffUnavailableError);
+    await expect(
+      client(vi.fn().mockResolvedValue(json(503, {}))).lookup('12345670'),
+    ).rejects.toBeInstanceOf(OffUnavailableError);
     await expect(
       client(vi.fn().mockRejectedValue(new TypeError('fetch failed'))).lookup('12345670'),
     ).rejects.toBeInstanceOf(OffUnavailableError);

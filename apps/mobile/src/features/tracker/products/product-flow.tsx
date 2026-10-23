@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Keyboard, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, DONE_FIELD_PROPS, Input, Text } from '@chefer/ui-mobile';
 import {
   barcodeSchema,
   PACKAGED_PRODUCT_COPY,
@@ -12,7 +11,13 @@ import {
   type ProductAllergenWarning,
   type ProductAmount,
 } from '@chefer/types';
-import { cleanBarcodeInput, userFacingErrorMessage } from '@chefer/utils';
+import { Button, DONE_FIELD_PROPS, Input, Text } from '@chefer/ui-mobile';
+import {
+  blankProductDraft,
+  cleanBarcodeInput,
+  draftFromProduct,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useEntitlement } from '../../../hooks/use-entitlement';
 import { track } from '../../../lib/analytics';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
@@ -46,43 +51,6 @@ type Step =
       scan?: Pick<NutritionLabelDraft, 'notes' | 'confidence'>;
       source: 'LABEL' | 'USER';
     };
-
-const EMPTY_PER_100G: NutritionLabelDraft['draft']['per100g'] = {
-  kcal: null,
-  protein: null,
-  carbs: null,
-  fat: null,
-  fiber: null,
-  sugar: null,
-  saturatedFat: null,
-  salt: null,
-};
-
-function blankDraft(barcode: string | null): NutritionLabelDraft['draft'] {
-  return {
-    barcode,
-    name: '',
-    brand: null,
-    per100g: EMPTY_PER_100G,
-    servingSizeG: null,
-    allergens: { known: false, contains: [] },
-  };
-}
-
-/** An incomplete product's known fields, as the user's own copy to finish. */
-function draftFromProduct(product: PackagedProductView): NutritionLabelDraft['draft'] {
-  return {
-    barcode: product.barcode,
-    name: product.name,
-    brand: product.brand,
-    per100g: product.per100g,
-    servingSizeG: product.servingSizeG,
-    allergens: {
-      known: product.allergens.status !== 'unknown',
-      contains: product.allergens.contains.map((a) => a.id),
-    },
-  };
-}
 
 export interface ProductFlowProps {
   date: string;
@@ -228,17 +196,33 @@ export function ProductFlow({
         onSuccess: (result) => {
           if (source === 'LABEL') track('label_scan_saved', { edited });
           track('packaged_product_created', { source: source === 'LABEL' ? 'label' : 'manual' });
-          setState({ step: 'product', product: result.product, warnings: result.warnings, stale: false });
+          setState({
+            step: 'product',
+            product: result.product,
+            warnings: result.warnings,
+            stale: false,
+          });
         },
         onError: (err) => setError(userFacingErrorMessage(err)),
       },
     );
   };
 
-  const log = (product: PackagedProductView, warnings: ProductAllergenWarning[], amount: ProductAmount) => {
+  const log = (
+    product: PackagedProductView,
+    warnings: ProductAllergenWarning[],
+    amount: ProductAmount,
+  ) => {
     setError(null);
     logProduct.mutate(
-      { date, productId: product.id, amount, mealType, ...(replacesSlot && { replacesSlot }), rebalanceMode: 'preview' },
+      {
+        date,
+        productId: product.id,
+        amount,
+        mealType,
+        ...(replacesSlot && { replacesSlot }),
+        rebalanceMode: 'preview',
+      },
       {
         onSuccess: (data) => {
           track('packaged_product_logged', {
@@ -295,11 +279,7 @@ export function ProductFlow({
         <Button variant="outline" className="flex-1" onPress={() => void Linking.openSettings()}>
           Open Settings
         </Button>
-        <Button
-          variant="outline"
-          className="flex-1"
-          onPress={() => void lookupPhoto('library')}
-        >
+        <Button variant="outline" className="flex-1" onPress={() => void lookupPhoto('library')}>
           Choose a photo
         </Button>
       </View>
@@ -311,7 +291,9 @@ export function ProductFlow({
       <View testID="product-not-found" className="gap-3">
         <View className="gap-1 rounded-xl border border-border bg-card p-3">
           <Text className="text-sm font-semibold text-gray-900">
-            {state.unreadable ? PACKAGED_PRODUCT_COPY.unreadable : PACKAGED_PRODUCT_COPY.notFoundTitle}
+            {state.unreadable
+              ? PACKAGED_PRODUCT_COPY.unreadable
+              : PACKAGED_PRODUCT_COPY.notFoundTitle}
           </Text>
           {!state.unreadable && (
             <Text className="text-xs text-gray-600">{PACKAGED_PRODUCT_COPY.notFoundBody}</Text>
@@ -338,7 +320,11 @@ export function ProductFlow({
               testID="product-enter-manually"
               variant="outline"
               onPress={() =>
-                setState({ step: 'form', initial: blankDraft(state.barcode), source: 'USER' })
+                setState({
+                  step: 'form',
+                  initial: blankProductDraft(state.barcode),
+                  source: 'USER',
+                })
               }
             >
               {PACKAGED_PRODUCT_COPY.enterProduct}
@@ -388,7 +374,9 @@ export function ProductFlow({
       </View>
       {cameraNotice}
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">{PACKAGED_PRODUCT_COPY.typeBarcode}</Text>
+        <Text className="text-xs font-medium text-gray-600">
+          {PACKAGED_PRODUCT_COPY.typeBarcode}
+        </Text>
         <View className="flex-row items-center gap-2">
           <Input
             testID="product-barcode-input"
@@ -416,7 +404,11 @@ export function ProductFlow({
         </View>
       </View>
       {error && (
-        <Text testID="product-flow-error" accessibilityLiveRegion="polite" className="text-sm text-red-600">
+        <Text
+          testID="product-flow-error"
+          accessibilityLiveRegion="polite"
+          className="text-sm text-red-600"
+        >
           {error}
         </Text>
       )}
@@ -425,7 +417,13 @@ export function ProductFlow({
   );
 }
 
-function ScanAnother({ label = 'Scan another barcode', onPress }: { label?: string; onPress: () => void }) {
+function ScanAnother({
+  label = 'Scan another barcode',
+  onPress,
+}: {
+  label?: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       testID="product-scan-another"

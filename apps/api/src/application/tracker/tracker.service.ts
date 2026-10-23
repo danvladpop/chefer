@@ -11,8 +11,8 @@ import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import { parseStoredNumbersMode } from '@chefer/types';
 import type {
   NumbersMode,
-  ProductAmount,
   NutritionTargets,
+  ProductAmount,
   ProteinGuide,
   TrainingDayNutrition,
   UserProfile,
@@ -36,8 +36,8 @@ import {
   type RebalancePreview,
   type RebalanceResult,
 } from '../meal-plan/rebalance.js';
-import { toProductView } from '../products/product-view.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
+import { toProductView } from '../products/product-view.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import { recipeCopyService } from '../recipe/recipe-copy.service.js';
 import {

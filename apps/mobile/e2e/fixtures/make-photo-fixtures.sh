@@ -51,13 +51,19 @@ make_photo oversize-photo.jpg 6000 6000 noise $((18 * MB)) $((40 * MB))
 make_photo large-photo.jpg 4000 4000 noise $((85 * MB / 10)) $((10 * MB))
 make_photo screenshot-photo.jpg 1170 2532 flat 0 $((1 * MB))
 
+# packaged-food.flow.yaml (ADR 0002): a photo of a real EAN-13 (Nutella,
+# 3017620422003). The committed PNG is the barcode; the JPEG gets random
+# trailing bytes (ignored by decoders) so the library sees a new photo.
+sips -s format jpeg barcode-3017620422003.png --out barcode-photo.jpg >/dev/null
+head -c 32 /dev/urandom >>barcode-photo.jpg
+
 # Android emulator only: drop the previous run's copies and reset the system
 # photo picker's cache. Re-pushed same-named files (or rows deleted under its
 # cache) make the picker crash on a duplicate grid key.
 ADB="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
 if [ -x "$ADB" ] && [ "$("$ADB" get-state 2>/dev/null)" = "device" ] &&
   [ "$("$ADB" shell getprop ro.kernel.qemu 2>/dev/null | tr -d '\r')" = "1" ]; then
-  for f in oversize-photo.jpg large-photo.jpg screenshot-photo.jpg; do
+  for f in oversize-photo.jpg large-photo.jpg screenshot-photo.jpg barcode-photo.jpg; do
     "$ADB" shell content delete --uri content://media/external/images/media \
       --where "\"_display_name='$f'\"" >/dev/null 2>&1 || true
     "$ADB" shell rm -f "/sdcard/Pictures/$f" >/dev/null 2>&1 || true

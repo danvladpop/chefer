@@ -5,20 +5,20 @@ import {
   type PackagedProduct,
   type PackagedProductData,
 } from '@chefer/database';
-import {
-  type BarcodeLookupResult,
-  type NutritionLabelDraft,
-  type PackagedProductDraft,
-  type PackagedProductView,
-  type ProductAllergenWarning,
-  type TableSafety,
-  type UserProfile,
+import type {
+  BarcodeLookupResult,
+  NutritionLabelDraft,
+  PackagedProductDraft,
+  PackagedProductView,
+  ProductAllergenWarning,
+  TableSafety,
+  UserProfile,
 } from '@chefer/types';
 import { recogniseSafetyTerm } from '@chefer/utils';
-import { canonicalGtin, decodeBarcodePhoto } from '../../lib/barcode/decode.js';
 import { isAiCapacityFailure, toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { IAIService, NutritionLabelReading } from '../../lib/ai/types.js';
+import { canonicalGtin, decodeBarcodePhoto } from '../../lib/barcode/decode.js';
 import {
   OffUnavailableError,
   openFoodFacts,
@@ -55,10 +55,10 @@ function coveredBy(allergyId: string): readonly string[] {
   return allergyId === 'shellfish' ? ['shellfish', 'crustaceans', 'molluscs'] : [allergyId];
 }
 
-
 export const PRODUCT_LOOKUP_UNAVAILABLE =
   'Couldn’t reach the product database just now. Try again in a minute, or enter the product yourself.';
-const LABEL_SCAN_FAILED = 'We couldn’t read that label. Try again with the table flat and in focus.';
+const LABEL_SCAN_FAILED =
+  'We couldn’t read that label. Try again with the table flat and in focus.';
 
 /** Who at the table can't have each allergen: person label → covered product allergen ids. */
 export function productAllergenWarnings(
@@ -77,7 +77,8 @@ export function productAllergenWarnings(
           ),
         )
         .map((person) => person.who);
-      if (who.length > 0) warnings.push({ allergenId, label: allergenLabel(allergenId), kind, who });
+      if (who.length > 0)
+        warnings.push({ allergenId, label: allergenLabel(allergenId), kind, who });
     }
   };
   check(product.allergenTags, 'contains');
@@ -95,7 +96,9 @@ export function labelReadingToDraft(
   const notes: string[] = [];
   let factor: number | null = 1;
   if (reading.basis === 'none') {
-    notes.push('That doesn’t look like a nutrition label. Retake the photo, or type the numbers in.');
+    notes.push(
+      'That doesn’t look like a nutrition label. Retake the photo, or type the numbers in.',
+    );
     factor = null;
   } else if (reading.basis === 'perServing') {
     if (reading.servingSizeG && reading.servingSizeG > 0) {
@@ -105,7 +108,9 @@ export function labelReadingToDraft(
       );
     } else {
       factor = null;
-      notes.push('The label shows values per serving but no serving size. Enter the values per 100 g.');
+      notes.push(
+        'The label shows values per serving but no serving size. Enter the values per 100 g.',
+      );
     }
   }
   const scale = (value: number | null, max: number): number | null =>
@@ -204,10 +209,12 @@ export class ProductsService {
       const result = await this.off.lookup(code);
       if (!result.found) {
         // OFF dropped a product we cached: the old copy beats nothing.
-        return shared ? this.found(shared, userId, 'cache') : { status: 'not_found', barcode: code };
+        return shared
+          ? await this.found(shared, userId, 'cache')
+          : { status: 'not_found', barcode: code };
       }
       const row = await this.repo.upsertShared(result.product);
-      return this.found(row, userId, 'off');
+      return await this.found(row, userId, 'off');
     } catch (err) {
       if (!(err instanceof OffUnavailableError)) throw err;
       console.warn('[products] Open Food Facts lookup failed:', err.message);
@@ -279,7 +286,6 @@ export class ProductsService {
       warnings: productAllergenWarnings(row, table),
     }));
   }
-
 }
 
 export const productsService = new ProductsService();

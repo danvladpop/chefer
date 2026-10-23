@@ -1,0 +1,139 @@
+# Packaged foods (ADR 0002, lane A1): Log sheet → Scan barcode → a photo of a
+# real EAN-13 from the library → decoded on the server → Open Food Facts →
+# product card (allergen line, "Data from Open Food Facts") → log 15 g. Then
+# a typed in-store barcode nobody publishes → not found → "Enter it yourself"
+# → save → log. Needs network for Open Food Facts on the first run (later
+# runs hit Chefer's cache).
+#
+# Fixtures: run `e2e/fixtures/make-photo-fixtures.sh` first (run-suite.sh
+# does) — it writes a fresh barcode-photo.jpg each run.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+
+- tapOn:
+    id: 'today-full-day'
+- extendedWaitUntil:
+    visible:
+      id: 'tracker-title'
+    timeout: 15000
+
+# ── Barcode photo → Open Food Facts ──
+- tapOn:
+    id: 'tracker-quick-add'
+- extendedWaitUntil:
+    visible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- tapOn:
+    id: 'log-sheet-scan-barcode'
+- extendedWaitUntil:
+    visible:
+      id: 'product-start'
+    timeout: 10000
+- addMedia:
+    - 'fixtures/barcode-photo.jpg'
+- tapOn:
+    id: 'product-barcode-library'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible: 'Photos'
+          timeout: 10000
+      - tapOn:
+          point: '16%, 24%'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible: 'Photo taken on.*'
+          timeout: 10000
+      - tapOn:
+          text: 'Photo taken on.*'
+          index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'product-card'
+    timeout: 30000
+- assertVisible: '.*Nutella.*'
+- assertVisible:
+    id: 'product-allergen-line'
+- scrollUntilVisible:
+    element:
+      id: 'product-off-attribution'
+    direction: DOWN
+- assertVisible: 'Data from Open Food Facts.*'
+- scrollUntilVisible:
+    element:
+      id: 'product-amount-30'
+    direction: UP
+- tapOn:
+    id: 'product-amount-30'
+- tapOn:
+    id: 'product-log'
+- extendedWaitUntil:
+    notVisible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- assertVisible: '.*Nutella.*30 g.*'
+
+# ── Typed barcode → not found → enter it yourself ──
+- tapOn:
+    id: 'tracker-quick-add'
+- extendedWaitUntil:
+    visible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- tapOn:
+    id: 'log-sheet-scan-barcode'
+- tapOn:
+    id: 'product-barcode-input'
+# An in-store "20" EAN-13 with a valid check digit: never on Open Food Facts.
+- inputText: '2000000000008'
+- tapOn:
+    id: 'product-barcode-find'
+# A re-run finds the product saved last time ("Your product"): skip the form.
+- extendedWaitUntil:
+    visible:
+      id: 'product-not-found|product-card'
+    timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'product-not-found'
+    commands:
+      - tapOn:
+          id: 'product-enter-manually'
+      - tapOn:
+          id: 'product-form-name'
+      - inputText: 'Maestro rye crackers'
+      - tapOn:
+          id: 'product-form-kcal'
+      - inputText: '380'
+      - scrollUntilVisible:
+          element:
+            id: 'product-form-allergen-gluten'
+          direction: DOWN
+      - tapOn:
+          id: 'product-form-allergen-gluten'
+      - scrollUntilVisible:
+          element:
+            id: 'product-form-save'
+          direction: DOWN
+      - tapOn:
+          id: 'product-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'product-card'
+    timeout: 10000
+- assertVisible: '.*Maestro rye crackers.*'
+- tapOn:
+    id: 'product-log'
+- extendedWaitUntil:
+    notVisible:
+      id: 'log-sheet-title'
+    timeout: 10000
+- assertVisible: '.*Maestro rye crackers, 100 g.*'

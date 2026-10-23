@@ -96,9 +96,7 @@ describe('trackerService.logProduct', () => {
   });
 
   it('flags macros the product does not state as unknown, not zero-by-accident', async () => {
-    products.getVisible.mockResolvedValue(
-      product({ proteinPer100g: null, fatPer100g: null }),
-    );
+    products.getVisible.mockResolvedValue(product({ proteinPer100g: null, fatPer100g: null }));
     await trackerService.logProduct(USER, '2026-10-22', {
       productId: 'p1',
       amount: { unit: 'g', grams: 150 },
@@ -145,7 +143,10 @@ describe('trackerService.logProduct', () => {
       mealType: 'snack',
       replacesSlot: { mealType: 'lunch', slotIndex: 1 },
     });
-    expect(stored[0]).toMatchObject({ mealType: 'lunch', replacesSlot: { mealType: 'lunch', slotIndex: 1 } });
+    expect(stored[0]).toMatchObject({
+      mealType: 'lunch',
+      replacesSlot: { mealType: 'lunch', slotIndex: 1 },
+    });
   });
 });
 

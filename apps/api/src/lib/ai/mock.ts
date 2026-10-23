@@ -234,7 +234,10 @@ export class MockAIService implements IAIService {
    * Packaged products (ADR 0002): a fixed oat-biscuit label read per serving,
    * so the per-100 g conversion and the review step are drivable in mock mode.
    */
-  async readNutritionLabel(_imageBase64: string, _mimeType: string): Promise<NutritionLabelReading> {
+  async readNutritionLabel(
+    _imageBase64: string,
+    _mimeType: string,
+  ): Promise<NutritionLabelReading> {
     await delay(400);
     return { ...MOCK_NUTRITION_LABEL, allergens: [...MOCK_NUTRITION_LABEL.allergens] };
   }

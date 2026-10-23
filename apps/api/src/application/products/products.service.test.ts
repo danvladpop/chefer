@@ -16,7 +16,9 @@ vi.mock('../../lib/quotas.js', () => ({
   reserveMealScan: vi.fn().mockResolvedValue(quota),
 }));
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
-vi.mock('../../lib/env.js', () => ({ env: { OFF_BASE_URL: 'https://off.test', OFF_USER_AGENT: 'x' } }));
+vi.mock('../../lib/env.js', () => ({
+  env: { OFF_BASE_URL: 'https://off.test', OFF_USER_AGENT: 'x' },
+}));
 vi.mock('../../lib/open-food-facts/client.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/open-food-facts/client.js')>()),
   openFoodFacts: {},
@@ -59,7 +61,12 @@ const TABLE: TableSafety = {
   hasRules: true,
   needsReview: false,
   people: [
-    { who: 'you', isOwner: true, items: [{ id: 'dairy', label: 'Dairy', kind: 'allergy' }], notes: [] },
+    {
+      who: 'you',
+      isOwner: true,
+      items: [{ id: 'dairy', label: 'Dairy', kind: 'allergy' }],
+      notes: [],
+    },
     {
       who: 'Luca',
       isOwner: false,
@@ -69,37 +76,61 @@ const TABLE: TableSafety = {
       ],
       notes: [],
     },
-    { who: 'Maria', isOwner: false, items: [{ id: 'vegan', label: 'Vegan', kind: 'diet' }], notes: [] },
+    {
+      who: 'Maria',
+      isOwner: false,
+      items: [{ id: 'vegan', label: 'Vegan', kind: 'diet' }],
+      notes: [],
+    },
   ],
 };
 
 function setup(rows: { own?: PackagedProduct | null; shared?: PackagedProduct | null } = {}) {
   const repo = {
-    findByBarcode: vi.fn().mockResolvedValue({ own: rows.own ?? null, shared: rows.shared ?? null }),
+    findByBarcode: vi
+      .fn()
+      .mockResolvedValue({ own: rows.own ?? null, shared: rows.shared ?? null }),
     findVisibleById: vi.fn(),
     upsertShared: vi.fn(async (data) => row({ ...data, fetchedAt: new Date(NOW) })),
-    savePrivate: vi.fn(async (ownerId, source, data) => row({ ...data, ownerId, source, id: 'own1' })),
+    savePrivate: vi.fn(async (ownerId, source, data) =>
+      row({ ...data, ownerId, source, id: 'own1' }),
+    ),
     search: vi.fn().mockResolvedValue([]),
   } satisfies IPackagedProductRepository;
   const off = { lookup: vi.fn() };
   const ai = { readNutritionLabel: vi.fn() };
-  const service = new ProductsService(repo, off, ai, async () => TABLE, () => NOW);
+  const service = new ProductsService(
+    repo,
+    off,
+    ai,
+    async () => TABLE,
+    () => NOW,
+  );
   return { repo, off, ai, service };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('ProductsService.lookupBarcode', () => {
   it("prefers the user's own product and never calls OFF", async () => {
     const { off, service } = setup({ own: row({ ownerId: 'u1', source: 'LABEL', id: 'own' }) });
     const result = await service.lookupBarcode('u1', '3017620422003');
-    expect(result).toMatchObject({ status: 'found', origin: 'own', product: { id: 'own', isOwn: true } });
+    expect(result).toMatchObject({
+      status: 'found',
+      origin: 'own',
+      product: { id: 'own', isOwn: true },
+    });
     expect(off.lookup).not.toHaveBeenCalled();
   });
 
   it('serves a fresh cached row without calling OFF', async () => {
     const { off, service } = setup({ shared: row() });
-    expect(await service.lookupBarcode('u1', '3017620422003')).toMatchObject({ origin: 'cache', stale: false });
+    expect(await service.lookupBarcode('u1', '3017620422003')).toMatchObject({
+      origin: 'cache',
+      stale: false,
+    });
     expect(off.lookup).not.toHaveBeenCalled();
   });
 
@@ -158,7 +189,9 @@ describe('productAllergenWarnings', () => {
   });
 
   it('nobody at the table → no warnings', () => {
-    expect(productAllergenWarnings({ allergenTags: ['dairy'], traceTags: [] }, EMPTY_TABLE)).toEqual([]);
+    expect(
+      productAllergenWarnings({ allergenTags: ['dairy'], traceTags: [] }, EMPTY_TABLE),
+    ).toEqual([]);
   });
 });
 
@@ -239,7 +272,11 @@ describe('ProductsService.scanLabel', () => {
       confidence: 'med',
     });
     const result = await service.scanLabel(user, 'aGk=', 'image/jpeg', '036000291452');
-    expect(result.draft).toMatchObject({ barcode: '0036000291452', name: '', per100g: { kcal: 400 } });
+    expect(result.draft).toMatchObject({
+      barcode: '0036000291452',
+      name: '',
+      per100g: { kcal: 400 },
+    });
     expect(quota.release).not.toHaveBeenCalled();
   });
 

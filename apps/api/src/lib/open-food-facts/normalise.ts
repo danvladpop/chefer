@@ -63,7 +63,8 @@ function readKcal(nutriments: Record<string, unknown>): number | null {
 function readServingSize(product: Record<string, unknown>): number | null {
   const unit = readText(product['serving_quantity_unit'], 10)?.toLowerCase();
   if (unit && unit !== 'g' && unit !== 'ml') return null;
-  return readNumber(product['serving_quantity'], 2000) || null;
+  const grams = readNumber(product['serving_quantity'], 2000);
+  return grams === 0 ? null : grams;
 }
 
 /**
@@ -73,18 +74,24 @@ function readServingSize(product: Record<string, unknown>): number | null {
 function allergensKnown(product: Record<string, unknown>, contains: string[]): boolean {
   if (contains.length > 0) return true;
   const states = Array.isArray(product['states_tags']) ? product['states_tags'] : [];
-  return states.includes('en:ingredients-completed') || readText(product['ingredients_text'], 5) !== null;
+  return (
+    states.includes('en:ingredients-completed') || readText(product['ingredients_text'], 5) !== null
+  );
 }
 
 /** The fields Chefer stores, read from one OFF v2 `product` object. */
-export function normaliseOffProduct(barcode: string, raw: unknown): PackagedProductData & { barcode: string } {
+export function normaliseOffProduct(
+  barcode: string,
+  raw: unknown,
+): PackagedProductData & { barcode: string } {
   const product = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const nutriments = (
     product['nutriments'] && typeof product['nutriments'] === 'object' ? product['nutriments'] : {}
   ) as Record<string, unknown>;
   const contains = mapOffAllergenTags(product['allergens_tags']);
   const traces = mapOffAllergenTags(product['traces_tags']).filter((id) => !contains.includes(id));
-  const brand = readText(product['brands'], 200)?.split(',')[0]?.trim().slice(0, 80) || null;
+  const firstBrand = readText(product['brands'], 200)?.split(',')[0]?.trim().slice(0, 80);
+  const brand = firstBrand && firstBrand.length > 0 ? firstBrand : null;
   const name =
     readText(product['product_name'], 120) ??
     readText(product['product_name_en'], 120) ??

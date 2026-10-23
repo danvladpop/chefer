@@ -98,9 +98,9 @@ function mockMutation(spy: (vars: unknown) => void, respond: (vars: unknown) => 
         spy(vars);
         cb?.onSuccess?.(respond(vars));
       },
-      mutateAsync: async (vars: unknown) => {
+      mutateAsync: (vars: unknown) => {
         spy(vars);
-        return respond(vars);
+        return Promise.resolve(respond(vars));
       },
     }),
   };
@@ -128,21 +128,37 @@ jest.mock('../../src/lib/trpc', () => ({
     },
     products: {
       search: { useQuery: () => ({ data: mockProducts, ...mockSearchState }) },
-      lookupBarcodePhoto: mockMutation(() => undefined, () => ({ status: 'unreadable' })),
-      scanLabel: mockMutation(() => undefined, () => ({})),
-      create: mockMutation((v) => mockCreateProduct(v), (vars) => ({
-        product: {
-          ...OAT_DRINK,
-          name: (vars as { name: string }).name,
-          id: 'own1',
-          isOwn: true,
-          source: 'USER',
+      lookupBarcodePhoto: mockMutation(
+        () => undefined,
+        () => ({ status: 'unreadable' }),
+      ),
+      scanLabel: mockMutation(
+        () => undefined,
+        () => ({}),
+      ),
+      create: mockMutation(
+        (v) => {
+          mockCreateProduct(v);
         },
-        warnings: [],
-      })),
+        (vars) => ({
+          product: {
+            ...OAT_DRINK,
+            name: (vars as { name: string }).name,
+            id: 'own1',
+            isOwn: true,
+            source: 'USER',
+          },
+          warnings: [],
+        }),
+      ),
     },
     tracker: {
-      logProduct: mockMutation((v) => mockLogProduct(v), () => ({ log: {}, entryId: 'e9', rebalance })),
+      logProduct: mockMutation(
+        (v) => {
+          mockLogProduct(v);
+        },
+        () => ({ log: {}, entryId: 'e9', rebalance }),
+      ),
       recents: { useQuery: () => ({ data: mockRecents }) },
       logRecipe: {
         useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
@@ -428,7 +444,10 @@ describe('QuickAddSheet — packaged products (ADR 0002)', () => {
       /Contains gluten: you avoid it\./,
     );
     expect(screen.getByTestId('product-off-attribution')).toHaveTextContent(/Open Food Facts/);
-    expect(mockTrack).toHaveBeenCalledWith('barcode_found', { source: 'off', allergenWarning: true });
+    expect(mockTrack).toHaveBeenCalledWith('barcode_found', {
+      source: 'off',
+      allergenWarning: true,
+    });
 
     // Defaults to 1 serving (250 g); 2 servings logs 500 g worth.
     await user.press(screen.getByTestId('product-amount-2'));

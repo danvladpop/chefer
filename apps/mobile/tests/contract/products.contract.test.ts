@@ -108,7 +108,10 @@ describe('products (ADR 0002)', () => {
 
   it('a barcode photo with no barcode answers `unreadable`', async () => {
     await expect(
-      owner.api.products.lookupBarcodePhoto.mutate({ imageBase64: BLANK_PNG, mimeType: 'image/png' }),
+      owner.api.products.lookupBarcodePhoto.mutate({
+        imageBase64: BLANK_PNG,
+        mimeType: 'image/png',
+      }),
     ).resolves.toEqual({ status: 'unreadable' });
   });
 

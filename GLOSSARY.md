@@ -47,6 +47,39 @@ The entry point that states the user's tier at the top of You (mobile) and Profi
 the overview pitch, Premium only shows status.
 _Avoid_: plan card, upgrade banner
 
+## Food logging
+
+**Log sheet**:
+The one sheet everything off-plan is logged from: search (Recent, the plan, your recipes, packaged products,
+ingredients), Scan barcode, Snap-to-Log and "Enter calories yourself".
+_Avoid_: Quick add (the old calories-only form), food diary
+
+**Packaged product**:
+A branded, barcoded food (a pot of yoghurt, a cereal box), with its numbers per 100 g. Kept apart from the ingredient
+catalog (ADR 0002).
+_Avoid_: Branded ingredient, food item, SKU
+
+**Barcode lookup**:
+Turning a barcode's digits into a packaged product: the user's own product first, then Chefer's cache, then Open Food
+Facts. A typed number, a barcode photo and the live scanner all end in the same lookup.
+_Avoid_: Scan (on its own: say barcode photo, label scan or Snap-to-Log)
+
+**Label scan**:
+Reading a packaged product's nutrition table from a photo (premium AI) into a draft the user checks before saving.
+_Avoid_: OCR, label import
+
+**Your product**:
+A packaged product the user saved from a label scan or typed in; private to them, and it wins over the shared copy.
+_Avoid_: Custom product, private product (in user copy)
+
+**Open Food Facts (OFF)**:
+The open product database the barcode lookup reads; its data is shown with "Data from Open Food Facts" (ODbL).
+_Avoid_: OFF in user copy
+
+**Allergens unknown**:
+What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
+_Avoid_: No allergens, allergen-free
+
 ## Training
 
 **Workout**:

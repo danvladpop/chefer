@@ -34,6 +34,7 @@ vi.mock('@/lib/trpc', () => ({
       dashboard: { summary: { invalidate: vi.fn() } },
     }),
     recipe: { list: { useQuery: () => ({ data: [], isFetching: false, isError: false }) } },
+    products: { search: { useQuery: () => ({ data: [], isFetching: false, isError: false }) } },
     ingredients: {
       search: {
         useQuery: () => ({ data: m.ingredients, isFetching: false, isError: false }),

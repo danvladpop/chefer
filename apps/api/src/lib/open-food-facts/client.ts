@@ -106,7 +106,7 @@ export class OpenFoodFactsClient {
       product?: unknown;
     } | null;
     // v2 answers an unknown barcode with 404 + { status: 0 }.
-    if (res.status === 404 || !body || body.status !== 1 || !body.product) {
+    if (res.status === 404 || body?.status !== 1 || !body.product) {
       if (res.ok || res.status === 404) {
         this.rememberMiss(barcode);
         return { found: false };

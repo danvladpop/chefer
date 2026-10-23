@@ -4,7 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
-import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
+import {
+  AlertTriangle,
+  Barcode,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Plus,
+  Search,
+} from 'lucide-react';
+import {
+  PACKAGED_PRODUCT_COPY,
+  type PackagedProductView,
+  type ProductAllergenWarning,
+} from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
@@ -16,6 +29,7 @@ import {
   formatQuickAddGrams,
   nutritionLabel,
   parseQuickAdd,
+  productDisplayName,
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
@@ -30,14 +44,17 @@ import {
   REBALANCE_PREVIEW,
   type DayFitLike,
 } from '../lib/rebalance-storage';
+import { ProductFlow } from './products/ProductFlow';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
 // Your recipes → Ingredients (per 100 g), in that order; "Enter calories
 // yourself" is the old calories-only form, now gated by the macro sanity
-// check (bug B-39, T-19.5). Never branded products or barcodes (B-29, AC6).
+// check (bug B-39, T-19.5). Packaged products (ADR 0002, which replaced B-29)
+// are a separate search group and the "Scan barcode" view.
 
 type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
+type ProductStart = { product: PackagedProductView; warnings: ProductAllergenWarning[] };
 
 export interface PlannedLogMeal {
   recipeId: string;
@@ -135,7 +152,9 @@ export function QuickAddSheet({
     replacesSlot
       ? { ...entry, replacesSlot, ...REBALANCE_PREVIEW }
       : { ...entry, ...REBALANCE_PREVIEW };
-  const [view, setView] = useState<'search' | 'manual'>('search');
+  const [view, setView] = useState<'search' | 'manual' | 'product'>('search');
+  // The product a "Packaged products" row opens on; undefined = the barcode start.
+  const [productStart, setProductStart] = useState<ProductStart | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
   const [mealType, setMealType] = useState<QuickAddMealType>(() =>
@@ -179,12 +198,20 @@ export function QuickAddSheet({
     { query: debouncedQuery, ...(ingredientLimit > INGREDIENT_PAGE && { limit: ingredientLimit }) },
     { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
+  const productsQuery = trpc.products.search.useQuery(
+    { query: debouncedQuery, limit: 5 },
+    { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
+  );
   const searchSettling =
-    debouncedQuery !== trimmedQuery || recipesQuery.isFetching || ingredientsQuery.isFetching;
+    debouncedQuery !== trimmedQuery ||
+    recipesQuery.isFetching ||
+    ingredientsQuery.isFetching ||
+    productsQuery.isFetching;
   const searchFailed = recipesQuery.isError || ingredientsQuery.isError;
 
   const reset = () => {
     setView('search');
+    setProductStart(undefined);
     setQuery('');
     setIngredientLimit(INGREDIENT_PAGE);
     setExpandedKey(null);
@@ -212,7 +239,10 @@ export function QuickAddSheet({
   const utils = trpc.useUtils();
 
   const onLoggedCommon = (
-    data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
+    data:
+      | RouterOutputs['tracker']['logRecipe']
+      | RouterOutputs['tracker']['logCustomMeal']
+      | RouterOutputs['tracker']['logProduct'],
     options: { announceDayFit?: boolean } = {},
   ) => {
     handleRebalanceOutcome(data, options);
@@ -276,7 +306,8 @@ export function QuickAddSheet({
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
-    (ingredientsQuery.data?.length ?? 0) > 0;
+    (ingredientsQuery.data?.length ?? 0) > 0 ||
+    (productsQuery.data?.length ?? 0) > 0;
 
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
@@ -450,9 +481,11 @@ export function QuickAddSheet({
             ? proteinOnly
               ? 'Enter protein yourself'
               : 'Enter calories yourself'
-            : replacesSlot
-              ? 'Ate something else'
-              : 'Log something'
+            : view === 'product'
+              ? PACKAGED_PRODUCT_COPY.scanBarcode
+              : replacesSlot
+                ? 'Ate something else'
+                : 'Log something'
         }
         size="sm"
         footer={
@@ -748,6 +781,47 @@ export function QuickAddSheet({
               </div>
             )}
 
+            {searching && (productsQuery.data?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {PACKAGED_PRODUCT_COPY.packagedGroup}
+                </p>
+                {(productsQuery.data ?? []).map(({ product, warnings }) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    data-testid={`log-sheet-product-${product.id}`}
+                    aria-label={`${productDisplayName(product)}${warnings.length > 0 ? ', allergen warning' : ''}`}
+                    onClick={() => {
+                      setProductStart({ product, warnings });
+                      setView('product');
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 text-left hover:bg-neutral-50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-800">
+                        {productDisplayName(product)}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {product.per100g.kcal === null
+                          ? 'No calories yet'
+                          : proteinOnly
+                            ? product.per100g.protein === null
+                              ? 'Protein not stated'
+                              : `${Math.round(product.per100g.protein)} g protein / 100 g`
+                            : `${Math.round(product.per100g.kcal)} kcal / 100 g`}
+                        {product.isOwn ? ' · yours' : ''}
+                      </p>
+                    </div>
+                    {warnings.length > 0 && (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+                    )}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                  </button>
+                ))}
+              </div>
+            )}
+
             {searching && (ingredientsQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
@@ -915,6 +989,18 @@ export function QuickAddSheet({
             <div className="flex flex-wrap gap-4 border-t border-neutral-100 pt-3">
               <button
                 type="button"
+                data-testid="log-sheet-scan-barcode"
+                onClick={() => {
+                  setProductStart(undefined);
+                  setView('product');
+                }}
+                className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
+              >
+                <Barcode className="h-4 w-4" aria-hidden />
+                {PACKAGED_PRODUCT_COPY.scanBarcode}
+              </button>
+              <button
+                type="button"
                 data-testid="log-sheet-manual"
                 onClick={() => {
                   setView('manual');
@@ -925,6 +1011,56 @@ export function QuickAddSheet({
                 {proteinOnly ? 'Enter protein yourself' : 'Enter calories yourself'}
               </button>
             </div>
+          </div>
+        ) : view === 'product' ? (
+          <div className="space-y-4 px-5 pb-4">
+            <button
+              type="button"
+              data-testid="log-sheet-product-back"
+              onClick={() => setView('search')}
+              className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
+            >
+              ← Back to search
+            </button>
+            {!replacesSlot && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+                {MEAL_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    data-testid={`log-sheet-product-meal-${o.value}`}
+                    onClick={() => setMealType(o.value)}
+                    className={chipBtn(mealType === o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <ProductFlow
+              key={productStart?.product.id ?? 'start'}
+              date={date}
+              mealType={replacesSlot ? toQuickAddMealType(replacesSlot.mealType) : mealType}
+              replacesSlot={replacesSlot}
+              proteinOnly={proteinOnly}
+              initial={productStart}
+              onLogged={(data, productName) => {
+                const loggedMealType = replacesSlot ? replacesSlot.mealType : mealType;
+                trackMealLogged(
+                  quickAddSource({ mealType: loggedMealType }, false),
+                  loggedMealType,
+                );
+                const ownToast = Boolean(data.entryId && onLoggedEntry);
+                onLoggedCommon(data, { announceDayFit: !ownToast });
+                if (data.entryId) {
+                  onLoggedEntry?.({
+                    entryId: data.entryId,
+                    name: productName,
+                    dayFit: data.dayFit,
+                  });
+                }
+              }}
+            />
           </div>
         ) : (
           <div className="space-y-4 px-5 pb-4">

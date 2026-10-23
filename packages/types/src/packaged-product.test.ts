@@ -3,8 +3,8 @@ import {
   barcodeSchema,
   isValidGtin,
   packagedProductDraftSchema,
-  productAmountSchema,
   PRODUCT_ALLERGEN_IDS,
+  productAmountSchema,
 } from './packaged-product';
 
 describe('isValidGtin / barcodeSchema', () => {
@@ -47,28 +47,35 @@ describe('packagedProductDraftSchema', () => {
   it('needs calories but lets every other number be unknown', () => {
     expect(packagedProductDraftSchema.safeParse(base).success).toBe(true);
     expect(
-      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, kcal: null } }).success,
+      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, kcal: null } })
+        .success,
     ).toBe(false);
   });
 
   it('caps per-100 g values at what 100 g can physically hold', () => {
     expect(
-      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, kcal: 901 } }).success,
+      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, kcal: 901 } })
+        .success,
     ).toBe(false);
     expect(
-      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, protein: 101 } }).success,
+      packagedProductDraftSchema.safeParse({ ...base, per100g: { ...base.per100g, protein: 101 } })
+        .success,
     ).toBe(false);
   });
 
   it('allergens are taxonomy ids only', () => {
     expect(PRODUCT_ALLERGEN_IDS).toContain('sesame');
     expect(
-      packagedProductDraftSchema.safeParse({ ...base, allergens: { known: true, contains: ['sesame'] } })
-        .success,
+      packagedProductDraftSchema.safeParse({
+        ...base,
+        allergens: { known: true, contains: ['sesame'] },
+      }).success,
     ).toBe(true);
     expect(
-      packagedProductDraftSchema.safeParse({ ...base, allergens: { known: true, contains: ['kiwi'] } })
-        .success,
+      packagedProductDraftSchema.safeParse({
+        ...base,
+        allergens: { known: true, contains: ['kiwi'] },
+      }).success,
     ).toBe(false);
   });
 });

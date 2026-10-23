@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PACKAGED_PRODUCT_COPY, type PackagedProductView, type ProductAllergenWarning } from '@chefer/types';
+import {
+  PACKAGED_PRODUCT_COPY,
+  type PackagedProductView,
+  type ProductAllergenWarning,
+} from '@chefer/types';
 import {
   Button,
   Chip,
@@ -524,8 +528,8 @@ export function QuickAddSheet({
           : view === 'product'
             ? PACKAGED_PRODUCT_COPY.scanBarcode
             : targetSlot
-            ? SLOT_COPY.ateElse
-            : 'Log something'
+              ? SLOT_COPY.ateElse
+              : 'Log something'
       }
       eyebrow={targetSlot ? mealLabel(targetSlot.mealType) : undefined}
       testID="log-sheet"
@@ -1068,7 +1072,9 @@ export function QuickAddSheet({
             date={date}
             mealType={targetSlot ? toQuickAddMealType(targetSlot.mealType) : mealType}
             replacesSlot={
-              targetSlot ? { mealType: targetSlot.mealType, slotIndex: targetSlot.slotIndex } : undefined
+              targetSlot
+                ? { mealType: targetSlot.mealType, slotIndex: targetSlot.slotIndex }
+                : undefined
             }
             proteinOnly={proteinOnly}
             initial={productStart}

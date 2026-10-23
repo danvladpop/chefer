@@ -9,7 +9,7 @@ import { canonicalGtin, decodeBarcodePhoto } from './decode.js';
 // retail barcodes a pack carries, as JPEG (what both apps send) and PNG.
 
 async function barcodePng(text: string, format: 'EAN13' | 'EAN8' | 'UPCA'): Promise<Uint8Array> {
-  const out = await writeBarcode(text, { format, scale: 4 } as never);
+  const out = await writeBarcode(text, { format, scale: 4 });
   if (!out.image) throw new Error(out.error);
   return new Uint8Array(await out.image.arrayBuffer());
 }
@@ -18,15 +18,17 @@ beforeAll(() => {
   const require = createRequire(import.meta.url);
   const wasm = readFileSync(require.resolve('zxing-wasm/writer/zxing_writer.wasm'));
   prepareZXingModule({
-    overrides: { wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) },
+    overrides: {
+      wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    },
   });
 });
 
 describe('decodeBarcodePhoto', () => {
   it('reads an EAN-13 from a PNG', async () => {
-    expect(await decodeBarcodePhoto(await barcodePng('3017620422003', 'EAN13'), 'image/png')).toEqual([
-      '3017620422003',
-    ]);
+    expect(
+      await decodeBarcodePhoto(await barcodePng('3017620422003', 'EAN13'), 'image/png'),
+    ).toEqual(['3017620422003']);
   });
 
   it('reads an EAN-8 from a JPEG on a padded, photo-like canvas', async () => {
@@ -39,7 +41,9 @@ describe('decodeBarcodePhoto', () => {
   });
 
   it('returns UPC-A in its EAN-13 form, and WebP goes through sharp', async () => {
-    const webp = await sharp(await barcodePng('036000291452', 'UPCA')).webp().toBuffer();
+    const webp = await sharp(await barcodePng('036000291452', 'UPCA'))
+      .webp()
+      .toBuffer();
     expect(await decodeBarcodePhoto(new Uint8Array(webp), 'image/webp')).toEqual(['0036000291452']);
   });
 

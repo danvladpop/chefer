@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { PackagedProductView } from '@chefer/types';
 import {
+  blankProductDraft,
   cleanBarcodeInput,
+  parseProductForm,
+  PRODUCT_ALLERGEN_PICKS,
   productAllergenLine,
   productAllergenWarningText,
   productAmountGrams,
   productDisplayName,
   productEntryName,
+  productFormFromDraft,
   productMaxGrams,
   scaleProduct,
 } from './packaged-product';
@@ -74,7 +78,12 @@ describe('names', () => {
 describe('allergen copy', () => {
   it('names who avoids it', () => {
     expect(
-      productAllergenWarningText({ allergenId: 'dairy', label: 'Dairy', kind: 'contains', who: ['you'] }),
+      productAllergenWarningText({
+        allergenId: 'dairy',
+        label: 'Dairy',
+        kind: 'contains',
+        who: ['you'],
+      }),
     ).toBe('Contains dairy: you avoid it.');
     expect(
       productAllergenWarningText({
@@ -113,4 +122,66 @@ describe('allergen copy', () => {
 
 it('cleanBarcodeInput keeps digits only, at most 14', () => {
   expect(cleanBarcodeInput('3017 6204-22003 99999')).toBe('30176204220039');
+});
+
+describe('parseProductForm', () => {
+  const numbers = {
+    kcal: '450',
+    protein: '10,5',
+    carbs: '',
+    fat: '',
+    fiber: '',
+    sugar: '',
+    saturatedFat: '',
+    salt: '',
+  };
+  const base = {
+    barcode: null,
+    name: 'Granola',
+    brand: '  ',
+    numbers,
+    serving: '',
+    contains: [],
+    noneListed: false,
+  };
+
+  it('blank = not on the pack (null), commas read as decimals, blank brand is null', () => {
+    const result = parseProductForm(base);
+    expect(result.ok && result.draft).toMatchObject({
+      brand: null,
+      per100g: { kcal: 450, protein: 10.5, carbs: null },
+      servingSizeG: null,
+      allergens: { known: false, contains: [] },
+    });
+  });
+
+  it('"None listed" makes allergens known; ticking one does too', () => {
+    const none = parseProductForm({ ...base, noneListed: true });
+    expect(none.ok && none.draft.allergens).toEqual({ known: true, contains: [] });
+    const dairy = parseProductForm({ ...base, contains: ['dairy'] });
+    expect(dairy.ok && dairy.draft.allergens).toEqual({ known: true, contains: ['dairy'] });
+  });
+
+  it('says exactly what to fix', () => {
+    expect(parseProductForm({ ...base, numbers: { ...numbers, kcal: '' } })).toEqual({
+      ok: false,
+      error: 'Enter the calories per 100 g from the pack.',
+    });
+    expect(parseProductForm({ ...base, name: ' ' })).toMatchObject({ ok: false, error: /name/ });
+    expect(parseProductForm({ ...base, numbers: { ...numbers, fat: '120' } })).toMatchObject({
+      ok: false,
+      error: /per 100 g/,
+    });
+    expect(parseProductForm({ ...base, numbers: { ...numbers, fat: 'abc' } }).ok).toBe(false);
+  });
+
+  it('round-trips a draft through the form', () => {
+    const draft = blankProductDraft('96385074');
+    expect(productFormFromDraft(draft)).toMatchObject({
+      barcode: '96385074',
+      name: '',
+      serving: '',
+    });
+    expect(PRODUCT_ALLERGEN_PICKS.map((a) => a.id)).not.toContain('shellfish');
+  });
 });

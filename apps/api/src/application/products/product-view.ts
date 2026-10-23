@@ -1,5 +1,9 @@
 import type { PackagedProduct } from '@chefer/database';
-import { findSafetyTaxonomyEntry, type PackagedProductView, type ProductAllergenRef } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  type PackagedProductView,
+  type ProductAllergenRef,
+} from '@chefer/types';
 
 // A stored packaged product → the shape every client renders (ADR 0002).
 // Pure and dependency-light, so the tracker can log a product without
@@ -14,7 +18,8 @@ function allergenRef(id: string): ProductAllergenRef {
 }
 
 export function toProductView(row: PackagedProduct, viewerId: string): PackagedProductView {
-  const status = row.allergenTags.length > 0 ? 'listed' : row.allergensKnown ? 'none-listed' : 'unknown';
+  const status =
+    row.allergenTags.length > 0 ? 'listed' : row.allergensKnown ? 'none-listed' : 'unknown';
   return {
     id: row.id,
     barcode: row.barcode,
@@ -41,4 +46,3 @@ export function toProductView(row: PackagedProduct, viewerId: string): PackagedP
     imageUrl: row.imageUrl,
   };
 }
-

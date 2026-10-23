@@ -75,7 +75,12 @@ export const packagedProductDraftSchema = z.object({
   name: z.string().trim().min(1).max(PACKAGED_PRODUCT_LIMITS.nameMaxLength),
   brand: z.string().trim().max(PACKAGED_PRODUCT_LIMITS.brandMaxLength).nullable(),
   per100g: productNutritionSchema,
-  servingSizeG: z.number().finite().positive().max(PACKAGED_PRODUCT_LIMITS.servingSizeGMax).nullable(),
+  servingSizeG: z
+    .number()
+    .finite()
+    .positive()
+    .max(PACKAGED_PRODUCT_LIMITS.servingSizeGMax)
+    .nullable(),
   allergens: z.object({
     /** `false` = the user doesn't know (shown as "allergens unknown"). */
     known: z.boolean(),

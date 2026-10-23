@@ -1,7 +1,11 @@
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userRepository } from '@chefer/database';
-import { AI_CONSENT_REQUIRED_MESSAGE, BARCODE_INVALID_MESSAGE, type UserProfile } from '@chefer/types';
+import {
+  AI_CONSENT_REQUIRED_MESSAGE,
+  BARCODE_INVALID_MESSAGE,
+  type UserProfile,
+} from '@chefer/types';
 import { productsRouter } from './products.router.js';
 
 // ADR 0002: barcode lookup, photo decode, search and saving your own product
@@ -84,7 +88,11 @@ describe('products router', () => {
       allergens: { known: false, contains: [] },
     });
     expect(service.lookupBarcodePhoto).toHaveBeenCalledTimes(1);
-    expect(service.create).toHaveBeenCalledWith('u1', expect.objectContaining({ name: 'Granola' }), 'USER');
+    expect(service.create).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ name: 'Granola' }),
+      'USER',
+    );
     expect(userRepository.findAiDataConsentAt).not.toHaveBeenCalled();
   });
 
@@ -122,6 +130,11 @@ describe('products router', () => {
   it('scanLabel with consent runs (the service owns the premium quota)', async () => {
     vi.mocked(userRepository.findAiDataConsentAt).mockResolvedValue(new Date());
     await caller().scanLabel({ ...photo, barcode: '96385074' });
-    expect(service.scanLabel).toHaveBeenCalledWith(free, photo.imageBase64, 'image/jpeg', '96385074');
+    expect(service.scanLabel).toHaveBeenCalledWith(
+      free,
+      photo.imageBase64,
+      'image/jpeg',
+      '96385074',
+    );
   });
 });

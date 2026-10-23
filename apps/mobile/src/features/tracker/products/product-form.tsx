@@ -1,47 +1,25 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Button, Chip, DONE_FIELD_PROPS, Input, Text } from '@chefer/ui-mobile';
 import {
-  findSafetyTaxonomyEntry,
   PACKAGED_PRODUCT_COPY,
   PACKAGED_PRODUCT_LIMITS,
-  packagedProductDraftSchema,
-  PRODUCT_ALLERGEN_IDS,
   type NutritionLabelDraft,
   type PackagedProductDraft,
 } from '@chefer/types';
+import { Button, Chip, DONE_FIELD_PROPS, Input, Text } from '@chefer/ui-mobile';
+import {
+  parseProductForm,
+  PRODUCT_ALLERGEN_PICKS,
+  PRODUCT_FORM_FIELDS,
+  productFormFromDraft,
+  type ProductFormInput,
+} from '@chefer/utils';
 
 // "Enter it yourself" (free) and the label-scan review (premium) share this
 // form (ADR 0002). Everything is per 100 g, calories are the one required
 // number, a blank field means "not on the pack" (stored as unknown, never 0),
 // and allergens stay "unknown" until the user ticks some or says none are
-// listed.
-
-type NumberKey = keyof PackagedProductDraft['per100g'];
-
-const NUMBER_FIELDS: { key: NumberKey; label: string; unit: string }[] = [
-  { key: 'kcal', label: 'Calories', unit: 'kcal' },
-  { key: 'protein', label: 'Protein', unit: 'g' },
-  { key: 'carbs', label: 'Carbs', unit: 'g' },
-  { key: 'fat', label: 'Fat', unit: 'g' },
-  { key: 'fiber', label: 'Fibre', unit: 'g' },
-  { key: 'sugar', label: 'of which sugars', unit: 'g' },
-  { key: 'saturatedFat', label: 'of which saturates', unit: 'g' },
-  { key: 'salt', label: 'Salt', unit: 'g' },
-];
-
-/** Allergens offered as new picks (legacy Shellfish stays out: Crustaceans and Molluscs cover it). */
-const ALLERGEN_PICKS = PRODUCT_ALLERGEN_IDS.filter(
-  (id) => !findSafetyTaxonomyEntry(id)?.hiddenForNewPicks,
-);
-
-const numberText = (n: number | null): string => (n === null ? '' : String(n));
-const parseOptional = (text: string): number | null => {
-  const trimmed = text.trim().replace(',', '.');
-  if (trimmed === '') return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : Number.NaN;
-};
+// listed. Parsing is shared with web (`parseProductForm`).
 
 export interface ProductFormProps {
   /** Pre-filled from a label scan, an incomplete product, or just the barcode. */
@@ -55,60 +33,31 @@ export interface ProductFormProps {
 }
 
 export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: ProductFormProps) {
-  const [name, setName] = useState(initial.name);
-  const [brand, setBrand] = useState(initial.brand ?? '');
-  const [numbers, setNumbers] = useState<Record<NumberKey, string>>(() => {
-    const out = {} as Record<NumberKey, string>;
-    for (const { key } of NUMBER_FIELDS) out[key] = numberText(initial.per100g[key]);
-    return out;
-  });
-  const [serving, setServing] = useState(numberText(initial.servingSizeG));
-  const [contains, setContains] = useState<string[]>(initial.allergens.contains);
-  const [noneListed, setNoneListed] = useState(
-    initial.allergens.known && initial.allergens.contains.length === 0,
-  );
+  const [form, setForm] = useState<ProductFormInput>(() => productFormFromDraft(initial));
   const [edited, setEdited] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const touch = () => {
+  const update = (patch: Partial<ProductFormInput>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
     setEdited(true);
     setFormError(null);
   };
 
-  const toggleAllergen = (id: string) => {
-    touch();
-    setNoneListed(false);
-    setContains((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
-  };
+  const toggleAllergen = (id: string) =>
+    update({
+      noneListed: false,
+      contains: form.contains.includes(id)
+        ? form.contains.filter((a) => a !== id)
+        : [...form.contains, id],
+    });
 
   const submit = () => {
-    const per100g = {} as Record<NumberKey, number | null>;
-    for (const { key } of NUMBER_FIELDS) per100g[key] = parseOptional(numbers[key]);
-    if (per100g.kcal === null) {
-      setFormError('Enter the calories per 100 g from the pack.');
+    const result = parseProductForm(form);
+    if (!result.ok) {
+      setFormError(result.error);
       return;
     }
-    const parsed = packagedProductDraftSchema.safeParse({
-      barcode: initial.barcode,
-      name,
-      brand: brand.trim() === '' ? null : brand,
-      per100g,
-      servingSizeG: parseOptional(serving),
-      allergens: { known: noneListed || contains.length > 0, contains },
-    });
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const field = issue?.path.join('.') ?? '';
-      setFormError(
-        field === 'name'
-          ? 'Give the product a name.'
-          : field.startsWith('per100g') || field === 'servingSizeG'
-            ? 'Check the numbers: each is per 100 g, and 100 g can’t hold more than 100 g of anything.'
-            : 'Check the product details.',
-      );
-      return;
-    }
-    onSave(parsed.data, edited);
+    onSave(result.draft, edited);
   };
 
   return (
@@ -130,22 +79,17 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
           )}
         </View>
       )}
-      {initial.barcode && (
-        <Text className="text-xs text-gray-500">Barcode {initial.barcode}</Text>
-      )}
+      {form.barcode && <Text className="text-xs text-gray-500">Barcode {form.barcode}</Text>}
 
       <View className="gap-1">
         <Text className="text-xs font-medium text-gray-600">Product name</Text>
         <Input
           testID="product-form-name"
           accessibilityLabel="Product name"
-          value={name}
+          value={form.name}
           maxLength={PACKAGED_PRODUCT_LIMITS.nameMaxLength}
           placeholder="e.g. Oat & honey biscuits"
-          onChangeText={(text) => {
-            setName(text);
-            touch();
-          }}
+          onChangeText={(name) => update({ name })}
           {...DONE_FIELD_PROPS}
         />
       </View>
@@ -154,12 +98,9 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         <Input
           testID="product-form-brand"
           accessibilityLabel="Brand"
-          value={brand}
+          value={form.brand}
           maxLength={PACKAGED_PRODUCT_LIMITS.brandMaxLength}
-          onChangeText={(text) => {
-            setBrand(text);
-            touch();
-          }}
+          onChangeText={(brand) => update({ brand })}
           {...DONE_FIELD_PROPS}
         />
       </View>
@@ -168,7 +109,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         Per 100 g (leave blank if not on the pack)
       </Text>
       <View className="flex-row flex-wrap gap-2">
-        {NUMBER_FIELDS.map(({ key, label, unit }) => (
+        {PRODUCT_FORM_FIELDS.map(({ key, label, unit }) => (
           <View key={key} className="min-w-0 basis-[47%] gap-1">
             <Text className="text-xs font-medium text-gray-600">
               {label} ({unit}){key === 'kcal' ? ' *' : ''}
@@ -176,13 +117,10 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
             <Input
               testID={`product-form-${key}`}
               accessibilityLabel={`${label} per 100 grams`}
-              value={numbers[key]}
+              value={form.numbers[key]}
               keyboardType="decimal-pad"
               placeholder="–"
-              onChangeText={(text) => {
-                setNumbers((prev) => ({ ...prev, [key]: text }));
-                touch();
-              }}
+              onChangeText={(text) => update({ numbers: { ...form.numbers, [key]: text } })}
               {...DONE_FIELD_PROPS}
             />
           </View>
@@ -193,13 +131,10 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         <Input
           testID="product-form-serving"
           accessibilityLabel="Serving size in grams"
-          value={serving}
+          value={form.serving}
           keyboardType="decimal-pad"
           placeholder="–"
-          onChangeText={(text) => {
-            setServing(text);
-            touch();
-          }}
+          onChangeText={(serving) => update({ serving })}
           {...DONE_FIELD_PROPS}
         />
       </View>
@@ -207,33 +142,33 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       <View className="gap-1.5">
         <Text className="text-xs font-medium text-gray-600">Contains (from the pack)</Text>
         <View className="flex-row flex-wrap gap-1.5">
-          {ALLERGEN_PICKS.map((id) => (
+          {PRODUCT_ALLERGEN_PICKS.map(({ id, label }) => (
             <Chip
               key={id}
               testID={`product-form-allergen-${id}`}
-              label={findSafetyTaxonomyEntry(id)?.label ?? id}
-              selected={contains.includes(id)}
+              label={label}
+              selected={form.contains.includes(id)}
               onPress={() => toggleAllergen(id)}
             />
           ))}
           <Chip
             testID="product-form-allergen-none"
             label="None listed"
-            selected={noneListed}
-            onPress={() => {
-              touch();
-              setNoneListed((prev) => !prev);
-              setContains([]);
-            }}
+            selected={form.noneListed}
+            onPress={() => update({ noneListed: !form.noneListed, contains: [] })}
           />
         </View>
-        {!noneListed && contains.length === 0 && (
+        {!form.noneListed && form.contains.length === 0 && (
           <Text className="text-xs text-gray-500">{PACKAGED_PRODUCT_COPY.allergensUnknown}</Text>
         )}
       </View>
 
       {(formError ?? error) && (
-        <Text testID="product-form-error" accessibilityLiveRegion="polite" className="text-sm text-red-600">
+        <Text
+          testID="product-form-error"
+          accessibilityLiveRegion="polite"
+          className="text-sm text-red-600"
+        >
           {formError ?? error}
         </Text>
       )}
