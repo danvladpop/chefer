@@ -190,7 +190,7 @@ export function xpTargetLabel(
   level: number,
   nextRank: { title: string; minLevel: number } | null,
 ): string {
-  return nextRank && nextRank.minLevel === level + 1 ? nextRank.title : levelLabel(level + 1);
+  return nextRank?.minLevel === level + 1 ? nextRank.title : levelLabel(level + 1);
 }
 
 /** "261 / 380 XP to Lv 6", "340 / 500 XP to Chef de Partie", or the top-rank line. */

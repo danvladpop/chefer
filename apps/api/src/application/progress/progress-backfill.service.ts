@@ -264,7 +264,7 @@ export class ProgressBackfillService {
     for (const list of lists) {
       const progress = await d.recorder.deps.shopping.progress(userId, list.planId);
       if (!progress || progress.total === 0 || progress.unchecked > 0) continue;
-      const monday = weekStartOf(list.weekStartDate.toISOString().slice(0, 10));
+      const monday = weekStartOf(dateOnlyKey(list.weekStartDate));
       out.push(shopDoneCandidate({ planId: list.planId, localDate: addDaysLocal(monday, 6) }));
     }
     return out;
@@ -364,7 +364,7 @@ function newestPlanPerWeek(plans: PlanWithDays[]): Map<string, PlanWithDays> {
   const byWeek = new Map<string, PlanWithDays>();
   for (const plan of plans) {
     // `plans` is oldest first, so a later plan of the same week replaces an earlier one.
-    byWeek.set(weekStartOf(plan.weekStartDate.toISOString().slice(0, 10)), plan);
+    byWeek.set(weekStartOf(dateOnlyKey(plan.weekStartDate)), plan);
   }
   return byWeek;
 }

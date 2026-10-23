@@ -11,7 +11,7 @@ import {
   type WorkoutSessionRepository,
 } from '@chefer/database';
 import type { WeeklyRecap } from '@chefer/types';
-import { addDaysLocal, goalForWeek, levelForXp, weekStartOf } from '@chefer/utils';
+import { addDaysLocal, dateOnlyKey, goalForWeek, levelForXp, weekStartOf } from '@chefer/utils';
 import { gymContextLoader } from '../gym/gym-context.js';
 import { readGoalHistory } from '../gym/mappers.js';
 import type { ProgressRecorder } from './progress-recorder.js';
@@ -118,7 +118,9 @@ export class ProgressRecapService {
 /** The gym weekly goal in force that week (the Monday the recap is about). */
 function gymGoalFor(profile: GymProfile, weekStart: string): number {
   const history = readGoalHistory(profile.goalHistory);
-  const setup = (profile.setupCompletedAt ?? profile.createdAt).toISOString().slice(0, 10);
+  // Only the fallback week of a profile with no goal history: the setup
+  // instant's calendar day is close enough (the goal is per week).
+  const setup = dateOnlyKey(profile.setupCompletedAt ?? profile.createdAt);
   return goalForWeek(
     history.length > 0 ? history : [{ fromWeek: weekStartOf(setup), goal: profile.weeklyGoal }],
     weekStart,
