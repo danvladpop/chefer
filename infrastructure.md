@@ -609,8 +609,13 @@ API, Maestro E2E in `e2e/`).
     `endsAt`, lock-screen visible, +30 s / Skip actions via `RestTimerReceiver`, Android 16 promoted "Live Update" request
     with `POST_PROMOTED_NOTIFICATIONS`, a normal permission) and the on-time alert (UX-GYM-10) on the existing
     `rest-timer` channel: `setExactAndAllowWhileIdle` when exact alarms are allowed, else `setExact` with an
-    `OnAlarmListener` (needs **no** `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`) plus an inexact while-idle backstop. Not
-    shown while the app is in the foreground (the timer bar buzzes there).
+    `OnAlarmListener` (needs **no** `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`) plus an inexact while-idle backstop. Android
+    14+ freezes a backgrounded app within ~1 min and drops its listener alarms, so `RestTimerService` (a `shortService`
+    foreground service whose notification is the countdown; `FOREGROUND_SERVICE` permission only) keeps the process
+    unfrozen during the rest — measured: alert 22 ms after the end (58–93 s late without it). The OS caps shortService at
+    ~3 min (`onTimeout` detaches, the countdown stays, the backstop delivers late). It can only start while the app is in
+    front (a tick), so a rest started from the background degrades to the plain notification. Not shown while the app is
+    in the foreground (the timer bar buzzes there).
   - **JS:** `src/features/gym/rest-native.ts` looks the module up with `requireOptionalNativeModule('CheferRestTimer')`;
     `rest-timer.ts` hands every rest change to `sync()` when it exists and keeps the expo-notifications alert when it
     doesn't (older binaries). A lock-screen action records `lastActionAt`; JS adopts it once, from the `onChange` event or

@@ -29,8 +29,13 @@ data class NativeRest(val endsAt: Long, val durationSec: Long, val label: String
  *  2. otherwise `setExact` with an OnAlarmListener, which needs no permission
  *     (no SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM, so no Play declaration) and is
  *     exact while the process lives — plus an inexact while-idle alarm as a
- *     backstop in case the process dies; whichever comes first wins, the other
- *     is cancelled or ignored (`onRestOver` checks the stored end).
+ *     backstop; whichever comes first wins, the other is cancelled or ignored
+ *     (`onRestOver` checks the stored end).
+ *     Measured on Android 17: the OS freezes a backgrounded app within ~1 min
+ *     and DROPS its listener alarms ("removed … because the app got frozen"),
+ *     so the backstop fired 58–93 s late. RestTimerService (a shortService
+ *     foreground service showing the countdown) keeps the process unfrozen
+ *     for the rest — up to the OS cap of ~3 min.
  * The JS stays the source of truth and calls `sync` on every change; lock-screen
  * actions record `lastActionAt` so a JS that wasn't running adopts them later.
  */
@@ -45,7 +50,7 @@ object RestTimerController {
   // so the user's per-channel choices carry over.
   private const val ALERT_CHANNEL_ID = "rest-timer"
   private const val COUNTDOWN_CHANNEL_ID = "rest-timer-countdown"
-  private const val COUNTDOWN_NOTIFICATION_ID = 7301
+  const val COUNTDOWN_NOTIFICATION_ID = 7301
   private const val ALERT_NOTIFICATION_ID = 7302
   private const val PREFS = "chefer.restTimer"
   private const val KEY_REST = "rest"
@@ -84,6 +89,7 @@ object RestTimerController {
     if (rest == null || rest.endsAt <= System.currentTimeMillis() + 1000) {
       store(app, null)
       cancelAlarms(app)
+      RestTimerService.stop(app)
       NotificationManagerCompat.from(app).cancel(COUNTDOWN_NOTIFICATION_ID)
       return
     }
@@ -121,6 +127,7 @@ object RestTimerController {
     if (rest.endsAt != endsAt) return // a stale alarm for a changed rest
     store(app, null)
     cancelAlarms(app)
+    RestTimerService.stop(app)
     val manager = NotificationManagerCompat.from(app)
     manager.cancel(COUNTDOWN_NOTIFICATION_ID)
     // In the app, the timer bar buzzes instead (as the JS alert never showed
@@ -204,9 +211,9 @@ object RestTimerController {
     }
   }
 
-  private fun postCountdown(context: Context, rest: NativeRest) {
-    val manager = NotificationManagerCompat.from(context)
-    if (!manager.areNotificationsEnabled()) return
+  /** The ongoing countdown (also the keep-alive service's notification). Null without notification permission. */
+  fun buildCountdown(context: Context, rest: NativeRest): android.app.Notification? {
+    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return null
     ensureChannels(context)
     val builder =
       NotificationCompat.Builder(context, COUNTDOWN_CHANNEL_ID)
@@ -228,12 +235,20 @@ object RestTimerController {
         .setContentIntent(openAppIntent(context))
         .addAction(0, "+30 s", actionIntent(context, ACTION_ADD))
         .addAction(0, "Skip", actionIntent(context, ACTION_SKIP))
+        // Shown at once even as a foreground-service notification (no 10 s deferral).
+        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
     builder.extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+    return builder.build()
+  }
+
+  private fun postCountdown(context: Context, rest: NativeRest) {
+    val notification = buildCountdown(context, rest) ?: return
     try {
-      manager.notify(COUNTDOWN_NOTIFICATION_ID, builder.build())
+      NotificationManagerCompat.from(context).notify(COUNTDOWN_NOTIFICATION_ID, notification)
     } catch (e: SecurityException) {
       // POST_NOTIFICATIONS revoked between the check and the post.
     }
+    RestTimerService.keepAlive(context)
   }
 
   private fun scheduleAlarm(context: Context, endsAt: Long) {

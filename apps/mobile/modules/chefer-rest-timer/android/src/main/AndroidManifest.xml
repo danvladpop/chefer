@@ -2,8 +2,15 @@
   <!-- Android 16 status-bar chip for the rest countdown (a normal permission,
        granted at install; no Play declaration). -->
   <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+  <!-- Keeps the app unfrozen during a rest so the alarm is on time (RestTimerService).
+       shortService needs no FOREGROUND_SERVICE_<TYPE> permission. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <application>
     <!-- The rest-over alarm and the notification's Skip / +30 s buttons. -->
     <receiver android:name=".RestTimerReceiver" android:exported="false" />
+    <service
+        android:name=".RestTimerService"
+        android:exported="false"
+        android:foregroundServiceType="shortService" />
   </application>
 </manifest>
