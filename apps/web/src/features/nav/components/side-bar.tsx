@@ -46,6 +46,8 @@ export function SideBar({ className }: SideBarProps) {
       <nav
         key={mode}
         aria-label={t('nav.primary')}
+        // The accessible name is translated; tests find the shell by this id.
+        data-testid="primary-nav"
         className={cn('flex-1 overflow-y-auto px-3 py-4', modeSwapFade(trainerModeAvailable))}
       >
         <NavList items={nav.primary} pathname={pathname} badges={navBadges} />

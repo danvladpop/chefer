@@ -194,12 +194,14 @@ export async function findUndersizedTargets(page: Page, minimum = 44): Promise<U
  */
 export async function gotoAndSettle(page: Page, route: string): Promise<void> {
   await page.goto(route, { waitUntil: 'domcontentloaded' });
-  // The email-link pages (P2-5) live outside the shell, so there is no "Primary"
+  // The email-link pages (P2-5) live outside the shell, so there is no primary
   // navigation to wait for; their `<main id="main">` is the equivalent signal.
   // (Waiting for the nav on them timed out — the 10 pre-existing sweep failures.)
+  // The nav is found by test id, not its accessible name, which is translated
+  // (ADR 0004) — the sweep also runs with PLAYWRIGHT_LOCALE=ro-RO.
   const ready = isShellLess(route)
     ? page.locator('main#main')
-    : page.getByRole('navigation', { name: 'Primary' }).first();
+    : page.getByTestId('primary-nav').first();
   await ready.waitFor({ state: 'attached' });
 
   // Resolves immediately when the page never showed a skeleton.
