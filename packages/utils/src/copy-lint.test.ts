@@ -18,7 +18,10 @@ const COPY_MODULES: Record<string, Record<string, string>> = {
   'plan-tailoring': PLAN_TAILORING_COPY,
   'engagement-copy': ENGAGEMENT_COPY,
   ...Object.fromEntries(
-    Object.entries(MEAL_REMINDER_NOTIFICATION).map(([slot, copy]) => [`meal-reminder.${slot}`, copy]),
+    Object.entries(MEAL_REMINDER_NOTIFICATION).map(([slot, copy]) => [
+      `meal-reminder.${slot}`,
+      copy,
+    ]),
   ),
 };
 
