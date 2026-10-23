@@ -26,6 +26,7 @@ import type {
 } from '@chefer/types';
 import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
+import { notifyProgress, type IProgressRecorder } from '../progress/progress-hooks.js';
 import { filterSessionExercisesForLevel } from './client-level.js';
 import {
   loggedByIds,
@@ -83,6 +84,8 @@ export class WorkoutSessionService {
       ITrainerProfileRepository,
       'findMany'
     > = trainerProfileRepository,
+    /** Kitchen progress hook; undefined = the app-wide recorder (a no-op in tests). */
+    private readonly progress: IProgressRecorder | undefined = undefined,
   ) {}
 
   async upsertMany(
@@ -135,6 +138,16 @@ export class WorkoutSessionService {
       await this.applyCarryOver(userId, completedDocs).catch((err: unknown) => {
         console.error('[gym] carry-over update failed after upsertMany', { userId, err });
       });
+      // Kitchen progress: the finished workouts and their PRs (best-effort, awaited so the
+      // phone's next progress.inbox read sees the receipt). Offline replays score on the
+      // workout's own localDate, and a re-send pays nothing: the key is the session id.
+      const ids = completedDocs.map((doc) => doc.id);
+      await notifyProgress(
+        'onWorkoutsCompleted',
+        userId,
+        (r) => r.onWorkoutsCompleted(userId, ids),
+        this.progress,
+      );
     }
     const finalResults: SyncResultDto[] = docs.map(
       (doc, i) => results.get(i) ?? { id: doc.id, status: 'rejected' },
