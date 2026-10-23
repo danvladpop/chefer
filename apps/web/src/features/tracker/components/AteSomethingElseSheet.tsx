@@ -5,7 +5,22 @@ import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Camera, Pencil } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { EAT_OUT_CUISINE_LABELS, EAT_OUT_CUISINES, EAT_OUT_SIZE_HINTS, EAT_OUT_SIZE_LABELS, EAT_OUT_SIZES, eatOutEstimate, eatOutLogValues, eatOutMealName, formatEatOutKcal, formatEatOutProtein, proteinLabel, type EatOutCuisine, type EatOutSize, HIDE_NUMBERS_COPY } from '@chefer/utils';
+import {
+  EAT_OUT_CUISINE_LABELS,
+  EAT_OUT_CUISINES,
+  EAT_OUT_SIZE_HINTS,
+  EAT_OUT_SIZE_LABELS,
+  EAT_OUT_SIZES,
+  eatOutEstimate,
+  eatOutLogValues,
+  eatOutMealName,
+  formatEatOutKcal,
+  formatEatOutProtein,
+  HIDE_NUMBERS_COPY,
+  proteinLabel,
+  type EatOutCuisine,
+  type EatOutSize,
+} from '@chefer/utils';
 import type { ReplacementInput, SlotTarget } from '../lib/use-slot-actions';
 
 // ─── "Ate something else" (WP-06, Food 1) ─────────────────────────────────────
@@ -208,8 +223,8 @@ export function AteSomethingElseSheet({
                 ? noNumbers
                   ? HIDE_NUMBERS_COPY.estimateHidden
                   : proteinOnly
-                  ? formatEatOutProtein(estimate)
-                  : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
+                    ? formatEatOutProtein(estimate)
+                    : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
                 : 'Pick what you had'}
             </p>
           </div>
