@@ -11,7 +11,7 @@ import { Button, Sheet, Text } from '@chefer/ui-mobile';
  * `notifications`: the OS notification permission (B-40). `exactAlarms`
  * (Android 12+, asked once per device, owner decision 2026-10-23): the
  * "Alarms & reminders" switch, without which a rest longer than ~3 min can ring
- * up to a minute late.
+ * late (up to ~75 % of the time left when the keep-alive stops).
  */
 export type RestPermissionStep = 'notifications' | 'exactAlarms';
 
@@ -21,7 +21,7 @@ const COPY: Record<RestPermissionStep, { body: string; allow: string }> = {
     allow: 'Allow notifications',
   },
   exactAlarms: {
-    body: 'Long rests can buzz up to a minute late unless Chefer may set exact alarms. Turn on "Alarms & reminders" for Chefer in Settings?',
+    body: 'Rests over 3 minutes can buzz late unless Chefer may set exact alarms. Turn on "Alarms & reminders" for Chefer in Settings?',
     allow: 'Open Settings',
   },
 };

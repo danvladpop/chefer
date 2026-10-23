@@ -202,7 +202,7 @@ export const EXACT_ALARM_ASKED_KEY = 'rest-timer.exact-alarm-asked';
 /**
  * True once, on Android 12+ binaries with the native rest timer, while
  * "Alarms & reminders" is off: the foreground service keeps a rest exact for
- * only ~3 min, so longer rests can ring up to a minute late. False on iOS and
+ * only ~3 min, so longer rests can ring late. False on iOS and
  * on binaries without the native module (no such function).
  */
 export function shouldAskExactAlarms(): boolean {

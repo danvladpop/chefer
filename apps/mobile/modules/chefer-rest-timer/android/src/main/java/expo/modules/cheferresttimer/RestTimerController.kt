@@ -154,6 +154,20 @@ object RestTimerController {
     }
   }
 
+
+  /**
+   * The keep-alive service hit the OS's ~3 min cap: the app may now be frozen
+   * and its listener alarm dropped. An inexact alarm may fire up to 75% of its
+   * delay late (measured: 154 s late when set 3.5 min ahead), so set the
+   * backstop again from now — the window shrinks with the time left.
+   */
+  @Synchronized
+  fun onKeepAliveEnded(context: Context) {
+    val rest = current(context) ?: return
+    if (rest.endsAt <= System.currentTimeMillis()) return
+    scheduleAlarm(context.applicationContext, rest.endsAt)
+  }
+
   // ── Internals ──────────────────────────────────────────────────────────────
 
   private val BRAND_COLOR = 0xFF944A00.toInt()
