@@ -99,6 +99,10 @@ _Avoid_: Code, referral
 What a client chooses to let their trainer see beyond training: their food log and / or their weight. Off unless the client turns it on, per coaching; it ends with the coaching.
 _Avoid_: Permissions, access (in user copy), sync
 
+**Check-in**:
+A trainer's short weekly questionnaire (a few 1–5 questions and an optional note) that each client answers in the app.
+_Avoid_: Survey, form, questionnaire (in user copy)
+
 **Coaching request**:
 A client's ask to be coached, which the trainer accepts or declines.
 _Avoid_: Application, follow request

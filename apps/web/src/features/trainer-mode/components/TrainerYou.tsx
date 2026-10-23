@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
+import { CheckInSettings } from '@/features/trainer/components/CheckInSettings';
 import { InviteSheet } from '@/features/trainer/components/InviteSheet';
 import { TrainerSettings } from '@/features/trainer/components/TrainerSettings';
 import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
@@ -63,6 +64,7 @@ export function TrainerYou() {
           </div>
         </div>
       </TrainerSettings>
+      <CheckInSettings />
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </div>
   );

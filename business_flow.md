@@ -6238,6 +6238,27 @@ Food tab (only while something is shared)
 The card's wording is `weekSummaryLines` / `foodDayParts` (`@chefer/utils`), so both apps say the same.
 Mobile shows kg (like every trainer screen); web uses the trainer's own gym unit.
 
+**Weekly check-ins (K3).**
+
+```
+Trainer settings → "Weekly check-in"   off by default; day (Mon…Sun, default Sun); up to 6 of
+                                       Energy · Hunger · Sleep · Stress · Sticking to the plan · Soreness · Mood
+        │ trainer.checkIns.saveConfig
+        ▼
+Client, on that weekday (own calendar), from the first one after the coaching started:
+  Today / Train card "Ana's weekly check-in" — Answer → /coaching/check-in · Later (hides it until tomorrow)
+  email (08:00 UTC that day, once per period, one-click unsubscribe)
+  /coaching/check-in: each question 1–5 + optional note → coaching.checkIn.submit
+        open until the next one opens; answering again changes the answers
+        ▼
+Trainer, the client's page → "Check-ins": newest first, "Energy 3/5 · Sleep 4/5", the note,
+  "This week's check-in is waiting for Maria" (trainer.client.checkIns, ACTIVE coaching only)
+```
+
+The questions are a fixed catalogue (no free text from the trainer in a client's inbox); the client's note is opaque
+text, never sent to AI or analytics. Analytics: `check_in_config_saved { enabled, questions }`,
+`check_in_submitted { questions, withNote, edit }`.
+
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
 
 Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.

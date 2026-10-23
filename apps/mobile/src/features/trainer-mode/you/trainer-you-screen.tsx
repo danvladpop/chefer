@@ -18,6 +18,7 @@ import { BookingReminderSwitch } from '../../notifications/booking-reminder-swit
 import { ShellTopBar } from '../../shell/shell-chrome';
 import { YouHelpSection, YouSignOutFooter } from '../../shell/you/you-footer';
 import { trainerFeedbackMailto } from '../../trainer/components/trainer-feedback-link';
+import { CheckInSettingsCard } from '../../trainer/home/check-in-settings-card';
 import { TrainerProfileCard } from '../../trainer/home/trainer-profile-card';
 import { useTurnOffTrainerTools } from '../../trainer/home/use-turn-off-trainer-tools';
 import { InviteSheet } from '../../trainer/invite/invite-screen';
@@ -79,6 +80,7 @@ export function TrainerYouScreen() {
               {COPY.profile}
             </Text>
             <TrainerProfileCard />
+            <CheckInSettingsCard />
           </View>
 
           <ListSection title={TRAINER_MODE_COPY.mode.trainer} footer={COPY.availabilityHint}>

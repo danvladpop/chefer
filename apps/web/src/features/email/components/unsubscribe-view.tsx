@@ -10,10 +10,12 @@ import { trpc } from '@/lib/trpc';
 // browser, not on page load server-side, so mail scanners that prefetch the
 // link don't unsubscribe anyone. "Undo" re-subscribes with the same link.
 
-const WHAT: Record<'WEEK_READY' | 'WEEKLY_RECAP' | 'ALL', string> = {
+const WHAT: Record<'WEEK_READY' | 'WEEKLY_RECAP' | 'ALL' | 'COACHING_CHECK_IN', string> = {
   WEEK_READY: 'the Monday "your week is ready" email',
   WEEKLY_RECAP: 'the Sunday "your week in review" email',
   ALL: 'weekly emails',
+  // Lane K3: the trainer's weekly check-in (the in-app prompt stays).
+  COACHING_CHECK_IN: 'your trainer’s weekly check-in emails',
 };
 
 const LINK_CLASSES =

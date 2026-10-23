@@ -19,6 +19,9 @@ const trainer = (userId: string, displayName: string): TrainerProfile => ({
   gymLine: userId === MIHAI ? 'Iron Gym, Cluj' : null,
   activatedAt: NOW,
   disabledAt: null,
+  checkInEnabled: false,
+  checkInDay: 6,
+  checkInQuestions: [],
 });
 
 const link = (trainerId: string): CoachingLink => ({
