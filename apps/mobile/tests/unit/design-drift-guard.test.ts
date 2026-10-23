@@ -19,6 +19,11 @@ const SCANNED = ['apps/mobile/app', 'apps/mobile/src', 'packages/ui-mobile/src']
 const CLEAN = [
   'apps/mobile/app/(main)/',
   'apps/mobile/src/features/shell/',
+  // Kitchen progress (docs/gamification-2026-10)
+  'apps/mobile/src/features/progress/',
+  'apps/mobile/app/achievements.tsx',
+  'apps/mobile/app/kitchen-recap/',
+  'apps/mobile/app/settings/rewards.tsx',
   'packages/ui-mobile/src/components/list.tsx',
   'packages/ui-mobile/src/components/icon-button.tsx',
   'packages/ui-mobile/src/components/large-header.tsx',

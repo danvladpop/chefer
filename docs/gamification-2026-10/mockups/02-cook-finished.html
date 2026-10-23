@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>02 Cook finished — Made it!</title>
+    <link rel="stylesheet" href="phone.css" />
+  </head>
+  <body>
+    <div class="phone" data-tab="none" style="background: #fff">
+      <div class="confetti" data-n="26" data-top="95" data-h="120"></div>
+      <div class="scroll" style="position: relative; z-index: 2; gap: 14px">
+        <div class="between" style="padding-top: 4px">
+          <span style="font-size: 22px">✕</span
+          ><span class="sub">Lemon Herb Salmon with Quinoa</span><span style="width: 22px"></span>
+        </div>
+        <div class="bar thin"><i style="width: 100%"></i></div>
+
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding-top: 18px;
+            text-align: center;
+          "
+        >
+          <div class="biscuit" style="font-size: 54px">🐶</div>
+          <div class="speech" style="margin-top: 2px">
+            “Smells amazing. I'll guard the leftovers.” — Biscuit
+          </div>
+          <h1 style="margin-top: 8px">You made it!</h1>
+          <p class="sub" style="font-size: 15px">Home-cooked dinner #37 — that's a habit now.</p>
+        </div>
+
+        <!-- XP receipt: itemised so the reward feels earned, not random -->
+        <section class="card" style="gap: 8px">
+          <div class="between">
+            <h3>Kitchen receipt</h3>
+            <span class="xp" style="font-size: 19px">+45 XP</span>
+          </div>
+          <div class="between sub"><span>🍳 Cooked at home</span><span class="xp">+25</span></div>
+          <div class="between sub">
+            <span>✨ First time making this recipe</span><span class="xp">+10</span>
+          </div>
+          <div class="between sub"><span>📸 Plate photo</span><span class="xp">+5</span></div>
+          <div class="between sub">
+            <span>✅ Today's three: 2 of 3</span><span class="xp">+5</span>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="small" style="white-space: nowrap">Lv 7</span>
+            <div class="bar xp grow" style="flex: 1"><i style="width: 77%"></i></div>
+            <span class="small" style="white-space: nowrap">385 / 500</span>
+          </div>
+        </section>
+
+        <!-- Achievement progress nudge (not unlocked yet) -->
+        <section class="card soft row" style="flex-direction: row; gap: 12px; align-items: center">
+          <div
+            class="badge silver"
+            style="width: 48px; height: 48px; font-size: 24px; border-radius: 14px"
+          >
+            🐟
+          </div>
+          <div class="grow">
+            <h3>Ocean's Eleven</h3>
+            <span class="sub">Cook 11 different fish dishes · 9 / 11</span>
+            <div class="bar thin" style="margin-top: 6px"><i style="width: 82%"></i></div>
+          </div>
+        </section>
+
+        <div class="row" style="gap: 10px">
+          <button class="btn outline" style="flex: 1">📸 Add photo</button>
+          <button class="btn" style="flex: 1">Log this meal</button>
+        </div>
+        <div
+          style="display: flex; justify-content: center; gap: 4px; font-size: 26px; color: #d1d5db"
+        >
+          ★★★★★
+        </div>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>
