@@ -19,6 +19,10 @@ appId: dev.chefer.app.dev
     timeout: 15000
 
 # ── Barcode photo → Open Food Facts ──
+- scrollUntilVisible:
+    element:
+      id: 'tracker-quick-add'
+    direction: DOWN
 - tapOn:
     id: 'tracker-quick-add'
 - extendedWaitUntil:
@@ -81,6 +85,10 @@ appId: dev.chefer.app.dev
 - assertVisible: '.*Nutella.*30 g.*'
 
 # ── Typed barcode → not found → enter it yourself ──
+- scrollUntilVisible:
+    element:
+      id: 'tracker-quick-add'
+    direction: DOWN
 - tapOn:
     id: 'tracker-quick-add'
 - extendedWaitUntil:

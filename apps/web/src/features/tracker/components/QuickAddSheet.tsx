@@ -566,6 +566,22 @@ export function QuickAddSheet({
               />
             </label>
 
+            {/* ADR 0002: next to the search, where it is seen first. */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid="log-sheet-scan-barcode"
+                onClick={() => {
+                  setProductStart(undefined);
+                  setView('product');
+                }}
+                className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
+              >
+                <Barcode className="h-4 w-4" aria-hidden />
+                {PACKAGED_PRODUCT_COPY.scanBarcode}
+              </button>
+            </div>
+
             {(logRecipeMutation.isError || logCustomMutation.isError) && (
               <p data-testid="log-sheet-api-error" role="alert" className="text-sm text-red-600">
                 Couldn&apos;t log that:{' '}
@@ -987,18 +1003,6 @@ export function QuickAddSheet({
             )}
 
             <div className="flex flex-wrap gap-4 border-t border-neutral-100 pt-3">
-              <button
-                type="button"
-                data-testid="log-sheet-scan-barcode"
-                onClick={() => {
-                  setProductStart(undefined);
-                  setView('product');
-                }}
-                className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
-              >
-                <Barcode className="h-4 w-4" aria-hidden />
-                {PACKAGED_PRODUCT_COPY.scanBarcode}
-              </button>
               <button
                 type="button"
                 data-testid="log-sheet-manual"

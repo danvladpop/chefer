@@ -604,6 +604,22 @@ export function QuickAddSheet({
             onSubmitEditing={() => Keyboard.dismiss()}
           />
 
+          {/* ADR 0002: next to the search, not under every group — the sheet
+            opens with the keyboard up, which hides anything at the bottom. */}
+          <View className="flex-row flex-wrap gap-2">
+            <Pressable
+              testID="log-sheet-scan-barcode"
+              accessibilityRole="button"
+              onPress={() => openProduct()}
+              className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-separator bg-surface px-3"
+            >
+              <Ionicons name="barcode-outline" size={16} color={colors.brand} />
+              <Text className="text-sm font-medium text-brand">
+                {PACKAGED_PRODUCT_COPY.scanBarcode}
+              </Text>
+            </Pressable>
+          </View>
+
           {(logRecipeMutation.isError || logCustomMutation.isError) && (
             <Text
               testID="log-sheet-api-error"
@@ -1009,17 +1025,6 @@ export function QuickAddSheet({
           )}
 
           <View className="mt-1 flex-row flex-wrap gap-3 border-t border-border pt-3">
-            <Pressable
-              testID="log-sheet-scan-barcode"
-              accessibilityRole="button"
-              onPress={() => openProduct()}
-              className="min-h-11 flex-row items-center gap-1"
-            >
-              <Ionicons name="barcode-outline" size={16} color={colors.brand} />
-              <Text className="text-sm font-medium text-primary">
-                {PACKAGED_PRODUCT_COPY.scanBarcode}
-              </Text>
-            </Pressable>
             {onEstimateWithSnap && (
               <Pressable
                 testID="log-sheet-estimate"
