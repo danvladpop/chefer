@@ -1,6 +1,6 @@
 import { View } from 'react-native';
-import { HEALTH_CONSENT_COPY } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
 
 // ─── HealthDataConsentSheet (UX-26, T-26.2) ───────────────────────────────────
 // Modelled on the AI consent sheet (ai-consent-provider.tsx): heading, an
@@ -21,13 +21,6 @@ export interface HealthConsentSheetProps {
   onExited?: () => void;
 }
 
-const LINES = [
-  HEALTH_CONSENT_COPY.what,
-  HEALTH_CONSENT_COPY.why,
-  HEALTH_CONSENT_COPY.where,
-  HEALTH_CONSENT_COPY.choice,
-] as const;
-
 export function HealthConsentSheet({
   visible,
   saving,
@@ -37,18 +30,25 @@ export function HealthConsentSheet({
   onCancel,
   onExited,
 }: HealthConsentSheetProps) {
+  const { t } = useT();
+  const lines = [
+    { label: t('consent.health.whatLabel'), text: t('consent.health.whatText') },
+    { label: t('consent.health.whyLabel'), text: t('consent.health.whyText') },
+    { label: t('consent.health.whereLabel'), text: t('consent.health.whereText') },
+    { label: t('consent.health.choiceLabel'), text: t('consent.health.choiceText') },
+  ];
   return (
     <Sheet
       visible={visible}
       onClose={onCancel ?? onDecline}
       {...(onExited && { onExited })}
-      eyebrow={HEALTH_CONSENT_COPY.eyebrow}
-      title={HEALTH_CONSENT_COPY.title}
+      eyebrow={t('consent.health.eyebrow')}
+      title={t('consent.health.title')}
       testID="health-consent"
       footer={
         <View className="gap-2">
           <Button testID="health-consent-allow" size="lg" loading={saving} onPress={onAllow}>
-            {HEALTH_CONSENT_COPY.allow}
+            {t('consent.health.allow')}
           </Button>
           <Button
             testID="health-consent-decline"
@@ -57,14 +57,14 @@ export function HealthConsentSheet({
             disabled={saving}
             onPress={onDecline}
           >
-            {HEALTH_CONSENT_COPY.decline}
+            {t('consent.health.decline')}
           </Button>
         </View>
       }
     >
-      <Text className="text-base text-gray-800">{HEALTH_CONSENT_COPY.intro}</Text>
+      <Text className="text-base text-gray-800">{t('consent.health.intro')}</Text>
       <View className="gap-2">
-        {LINES.map((line) => (
+        {lines.map((line) => (
           <View key={line.label} className="flex-row gap-2">
             <Text className="text-sm text-gray-700">•</Text>
             <Text className="min-w-0 flex-1 text-sm text-gray-700">
@@ -74,7 +74,7 @@ export function HealthConsentSheet({
           </View>
         ))}
       </View>
-      {saveFailed && <Text className="text-sm text-red-700">{HEALTH_CONSENT_COPY.saveError}</Text>}
+      {saveFailed && <Text className="text-sm text-red-700">{t('consent.health.saveError')}</Text>}
     </Sheet>
   );
 }

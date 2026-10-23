@@ -12,6 +12,8 @@ import { isResetLinkInvalidError } from '../../src/features/auth/errors';
 import { NEW_PASSWORD_FIELD_PROPS } from '../../src/features/auth/password-fields';
 import { resetPasswordSchema, type ResetPasswordFormValues } from '../../src/features/auth/schemas';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
+import { authValidationMessage } from '../../src/features/auth/validation-copy';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // F-M-AUTH-3-1 — port of web /reset-password. Reached by deep link
@@ -23,6 +25,7 @@ import { trpc } from '../../src/lib/trpc';
 type ResetStage = 'form' | 'done' | 'invalid-link';
 
 export default function ResetPasswordScreen() {
+  const { t } = useT();
   const { token } = useLocalSearchParams<{ token?: string | string[] }>();
   // A repeated query param arrives as an array — take the first.
   const resetToken = (Array.isArray(token) ? token[0] : token)?.trim() ?? '';
@@ -35,27 +38,23 @@ export default function ResetPasswordScreen() {
     <AuthScreen testID="reset-password-scroll">
       <Text variant="title" testID="reset-password-title">
         {stage === 'done'
-          ? 'Password changed'
+          ? t('auth.reset.titleDone')
           : linkProblem
-            ? 'This link no longer works'
-            : 'Choose a new password'}
+            ? t('auth.reset.titleLinkProblem')
+            : t('auth.reset.titleForm')}
       </Text>
-      {stage === 'form' && !linkProblem && (
-        <Text variant="muted">This link works once and expires an hour after it was requested</Text>
-      )}
+      {stage === 'form' && !linkProblem && <Text variant="muted">{t('auth.reset.hint')}</Text>}
       {linkProblem ? (
         <Card className="gap-3" testID="reset-password-missing-token">
           <Text className="text-center">
-            {resetToken
-              ? 'This reset link is invalid or has expired. Request a new one.'
-              : 'This screen needs the link from your reset email.'}
+            {resetToken ? t('auth.reset.invalidLink') : t('auth.reset.missingTokenApp')}
           </Text>
           <Button
             variant="outline"
             testID="reset-password-request-new"
             onPress={() => router.replace('/forgot-password')}
           >
-            Request a new reset link
+            {t('auth.reset.requestNew')}
           </Button>
         </Card>
       ) : (
@@ -72,6 +71,7 @@ function ResetPasswordForm({
   token: string;
   onStage: (stage: ResetStage) => void;
 }) {
+  const { t } = useT();
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
@@ -119,11 +119,9 @@ function ResetPasswordForm({
         <View className="items-center" accessibilityElementsHidden>
           <Ionicons name="checkmark-circle-outline" size={32} color="#944a00" />
         </View>
-        <Text className="text-center">
-          Your password has been changed and all devices signed out. Sign in with your new password.
-        </Text>
+        <Text className="text-center">{t('auth.reset.done')}</Text>
         <Button testID="reset-password-to-login" onPress={backToLogin}>
-          Go to sign in
+          {t('auth.reset.goToSignIn')}
         </Button>
       </Card>
     );
@@ -131,7 +129,10 @@ function ResetPasswordForm({
 
   return (
     <>
-      <AuthField label="New password" error={errors.password?.message}>
+      <AuthField
+        label={t('auth.fields.newPassword')}
+        error={authValidationMessage(t, errors.password?.message)}
+      >
         <Controller
           control={control}
           name="password"
@@ -156,8 +157,8 @@ function ResetPasswordForm({
       </AuthField>
 
       <AuthField
-        label="Confirm new password"
-        error={confirmError}
+        label={t('auth.fields.confirmNewPassword')}
+        error={authValidationMessage(t, confirmError)}
         errorTestID="reset-password-confirm-error"
       >
         <Controller
@@ -193,7 +194,7 @@ function ResetPasswordForm({
         loading={reset.isPending}
         onPress={() => void onSubmit()}
       >
-        {reset.isPending ? 'Resetting…' : 'Reset password'}
+        {reset.isPending ? t('auth.reset.resetting') : t('auth.reset.submit')}
       </Button>
     </>
   );

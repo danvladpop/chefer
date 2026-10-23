@@ -1,7 +1,8 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { HEALTH_CONSENT_COPY } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
+import { HEALTH_DECLINED_BODY_NOTICE } from './copy';
 
 // ─── Amber notices after "Don't save it" (UX-26, T-26.2, AC2) ─────────────────
 // `HealthDeclinedNotice` sits under the step/card whose health fields were
@@ -10,12 +11,21 @@ import { Button, Text } from '@chefer/ui-mobile';
 // the sheet while plans are not being checked.
 
 export function HealthDeclinedNotice({
-  message = HEALTH_CONSENT_COPY.declinedNotice,
+  message,
   testID = 'health-declined-notice',
 }: {
   message?: string;
   testID?: string;
 }) {
+  const { t } = useT();
+  // The body notice is still passed in as an English constant by the screens
+  // that show it; it is recognised here and shown from the catalog.
+  const text =
+    message === undefined
+      ? t('consent.health.declinedNotice')
+      : message === HEALTH_DECLINED_BODY_NOTICE
+        ? t('consent.health.declinedBody')
+        : message;
   return (
     <View
       testID={testID}
@@ -23,7 +33,7 @@ export function HealthDeclinedNotice({
       className="flex-row items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3"
     >
       <Ionicons name="alert-circle-outline" size={18} color="#b45309" />
-      <Text className="min-w-0 flex-1 text-sm text-amber-900">{message}</Text>
+      <Text className="min-w-0 flex-1 text-sm text-amber-900">{text}</Text>
     </View>
   );
 }
@@ -35,17 +45,18 @@ export function HealthConsentNoticeCard({
   onAllow: () => void;
   onDismiss?: () => void;
 }) {
+  const { t } = useT();
   return (
     <View
       testID="health-consent-notice-card"
       className="gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4"
     >
       <Text className="text-sm font-semibold text-amber-900">
-        {HEALTH_CONSENT_COPY.todayCardTitle}
+        {t('consent.health.todayCardTitle')}
       </Text>
       <View className="flex-row gap-2">
         <Button testID="health-consent-notice-allow" size="sm" onPress={onAllow}>
-          {HEALTH_CONSENT_COPY.todayCardAction}
+          {t('consent.health.todayCardAction')}
         </Button>
         {onDismiss && (
           <Button
@@ -54,7 +65,7 @@ export function HealthConsentNoticeCard({
             variant="ghost"
             onPress={onDismiss}
           >
-            Dismiss
+            {t('consent.health.dismiss')}
           </Button>
         )}
       </View>

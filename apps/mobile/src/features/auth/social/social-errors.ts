@@ -1,6 +1,6 @@
 import { SOCIAL_AUTH_MESSAGES } from '@chefer/types';
 import { userFacingErrorMessage } from '@chefer/utils';
-import { AUTH_COPY } from '../copy';
+import { getTranslator } from '../../../lib/i18n';
 import { SocialCancelledError, SocialSdkError } from './social-credentials';
 
 // What a failed provider sign-in says (WP-22). Cancelling the native sheet
@@ -22,7 +22,8 @@ function errorCode(error: unknown): string | null {
  */
 export function socialErrorMessage(error: unknown): string | null {
   if (error instanceof SocialCancelledError) return null;
-  if (error instanceof SocialSdkError) return AUTH_COPY.socialSdkError;
+  const sdkError = getTranslator().t('auth.social.sdkErrorApp');
+  if (error instanceof SocialSdkError) return sdkError;
   if (errorCode(error) === 'UNAUTHORIZED') return SOCIAL_AUTH_MESSAGES.invalidToken;
-  return userFacingErrorMessage(error, AUTH_COPY.socialSdkError);
+  return userFacingErrorMessage(error, sdkError);
 }

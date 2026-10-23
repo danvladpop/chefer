@@ -18,6 +18,7 @@ import {
 import { submitFeedbackStandalone } from '../features/feedback/standalone-submit';
 import { noteReviewBlockingError } from '../features/review/review-store';
 import { reportError } from '../lib/crash-reporting';
+import { useT } from '../lib/i18n';
 
 type ReportStatus = 'idle' | 'sending' | 'sent' | 'failed';
 
@@ -28,6 +29,7 @@ type ReportStatus = 'idle' | 'sending' | 'sent' | 'failed';
  * providers — it submits through a standalone client.
  */
 function ReportThis({ error }: { error: Error }) {
+  const { t } = useT();
   const route = useFeedbackRoute();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState(() => errorReportDraft(error));
@@ -37,7 +39,7 @@ function ReportThis({ error }: { error: Error }) {
   if (status === 'sent') {
     return (
       <Text testID="root-error-report-sent" className="mt-4 text-center text-sm text-gray-700">
-        Thank you. We got your report.
+        {t('legal.appErrors.reportSent')}
       </Text>
     );
   }
@@ -49,7 +51,7 @@ function ReportThis({ error }: { error: Error }) {
         className="mt-3"
         onPress={() => setOpen(true)}
       >
-        Report this
+        {t('legal.appErrors.reportThis')}
       </Button>
     );
   }
@@ -68,14 +70,14 @@ function ReportThis({ error }: { error: Error }) {
   return (
     <View className="mt-4 gap-2">
       <Text nativeID="root-error-report-label" variant="label">
-        Add what you were doing
+        {t('legal.appErrors.reportLabel')}
       </Text>
       <TextInput
         testID="root-error-report-input"
         value={message}
         onChangeText={setMessage}
         maxLength={FEEDBACK_MAX_LENGTH}
-        accessibilityLabel="Add what you were doing"
+        accessibilityLabel={t('legal.appErrors.reportLabel')}
         accessibilityLabelledBy="root-error-report-label"
         multiline
         inputAccessoryViewID={done.inputAccessoryViewID}
@@ -84,7 +86,7 @@ function ReportThis({ error }: { error: Error }) {
       {done.bar}
       {status === 'failed' ? (
         <Text testID="root-error-report-failed" className="text-sm text-red-600">
-          Couldn&apos;t send that. Check your connection and sign-in, then try again.
+          {t('legal.appErrors.reportFailed')}
         </Text>
       ) : null}
       <Button
@@ -93,7 +95,7 @@ function ReportThis({ error }: { error: Error }) {
         loading={status === 'sending'}
         onPress={() => void send()}
       >
-        Send report
+        {t('legal.appErrors.sendReport')}
       </Button>
     </View>
   );
@@ -108,6 +110,7 @@ function ReportThis({ error }: { error: Error }) {
  * apps/web/src/app/error.tsx.
  */
 export function RootErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const { t } = useT();
   // Once per caught error, not per re-render (typing in the report field
   // re-renders this screen). React does not pass errors an error boundary
   // caught to Sentry's global handler, so this is their only report (M1-6;
@@ -127,8 +130,8 @@ export function RootErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       >
         <ErrorState
           testID="root-error"
-          title="Something went wrong"
-          description="This screen hit an unexpected error. Nothing you saved has been lost."
+          title={t('legal.appErrors.appTitle')}
+          description={t('legal.appErrors.appBody')}
           onRetry={() => void retry()}
         />
         <ReportThis error={error} />

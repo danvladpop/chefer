@@ -13,13 +13,11 @@ import {
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import {
-  ACCOUNT_DELETED_NOTICE,
   clearAccountDeletedNotice,
   isAccountDeletedNoticeVisible,
   subscribeAccountDeletedNotice,
 } from '../../src/features/auth/account-deleted-notice';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
-import { AUTH_COPY } from '../../src/features/auth/copy';
 import { takeEmailHint } from '../../src/features/auth/email-hint';
 import {
   EMPTY_PASSWORD_ENTRY,
@@ -31,12 +29,13 @@ import { loginSchema, type LoginFormValues } from '../../src/features/auth/schem
 import {
   clearSessionExpired,
   isSessionExpired,
-  SESSION_EXPIRED_NOTICE,
   subscribeSessionExpired,
 } from '../../src/features/auth/session-expired';
 import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useSession } from '../../src/features/auth/use-session';
+import { authValidationMessage } from '../../src/features/auth/validation-copy';
 import { setToken } from '../../src/lib/auth-store';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 export default function LoginScreen() {
@@ -48,6 +47,7 @@ export default function LoginScreen() {
 }
 
 function LoginForm() {
+  const { t } = useT();
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
@@ -143,7 +143,7 @@ function LoginForm() {
           accessibilityRole="alert"
           className="rounded-md bg-green-50 px-3 py-2"
         >
-          <Text className="text-sm text-green-800">{ACCOUNT_DELETED_NOTICE}</Text>
+          <Text className="text-sm text-green-800">{t('auth.login.accountDeleted')}</Text>
         </View>
       )}
       {sessionExpired && (
@@ -152,17 +152,20 @@ function LoginForm() {
           accessibilityRole="alert"
           className="rounded-md bg-amber-50 px-3 py-2"
         >
-          <Text className="text-sm text-amber-800">{SESSION_EXPIRED_NOTICE}</Text>
+          <Text className="text-sm text-amber-800">{t('auth.login.sessionExpired')}</Text>
         </View>
       )}
       <Text variant="title" testID="login-title">
-        {hasSignedInBefore ? AUTH_COPY.loginTitleReturning : AUTH_COPY.loginTitleFirstTime}
+        {hasSignedInBefore ? t('auth.login.title') : t('auth.login.titleFirstTime')}
       </Text>
       <Text variant="muted">
-        {hasSignedInBefore ? AUTH_COPY.loginSubtitleReturning : AUTH_COPY.loginSubtitleFirstTime}
+        {hasSignedInBefore ? t('auth.login.subtitleReturning') : t('auth.login.subtitleFirstTime')}
       </Text>
 
-      <AuthField label="Email" error={errors.email?.message}>
+      <AuthField
+        label={t('auth.fields.emailShort')}
+        error={authValidationMessage(t, errors.email?.message)}
+      >
         <Controller
           control={control}
           name="email"
@@ -187,7 +190,10 @@ function LoginForm() {
         />
       </AuthField>
 
-      <AuthField label="Password" error={errors.password?.message}>
+      <AuthField
+        label={t('auth.fields.password')}
+        error={authValidationMessage(t, errors.password?.message)}
+      >
         <Controller
           control={control}
           name="password"
@@ -223,7 +229,7 @@ function LoginForm() {
         className="min-h-11 justify-center self-end"
       >
         <Text variant="muted" className="font-semibold text-primary">
-          Forgot password?
+          {t('auth.login.forgot')}
         </Text>
       </Pressable>
 
@@ -234,7 +240,7 @@ function LoginForm() {
       )}
 
       <Button testID="login-submit" loading={login.isPending} onPress={() => void onSubmit()}>
-        Sign in
+        {t('auth.login.submit')}
       </Button>
 
       {/* WP-22: Continue with Apple / Google (hidden until configured). */}
@@ -242,10 +248,10 @@ function LoginForm() {
 
       {hasSignedInBefore ? (
         <View className="flex-row justify-center gap-1">
-          <Text variant="muted">No account yet?</Text>
+          <Text variant="muted">{t('auth.login.noAccountYet')}</Text>
           <Link href="/register" testID="login-to-register">
             <Text variant="muted" className="font-semibold text-primary">
-              Create one
+              {t('auth.login.createOne')}
             </Text>
           </Link>
         </View>
@@ -258,7 +264,7 @@ function LoginForm() {
           variant="outline"
           onPress={() => router.push('/register')}
         >
-          {AUTH_COPY.loginCreateAccountCta}
+          {t('auth.login.createCta')}
         </Button>
       )}
     </>

@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 
@@ -31,6 +33,7 @@ function isStale(latestVersion: string | null): boolean {
 }
 
 export function TermsReacceptGate() {
+  const { t } = useT();
   const [dismissedThisSession, setDismissedThisSession] = useState(false);
   const { data: history } = trpc.privacy.getConsentHistory.useQuery(undefined, {
     staleTime: 5 * 60_000,
@@ -53,18 +56,21 @@ export function TermsReacceptGate() {
       className="fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 border-t bg-white p-4 shadow-2xl sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-96 sm:rounded-2xl sm:border"
     >
       <h2 id="terms-reaccept-title" className="text-sm font-semibold text-neutral-900">
-        Our Terms and Privacy Policy were updated
+        {t('auth.reaccept.title')}
       </h2>
       <p className="text-sm text-neutral-600">
-        Please review and accept the current{' '}
-        <a href="/terms" target="_blank" rel="noreferrer" className="text-primary underline">
-          Terms
-        </a>{' '}
-        and{' '}
-        <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary underline">
-          Privacy Policy
-        </a>{' '}
-        to keep using Chefer.
+        {rich(t, 'auth.reaccept.body', {
+          terms: (
+            <a href="/terms" target="_blank" rel="noreferrer" className="text-primary underline">
+              {t('auth.links.terms')}
+            </a>
+          ),
+          privacy: (
+            <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary underline">
+              {t('auth.links.privacy')}
+            </a>
+          ),
+        })}
       </p>
       <div className="flex gap-2">
         <button
@@ -72,7 +78,7 @@ export function TermsReacceptGate() {
           onClick={() => setDismissedThisSession(true)}
           className="min-h-11 flex-1 rounded-md border border-input px-3 text-sm font-medium"
         >
-          Not now
+          {t('auth.reaccept.notNow')}
         </button>
         <button
           type="button"
@@ -85,7 +91,7 @@ export function TermsReacceptGate() {
           }
           className="min-h-11 flex-1 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
-          I agree
+          {t('auth.reaccept.agree')}
         </button>
       </div>
     </div>

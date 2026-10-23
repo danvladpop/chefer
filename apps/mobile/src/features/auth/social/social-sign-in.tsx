@@ -1,7 +1,8 @@
 import { View } from 'react-native';
 import { Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
+import { rich } from '../../../lib/i18n/rich';
 import { openLegal } from '../../legal/open-legal';
-import { AUTH_COPY } from '../copy';
 import { GoogleButton } from './google-button';
 import { useSocialProviders } from './social-providers';
 import { useSocialSignIn } from './use-social-sign-in';
@@ -19,30 +20,35 @@ export function useHasSocialProviders(): boolean {
 
 /** "By continuing you agree to the Terms and Privacy Policy and confirm you are 16 or older." */
 export function SocialConsentLine() {
+  const { t } = useT();
   return (
     <Text variant="muted" testID="social-consent" className="text-center text-xs">
-      {AUTH_COPY.socialConsentLead}{' '}
-      <Text
-        accessibilityRole="link"
-        className="text-xs text-primary underline"
-        onPress={() => openLegal('terms')}
-      >
-        Terms
-      </Text>
-      {' and '}
-      <Text
-        accessibilityRole="link"
-        className="text-xs text-primary underline"
-        onPress={() => openLegal('privacy')}
-      >
-        Privacy Policy
-      </Text>{' '}
-      {AUTH_COPY.socialConsentTail}
+      {rich(t, 'auth.social.consent', {
+        terms: (
+          <Text
+            accessibilityRole="link"
+            className="text-xs text-primary underline"
+            onPress={() => openLegal('terms')}
+          >
+            {t('auth.links.terms')}
+          </Text>
+        ),
+        privacy: (
+          <Text
+            accessibilityRole="link"
+            className="text-xs text-primary underline"
+            onPress={() => openLegal('privacy')}
+          >
+            {t('auth.links.privacy')}
+          </Text>
+        ),
+      })}
     </Text>
   );
 }
 
 export function SocialSignIn({ showDivider = true }: { showDivider?: boolean }) {
+  const { t } = useT();
   const providers = useSocialProviders();
   const { start, error, busy } = useSocialSignIn(providers);
   const Apple = providers.apple;
@@ -54,7 +60,7 @@ export function SocialSignIn({ showDivider = true }: { showDivider?: boolean }) 
         <View className="flex-row items-center gap-3" accessibilityElementsHidden>
           <View className="h-px flex-1 bg-border" />
           <Text variant="muted" className="text-xs">
-            {AUTH_COPY.socialDivider}
+            {t('auth.social.or')}
           </Text>
           <View className="h-px flex-1 bg-border" />
         </View>
@@ -81,7 +87,7 @@ export function SocialSignIn({ showDivider = true }: { showDivider?: boolean }) 
       {providers.google && (
         <GoogleButton
           testID="social-google"
-          label={AUTH_COPY.socialGoogle}
+          label={t('auth.social.google')}
           loading={busy === 'google'}
           disabled={busy !== null}
           onPress={() => void start('google')}
