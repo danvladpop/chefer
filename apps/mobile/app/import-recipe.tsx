@@ -145,8 +145,8 @@ export default function ImportRecipeScreen() {
   const importVia = useRef<'link' | 'text' | 'video'>('link');
   const previewMutation = trpc.recipe.importPreview.useMutation({
     meta: { silent: true },
-    onSuccess: (data, input) => {
-      importVia.current = 'url' in input && input.url ? 'link' : 'text';
+    onSuccess: (data) => {
+      importVia.current = tab === 'text' ? 'text' : 'link';
       setPreview(data);
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
     },
