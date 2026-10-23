@@ -9,6 +9,7 @@ import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Mail } from 'lucide-react';
 import { z } from 'zod';
+import { deviceSupportedLocale } from '@chefer/i18n';
 import { CURRENT_TERMS_VERSION, passwordConfirmationSchema } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import { cn, detectRegion, ONBOARDING_V4_COPY, userFacingErrorMessage } from '@chefer/utils';
@@ -95,6 +96,8 @@ export function RegisterV4() {
     if (!e.success || !p.success || c || !agreed) return;
     // Location defaults (P2-6): the browser's region seeds units + currency.
     const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
+    // ADR 0002: the confirmation email goes out in the browser's language.
+    const deviceLocale = deviceSupportedLocale();
     registerMutation.mutate({
       email: e.data,
       password: p.data,
@@ -102,6 +105,7 @@ export function RegisterV4() {
       ageConfirmed: true,
       acceptedTermsVersion: CURRENT_TERMS_VERSION,
       ...(region && { region }),
+      ...(deviceLocale && { deviceLocale }),
     });
   }
 

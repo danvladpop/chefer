@@ -36,6 +36,7 @@ import { AccountV4 } from '../../src/features/onboarding-v4/account-v4';
 import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
 import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
+import { getTranslator } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // UX-25 (T-25.1) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25 / B-31.
@@ -134,6 +135,8 @@ function RegisterForm() {
       // Location defaults (P2-6): the device region seeds units + currency.
       // Intl only — Hermes ships it, no native dependency.
       ...withRegion(detectRegion()),
+      // ADR 0002: the confirmation email goes out in the app's language.
+      deviceLocale: getTranslator().locale,
     });
   });
   // UX-ACC-07 / UX-ACC-15: the server error (including "already exists") goes

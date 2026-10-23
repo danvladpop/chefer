@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { supportedLocaleSchema } from './locale';
 import { regionCodeSchema } from './preferences';
 
 // ─── Sign in with Google / Apple (WP-22) ─────────────────────────────────────
@@ -53,6 +54,8 @@ export const socialSignInInputSchema = socialCredentialSchema.extend({
   acceptedTermsVersion: z.string().min(1).max(40).optional(),
   /** Device region (ISO-3166 alpha-2), as for `auth.register`; only used for a new account. */
   region: regionCodeSchema.optional(),
+  /** Device UI language (ADR 0002), as for `auth.register`; only used for a new account. */
+  deviceLocale: supportedLocaleSchema.optional(),
 });
 export type SocialSignInInput = z.infer<typeof socialSignInInputSchema>;
 

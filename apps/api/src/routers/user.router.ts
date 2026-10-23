@@ -1,6 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { SOCIAL_AUTH_MESSAGES, socialCredentialSchema, UserRole } from '@chefer/types';
+import {
+  setLocaleInputSchema,
+  SOCIAL_AUTH_MESSAGES,
+  socialCredentialSchema,
+  UserRole,
+} from '@chefer/types';
 import { aiCostService } from '../application/ai-cost/ai-cost.instance.js';
 import { authService } from '../application/auth/auth.service.js';
 import { socialAuthService } from '../application/auth/social-auth.service.js';
@@ -218,6 +223,15 @@ export const userRouter = router({
       await authService.logout(ctx.sessionToken, ctx.res);
       return { success: true as const };
     }),
+
+  /**
+   * ADR 0002: sets the UI language (`locale`, null = follow the device) and/or
+   * reports the device's language (`deviceLocale`). Additive — `user.me`
+   * carries both; emails go out in `locale ?? deviceLocale ?? 'en'`.
+   */
+  setLocale: protectedProcedure.input(setLocaleInputSchema).mutation(async ({ input, ctx }) => {
+    return userService.setLocale(ctx.user.id, input);
+  }),
 
   /**
    * Records the caller's consent to send their data to the third-party AI

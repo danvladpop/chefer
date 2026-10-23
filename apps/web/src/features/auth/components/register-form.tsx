@@ -10,6 +10,7 @@ import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { deviceSupportedLocale } from '@chefer/i18n';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 
@@ -108,6 +109,8 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
     setAccountExists(false);
     // Location defaults (P2-6): the browser's region seeds units + currency.
     const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
+    // ADR 0002: the confirmation email goes out in the browser's language.
+    const deviceLocale = deviceSupportedLocale();
     registerMutation.mutate({
       email: data.email,
       password: data.password,
@@ -117,6 +120,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       ageConfirmed: data.ageConfirmed,
       acceptedTermsVersion: CURRENT_TERMS_VERSION,
       ...(region && { region }),
+      ...(deviceLocale && { deviceLocale }),
     });
   };
 

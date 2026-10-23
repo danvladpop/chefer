@@ -28,6 +28,7 @@ import {
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
+import { LanguageSection } from './language-section';
 import { SafetySection } from './safety-section';
 import { TargetsSection, type NumbersSettings } from './targets-section';
 import { UnitsSection } from './units-section';
@@ -297,6 +298,9 @@ export function PreferencesForm({
             dietaryRestrictions: data.dietaryRestrictions,
           }}
         />
+
+        {/* Language (ADR 0002) — saves on change, outside the form's Save. */}
+        <LanguageSection />
 
         {/* Units & currency — free on every tier (backlog P2-6, audit F-DASH-3-2). */}
         <UnitsSection

@@ -2,7 +2,12 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
 import { ConsentKind, prisma, type User } from '@chefer/database';
-import { ACCOUNT_EXISTS_MESSAGE, type AuthResult, type MobileSession } from '@chefer/types';
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  type AuthResult,
+  type MobileSession,
+  type SupportedLocale,
+} from '@chefer/types';
 import { defaultsForRegion } from '@chefer/utils';
 import { consentService } from '../privacy/consent.service.js';
 
@@ -23,6 +28,8 @@ export interface RegisterInput {
   lastName?: string | undefined;
   /** Device region, e.g. "US" — seeds units + currency (P2-6). */
   region?: string | undefined;
+  /** Device UI language ('en' | 'ro', ADR 0002) — the language of the first emails. */
+  deviceLocale?: SupportedLocale | undefined;
   /**
    * Explicit sign-up consent (T-39.1, T-26.5). All optional at the schema
    * level so a client below `clientApiLevel` 2 — a wave-0 client already out
@@ -117,6 +124,7 @@ export class AuthService {
         weeklyEmailReady: false,
         weeklyEmailRecap: false,
         ...(acceptedTermsVersion && { termsAcceptedVersion: acceptedTermsVersion }),
+        ...(input.deviceLocale && { deviceLocale: input.deviceLocale }),
         // Location defaults (backlog P2-6): a US signup starts imperial + USD,
         // a UK one in GBP, and so on. Only when the client sent a region —
         // otherwise the schema defaults (METRIC, EUR) apply as before. The

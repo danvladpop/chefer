@@ -38,6 +38,7 @@ function mockRepo(): { [K in keyof IUserRepository]: ReturnType<typeof vi.fn> } 
     delete: vi.fn(),
     setAiDataConsent: vi.fn(),
     markEmailDefaultsNoticeShown: vi.fn(),
+    setLocale: vi.fn(),
     findManyWithCount: vi.fn(),
     count: vi.fn(),
   };
@@ -160,6 +161,44 @@ describe('UserService.dismissEmailDefaultsNotice (T-39.3)', () => {
     await expect(service.dismissEmailDefaultsNotice('nope')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+// ─── UI language (ADR 0002) ───────────────────────────────────────────────────
+
+describe('UserService.setLocale', () => {
+  it('stores the Settings choice and returns both languages', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, locale: null, deviceLocale: 'en' });
+    repo.setLocale.mockResolvedValue({ ...baseUser, locale: 'ro', deviceLocale: 'en' });
+
+    const result = await service.setLocale('u1', { locale: 'ro' });
+
+    expect(repo.setLocale).toHaveBeenCalledWith('u1', { locale: 'ro' });
+    expect(result).toEqual({ locale: 'ro', deviceLocale: 'en' });
+  });
+
+  it('clears the choice with null ("same as my phone")', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, locale: 'ro', deviceLocale: 'en' });
+    repo.setLocale.mockResolvedValue({ ...baseUser, locale: null, deviceLocale: 'en' });
+
+    const result = await service.setLocale('u1', { locale: null });
+
+    expect(repo.setLocale).toHaveBeenCalledWith('u1', { locale: null });
+    expect(result.locale).toBeNull();
+  });
+
+  it('writes nothing when the reported device language is unchanged', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, locale: null, deviceLocale: 'ro' });
+
+    const result = await service.setLocale('u1', { deviceLocale: 'ro' });
+
+    expect(repo.setLocale).not.toHaveBeenCalled();
+    expect(result).toEqual({ locale: null, deviceLocale: 'ro' });
+  });
+
+  it('reads an unknown stored language as unset', async () => {
+    repo.findById.mockResolvedValue({ ...baseUser, locale: 'xx', deviceLocale: 'en' });
+    expect((await service.setLocale('u1', { deviceLocale: 'en' })).locale).toBeNull();
   });
 });
 

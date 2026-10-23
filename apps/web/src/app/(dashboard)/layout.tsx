@@ -5,6 +5,7 @@ import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
 import { NumbersModeHost } from '@/features/numbers-mode/numbers-mode';
+import { LocaleSync } from '@/lib/i18n/locale-sync';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,6 +28,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           {/* T-39.1: re-accept sheet for an existing account whose stored
             Terms/Privacy acceptance predates a document version bump. */}
           <TermsReacceptGate />
+          {/* ADR 0002: the account's language choice wins over this browser's cookie. */}
+          <LocaleSync />
         </DashboardShell>
       </NumbersModeHost>
     </AiConsentProvider>

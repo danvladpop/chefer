@@ -25,6 +25,7 @@ Whenever you make a change that affects the architecture of this project, you **
 | Auth/authorization change        | `infrastructure.md` §9, `business_flow.md` §4                                            |
 | User-facing change to a feature  | The other platform's implementation, or `mobile_parity_backlog.md` (see Platform Parity) |
 | Domain term settled or renamed   | `GLOSSARY.md`; a hard-to-reverse trade-off also gets `docs/adr/NNNN-*.md`                |
+| New or changed UI text           | `packages/i18n` catalogs, `en` and `ro` together (see Copy and languages)                |
 
 Do not defer documentation updates. If you add a procedure today, the docs reflect it today.
 
@@ -39,6 +40,7 @@ Do not defer documentation updates. If you add a procedure today, the docs refle
 - `packages/database` — Prisma + repositories
 - `packages/types` — shared types and enums
 - `packages/utils` — pure utility functions
+- `packages/i18n` — UI copy catalogs (English, Romanian) and the typed translator
 - `packages/ui` — React component library
 - `packages/config/tsconfig` — shared TypeScript configs
 - `packages/config/eslint` — shared ESLint flat configs
@@ -116,6 +118,27 @@ For business flows see [`business_flow.md`](./business_flow.md).
 - Dropdown menus use `useMenu()` from `@chefer/ui` (Escape, arrow keys, focus return, outside click) — same rule, no click-catcher div
 - Every page renders inside `<main id="main">` (the skip link's target) and owns exactly one `<h1>` (`sr-only` if the design has no visible title) — the shell header title is deliberately not a heading. New dashboard routes get a `layout.tsx` exporting `metadata.title` for the tab title
 - Every input needs an accessible name (`<label htmlFor>` or `aria-label`; a placeholder is not a label), errors are linked with `aria-describedby` + `aria-invalid`, and text is never smaller than `text-xs` (12px)
+
+### Copy and languages (i18n)
+
+Chefer ships in **English and Romanian** ([ADR 0002](./docs/adr/0002-i18n-shared-catalogs-own-runtime.md)). Text that a person reads or hears comes from the `@chefer/i18n` catalogs, never from a string literal in a component.
+
+- **Where text goes.**
+  - Add the key to `packages/i18n/src/catalog/en/<namespace>.ts` and the same key to `ro/<namespace>.ts`.
+  - A new namespace also needs a line in both `index.ts` files and in `review-status.ts`.
+  - CI fails when `ro` is missing a key or a placeholder (`catalog.test.ts`).
+- **How to render it.** Use `const { t } = useT()`: from `@/lib/i18n` on web, `src/lib/i18n` on mobile.
+  - Mobile code outside React, such as notification text, uses `getTranslator()`.
+  - Web server components use `await getServerTranslator()`.
+  - API code builds a translator per recipient (`emailTranslator(user)`).
+- **Message format.** Use `{name}` placeholders. Counts are plural objects (`{ one, other }` in English; `{ one, few, other }` in Romanian, where `other` takes "de": "20 de rețete"). Never build a sentence by concatenating fragments, because word order differs between languages.
+- **Romanian.**
+  - Use ș and ț with a comma below, never ş and ţ (cedilla), and „…” quotation marks.
+  - Address the reader as "tu", in a warm but correct register, without colloquial elisions ("nu ai", not "n-ai").
+  - New Romanian strings are drafts. Leave the namespace as `'machine-draft'` in `review-status.ts`; the owner flips it.
+- **Numbers, dates and money.** Use the `@chefer/utils` formatters or the translator's `number`/`date`/`currency`. They follow the UI language. Never hard-code `'en-US'`.
+- **The lint rule.** `chefer/no-hardcoded-ui-string` warns on JSX text and readable attributes (`placeholder`, `aria-label`, `accessibilityLabel`…). It becomes an error after the Lane J sweep, so write new UI with keys now. Don't add new warnings.
+- **Server text.** Don't add new English `TRPCError` messages that the client shows as-is. Send a code the client can translate (see the `errorFormatter` causes in `lib/trpc.ts`).
 
 ### Responsive design
 

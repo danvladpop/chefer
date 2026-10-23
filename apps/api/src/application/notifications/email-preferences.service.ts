@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { weeklyEmailRepository, type IWeeklyEmailRepository } from '@chefer/database';
 import { emailService, type IEmailService } from '../../lib/email/index.js';
+import { emailTranslator } from '../../lib/email/language.js';
 import { renderVerifyEmail } from '../../lib/email/templates.js';
 import {
   readUnsubscribeToken,
@@ -98,7 +99,7 @@ export class EmailPreferencesService {
     const prefs = await this.repo.getPreferences(userId);
     if (!prefs) throw new TRPCError({ code: 'NOT_FOUND', message: 'Account not found' });
     if (prefs.emailVerified) return { alreadyConfirmed: true };
-    const rendered = renderVerifyEmail({
+    const rendered = renderVerifyEmail(emailTranslator(prefs), {
       firstName,
       verifyUrl: this.verifyUrl(userId, prefs.email),
     });

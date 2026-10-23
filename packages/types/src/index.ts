@@ -30,6 +30,7 @@ export * from './nutrition';
 export * from './ingredient-catalog-copy';
 export * from './social-auth';
 export * from './usage-limits';
+export * from './locale';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

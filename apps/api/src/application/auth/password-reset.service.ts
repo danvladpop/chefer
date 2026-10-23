@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@chefer/database';
 import { RESET_LINK_INVALID_MESSAGE } from '@chefer/types';
 import { emailService } from '../../lib/email/index.js';
+import { emailTranslator } from '../../lib/email/language.js';
+import { renderPasswordResetEmail } from '../../lib/email/templates.js';
 import { env } from '../../lib/env.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -49,15 +51,9 @@ export class PasswordResetService {
     const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
     await emailService.send({
       to: normalized,
-      subject: 'Reset your Chefer password',
-      text: [
-        'Someone requested a password reset for your Chefer account.',
-        '',
-        `Reset your password (link valid for 1 hour):`,
-        resetUrl,
-        '',
-        "If this wasn't you, ignore this email — your password is unchanged.",
-      ].join('\n'),
+      // The account's language (ADR 0002), not the requesting browser's: the
+      // reset page itself never says whether the address exists.
+      ...renderPasswordResetEmail(emailTranslator(user), { resetUrl }),
     });
   }
 
