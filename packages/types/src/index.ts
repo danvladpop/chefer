@@ -267,3 +267,4 @@ export type ErrorCode =
   | 'RATE_LIMIT_EXCEEDED'
   | 'SERVICE_UNAVAILABLE';
 export * from './packaged-product';
+export * from './saved-meals';

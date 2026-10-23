@@ -469,3 +469,11 @@ export {
   type PackagedProductData,
   type BarcodeRows,
 } from './packaged-product.repository';
+
+// Saved meals (lane A2)
+export {
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
+} from './saved-meal.repository';

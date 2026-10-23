@@ -13,11 +13,14 @@ const mockLogRecipe = jest.fn();
 const mockLogCustom = jest.fn();
 const mockInvalidate = jest.fn();
 const mockRecordRebalance = jest.fn();
-const mockSnackbarShow = jest.fn();
+const mockSnackbarShow = jest.fn<undefined, [unknown]>();
 let mockRecents: unknown[] = [];
 let mockRecipes: unknown[] = [];
 let mockIngredients: unknown[] = [];
 let mockProducts: unknown[] = [];
+let mockSavedMeals: unknown[] = [];
+const mockLogSaved = jest.fn();
+const mockUndoEntries = jest.fn();
 const mockLookupBarcode = jest.fn();
 const mockLogProduct = jest.fn();
 const mockCreateProduct = jest.fn<undefined, [unknown]>();
@@ -114,6 +117,7 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
       products: { lookupBarcode: { fetch: mockLookupBarcode } },
+      savedMeals: { list: { invalidate: jest.fn() } },
       tracker: {
         getDay: { invalidate: mockInvalidate },
         weeklySummary: { invalidate: mockInvalidate },
@@ -156,7 +160,26 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       ),
     },
+    savedMeals: { list: { useQuery: () => ({ data: mockSavedMeals }) } },
     tracker: {
+      logSavedMeal: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          isPending: false,
+          isError: false,
+          mutate: (vars: unknown) => {
+            mockLogSaved(vars);
+            opts.onSuccess?.({ log: {}, entryIds: ['n1', 'n2'], rebalance }, vars);
+          },
+        }),
+      },
+      deleteEntries: {
+        useMutation: () => ({
+          mutate: (vars: unknown) => {
+            mockUndoEntries(vars);
+          },
+          isPending: false,
+        }),
+      },
       logProduct: mockMutation(
         (v) => {
           mockLogProduct(v);
@@ -220,6 +243,7 @@ beforeEach(() => {
   mockRecipes = [];
   mockIngredients = [];
   mockProducts = [];
+  mockSavedMeals = [];
   mockCanScanLabel = false;
   mockSearchState.isFetching = false;
   mockSearchState.isError = false;
@@ -816,5 +840,43 @@ describe('QuickAddSheet — keyboard (tester feedback 2026-10-04)', () => {
     expect(dismiss).not.toHaveBeenCalled();
     await fireEvent(screen.getByTestId('quick-add-protein'), 'submitEditing');
     expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('QuickAddSheet — saved meals (lane A2)', () => {
+  const MEAL = {
+    id: 's1',
+    name: 'Weekday breakfast',
+    items: [
+      { name: 'Porridge', portionMultiplier: 1, kcal: 400, protein: 20, carbs: 50, fat: 10 },
+      { name: 'Coffee', portionMultiplier: 1, kcal: 40, protein: 2, carbs: 4, fat: 1.5 },
+    ],
+    totals: { kcal: 440, protein: 22, carbs: 54, fat: 11.5 },
+    lastLoggedAt: null,
+  };
+
+  it('logs a saved meal in one tap, with an Undo that deletes exactly its entries', async () => {
+    const user = userEvent.setup();
+    mockSavedMeals = [MEAL];
+    await renderSheet();
+    expect(screen.getByText('2 items · 440 kcal')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('log-sheet-saved-add-s1'));
+    expect(mockLogSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-09-26', savedMealId: 's1', rebalanceMode: 'preview' }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith('saved_meal_logged', { itemCount: 2 });
+    const snack = mockSnackbarShow.mock.calls.at(-1)?.[0] as {
+      message: string;
+      onAction: () => void;
+    };
+    expect(snack.message).toBe('Logged Weekday breakfast');
+    snack.onAction();
+    expect(mockUndoEntries).toHaveBeenCalledWith({ date: '2026-09-26', entryIds: ['n1', 'n2'] });
+  });
+
+  it('is not offered when the sheet replaces a plan slot', async () => {
+    mockSavedMeals = [MEAL];
+    await renderSheet({ targetSlot: { mealType: 'lunch', slotIndex: 1 } });
+    expect(screen.queryByTestId('log-sheet-saved-add-s1')).not.toBeOnTheScreen();
   });
 });

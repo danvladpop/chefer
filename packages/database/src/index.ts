@@ -323,6 +323,11 @@ export {
   type IPackagedProductRepository,
   type PackagedProductData,
   type BarcodeRows,
+  // Saved meals (lane A2)
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -443,6 +448,8 @@ export type {
   AiUsageEvent,
   // Packaged products (ADR 0002)
   PackagedProduct,
+  // Saved meals (lane A2)
+  SavedMeal,
 } from '@prisma/client';
 export {
   AiCallType,

@@ -152,6 +152,9 @@ vi.mock('@/features/nutrition/components/TargetExplainSheet', () => ({
   TargetExplainSheet: () => null,
 }));
 vi.mock('@/features/tracker/components/QuickAddSheet', () => ({ QuickAddSheet: () => null }));
+vi.mock('@/features/tracker/components/MealActionsSheet', () => ({
+  MealActionsSheet: () => null,
+}));
 vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton: () => null }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),

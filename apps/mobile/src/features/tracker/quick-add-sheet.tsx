@@ -3,6 +3,7 @@ import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   PACKAGED_PRODUCT_COPY,
+  SAVED_MEALS_COPY,
   type PackagedProductView,
   type ProductAllergenWarning,
 } from '@chefer/types';
@@ -31,11 +32,13 @@ import {
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  savedMealSummary,
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
   type SlotRef,
 } from '@chefer/utils';
+import { track } from '../../lib/analytics';
 import { trackMealLogged } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
@@ -229,6 +232,11 @@ export function QuickAddSheet({
   }, [trimmedQuery]);
 
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: visible });
+  // Lane A2: saved meals log in one tap. Not offered when replacing a plan
+  // slot — a slot is replaced by one entry, a saved meal is several.
+  const savedMealsQuery = trpc.savedMeals.list.useQuery(undefined, {
+    enabled: visible && !targetSlot,
+  });
   const recipesQuery = trpc.recipe.list.useQuery(
     { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
     { enabled: visible && debouncedQuery.length > 0, placeholderData: (previous) => previous },
@@ -255,6 +263,13 @@ export function QuickAddSheet({
     return all.filter((r) => r.name.toLowerCase().includes(q));
   }, [recentsQuery.data, searching, trimmedQuery]);
 
+  const savedMeals = useMemo(() => {
+    const all = targetSlot ? [] : (savedMealsQuery.data ?? []);
+    if (!searching) return all.slice(0, 5);
+    const q = trimmedQuery.toLowerCase();
+    return all.filter((m) => m.name.toLowerCase().includes(q));
+  }, [savedMealsQuery.data, searching, trimmedQuery, targetSlot]);
+
   const planRows = useMemo(() => {
     // Aimed at a slot, the day's planned meals are not an option: the user is
     // saying they did NOT eat that one.
@@ -265,6 +280,7 @@ export function QuickAddSheet({
   }, [plannedMeals, searching, trimmedQuery, targetSlot]);
 
   const hasSearchResults =
+    savedMeals.length > 0 ||
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
@@ -320,7 +336,32 @@ export function QuickAddSheet({
     },
   });
 
-  const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
+  const undoEntriesMutation = trpc.tracker.deleteEntries.useMutation({
+    meta: { silent: true },
+    onSuccess: () => invalidateDayQueries(utils, date),
+  });
+  const logSavedMutation = trpc.tracker.logSavedMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: (data, vars) => {
+      const meal = savedMealsQuery.data?.find((m) => m.id === vars.savedMealId);
+      track('saved_meal_logged', { itemCount: data.entryIds.length });
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      recordRebalanceOutcome(data);
+      invalidateDayQueries(utils, date);
+      void utils.savedMeals.list.invalidate();
+      onLogged();
+      snackbar.show({
+        message: `Logged ${meal?.name ?? 'saved meal'}`,
+        tone: 'success',
+        actionLabel: 'Undo',
+        onAction: () => undoEntriesMutation.mutate({ date, entryIds: data.entryIds }),
+      });
+      onClose();
+    },
+  });
+
+  const isPending =
+    logRecipeMutation.isPending || logCustomMutation.isPending || logSavedMutation.isPending;
 
   /** Spread into every custom log: aimed at a slot, the entry replaces it (WP-06). */
   const slotFields = (fallbackMealType: string) =>
@@ -619,6 +660,52 @@ export function QuickAddSheet({
               </Text>
             </Pressable>
           </View>
+
+          {logSavedMutation.isError && (
+            <Text testID="log-sheet-saved-error" className="text-sm text-red-600">
+              {"Couldn't log that: "}
+              {userFacingErrorMessage(logSavedMutation.error)}
+            </Text>
+          )}
+
+          {savedMeals.length > 0 && (
+            <View className="gap-1.5">
+              {groupHeader(SAVED_MEALS_COPY.groupTitle)}
+              {savedMeals.map((meal) => (
+                <View
+                  key={meal.id}
+                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
+                >
+                  <Ionicons name="bookmark" size={18} color="#944a00" />
+                  <View className="min-w-0 flex-1">
+                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                      {meal.name}
+                    </Text>
+                    <Text numberOfLines={1} className="text-xs text-gray-500">
+                      {savedMealSummary(meal.items, proteinOnly)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    testID={`log-sheet-saved-add-${meal.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Log ${meal.name} to ${mealType}`}
+                    disabled={isPending}
+                    onPress={() =>
+                      logSavedMutation.mutate({
+                        date,
+                        savedMealId: meal.id,
+                        mealType,
+                        ...REBALANCE_PREVIEW,
+                      })
+                    }
+                    className="h-11 w-11 items-center justify-center"
+                  >
+                    <Ionicons name="add-circle" size={26} color="#944a00" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
 
           {(logRecipeMutation.isError || logCustomMutation.isError) && (
             <Text
