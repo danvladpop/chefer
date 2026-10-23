@@ -109,8 +109,10 @@ export function unionSafetyTerms(...lists: readonly string[][]): string[] {
   return [...seen.values()];
 }
 
+/** First name, else the first word of the full name, else `fallback` (blank counts as missing). */
 function displayName(p: { firstName: string | null; name: string | null }, fallback: string) {
-  return p.firstName?.trim() || p.name?.trim().split(/\s+/)[0] || fallback;
+  const candidates = [p.firstName?.trim(), p.name?.trim().split(/\s+/)[0]];
+  return candidates.find((c): c is string => c !== undefined && c.length > 0) ?? fallback;
 }
 
 async function endTx(

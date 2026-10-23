@@ -5,7 +5,6 @@ import {
   householdNoticeRepository,
   householdSharingRepository,
   userRepository,
-  type ActiveHouseholdLink,
   type HouseholdNoticeRepository,
   type IHouseholdMemberRepository,
   type IHouseholdSharingRepository,
@@ -158,9 +157,9 @@ export class HouseholdAccessService {
   async people(planUserId: string): Promise<HouseholdPeople | null> {
     if (!(await this.deps.enabled())) return null;
     const links = await this.deps.sharing.activeAsOwner(planUserId);
-    if (links.length === 0) return null;
+    const first = links[0];
+    if (!first) return null;
     const people: HouseholdPeople = new Map();
-    const first = links[0] as ActiveHouseholdLink;
     people.set(planUserId, nameOf(first.owner));
     for (const l of links) people.set(l.partnerId, nameOf(l.partner));
     return people;

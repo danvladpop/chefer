@@ -31,37 +31,35 @@ const member = {
   claimedBy: null as string | null,
 };
 
-const link = (over: Partial<ActiveHouseholdLink> = {}): ActiveHouseholdLink =>
-  ({
-    id: 'l1',
-    ownerId: 'owner',
-    partnerId: 'partner',
-    memberId: 'm1',
-    status: 'ACTIVE',
-    inviteCode: 'CODE',
-    startedAt: NOW,
-    endedAt: null,
-    endedBy: null,
-    owner: { id: 'owner', firstName: 'Dan', name: null },
-    partner: { id: 'partner', firstName: 'Maria', name: null },
-    member: { ...member },
-    ...over,
-  }) as ActiveHouseholdLink;
+const link = (over: Partial<ActiveHouseholdLink> = {}): ActiveHouseholdLink => ({
+  id: 'l1',
+  ownerId: 'owner',
+  partnerId: 'partner',
+  memberId: 'm1',
+  status: 'ACTIVE',
+  inviteCode: 'CODE',
+  startedAt: NOW,
+  endedAt: null,
+  endedBy: null,
+  owner: { id: 'owner', firstName: 'Dan', name: null },
+  partner: { id: 'partner', firstName: 'Maria', name: null },
+  member: { ...member },
+  ...over,
+});
 
-const invite = (over: Partial<HouseholdInviteWithMember> = {}): HouseholdInviteWithMember =>
-  ({
-    code: 'ABCDEFGHJK',
-    ownerId: 'owner',
-    memberId: 'm1',
-    createdAt: NOW,
-    expiresAt: new Date(NOW.getTime() + 86_400_000),
-    usedAt: null,
-    usedById: null,
-    revokedAt: null,
-    member: { ...member },
-    owner: { id: 'owner', firstName: 'Dan', name: null },
-    ...over,
-  }) as HouseholdInviteWithMember;
+const invite = (over: Partial<HouseholdInviteWithMember> = {}): HouseholdInviteWithMember => ({
+  code: 'ABCDEFGHJK',
+  ownerId: 'owner',
+  memberId: 'm1',
+  createdAt: NOW,
+  expiresAt: new Date(NOW.getTime() + 86_400_000),
+  usedAt: null,
+  usedById: null,
+  revokedAt: null,
+  member: { ...member },
+  owner: { id: 'owner', firstName: 'Dan', name: null },
+  ...over,
+});
 
 function service(over: Partial<HouseholdAccessDeps> = {}, links: ActiveHouseholdLink[] = []) {
   const sharing = {
