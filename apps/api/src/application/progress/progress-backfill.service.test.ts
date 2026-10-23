@@ -66,10 +66,10 @@ function setup(scorable: string[] = ['s1', 's2']) {
   const service = new ProgressBackfillService({
     recorder,
     source,
-    sessions: { findCompleted: vi.fn().mockResolvedValue(rows) } as never,
+    sessions: { findCompleted: vi.fn().mockResolvedValue(rows) },
     exercises: {
       findVisibleByIds: vi.fn().mockResolvedValue([{ id: 'bench', name: 'Bench press' }]),
-    } as never,
+    },
     events: world.ledger,
     states: world.states,
     unlocks: world.unlocks,

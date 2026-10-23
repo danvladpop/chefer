@@ -1,4 +1,4 @@
-import { progressSourceRepository, userRepository } from '@chefer/database';
+import { prisma, progressSourceRepository, userRepository } from '@chefer/database';
 import { progressBackfillService } from '../application/progress/progress-backfill.service.js';
 
 // ─── Kitchen progress: back-date existing history (tech-plan.md §7) ───────────
@@ -67,4 +67,4 @@ main()
     console.error(err);
     process.exitCode = 1;
   })
-  .finally(() => process.exit());
+  .finally(() => void prisma.$disconnect());

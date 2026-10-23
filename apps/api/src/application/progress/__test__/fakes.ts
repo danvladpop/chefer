@@ -62,7 +62,7 @@ export class FakeLedger implements IProgressEventRepository {
         sourceId: event.sourceId,
         localDate: event.localDate,
         xp,
-        lines: event.lines as never,
+        lines: event.lines,
         meta: event.meta as never,
         origin: event.origin,
         rulesVersion: event.rulesVersion,
@@ -149,7 +149,7 @@ export class FakeStates implements IProgressStateRepository {
     return {
       userId: USER,
       totalXp: 0,
-      settings: {} as never,
+      settings: {},
       goalHistory: [] as never,
       pauses: [] as never,
       backfillVersion: null,
@@ -172,7 +172,7 @@ export class FakeStates implements IProgressStateRepository {
     return Promise.resolve(this.current());
   }
   update(_u: string, patch: Parameters<IProgressStateRepository['update']>[1]) {
-    this.state = { ...this.current(), ...(patch as object) } as ProgressState;
+    this.state = { ...this.current(), ...(patch as object) };
     return Promise.resolve(this.state);
   }
   advanceSeenCursor(_u: string, upTo: Date) {

@@ -30,7 +30,6 @@ import {
   ACTIVE_DAY_KINDS,
   progressEventKindSchema,
   receiptMetaSchema,
-  type ProgressEventKind,
 } from '@chefer/types';
 import {
   addDaysLocal,
@@ -240,7 +239,7 @@ export function toDayEventFacts(rows: Pick<ProgressEvent, 'kind' | 'meta'>[]) {
     const kind = progressEventKindSchema.safeParse(row.kind);
     if (!kind.success) return [];
     const meta = receiptMetaSchema.safeParse(row.meta ?? {});
-    return [{ kind: kind.data as ProgressEventKind, meta: meta.success ? meta.data : {} }];
+    return [{ kind: kind.data, meta: meta.success ? meta.data : {} }];
   });
 }
 

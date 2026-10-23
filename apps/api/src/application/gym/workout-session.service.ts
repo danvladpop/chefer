@@ -85,7 +85,7 @@ export class WorkoutSessionService {
       'findMany'
     > = trainerProfileRepository,
     /** Kitchen progress hook; undefined = the app-wide recorder (a no-op in tests). */
-    private readonly progress: IProgressRecorder | undefined = undefined,
+    private readonly progress?: IProgressRecorder,
   ) {}
 
   async upsertMany(
