@@ -13,6 +13,7 @@ const PROTECTED_ROUTES = [
   '/recipes',
   '/ingredients',
   '/progress',
+  '/recap',
   '/shopping-list',
   '/profile',
   '/admin',

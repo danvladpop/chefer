@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ShareCardButton } from '@/features/share/share-card-button';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
@@ -220,7 +221,18 @@ export function SummaryView({ id }: { id: string }) {
         </GymCard>
       </div>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+        {/* Lane E2: share the workout and its PRs once the server has it
+            (a session still in the outbox can't be made into a card yet). */}
+        {!outboxState.entries.some((e) => e.doc.id === id) && (
+          <ShareCardButton
+            testId="gym-summary-share"
+            label="Share your workout"
+            className="w-full sm:w-auto"
+            input={{ kind: 'workout', sessionId: id, showPrs: true }}
+            message="Workout done with Chefer."
+          />
+        )}
         <Button
           asChild
           size="lg"

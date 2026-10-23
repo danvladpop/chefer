@@ -25,6 +25,7 @@ import {
   HealthConsentLaunchPrompt,
   HealthConsentTodayNotice,
 } from '@/features/privacy/components/HealthConsentNudges';
+import { RecapDashboardCard } from '@/features/recap/recap-dashboard-card';
 import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
@@ -225,6 +226,9 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+
+          {/* Lane E2: Monday's door into last week's recap (self-gated). */}
+          <RecapDashboardCard isMonday={d.today.dayOfWeek === 0} />
 
           {/* F1 Adaptive Chef: weekly review (full for premium, blurred teaser
             for free) — renders nothing until a review exists and is fresh. */}

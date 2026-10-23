@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { ShareCardButton } from '@/features/share/share-card-button';
 import {
   handleRebalanceOutcome,
   REBALANCE_PREVIEW,
@@ -421,6 +422,13 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             <StarRatingWidget recipeId={recipe.id} />
           </div>
         )}
+        {/* Lane E2: share what you cooked — an image card with the app link. */}
+        <ShareCardButton
+          testId="cook-share"
+          label="Share what you cooked"
+          input={{ kind: 'cook', recipeId: recipe.id, showNutrition: false }}
+          message={recipe.name}
+        />
         {/* If logging this meal adjusted the rest of the week, say so here
             (audit F-TRK-3-2). */}
         {logged && (

@@ -342,7 +342,7 @@ export class WeeklyEmailService {
       nextWeekUrl: `${app}/meal-plan?week=1`,
       listUrl: `${app}/shopping-list`,
       progressUrl: `${app}/progress`,
-      recapUrl: `${app}/recap`,
+      recapUrl: `${app}/recap?from=email`,
       preferencesUrl: `${app}/preferences`,
       unsubscribeUrl: this.deps.unsubscribeUrl(userId, SCOPE[kind]),
     };
