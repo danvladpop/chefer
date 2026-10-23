@@ -28,6 +28,7 @@ import { DayFitNote } from '../../tracker/day-fit-note';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
 import { RebalanceOffer } from '../../tracker/rebalance-offer';
 import { useSlotActions } from '../../tracker/use-slot-actions';
+import { useTodayWidgetSync } from '../../widget/today-widget';
 import { ShellTopBar } from '../shell-chrome';
 import { NextMealCard } from './next-meal-card';
 import { NutritionCard } from './nutrition-card';
@@ -68,11 +69,14 @@ export function TodayScreen() {
   const {
     data: d,
     isLoading,
+    isPlaceholderData,
     refetch,
   } = trpc.dashboard.summary.useQuery(
     { localDate: localDateStr(), localHour: new Date().getHours() },
     { placeholderData: keepPreviousData },
   );
+  // C4: the home-screen widget mirrors this day (never a previous hour's placeholder).
+  useTodayWidgetSync(isPlaceholderData ? undefined : d);
   // UX-FOOD-13: the pull-to-refresh spinner follows a user pull only.
   const { refreshing, onRefresh } = useTimedRefresh(refetch);
   // Tab screens stay mounted: refetch on tab focus so a plan change elsewhere shows.

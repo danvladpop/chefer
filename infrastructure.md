@@ -621,6 +621,15 @@ API, Maestro E2E in `e2e/`).
     doesn't (older binaries). A lock-screen action records `lastActionAt`; JS adopts it once, from the `onChange` event or
     on the next foreground (`gym.rest-timer.adopted-action-at`).
   - `fingerprint.config.js` adds `targets/` to the fingerprint (by default only `expo-target.config.js` is hashed).
+- **Home-screen Today widget (C4, next store build): local Expo module `modules/chefer-widgets` + `TodayWidget` in the
+  `targets/widgets` extension.** New native code → new runtime fingerprint (§11). `CheferWidgets.setTodaySnapshot(json |
+null)` stores Today's snapshot (built in JS, `src/features/widget/today-widget-snapshot.ts`, business_flow §39) in the App
+  Group `group.<iOS bundle id>` (`ios.entitlements`, given to the extension by its `expo-target.config.js`) and reloads the
+  WidgetKit timeline (iOS), or in shared prefs `chefer.widgets` and redraws `TodayWidgetProvider` (Android
+  `AppWidgetProvider`, RemoteViews, 30-min period for the midnight flip). JS: `src/features/widget/today-widget.ts`
+  (`requireOptionalNativeModule('CheferWidgets')`; no-op on older binaries; writes only on change), called from both
+  Today screens and cleared by `signOut`. Also in this binary: `userInterfaceStyle: 'light'` (UX-X-07) with
+  `expo-system-ui` (57.0.4) so Android applies it.
 - **Store rating prompt (ASO plan §5.1, ships in the 1.0.2 binary).** `expo-store-review` (`~57.0.3`, no config
   plugin) asks the OS for its native rating sheet — the **only** path: no "Rate us" button, no "Enjoying Chefer?"
   pre-prompt (both stores forbid gating). Code in `src/features/review/`: `review-eligibility.ts` (the pure rule),

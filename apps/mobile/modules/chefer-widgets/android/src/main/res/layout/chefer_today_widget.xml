@@ -1,0 +1,46 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/chefer_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/chefer_widget_background"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+  <TextView
+      android:id="@+id/chefer_widget_eyebrow"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:maxLines="1"
+      android:ellipsize="end"
+      android:text="@string/chefer_today_widget_empty_eyebrow"
+      android:textColor="@color/chefer_widget_brand"
+      android:textSize="13sp"
+      android:textStyle="bold" />
+
+  <TextView
+      android:id="@+id/chefer_widget_title"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:maxLines="3"
+      android:ellipsize="end"
+      android:text="@string/chefer_today_widget_empty_title"
+      android:textColor="@color/chefer_widget_ink"
+      android:textSize="17sp"
+      android:textStyle="bold" />
+
+  <View
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1" />
+
+  <TextView
+      android:id="@+id/chefer_widget_detail"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:maxLines="2"
+      android:ellipsize="end"
+      android:textColor="@color/chefer_widget_ink_secondary"
+      android:textSize="13sp"
+      android:visibility="gone" />
+</LinearLayout>

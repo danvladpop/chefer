@@ -44,6 +44,7 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+39. [Home-screen Today Widget (mobile)](#39-home-screen-today-widget-mobile-c4)
 
 ---
 
@@ -6230,3 +6231,30 @@ success moment ──► maybeRequestReview(trigger)
 
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
+
+---
+
+## 39. Home-screen Today Widget (mobile, C4)
+
+Binaries built after 1.0.2 (native: `infrastructure.md` §4 mobile). Older binaries
+run the same JS and simply have no widget.
+
+```
+Today loads (dashboard.summary, the real day — never a previous hour's placeholder)
+  → buildTodayWidgetSnapshot(summary)          src/features/widget/today-widget-snapshot.ts
+      eyebrow  "Next · Lunch" | "Tomorrow · Breakfast" | "Today"
+      title    the recipe | "No more meals planned" | "Plan your week in Chefer"
+      detail   "1,540 kcal · 102 g protein left" (targets incl. the training-day bump,
+               never below 0) | "102 g protein left" (protein-only) |
+               none (nutrition off, or numbers mode NONE)
+      url      deep link to Today
+  → CheferWidgets.setTodaySnapshot(json)       only when it changed
+      iOS: App Group group.<app id> → WidgetKit reload    Android: shared prefs → widget redraw
+Widget: shows the strings; a snapshot for another day (or none) shows "Open Chefer to see today".
+Tap → opens Today.
+Sign-out → the snapshot is cleared (src/lib/sign-out.ts).
+```
+
+- Sizes: iOS small + medium, Android 2×2 resizable to 4×2. Light-only, in the app's colours.
+- Kept minimal on purpose — a home screen is public: no weight, allergies or account details.
+- Web: not applicable (no home-screen widget).
