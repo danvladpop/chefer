@@ -330,7 +330,7 @@ describe('ProgressRecorder.onDayChanged', () => {
     });
     w.deps.profiles = {
       findByUserId: () => Promise.resolve({ numbersMode: 'NONE' } as never),
-    } as typeof w.deps.profiles;
+    };
     await new ProgressRecorder(w.deps).onDayChanged(USER, '2026-10-22');
     expect(w.ledger.ofKind('PROTEIN_GOAL')).toHaveLength(0);
     expect(w.ledger.ofKind('MEAL_LOGGED')).toHaveLength(1);
