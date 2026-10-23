@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { COACHING_CONSENT_LABELS, FRIENDS_COPY } from '@chefer/types';
+import { COACHING_CONSENT_LABELS, FRIENDS_COPY, healthSyncConsentLabel } from '@chefer/types';
 import { Card, ErrorState, Text, useQueryState } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
@@ -23,7 +23,8 @@ type ConsentKind =
   | 'AUTO_PLAN'
   | 'HEALTH'
   | 'SOCIAL_SHARING'
-  | 'COACHING_SHARING';
+  | 'COACHING_SHARING'
+  | 'HEALTH_SYNC';
 
 interface ConsentEventRow {
   kind: ConsentKind;
@@ -65,6 +66,10 @@ function describe(event: ConsentEventRow): string {
       // Trainer coaching (WP-18): joined a trainer (granted) or the link ended (withdrawn). Level 6+ only:
       // the API filters these rows out below it, so an older bundle never prints the raw enum.
       return COACHING_CONSENT_LABELS[event.granted ? 'granted' : 'withdrawn'];
+    case 'HEALTH_SYNC':
+      // C2: providers = [platform, ...types on]. Only binaries with health sync
+      // write these rows, and this label ships before them (OTA), so no level gate.
+      return healthSyncConsentLabel(event.providers);
     default:
       return event.kind;
   }

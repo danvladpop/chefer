@@ -5505,6 +5505,15 @@ Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_
 
 ---
 
+**Health sync imports (C2, server side; the phone side ships with the next store build).** Weigh-ins read from Apple
+Health / Health Connect are health information too: `tracker.importWeights` sits behind the same `requireHealthConsent`
+gate as a typed weigh-in, so the phone asks this consent (the sheet above) before the first import. Each sample becomes an
+ordinary weigh-in on its local day (`WeightEntry.source` APPLE_HEALTH / HEALTH_CONNECT, `externalId` = the sample's id);
+sending the same sample again is skipped, so overlapping sync windows never double a weigh-in. Which data types are on is
+logged separately: every change on the "Connect health" screen writes a `HEALTH_SYNC` consent event
+(`privacy.recordHealthSync`; Consent history shows e.g. "Health Connect: weight, steps" or "Apple Health: turned off").
+Withdrawing health consent deletes imported weigh-ins along with typed ones. Dark behind the `healthSync` flag.
+
 ## 34. Following: follow, see, save (`docs/friends/`, F1.D)
 
 > **Status:** API implemented (Following program, wave 1) and **dark**: every `friends.*` procedure sits behind the `friends`
