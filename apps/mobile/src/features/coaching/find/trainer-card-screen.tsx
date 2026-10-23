@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type TrainerCardDto } from '@chefer/types';
+import {
+  COACHING_COPY,
+  NO_COACHING_SHARE as NO_SHARE,
+  type CoachingShareChoice,
+  type TrainerCardDto,
+} from '@chefer/types';
 import {
   Badge,
   Button,
@@ -14,6 +19,7 @@ import {
 } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { trackSharingChosen } from '../../../lib/analytics-events';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { CoachingCard } from '../../trainer/components/coaching-card';
@@ -114,10 +120,13 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
   const online = useIsOnline();
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Lane K1: both off until the client turns them on on the consent screen.
+  const [share, setShare] = useState<CoachingShareChoice>(NO_SHARE);
   const card = trpc.coaching.trainerCard.useQuery({ trainerId }, { retry: false });
   const send = trpc.coaching.requestCoaching.useMutation({
     meta: { silent: true },
-    onSuccess: () => {
+    onSuccess: (_request, vars) => {
+      trackSharingChosen(vars.share, 'request');
       setAsking(false);
       snackbar.show({ message: COACHING_COPY.request.sent(card.data?.name ?? '') });
     },
@@ -192,8 +201,10 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
           onAllow={() => {
             setError(null);
             // The device-local day anchors the coaching's start if the trainer accepts (as the join does).
-            send.mutate({ trainerId, localDate: localDateStr() });
+            send.mutate({ trainerId, localDate: localDateStr(), share });
           }}
+          share={share}
+          onShareChange={(next) => setShare((cur) => ({ ...cur, ...next }))}
           onDecline={() => {
             setError(null);
             setAsking(false);

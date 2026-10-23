@@ -113,6 +113,7 @@ describe('JoinFlow', () => {
       code: 'ABCD234567',
       source: 'web',
       localDate: localDateStr(),
+      share: { food: false, weight: false },
     });
   });
 

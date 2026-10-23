@@ -10,6 +10,7 @@ import {
   leaveInputSchema,
   previewInviteInputSchema,
   requestCoachingInputSchema,
+  setCoachingSharingInputSchema,
   trainerIdInputSchema,
   type CoachingAvailabilityDto,
 } from '@chefer/types';
@@ -62,6 +63,7 @@ export const coachingRouter = router({
       sourceOf(ctx),
       input.localDate,
       contractLevelOf(ctx),
+      input.share,
     );
   }),
   status: coachingProcedure.query(({ ctx }) =>
@@ -71,6 +73,16 @@ export const coachingRouter = router({
   acknowledgeConsentUpdate: coachingProcedure.mutation(({ ctx }) =>
     coachingLinkService.acknowledgeConsentUpdate(ctx.user.id, sourceOf(ctx)),
   ),
+  /**
+   * Lane K1: the client's "Share my food log" / "Share my weight" switches for
+   * their active coaching. Each change is a consent event; a revoke hides the
+   * data from the trainer's next request on.
+   */
+  setSharing: coachingProcedure
+    .input(setCoachingSharingInputSchema)
+    .mutation(({ ctx, input }) =>
+      coachingLinkService.setSharing(ctx.user.id, input, sourceOf(ctx)),
+    ),
   leave: coachingProcedure
     .input(leaveInputSchema)
     .mutation(({ ctx }) =>
@@ -107,6 +119,7 @@ export const coachingRouter = router({
         input.trainerId,
         sourceOf(ctx),
         input.localDate,
+        input.share,
       );
     }),
   cancelRequest: coachingProcedure

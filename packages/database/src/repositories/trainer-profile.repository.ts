@@ -1,7 +1,7 @@
 import type { TrainerProfile } from '@prisma/client';
 import { prisma } from '../client';
 import { cancelFutureBookingsTx } from './booking.repository';
-import { closePendingRequestsTx } from './coaching-link.repository';
+import { closePendingRequestsTx, endSharingTx } from './coaching-link.repository';
 
 // ─── Trainer coaching: trainer profiles (docs/trainer-platform/spec.md §5.1) ──
 // One row = the user turned trainer tools on. `disabledAt` set = turned off
@@ -178,6 +178,7 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
             createdAt: data.now,
           })),
         });
+        await endSharingTx(tx, links, data);
         // Trainer mode M3: every client's future bookings with this trainer are cancelled.
         await cancelFutureBookingsTx(tx, {
           trainerId: userId,

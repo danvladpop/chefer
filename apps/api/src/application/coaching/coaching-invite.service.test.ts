@@ -44,6 +44,8 @@ const link = (trainerId: string): CoachingLink => ({
   endedAt: null,
   endedBy: null,
   consentCopyVersion: 2,
+  shareFoodAt: null,
+  shareWeightAt: null,
 });
 
 interface Opts {

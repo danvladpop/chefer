@@ -39,6 +39,10 @@ export interface JoinLinkData {
   consentCopyVersion?: number;
   /** The granted event's `documentVersion` (default: `documentVersion`), e.g. "<privacy>+coaching-v2". */
   grantedDocumentVersion?: string;
+  /** Lane K1: the consent screen's food / weight switches (default: share nothing). */
+  share?: ShareChoice;
+  /** The granted sharing events' `documentVersion`, e.g. "<privacy>+coaching-data-v1". */
+  shareDocumentVersion?: string;
 }
 
 export type JoinLinkResult =
@@ -48,6 +52,28 @@ export type JoinLinkResult =
   | { status: 'client_limit' }
   /** Lost a race with another join for the same client (partial unique index). */
   | { status: 'conflict' };
+
+/**
+ * Lane K1: the client's food / weight switches as stored on a link
+ * (`shareFoodAt` / `shareWeightAt`, null = off), and as asked on a request.
+ */
+export interface ShareChoice {
+  food: boolean;
+  weight: boolean;
+}
+
+export interface SetSharingData {
+  clientId: string;
+  /** Undefined = leave that switch as it is. */
+  food?: boolean | undefined;
+  weight?: boolean | undefined;
+  source: string;
+  /** The granted events' `documentVersion` ("<privacy>+coaching-data-v1"). */
+  grantedDocumentVersion: string;
+  /** The withdrawn events' `documentVersion` (the privacy version, like every withdrawal). */
+  documentVersion: string;
+  now: Date;
+}
 
 export interface EndLinkData {
   trainerId: string;
@@ -97,6 +123,14 @@ export interface ICoachingLinkRepository {
     documentVersion: string;
     now: Date;
   }): Promise<boolean>;
+  /**
+   * Lane K1: the client turns food / weight sharing on or off for their ACTIVE
+   * coaching. One transaction: the link's `shareFoodAt` / `shareWeightAt` and a
+   * COACHING_SHARING event per switch that actually changed (`providers`
+   * ['FOOD'] / ['WEIGHT'], `contextId` = the link). Null when there is no
+   * ACTIVE link. Idempotent: a switch already in that state writes nothing.
+   */
+  setSharing(data: SetSharingData): Promise<CoachingLink | null>;
 }
 
 /** The transaction client handed to `prisma.$transaction(async (tx) => …)`. */
@@ -122,6 +156,65 @@ export interface StartLinkData {
   consentCopyVersion?: number;
   /** The granted event's `documentVersion` (default: `documentVersion`). */
   grantedDocumentVersion?: string;
+  /**
+   * Lane K1: what the client chose to share from the start (default nothing).
+   * Written as granted sharing events when `writeGrantedEvent` (an invite join);
+   * an accepted request's choices were logged when the client sent it.
+   */
+  share?: ShareChoice;
+  /** The granted sharing events' `documentVersion` (default: `documentVersion`). */
+  shareDocumentVersion?: string;
+}
+
+/** The consent events for the switches of `share` that are on (lane K1). */
+function sharingEvents(
+  data: {
+    clientId: string;
+    granted: boolean;
+    contextId: string;
+    documentVersion: string;
+    source: string;
+    now: Date;
+  },
+  share: ShareChoice,
+): Prisma.ConsentEventCreateManyInput[] {
+  const kinds = [...(share.food ? ['FOOD'] : []), ...(share.weight ? ['WEIGHT'] : [])];
+  return kinds.map((kind) => ({
+    userId: data.clientId,
+    kind: 'COACHING_SHARING' as const,
+    granted: data.granted,
+    providers: [kind],
+    documentVersion: data.documentVersion,
+    source: data.source,
+    contextId: data.contextId,
+    createdAt: data.now,
+  }));
+}
+
+/**
+ * Inside a transaction, for links that are ending: a withdrawn sharing event
+ * for every switch that was on, and the switches cleared, so an ended link
+ * never reads as sharing (lane K1). Access needs an ACTIVE link anyway.
+ */
+export async function endSharingTx(
+  tx: CoachingTx,
+  links: readonly Pick<CoachingLink, 'id' | 'clientId' | 'shareFoodAt' | 'shareWeightAt'>[],
+  data: { source: string; documentVersion: string; now: Date },
+): Promise<void> {
+  const sharing = links.filter((l) => l.shareFoodAt !== null || l.shareWeightAt !== null);
+  if (sharing.length === 0) return;
+  await tx.consentEvent.createMany({
+    data: sharing.flatMap((l) =>
+      sharingEvents(
+        { clientId: l.clientId, granted: false, contextId: l.id, ...data },
+        { food: l.shareFoodAt !== null, weight: l.shareWeightAt !== null },
+      ),
+    ),
+  });
+  await tx.coachingLink.updateMany({
+    where: { id: { in: sharing.map((l) => l.id) } },
+    data: { shareFoodAt: null, shareWeightAt: null },
+  });
 }
 
 /**
@@ -155,6 +248,7 @@ export async function startLinkTx(
         createdAt: data.now,
       })),
     });
+    await endSharingTx(tx, previous, data);
     for (const l of previous) {
       await tx.coachingNote.updateMany({
         where: { trainerId: l.trainerId, clientId: l.clientId, hiddenAt: null },
@@ -191,6 +285,8 @@ export async function startLinkTx(
       ...(data.consentCopyVersion !== undefined && {
         consentCopyVersion: data.consentCopyVersion,
       }),
+      ...(data.share?.food && { shareFoodAt: data.now }),
+      ...(data.share?.weight && { shareWeightAt: data.now }),
     },
   });
   if (data.writeGrantedEvent) {
@@ -206,6 +302,20 @@ export async function startLinkTx(
         createdAt: data.now,
       },
     });
+    if (data.share) {
+      const events = sharingEvents(
+        {
+          clientId: data.clientId,
+          granted: true,
+          contextId: link.id,
+          documentVersion: data.shareDocumentVersion ?? data.documentVersion,
+          source: data.source,
+          now: data.now,
+        },
+        data.share,
+      );
+      if (events.length > 0) await tx.consentEvent.createMany({ data: events });
+    }
   }
   // The same pair within the retention window gets its private note back.
   await tx.coachingNote.updateMany({
@@ -352,6 +462,10 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
           ...(data.grantedDocumentVersion !== undefined && {
             grantedDocumentVersion: data.grantedDocumentVersion,
           }),
+          ...(data.share !== undefined && { share: data.share }),
+          ...(data.shareDocumentVersion !== undefined && {
+            shareDocumentVersion: data.shareDocumentVersion,
+          }),
         });
         return { status: 'joined', link, endedLinks } satisfies JoinLinkResult;
       });
@@ -389,6 +503,7 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
           createdAt: data.now,
         },
       });
+      await endSharingTx(tx, [link], data);
       await tx.coachingNote.updateMany({
         where: { trainerId: data.trainerId, clientId: data.clientId, hiddenAt: null },
         data: { hiddenAt: data.now },
@@ -399,7 +514,14 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
         clientIds: [data.clientId],
         now: data.now,
       });
-      return { ...link, status: 'ENDED', endedAt: data.now, endedBy: data.endedBy };
+      return {
+        ...link,
+        status: 'ENDED',
+        endedAt: data.now,
+        endedBy: data.endedBy,
+        shareFoodAt: null,
+        shareWeightAt: null,
+      };
     });
   }
 
@@ -433,6 +555,53 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
         },
       });
       return true;
+    });
+  }
+
+  async setSharing(data: SetSharingData): Promise<CoachingLink | null> {
+    return prisma.$transaction(async (tx) => {
+      const link = await tx.coachingLink.findFirst({
+        where: { clientId: data.clientId, status: 'ACTIVE' },
+      });
+      if (!link) return null;
+      const turnOn = {
+        food: data.food === true && link.shareFoodAt === null,
+        weight: data.weight === true && link.shareWeightAt === null,
+      };
+      const turnOff = {
+        food: data.food === false && link.shareFoodAt !== null,
+        weight: data.weight === false && link.shareWeightAt !== null,
+      };
+      const changed = turnOn.food || turnOn.weight || turnOff.food || turnOff.weight;
+      if (!changed) return link;
+      const updated = await tx.coachingLink.update({
+        where: { id: link.id },
+        data: {
+          ...(turnOn.food && { shareFoodAt: data.now }),
+          ...(turnOff.food && { shareFoodAt: null }),
+          ...(turnOn.weight && { shareWeightAt: data.now }),
+          ...(turnOff.weight && { shareWeightAt: null }),
+        },
+      });
+      const base = {
+        clientId: data.clientId,
+        contextId: link.id,
+        source: data.source,
+        now: data.now,
+      };
+      await tx.consentEvent.createMany({
+        data: [
+          ...sharingEvents(
+            { ...base, granted: true, documentVersion: data.grantedDocumentVersion },
+            turnOn,
+          ),
+          ...sharingEvents(
+            { ...base, granted: false, documentVersion: data.documentVersion },
+            turnOff,
+          ),
+        ],
+      });
+      return updated;
     });
   }
 

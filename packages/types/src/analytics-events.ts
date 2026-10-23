@@ -197,4 +197,11 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Coaching data (lane K, market review 2026-10) — no PII, enums only ───────
+  coaching_sharing_changed: {
+    data: 'food' | 'weight';
+    on: boolean;
+    where: 'join' | 'request' | 'settings';
+  };
 }
