@@ -11,6 +11,7 @@ import {
   MEAL_REMINDER_NOTIFICATION,
   RECAP_COPY,
 } from './engagement-copy';
+import { NUMBERS_MODE_COPY } from './numbers-mode-copy';
 import { PLAN_TAILORING_COPY } from './plan-tailoring';
 import { PREMIUM_PITCH_COPY } from './premium-pitch';
 import { SAFETY_COPY } from './safety-copy';
@@ -24,6 +25,7 @@ const COPY_MODULES: Record<string, Record<string, string>> = {
   'engagement-copy': ENGAGEMENT_COPY,
   'recap-copy': RECAP_COPY,
   'hide-numbers-copy': HIDE_NUMBERS_COPY,
+  'numbers-mode-copy': NUMBERS_MODE_COPY,
   ...Object.fromEntries(
     Object.entries(MEAL_REMINDER_NOTIFICATION).map(([slot, copy]) => [
       `meal-reminder.${slot}`,
