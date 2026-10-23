@@ -1,5 +1,5 @@
 import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
-import type { ChatAction, UserProfile } from '@chefer/types';
+import { effectiveNumbersMode, type ChatAction, type UserProfile } from '@chefer/types';
 import { chatActionsTrailer } from '@chefer/utils';
 import { runWithAiUsageScope } from '../../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
@@ -103,6 +103,13 @@ function withActionTrailer(stream: ReadableStream, actions: readonly ChatAction[
   });
 }
 
+/**
+ * Lane E3: what the chef is told for a "Hide numbers" user. The context
+ * carries no figures either, so there is nothing to quote.
+ */
+export const HIDE_NUMBERS_CHAT_RULE =
+  'NUMBERS: this user chose "Hide numbers". Never state calories, kcal, grams of protein, carbs or fat, targets or any other nutrition figure, and never suggest eating less to make up for a meal. Talk about dishes, portions and how meals fit their week instead.';
+
 export class ChatService {
   /**
    * Builds the prompt context from the user's live data. Kept as one plain
@@ -127,10 +134,17 @@ export class ChatService {
     const { lifterBodyweightKg } = await trainingNutritionService.loadLifter(user.id, profile);
     const targets = resolveDailyTargets(profile, lifterBodyweightKg);
     const lines: string[] = ['USER CONTEXT (real data — answer from this):'];
+    // Lane E3 "Hide numbers": the chef is never given a nutrition figure to
+    // quote, and is told not to bring any up.
+    const noNumbers = effectiveNumbersMode(profile?.numbersMode) === 'NONE';
 
-    lines.push(
-      `Daily targets: ${targets.dailyCalorieTarget} kcal, ${targets.proteinG}g protein, ${targets.carbsG}g carbs, ${targets.fatG}g fat.`,
-    );
+    if (noNumbers) {
+      lines.push(HIDE_NUMBERS_CHAT_RULE);
+    } else {
+      lines.push(
+        `Daily targets: ${targets.dailyCalorieTarget} kcal, ${targets.proteinG}g protein, ${targets.carbsG}g carbs, ${targets.fatG}g fat.`,
+      );
+    }
 
     if (prefs.allergies.length)
       lines.push(`Allergies (never suggest): ${prefs.allergies.join(', ')}.`);
@@ -149,12 +163,16 @@ export class ChatService {
           totals.protein += n.protein;
           totals.carbs += n.carbs;
           totals.fat += n.fat;
-          return `  - ${m.type}: ${m.recipe.name} (${n.calories} kcal, ${n.protein}g protein, ${n.carbs}g carbs, ${n.fat}g fat)`;
+          return noNumbers
+            ? `  - ${m.type}: ${m.recipe.name}`
+            : `  - ${m.type}: ${m.recipe.name} (${n.calories} kcal, ${n.protein}g protein, ${n.carbs}g carbs, ${n.fat}g fat)`;
         });
         lines.push(`Today (${DAY_NAMES[todayIdx]}) on the active plan:`, ...mealLines);
-        lines.push(
-          `Today's PLANNED totals (from the meal plan, not necessarily eaten): ${totals.calories} kcal, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat.`,
-        );
+        if (!noNumbers) {
+          lines.push(
+            `Today's PLANNED totals (from the meal plan, not necessarily eaten): ${totals.calories} kcal, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat.`,
+          );
+        }
       }
       const weekDishes = plan.days
         .map(
@@ -171,7 +189,9 @@ export class ChatService {
     // as eaten food. Give it the logged truth and an explicit framing rule.
     if (todayLog && (todayLog.loggedMeals as unknown[]).length > 0) {
       lines.push(
-        `Today's LOGGED intake (actually eaten and checked off): ${todayLog.totalKcal} kcal, ${todayLog.totalProtein}g protein, ${todayLog.totalCarbs}g carbs, ${todayLog.totalFat}g fat.`,
+        noNumbers
+          ? `Today's LOGGED meals (actually eaten and checked off): ${(todayLog.loggedMeals as unknown[]).length}.`
+          : `Today's LOGGED intake (actually eaten and checked off): ${todayLog.totalKcal} kcal, ${todayLog.totalProtein}g protein, ${todayLog.totalCarbs}g carbs, ${todayLog.totalFat}g fat.`,
       );
     } else {
       lines.push('Nothing has been logged as eaten today.');

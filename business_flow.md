@@ -1742,13 +1742,37 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 
 ### Protein-only mode: one number, protein (WP-08, owner decision D-5)
 
-A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is reserved for WP-16). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
+A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is "Hide numbers" — see the next section). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
 
 - **What the API hands the client.** `preferences.get.numbersMode`, `dashboard.summary.{numbersMode, proteinGuide}`, `tracker.getDay.{numbersMode, proteinGuide}` and `targets.get.{numbersMode, proteinWhy}`, all additive. Clients render `effectiveNumbersMode(numbersMode)` from `@chefer/types`, which maps null/`NONE` to `FULL` until WP-16.
 - **The protein number** is always the effective protein target from `resolveTargets` (own override, lifter rule or goal split). Today's ring reads "72 of 120 g protein"; macro bars and the kcal caption are hidden.
 - **Per-meal guide** (`buildProteinGuide`, `@chefer/utils`): target ÷ planned meals (3 when nothing is planned), shown as a 10 g range aligned to 5 g and centred on the per-meal figure ("30–40 g per meal").
 - **"Why this number?"** (`explainProteinTarget`): the research default is 1.6 g per kg of body weight. When the user's effective target is not within 0.1 g/kg of that, `proteinWhy` names it (own override, the training-focused goal rule, or the goal's calorie split) with a plain sentence and the 1.6 g/kg figure for their weight.
 - **Old clients (1.0.1)** ignore the new fields and keep full numbers; no API gating, no existing field changes shape.
+
+### Hide numbers: no calorie or macro figures anywhere (market review 2026-10, lane E3)
+
+The eating-disorder-safe option, offered as an equal third choice next to "Calories and macros" and "Just protein" in
+onboarding and Preferences on both platforms (`preferences.setNumbersMode({ numbersMode: 'NONE' })`, every tier, no
+schema change). Like protein-only it changes **presentation only** — the plan still balances calories underneath.
+
+- **One rule:** `numbersVisibility(mode)` (`@chefer/types`): FULL shows kcal, macros and protein; PROTEIN_ONLY protein
+  only; NONE nothing. Clients read it through `useNumbersMode()` → `{ proteinOnly (no kcal: PROTEIN_ONLY and NONE),
+noNumbers (NONE), show }`, or render through `<NutritionNumber kind>`.
+- **What shows instead:** Today and the Log screen get "Today so far" — the planned meals eaten as qualitative
+  progress (`onPlanLine`: "2 of 3 planned meals eaten", never a shortfall); rows and plan tiles show the portion
+  ("1½ portions", `portionLabel`) and the time; day totals, the weekly intake chart, the stats averages and the
+  recipe nutrition facts disappear. The rebalance offer, the fit-to-target sheet, "Why this number" and the weekly
+  review banner (all figures) do not render.
+- **The chef (AI chat):** for a NONE user the chat context carries no nutrition figure at all, plus
+  `HIDE_NUMBERS_CHAT_RULE` (never state a figure, never suggest eating less to make up for a meal).
+- **Over target, every mode:** neutral — the ring and bars keep the brand colour and say "over" in words; no amber,
+  no red (replaces owner decision 3, 2026-09-25). Shortfall lines are neutral text too.
+- **Guard:** the numbers-mode source scans (`apps/mobile/tests/unit/numbers-mode-scan.test.ts`,
+  `apps/web/src/features/numbers-mode/numbers-mode-scan.test.ts`) fail on any Today / Log / plan / recipe / coach /
+  stats file that shows a protein or macro figure without consulting `noNumbers` / `show.*` / `<NutritionNumber>`.
+  The quick-add sheets wait on lane A's rewrite (`PENDING_LANE_A`).
+- **Old clients** (store binaries' JS from before E3) read NONE as FULL and keep showing numbers.
 
 ### Cookbook, Shop, My weeks (P2-8)
 
