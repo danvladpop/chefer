@@ -1,4 +1,5 @@
 import { AppState, type AppStateStatus } from 'react-native';
+import { clearLocalUserData } from '../../src/features/gym/offline/clear-local-data';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import {
   setNativeRestTimerForTests,
@@ -144,6 +145,19 @@ describe('rest timer on a binary with the native module', () => {
     expect(fake.listenerCount()).toBe(1);
     stop();
     expect(fake.listenerCount()).toBe(0);
+  });
+});
+
+describe('signing out', () => {
+  it('ends the lock-screen countdown and its alert', async () => {
+    const { native, sync } = fakeNative();
+    setNativeRestTimerForTests(native);
+    startRest(90, 'se-1');
+    await syncNotification();
+    sync.mockClear();
+
+    await clearLocalUserData({ keepGymData: false });
+    expect(sync).toHaveBeenCalledWith(null);
   });
 });
 
