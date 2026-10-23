@@ -8,7 +8,7 @@ import {
   type SocialProvider,
 } from '@chefer/types';
 import { Button, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { PROGRESS_PHOTOS_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { shareExportFile } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
@@ -16,6 +16,7 @@ import { markAccountDeleted } from '../auth/account-deleted-notice';
 import { socialErrorMessage } from '../auth/social/social-errors';
 import { useSocialProviders } from '../auth/social/social-providers';
 import { requestProviderCredential } from '../auth/social/use-social-sign-in';
+import { removeAllProgressPhotos } from '../body/progress-photo-store';
 import { useSignOut } from '../settings/use-sign-out';
 import { TrainButton } from '../shell/train/train-button';
 
@@ -74,6 +75,9 @@ export function AccountDataCard() {
         >
           Export everything Chefer stores about you, or delete your account for good.
         </Text>
+        <Text className="w-full min-w-0 text-caption text-label-tertiary">
+          {PROGRESS_PHOTOS_COPY.exportNote}
+        </Text>
       </View>
       <View className="gap-2">
         <TrainButton
@@ -121,6 +125,8 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
     // cached query, the gym data and reminders on this phone (UX-ACC-12) —
     // through the one sign-out, then back to the auth screen.
     onSuccess: async () => {
+      // Lane D4: progress photos live only on this phone — they go too.
+      if (me.data?.id) await removeAllProgressPhotos(me.data.id).catch(() => undefined);
       // UX-ACC-11: the sign-in screen confirms it once.
       markAccountDeleted();
       await signOut({ reason: 'account-deleted' });
@@ -228,6 +234,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
             </View>
           ))}
           <Text className="text-caption text-label-tertiary">{COPY.backups}</Text>
+          <Text className="text-caption text-label-tertiary">{COPY.progressPhotos}</Text>
         </View>
         {oauthOnly ? (
           <View testID="delete-account-reauth" className="gap-1">

@@ -214,4 +214,7 @@ export interface EventMap {
   coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
   // Lane D3: which measures were saved (never the values) and the unit system.
   body_measurement_logged: { measures: readonly BodyMeasure[]; units: 'metric' | 'imperial' };
+  // Lane D4: on-device progress photos (never the photo, never a count of them).
+  progress_photo_added: { source: 'camera' | 'library' };
+  progress_photos_compared: Record<string, never>;
 }

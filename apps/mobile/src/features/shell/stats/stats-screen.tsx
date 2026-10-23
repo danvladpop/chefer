@@ -30,6 +30,7 @@ import {
   formatNumber,
   localDateStr,
   MEASUREMENTS_COPY,
+  PROGRESS_PHOTOS_COPY,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
@@ -47,6 +48,7 @@ import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 import { BodyMeasurements } from '../../body/body-measurements';
+import { ProgressPhotos } from '../../body/progress-photos';
 import { CoachWhy } from '../../coach/coach-why';
 import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
@@ -561,6 +563,14 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
         <SectionTitle>{MEASUREMENTS_COPY.title}</SectionTitle>
         <BoardCard>
           <BodyMeasurements />
+        </BoardCard>
+      </View>
+
+      {/* Progress photos: on this phone only (lane D4) */}
+      <View className="gap-3">
+        <SectionTitle>{PROGRESS_PHOTOS_COPY.title}</SectionTitle>
+        <BoardCard>
+          <ProgressPhotos />
         </BoardCard>
       </View>
     </>
