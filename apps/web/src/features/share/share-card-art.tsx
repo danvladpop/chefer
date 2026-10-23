@@ -67,7 +67,17 @@ export function ShareCardArt({
         <div style={{ fontSize: 34, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 3 }}>
           {lines.eyebrow}
         </div>
-        <div style={{ fontSize: 76, fontWeight: 700, lineHeight: 1.1, marginTop: 16 }}>
+        <div
+          style={{
+            fontSize: 68,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            marginTop: 16,
+            // Two lines at most, so a long recipe name never pushes the link off.
+            display: 'block',
+            lineClamp: 2,
+          }}
+        >
           {lines.title}
         </div>
         {imageDataUrl ? (
@@ -75,25 +85,26 @@ export function ShareCardArt({
           <img
             src={imageDataUrl}
             width={936}
-            height={560}
-            style={{ marginTop: 40, borderRadius: 32, objectFit: 'cover' }}
+            height={440}
+            style={{ marginTop: 32, borderRadius: 32, objectFit: 'cover' }}
           />
         ) : null}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 44 }}>
+        {/* Two columns of tiles: up to six stats fit above the footer. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 32 }}>
           {lines.stats.map((stat) => (
             <div
               key={stat.label}
               style={{
                 display: 'flex',
-                alignItems: 'baseline',
-                gap: 20,
-                padding: '22px 32px',
+                flexDirection: 'column',
+                width: 460,
+                padding: '18px 28px',
                 borderRadius: 28,
                 background: 'rgba(255, 244, 230, 0.12)',
               }}
             >
-              <div style={{ fontSize: 60, fontWeight: 700 }}>{stat.value}</div>
-              <div style={{ fontSize: 36, opacity: 0.9 }}>{stat.label}</div>
+              <div style={{ fontSize: 48, fontWeight: 700 }}>{stat.value}</div>
+              <div style={{ fontSize: 28, opacity: 0.9 }}>{stat.label}</div>
             </div>
           ))}
         </div>

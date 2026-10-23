@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const image = { url: `/s/${id}/image`, ...SHARE_CARD_SIZE, alt: lines.title };
   return {
     ...smartAppBanner(),
-    title: `${lines.title} · Chefer`,
+    title: lines.title,
     description: lines.eyebrow,
     robots: { index: false },
     openGraph: { title: lines.title, description: lines.eyebrow, images: [image] },

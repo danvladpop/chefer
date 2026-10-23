@@ -18,6 +18,8 @@ export const APP_ROUTES = [
   '/tracker',
   '/progress',
   '/my-weeks',
+  // Lane E2: the weekly recap.
+  '/recap',
   '/profile',
   '/preferences',
   // Gym mode (gym_plan.md G5). /gym sends a profile-less account on to /gym/setup;
