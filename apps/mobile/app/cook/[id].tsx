@@ -26,7 +26,6 @@ import {
   clampCookServings,
   cn,
   defaultCookServings,
-  finishMealCopy,
   formatCookTimer,
   formatFractionalQuantity,
   formatPortion,
@@ -66,6 +65,7 @@ import { useHousehold } from '../../src/hooks/use-household';
 import { useUnits } from '../../src/hooks/use-units';
 import { track } from '../../src/lib/analytics';
 import { trackMealLogged } from '../../src/lib/analytics-events';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -84,16 +84,11 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const todayIso = (): string => localDateStr();
 
-const MEAL_SLOTS = [
-  { value: 'breakfast', label: 'Breakfast', testID: 'cook-slot-breakfast' },
-  { value: 'lunch', label: 'Lunch', testID: 'cook-slot-lunch' },
-  { value: 'dinner', label: 'Dinner', testID: 'cook-slot-dinner' },
-  { value: 'snack', label: 'Snack', testID: 'cook-slot-snack' },
-] as const;
-type MealSlot = (typeof MEAL_SLOTS)[number]['value'];
+const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+type MealSlot = (typeof MEAL_SLOTS)[number];
 
 const isMealSlot = (value: string | undefined): value is MealSlot =>
-  MEAL_SLOTS.some((slot) => slot.value === value);
+  MEAL_SLOTS.some((slot) => slot === value);
 
 function StepTimer({
   view,
@@ -104,6 +99,7 @@ function StepTimer({
   onToggle: () => void;
   onReset: () => void;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const { status, remainingSec } = view;
   const done = status === 'done';
@@ -116,12 +112,12 @@ function StepTimer({
         accessibilityRole="button"
         accessibilityLabel={
           done
-            ? 'Timer finished. Tap to reset'
+            ? t('cook.timer.finishedReset')
             : running
-              ? `Timer running, ${formatCookTimer(remainingSec)} left. Tap to pause`
+              ? t('cook.timer.runningPause', { time: formatCookTimer(remainingSec) })
               : status === 'paused'
-                ? `Timer paused at ${formatCookTimer(remainingSec)}. Tap to resume`
-                : `Start a ${formatCookTimer(remainingSec)} timer`
+                ? t('cook.timer.pausedResume', { time: formatCookTimer(remainingSec) })
+                : t('cook.timer.startTimer', { time: formatCookTimer(remainingSec) })
         }
         onPress={onToggle}
         className={cn(
@@ -144,13 +140,13 @@ function StepTimer({
             done ? 'text-positive' : 'text-brand',
           )}
         >
-          {done ? 'Time!' : formatCookTimer(remainingSec)}
+          {done ? t('cook.timer.timeUp') : formatCookTimer(remainingSec)}
         </Text>
       </PressableScale>
       {status === 'paused' ? (
         <IconButton
           testID="step-timer-reset"
-          accessibilityLabel="Reset timer"
+          accessibilityLabel={t('cook.timer.reset')}
           icon={<Icon name="refresh" size={20} color={colors.labelSecondary} />}
           onPress={onReset}
         />
@@ -160,6 +156,7 @@ function StepTimer({
 }
 
 export default function CookModeScreen() {
+  const { t } = useT();
   useKeepAwake();
   const {
     id,
@@ -257,10 +254,10 @@ export default function CookModeScreen() {
       setShowIngredients(false);
       return true;
     },
-    title: 'Leave cook mode?',
-    message: `You are on step ${step + 1}. Your place and ticked ingredients are kept if you come back to this recipe.`,
-    discardLabel: 'Leave',
-    keepLabel: 'Keep cooking',
+    title: t('cook.leave.title'),
+    message: t('cook.leave.message', { step: step + 1 }),
+    discardLabel: t('cook.leave.leave'),
+    keepLabel: t('cook.leave.keep'),
   });
 
   const upsertDay = trpc.tracker.logRecipe.useMutation({
@@ -327,19 +324,19 @@ export default function CookModeScreen() {
       >
         {notFound ? (
           <Text testID="cook-not-found" className="text-body text-label-secondary">
-            Recipe not found.
+            {t('recipes.detail.notFound')}
           </Text>
         ) : (
           <ErrorState
             testID="cook-load-error"
-            title="Couldn't load this recipe"
+            title={t('recipes.detail.loadError')}
             onRetry={recipeState.retry}
           />
         )}
         <TrainButton
           testID="cook-error-close"
           variant="outline"
-          label="Close"
+          label={t('common.actions.close')}
           onPress={() => router.back()}
         />
       </Screen>
@@ -379,7 +376,7 @@ export default function CookModeScreen() {
       <View className="min-h-11 flex-row items-center gap-2 px-4 py-2">
         <IconButton
           testID="cook-close"
-          accessibilityLabel="Exit cook mode"
+          accessibilityLabel={t('cook.exit')}
           icon={<Icon name="close" size={26} color={colors.label} />}
           onPress={() => router.back()}
           className="-ml-2"
@@ -395,13 +392,13 @@ export default function CookModeScreen() {
           </Text>
           {!finished && !noSteps && (
             <Text className="text-subhead text-label-secondary">
-              Step {safeStep + 1} of {totalSteps}
+              {t('cook.stepOf', { step: safeStep + 1, total: totalSteps })}
             </Text>
           )}
         </View>
         <IconButton
           testID="cook-ingredients-toggle"
-          accessibilityLabel="Toggle ingredients"
+          accessibilityLabel={t('cook.toggleIngredients')}
           variant={showIngredients ? 'tinted' : 'plain'}
           icon={<Icon name="list" color={colors.brand} />}
           onPress={() => setShowIngredients((s) => !s)}
@@ -413,45 +410,61 @@ export default function CookModeScreen() {
           view whichever step you are reading; tapping one jumps to its step. */}
       {!finished && cookTimers.active.length > 0 ? (
         <View testID="cook-timer-chips" className="mx-4 mb-2 flex-row flex-wrap gap-2">
-          {cookTimers.active.map((t) => (
+          {cookTimers.active.map((timer) => (
             <PressableScale
-              key={t.step}
-              testID={`cook-timer-chip-${t.step}`}
+              key={timer.step}
+              testID={`cook-timer-chip-${timer.step}`}
               accessibilityRole="button"
               accessibilityLabel={
-                t.status === 'done'
-                  ? `Step ${t.step + 1} timer finished. Go to step`
-                  : `Step ${t.step + 1} timer, ${formatCookTimer(t.remainingSec)} ${
-                      t.status === 'paused' ? 'paused' : 'left'
-                    }. Go to step`
+                timer.status === 'done'
+                  ? t('cook.timer.chipAriaDone', { step: timer.step + 1 })
+                  : timer.status === 'paused'
+                    ? t('cook.timer.chipAriaPaused', {
+                        step: timer.step + 1,
+                        time: formatCookTimer(timer.remainingSec),
+                      })
+                    : t('cook.timer.chipAriaRunning', {
+                        step: timer.step + 1,
+                        time: formatCookTimer(timer.remainingSec),
+                      })
               }
               onPress={() => {
                 setShowIngredients(false);
-                stepDirection.current = t.step >= step ? 1 : -1;
-                setStep(t.step);
+                stepDirection.current = timer.step >= step ? 1 : -1;
+                setStep(timer.step);
               }}
               className={cn(
                 'min-h-11 flex-row items-center gap-1.5 rounded-full border px-3 py-2',
-                t.status === 'done'
+                timer.status === 'done'
                   ? 'border-positive/30 bg-positive/10'
-                  : t.status === 'running'
+                  : timer.status === 'running'
                     ? 'border-brand bg-brand-tint'
                     : 'border-separator bg-surface',
               )}
             >
               <Icon
-                name={t.status === 'done' ? 'checkmark' : t.status === 'paused' ? 'pause' : 'timer'}
+                name={
+                  timer.status === 'done'
+                    ? 'checkmark'
+                    : timer.status === 'paused'
+                      ? 'pause'
+                      : 'timer'
+                }
                 size={16}
-                color={t.status === 'done' ? colors.positive : colors.brand}
+                color={timer.status === 'done' ? colors.positive : colors.brand}
               />
               <Text
                 className={cn(
                   'text-callout font-semibold tabular-nums',
-                  t.status === 'done' ? 'text-positive' : 'text-brand',
+                  timer.status === 'done' ? 'text-positive' : 'text-brand',
                 )}
               >
-                Step {t.step + 1} ·{' '}
-                {t.status === 'done' ? 'Time!' : formatCookTimer(t.remainingSec)}
+                {timer.status === 'done'
+                  ? t('cook.timer.chipTimeUp', { step: timer.step + 1 })
+                  : t('cook.timer.chipTime', {
+                      step: timer.step + 1,
+                      time: formatCookTimer(timer.remainingSec),
+                    })}
               </Text>
             </PressableScale>
           ))}
@@ -474,7 +487,10 @@ export default function CookModeScreen() {
             progress={finished ? 1 : (safeStep + 1) / totalSteps}
             color={colors.brand}
             className="h-1.5 bg-surface-sunken"
-            accessibilityLabel={`Step ${Math.min(safeStep + 1, totalSteps)} of ${totalSteps}`}
+            accessibilityLabel={t('cook.stepOf', {
+              step: Math.min(safeStep + 1, totalSteps),
+              total: totalSteps,
+            })}
           />
         </View>
       )}
@@ -483,25 +499,27 @@ export default function CookModeScreen() {
         /* Ingredient checklist */
         <ScrollView contentContainerClassName="gap-2 px-4 py-3 pb-8">
           <View className="flex-row items-center justify-between gap-2">
-            <SectionTitle>Ingredients</SectionTitle>
+            <SectionTitle>{t('recipes.detail.ingredients')}</SectionTitle>
             {/* Servings scaler (web cook mode's top-bar stepper) */}
             <View className="flex-row items-center rounded-full border border-separator bg-surface">
               <IconButton
                 testID="cook-servings-dec"
-                accessibilityLabel="Fewer servings"
+                accessibilityLabel={t('cook.fewerServings')}
                 icon={<Icon name="remove" size={20} color={colors.brand} />}
                 onPress={() => setServings(clampCookServings(selectedServings - 1))}
               />
               <Text
                 testID="cook-servings"
-                accessibilityLabel={`${formatFractionalQuantity(selectedServings)} servings`}
+                accessibilityLabel={t('cook.servingsCount', {
+                  servings: formatFractionalQuantity(selectedServings),
+                })}
                 className="min-w-[28px] px-1 text-center text-callout font-semibold text-label"
               >
                 {formatFractionalQuantity(selectedServings)}
               </Text>
               <IconButton
                 testID="cook-servings-inc"
-                accessibilityLabel="More servings"
+                accessibilityLabel={t('cook.moreServings')}
                 icon={<Icon name="add" size={20} color={colors.brand} />}
                 onPress={() => setServings(clampCookServings(selectedServings + 1))}
               />
@@ -509,12 +527,12 @@ export default function CookModeScreen() {
           </View>
           {scaledMembers !== null && (
             <Text testID="cook-table-portions" className="text-caption text-label-secondary">
-              Sized for your table: {tableBreakdown(planPortion, scaledMembers)}.
+              {t('cook.sizedForTable', { table: tableBreakdown(planPortion, scaledMembers) ?? '' })}
             </Text>
           )}
           {scaledMembers === null && planPortion !== 1 && (
             <Text testID="cook-plan-portion" className="text-caption text-label-secondary">
-              Set for your plan&apos;s {formatPortion(planPortion)} portion.
+              {t('cook.planPortion', { portion: formatPortion(planPortion) })}
             </Text>
           )}
           {/* T-02.3: top of the ingredient list — never both with the
@@ -573,14 +591,14 @@ export default function CookModeScreen() {
           {noSteps ? (
             <TrainButton
               testID="cook-no-steps-done"
-              label="Finish"
+              label={t('cook.finish.button')}
               size="lg"
               className="mt-2"
               onPress={() => setFinished(true)}
             />
           ) : (
             <TrainButton
-              label="Back to cooking"
+              label={t('cook.backToCooking')}
               size="lg"
               className="mt-2"
               onPress={() => setShowIngredients(false)}
@@ -597,19 +615,29 @@ export default function CookModeScreen() {
             <Text className="text-display">🎉</Text>
           </PopIn>
           <Text testID="cook-finished" className="text-center text-title1 font-bold text-label">
-            {finishMealCopy(meal)}
+            {meal
+              ? t('cook.finish.enjoyMeal', {
+                  meal: isMealSlot(meal) ? t(`cook.mealLower.${meal}`) : meal,
+                })
+              : t('cook.finish.enjoy')}
           </Text>
           <Text className="text-center text-body text-label-secondary">
-            Log it to today&apos;s tracker to keep your day&apos;s totals up to date.
+            {t('cook.finish.logHint')}
           </Text>
           {/* UX-COOK-04: the slot is a choice, preset from the plan or the clock. */}
           {logged ? null : (
             <View className="items-center gap-2 self-stretch">
-              <Text className="text-subhead font-semibold text-label-secondary">Log it as</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">
+                {t('cook.finish.logAs')}
+              </Text>
               <ChipGroup
                 testID="cook-slot"
                 className="justify-center"
-                options={MEAL_SLOTS.map((o) => ({ ...o }))}
+                options={MEAL_SLOTS.map((value) => ({
+                  value,
+                  label: t(`recipes.mealTypes.${value}`),
+                  testID: `cook-slot-${value}`,
+                }))}
                 value={[slot]}
                 onChange={([next]) => next && setSlot(next)}
               />
@@ -617,7 +645,7 @@ export default function CookModeScreen() {
           )}
           <TrainButton
             testID="cook-log"
-            label={logged ? 'Logged to tracker ✓' : 'Log this meal'}
+            label={logged ? t('cook.finish.loggedToTracker') : t('cook.finish.logThisMeal')}
             size="lg"
             className="self-stretch"
             loading={upsertDay.isPending}
@@ -632,12 +660,12 @@ export default function CookModeScreen() {
           {logged && loggedAs ? (
             <View className="items-center gap-1">
               <Text testID="cook-logged-as" className="text-subhead text-label-secondary">
-                Logged as {loggedAs.slot}.
+                {t('cook.finish.loggedAs', { meal: t(`cook.mealLower.${loggedAs.slot}`) })}
               </Text>
               <TrainButton
                 testID="cook-log-undo"
                 variant="outline"
-                label="Undo"
+                label={t('recipes.list.undo')}
                 loading={undoLog.isPending}
                 onPress={() =>
                   undoLog.mutate({
@@ -661,13 +689,17 @@ export default function CookModeScreen() {
               {/* Ratings feed next week's generation (P1-1) — say so. */}
               <StarRating
                 recipeId={recipe.id}
-                title="How was it?"
-                hint="Your rating shapes what the chef cooks up next week."
+                title={t('cook.finish.howWasIt')}
+                hint={t('cook.finish.ratingHint')}
                 className="self-stretch"
               />
             </>
           )}
-          <TrainButton variant="outline" label="Done" onPress={() => router.back()} />
+          <TrainButton
+            variant="outline"
+            label={t('common.actions.done')}
+            onPress={() => router.back()}
+          />
         </KeyboardAwareScrollView>
       ) : (
         /* Step view — big text, kitchen-distance readable */
@@ -688,8 +720,9 @@ export default function CookModeScreen() {
                   className="gap-1 rounded-card border border-separator bg-surface p-4"
                 >
                   <Text className="text-subhead text-label-secondary">
-                    For {formatFractionalQuantity(selectedServings)}{' '}
-                    {selectedServings === 1 ? 'serving' : 'servings'}
+                    {t(selectedServings === 1 ? 'cook.forServingOne' : 'cook.forServings', {
+                      servings: formatFractionalQuantity(selectedServings),
+                    })}
                   </Text>
                   {stepAmounts.map((a) => (
                     <View key={a.index} className="flex-row items-baseline gap-2">
@@ -716,7 +749,7 @@ export default function CookModeScreen() {
             <TrainButton
               testID="cook-prev"
               variant="outline"
-              label="Back"
+              label={t('common.actions.back')}
               size="lg"
               className="flex-1"
               disabled={safeStep === 0}
@@ -727,7 +760,7 @@ export default function CookModeScreen() {
             />
             <TrainButton
               testID="cook-next"
-              label={safeStep >= totalSteps - 1 ? 'Finish' : 'Next step'}
+              label={safeStep >= totalSteps - 1 ? t('cook.finish.button') : t('cook.nextStep')}
               size="lg"
               className="flex-1"
               onPress={() => {

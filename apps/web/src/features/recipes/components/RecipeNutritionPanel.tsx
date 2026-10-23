@@ -3,14 +3,10 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { SourceBadge } from '@/features/ingredients/components/SourceBadge';
+import { useT } from '@/lib/i18n';
 import type { RouterOutputs } from '@/lib/trpc';
 import { AlertTriangle, Calculator, ChevronDown, PenLine } from 'lucide-react';
 import { cn, pressControl } from '@chefer/ui';
-import {
-  NUTRITION_USER_ENTERED_COPY,
-  nutritionComputedCopy,
-  nutritionIncompleteCopy,
-} from '@chefer/utils';
 
 // ─── Recipe detail nutrition (plan-ingredient-catalog §10) ────────────────────
 // The visible proof of the owner's requirement: the numbers are computed from
@@ -40,6 +36,7 @@ export function RecipeNutritionPanel({
   recipeId: string;
   canEdit: boolean;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const n = recipe.nutritionInfo;
@@ -51,25 +48,31 @@ export function RecipeNutritionPanel({
   return (
     <section className="mt-8 rounded-2xl border bg-white p-5" aria-labelledby={`${panelId}-title`}>
       <h2 id={`${panelId}-title`} className="mb-3 font-serif text-sm font-semibold text-gray-900">
-        Nutrition Facts <span className="text-xs font-normal text-gray-500">per serving</span>
+        {t('recipes.nutrition.title')}{' '}
+        <span className="text-xs font-normal text-gray-500">
+          {t('recipes.nutrition.perServing')}
+        </span>
       </h2>
       <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-        <NutritionRow label="Calories" value={`${n.calories} kcal`} />
-        <NutritionRow label="Protein" value={`${n.protein}g`} />
-        <NutritionRow label="Carbs" value={`${n.carbs}g`} />
-        <NutritionRow label="Fat" value={`${n.fat}g`} />
+        <NutritionRow
+          label={t('recipes.detail.calories')}
+          value={t('recipes.card.kcal', { value: n.calories })}
+        />
+        <NutritionRow label={t('recipes.macros.protein')} value={`${n.protein}g`} />
+        <NutritionRow label={t('recipes.macros.carbs')} value={`${n.carbs}g`} />
+        <NutritionRow label={t('recipes.macros.fat')} value={`${n.fat}g`} />
       </div>
 
       {status === 'USER_ENTERED' ? (
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600">
           <PenLine className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>{NUTRITION_USER_ENTERED_COPY}.</span>
+          <span>{t('recipes.nutrition.userEntered')}</span>
           {canEdit && (
             <Link
               href={`/recipes/${recipeId}/edit`}
               className="inline-flex min-h-11 items-center font-semibold text-[#944a00] hover:underline"
             >
-              Link the ingredients to compute it
+              {t('recipes.nutrition.linkIngredients')}
             </Link>
           )}
         </p>
@@ -78,8 +81,8 @@ export function RecipeNutritionPanel({
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden="true" />
           <span className="font-medium text-amber-900">
             {lines.length > 0
-              ? `${nutritionIncompleteCopy(missing)}.`
-              : 'Incomplete — the ingredients aren’t linked to food data yet.'}
+              ? t('recipes.nutrition.incomplete', { count: missing })
+              : t('recipes.nutrition.incompleteNoLines')}
           </span>
           {canEdit && (
             <Link
@@ -87,7 +90,7 @@ export function RecipeNutritionPanel({
               data-testid="nutrition-fix-link"
               className="inline-flex min-h-11 items-center font-semibold text-[#944a00] hover:underline"
             >
-              Fix in the editor
+              {t('recipes.nutrition.fix')}
             </Link>
           )}
         </p>
@@ -108,8 +111,8 @@ export function RecipeNutritionPanel({
             <Calculator className="h-3.5 w-3.5 shrink-0 text-green-700" aria-hidden="true" />
             <span className="min-w-0">
               {status === 'COMPUTED'
-                ? nutritionComputedCopy(counted.length)
-                : `See the ${lines.length} ingredient${lines.length === 1 ? '' : 's'}`}
+                ? t('recipes.nutrition.computedFrom', { count: counted.length })
+                : t('recipes.nutrition.seeIngredients', { count: lines.length })}
             </span>
             <ChevronDown
               className={cn(
@@ -122,9 +125,12 @@ export function RecipeNutritionPanel({
           {open && (
             <div id={panelId} className="mt-2 animate-in fade-in-0 duration-fast">
               <p className="mb-2 text-xs text-gray-600">
-                {`The recipe as written (${recipe.servings} serving${recipe.servings === 1 ? '' : 's'}), computed from standard food data.`}
+                {t('recipes.nutrition.asWritten', { count: recipe.servings })}
               </p>
-              <ul className="divide-y rounded-xl border" aria-label="Nutrition per ingredient">
+              <ul
+                className="divide-y rounded-xl border"
+                aria-label={t('recipes.nutrition.perIngredient')}
+              >
                 {lines.map((l) => (
                   <BreakdownRow key={l.position} line={l} />
                 ))}
@@ -138,6 +144,7 @@ export function RecipeNutritionPanel({
 }
 
 function BreakdownRow({ line }: { line: BreakdownLine }) {
+  const { t } = useT();
   const name = line.ingredientName ?? line.rawName;
   const amount = `${fmt1(line.quantity)} ${line.unit}`.trim();
   return (
@@ -145,21 +152,29 @@ function BreakdownRow({ line }: { line: BreakdownLine }) {
       <div className="min-w-0 flex-1">
         <p className="break-words font-medium text-gray-900">{name}</p>
         <p className="text-gray-500">
-          {amount}
-          {line.grams != null && line.unit !== 'g' ? ` · ${fmt1(line.grams)} g` : ''}
-          {line.optional ? ' · optional, not counted' : ''}
+          {[
+            amount,
+            line.grams != null && line.unit !== 'g' ? `${fmt1(line.grams)} g` : null,
+            line.optional ? t('recipes.nutrition.optionalNotCounted') : null,
+          ]
+            .filter((part) => part !== null)
+            .join(' · ')}
         </p>
       </div>
       <div className="shrink-0 text-right tabular-nums">
         {line.facts ? (
           <>
-            <p className="font-semibold text-gray-900">{line.facts.calories} kcal</p>
-            <p className="text-gray-500">{fmt1(line.facts.protein)} g protein</p>
+            <p className="font-semibold text-gray-900">
+              {t('recipes.card.kcal', { value: line.facts.calories })}
+            </p>
+            <p className="text-gray-500">
+              {t('recipes.nutrition.proteinGrams', { value: fmt1(line.facts.protein) })}
+            </p>
           </>
         ) : line.grams != null && line.ingredientId == null ? (
-          <p className="text-gray-500">Private ingredient</p>
+          <p className="text-gray-500">{t('recipes.nutrition.privateIngredient')}</p>
         ) : (
-          <p className="font-medium text-amber-800">Needs data</p>
+          <p className="font-medium text-amber-800">{t('recipes.nutrition.needsData')}</p>
         )}
       </div>
       {line.nutritionSource ? (

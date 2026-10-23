@@ -60,6 +60,7 @@ import { TrainButton } from '../../src/features/shell/train/train-button';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
+import { useT } from '../../src/lib/i18n';
 import { isPreparing } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
@@ -141,6 +142,7 @@ function MenuIcon({
 }
 
 export default function RecipeDetailScreen() {
+  const { t } = useT();
   const { id, day, meal, portion, owner } = useLocalSearchParams<{
     id: string;
     day?: string;
@@ -227,16 +229,16 @@ export default function RecipeDetailScreen() {
       >
         {notFound ? (
           <Text testID="recipe-not-found" className="text-body text-label-secondary">
-            Recipe not found.
+            {t('recipes.detail.notFound')}
           </Text>
         ) : (
           <ErrorState
             testID="recipe-load-error"
-            title="Couldn't load this recipe"
+            title={t('recipes.detail.loadError')}
             onRetry={recipeState.retry}
           />
         )}
-        <TrainButton variant="outline" label="Go back" onPress={leave} />
+        <TrainButton variant="outline" label={t('recipes.screen.goBack')} onPress={leave} />
       </Screen>
     );
   }
@@ -269,9 +271,9 @@ export default function RecipeDetailScreen() {
   // is sent as 0 and means "unknown", so the stat is hidden, not shown as 0.
   const timeStats = (
     [
-      ['Prep', recipe.prepTimeMins],
-      ['Cook', recipe.cookTimeMins],
-      ['Total', totalTime],
+      ['prep', recipe.prepTimeMins],
+      ['cook', recipe.cookTimeMins],
+      ['total', totalTime],
     ] as const
   ).filter(([, minutes]) => minutes > 0);
 
@@ -296,7 +298,7 @@ export default function RecipeDetailScreen() {
     try {
       const plan = await utils.client.mealPlan.getForWeek.query({ weekOffset: 0 });
       if (!plan) {
-        snackbar.show({ message: 'Make a plan first, then add ingredients to its list.' });
+        snackbar.show({ message: t('recipes.detail.needPlan') });
         return;
       }
       const lines = shoppingLinesFor(recipe.ingredients, selectedServings, recipe.servings);
@@ -305,12 +307,12 @@ export default function RecipeDetailScreen() {
       }
       void utils.shoppingList.getForWeek.invalidate();
       snackbar.show({
-        message: `Added ${lines.length} ingredient${lines.length === 1 ? '' : 's'} to your shopping list`,
+        message: t('recipes.detail.addedToList', { count: lines.length }),
         tone: 'success',
       });
     } catch (error) {
       snackbar.show({
-        message: userFacingErrorMessage(error, 'Couldn’t add them to the list. Try again.'),
+        message: userFacingErrorMessage(error, t('recipes.detail.addToListError')),
       });
     }
   };
@@ -324,15 +326,15 @@ export default function RecipeDetailScreen() {
           void utils.recipe.list.invalidate();
           void utils.mealPlan.getForWeek.invalidate();
           snackbar.show({
-            message: `Deleted “${recipe.name}”`,
-            actionLabel: 'Undo',
+            message: t('recipes.list.deleted', { name: recipe.name }),
+            actionLabel: t('recipes.list.undo'),
             onAction: () => {
               void utils.client.recipe.restoreMine.mutate({ recipeId: recipe.id }).then(
                 () => {
                   void utils.recipe.list.invalidate();
                   void utils.mealPlan.getForWeek.invalidate();
                 },
-                () => snackbar.show({ message: 'Couldn’t restore the recipe. Try again.' }),
+                () => snackbar.show({ message: t('recipes.screen.restoreError') }),
               );
             },
           });
@@ -390,7 +392,7 @@ export default function RecipeDetailScreen() {
       >
         <IconButton
           testID="recipe-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={leave}
           className="-ml-2"
@@ -401,14 +403,14 @@ export default function RecipeDetailScreen() {
           {isOwner ? (
             <IconButton
               testID="recipe-edit"
-              accessibilityLabel="Edit recipe"
+              accessibilityLabel={t('recipes.list.editRecipe')}
               icon={<Icon name="edit" color={colors.brand} />}
               onPress={() => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })}
             />
           ) : null}
           <IconButton
             testID="recipe-report-overflow"
-            accessibilityLabel="More options"
+            accessibilityLabel={t('recipes.screen.moreOptions')}
             icon={<Icon name="more" color={colors.brand} />}
             onPress={() => setOverflowOpen(true)}
             className="-mr-2"
@@ -490,9 +492,7 @@ export default function RecipeDetailScreen() {
                 accessibilityRole="summary"
                 className="rounded-card bg-surface-sunken px-3 py-2"
               >
-                <Text className="text-subhead text-label">
-                  This recipe was deleted. It stays in the plan slots that already use it.
-                </Text>
+                <Text className="text-subhead text-label">{t('recipes.detail.deletedBanner')}</Text>
               </View>
             ) : null}
             {recipe.hidden ? (
@@ -554,7 +554,7 @@ export default function RecipeDetailScreen() {
               testID="recipe-cook"
               variant={offerAddToWeek ? 'tinted' : 'primary'}
               icon="cook"
-              label="Cook"
+              label={t('recipes.detail.cook')}
               className="flex-1"
               onPress={() =>
                 router.push({
@@ -573,7 +573,7 @@ export default function RecipeDetailScreen() {
               testID="recipe-save"
               variant={isSaved ? 'tinted' : 'outline'}
               icon={isSaved ? 'heart' : 'heartOutline'}
-              label={isSaved ? 'Saved' : 'Save'}
+              label={isSaved ? t('common.states.saved') : t('common.actions.save')}
               className="flex-1"
               loading={toggleFav.isPending}
               onPress={() => toggleFav.mutate({ recipeId: id })}
@@ -596,16 +596,24 @@ export default function RecipeDetailScreen() {
             hidden rather than shown as "0m" / "0 kcal" (UX-40). */}
           {(timeStats.length > 0 || nutritionAdded) && (
             <View className="flex-row justify-between rounded-card border border-separator bg-surface px-4 py-3">
-              {timeStats.map(([label, minutes]) => (
-                <View key={label} className="items-center">
-                  <Text className="text-caption text-label-secondary">{label}</Text>
-                  <Text className="text-callout font-semibold text-label">{minutes}m</Text>
+              {timeStats.map(([kind, minutes]) => (
+                <View key={kind} className="items-center">
+                  <Text className="text-caption text-label-secondary">
+                    {t(`recipes.screen.time.${kind}`)}
+                  </Text>
+                  <Text className="text-callout font-semibold text-label">
+                    {t('recipes.card.minutesShort', { mins: minutes })}
+                  </Text>
                 </View>
               ))}
               {nutritionAdded && (
                 <View className="items-center">
-                  <Text className="text-caption text-label-secondary">Energy</Text>
-                  <Text className="text-callout font-semibold text-label">{n.calories} kcal</Text>
+                  <Text className="text-caption text-label-secondary">
+                    {t('recipes.screen.energy')}
+                  </Text>
+                  <Text className="text-callout font-semibold text-label">
+                    {t('recipes.card.kcal', { value: n.calories })}
+                  </Text>
                   {statusBadge ? (
                     <Text
                       testID="recipe-energy-status"
@@ -626,8 +634,13 @@ export default function RecipeDetailScreen() {
           {planPortion !== 1 && (
             <View testID="recipe-plan-portion" className="rounded-card bg-brand-tint px-3 py-2">
               <Text className="text-subhead text-brand">
-                Your plan has a {formatPortion(planPortion)} portion here — {planN.calories} kcal ·{' '}
-                {Math.round(planN.protein)} g protein. Quantities start at it.
+                {t('recipes.detail.portionNote', {
+                  portion: t('recipes.detail.portionLabel', {
+                    portion: formatPortion(planPortion),
+                  }),
+                  kcal: planN.calories,
+                  protein: Math.round(planN.protein),
+                })}
               </Text>
             </View>
           )}
@@ -635,7 +648,9 @@ export default function RecipeDetailScreen() {
           {/* UX-REC-02: the table is the user's portion plus each member, spelled out. */}
           {scaledMembers !== null && (
             <Text testID="recipe-table-breakdown" className="text-caption text-label-secondary">
-              Sized for your table: {tableBreakdown(planPortion, scaledMembers)}
+              {t('recipes.screen.sizedForTable', {
+                table: tableBreakdown(planPortion, scaledMembers) ?? '',
+              })}
             </Text>
           )}
 
@@ -644,16 +659,18 @@ export default function RecipeDetailScreen() {
             <View className="flex-row gap-2">
               {(
                 [
-                  ['Protein', n.protein],
-                  ['Carbs', n.carbs],
-                  ['Fat', n.fat],
+                  ['protein', n.protein],
+                  ['carbs', n.carbs],
+                  ['fat', n.fat],
                 ] as const
-              ).map(([label, value]) => (
+              ).map(([kind, value]) => (
                 <View
-                  key={label}
+                  key={kind}
                   className="flex-1 items-center rounded-card bg-surface-sunken py-2"
                 >
-                  <Text className="text-caption text-label-secondary">{label}</Text>
+                  <Text className="text-caption text-label-secondary">
+                    {t(`recipes.macros.${kind}`)}
+                  </Text>
                   <Text className="text-callout font-semibold text-label">{value}g</Text>
                 </View>
               ))}
@@ -663,10 +680,10 @@ export default function RecipeDetailScreen() {
           {/* Ingredients + servings adjuster */}
           <BoardCard testID="recipe-ingredients">
             <View className="flex-row items-center justify-between gap-2">
-              <SectionTitle>Ingredients</SectionTitle>
+              <SectionTitle>{t('recipes.detail.ingredients')}</SectionTitle>
               <View className="flex-row items-center rounded-full border border-separator">
                 <IconButton
-                  accessibilityLabel="Decrease servings"
+                  accessibilityLabel={t('recipes.detail.decreaseServings')}
                   icon={<Icon name="remove" color={colors.brand} size={20} />}
                   onPress={() => setServings(clampCookServings(selectedServings - 1))}
                 />
@@ -677,7 +694,7 @@ export default function RecipeDetailScreen() {
                   {formatFractionalQuantity(selectedServings)}
                 </Text>
                 <IconButton
-                  accessibilityLabel="Increase servings"
+                  accessibilityLabel={t('recipes.detail.increaseServings')}
                   icon={<Icon name="add" color={colors.brand} size={20} />}
                   onPress={() => setServings(clampCookServings(selectedServings + 1))}
                 />
@@ -686,11 +703,17 @@ export default function RecipeDetailScreen() {
             {/* UX-REC-11: say what the stepper changed, with the totals. */}
             {selectedServings !== recipe.servings ? (
               <Text testID="recipe-servings-note" className="text-caption text-label-secondary">
-                Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes{' '}
-                {recipe.servings}) — amounts are scaled
                 {nutritionAdded
-                  ? `; about ${Math.round(totalN.calories)} kcal and ${Math.round(totalN.protein)} g protein in total.`
-                  : '.'}
+                  ? t('recipes.detail.servingsNoteTotals', {
+                      servings: formatFractionalQuantity(selectedServings),
+                      base: recipe.servings,
+                      kcal: Math.round(totalN.calories),
+                      protein: Math.round(totalN.protein),
+                    })
+                  : t('recipes.detail.servingsNote', {
+                      servings: formatFractionalQuantity(selectedServings),
+                      base: recipe.servings,
+                    })}
               </Text>
             ) : null}
             <View className="gap-2">
@@ -708,7 +731,7 @@ export default function RecipeDetailScreen() {
           {/* Instructions — D10/UX-40: no steps is a valid recipe, not an
             error; the card reads "No steps yet" instead of rendering empty. */}
           <BoardCard testID="recipe-instructions">
-            <SectionTitle>Instructions</SectionTitle>
+            <SectionTitle>{t('recipes.detail.instructions')}</SectionTitle>
             {recipe.instructions.length > 0 ? (
               <View className="gap-4">
                 {recipe.instructions.map((step, i) => (
@@ -722,7 +745,7 @@ export default function RecipeDetailScreen() {
               </View>
             ) : (
               <Text testID="recipe-no-steps" className="text-body text-label-secondary">
-                No steps yet
+                {t('recipes.screen.noSteps')}
               </Text>
             )}
           </BoardCard>
@@ -734,22 +757,28 @@ export default function RecipeDetailScreen() {
             for what's actually selected. */}
           <BoardCard testID="recipe-nutrition-facts">
             <View className="flex-row items-baseline gap-2">
-              <SectionTitle>Nutrition Facts</SectionTitle>
-              <Text className="text-subhead text-label-secondary">per serving</Text>
+              <SectionTitle>{t('recipes.nutrition.title')}</SectionTitle>
+              <Text className="text-subhead text-label-secondary">
+                {t('recipes.nutrition.perServing')}
+              </Text>
             </View>
             {nutritionAdded ? (
               <>
                 <View className="flex-row flex-wrap">
                   {(
                     [
-                      ['Calories', `${n.calories} kcal`],
-                      ['Protein', `${n.protein}g`],
-                      ['Carbs', `${n.carbs}g`],
-                      ['Fat', `${n.fat}g`],
+                      ['calories', t('recipes.card.kcal', { value: n.calories })],
+                      ['protein', `${n.protein}g`],
+                      ['carbs', `${n.carbs}g`],
+                      ['fat', `${n.fat}g`],
                     ] as const
-                  ).map(([label, value]) => (
-                    <View key={label} className="w-1/2 flex-row justify-between py-1 pr-4">
-                      <Text className="text-subhead text-label-secondary">{label}</Text>
+                  ).map(([kind, value]) => (
+                    <View key={kind} className="w-1/2 flex-row justify-between py-1 pr-4">
+                      <Text className="text-subhead text-label-secondary">
+                        {kind === 'calories'
+                          ? t('recipes.detail.calories')
+                          : t(`recipes.macros.${kind}`)}
+                      </Text>
                       <Text className="text-subhead font-semibold text-label">{value}</Text>
                     </View>
                   ))}
@@ -759,8 +788,10 @@ export default function RecipeDetailScreen() {
                     testID="recipe-nutrition-scaled"
                     className="text-caption text-label-secondary"
                   >
-                    Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
-                    {Math.round(n.calories * selectedServings)} kcal total
+                    {t('recipes.screen.scaledFor', {
+                      servings: formatFractionalQuantity(selectedServings),
+                      kcal: Math.round(n.calories * selectedServings),
+                    })}
                   </Text>
                 )}
                 <NutritionProvenance
@@ -777,7 +808,7 @@ export default function RecipeDetailScreen() {
               </>
             ) : (
               <Text testID="recipe-nutrition-not-added" className="text-body text-label-secondary">
-                Nutrition not added
+                {t('recipes.screen.nutritionNotAdded')}
               </Text>
             )}
           </BoardCard>
@@ -829,14 +860,14 @@ export default function RecipeDetailScreen() {
           <ListRow
             testID="recipe-overflow-shopping"
             icon={<MenuIcon name="cart" />}
-            title="Add ingredients to shopping list"
+            title={t('recipes.screen.addToShoppingList')}
             accessory="none"
             onPress={() => chooseOverflow('shopping')}
           />
           <ListRow
             testID="recipe-overflow-share"
             icon={<MenuIcon name="share" />}
-            title="Share"
+            title={t('recipes.detail.share')}
             accessory="none"
             onPress={() => chooseOverflow('share')}
           />
@@ -844,7 +875,7 @@ export default function RecipeDetailScreen() {
             <ListRow
               testID="recipe-overflow-edit"
               icon={<MenuIcon name="edit" />}
-              title="Edit"
+              title={t('common.actions.edit')}
               accessory="none"
               onPress={() => chooseOverflow('edit')}
             />
@@ -853,7 +884,7 @@ export default function RecipeDetailScreen() {
             <ListRow
               testID="recipe-overflow-duplicate"
               icon={<MenuIcon name="copy" />}
-              title="Duplicate"
+              title={t('recipes.detail.duplicate')}
               accessory="none"
               onPress={() => chooseOverflow('duplicate')}
             />
@@ -861,7 +892,7 @@ export default function RecipeDetailScreen() {
           <ListRow
             testID="recipe-overflow-safety"
             icon={<MenuIcon name="shield" />}
-            title="Report a safety problem"
+            title={t('recipes.detail.reportLabel')}
             accessory="none"
             onPress={() => chooseOverflow('safety')}
           />
@@ -878,7 +909,7 @@ export default function RecipeDetailScreen() {
             <ListRow
               testID="recipe-overflow-delete"
               icon={<MenuIcon name="trash" destructive />}
-              title="Delete"
+              title={t('common.actions.delete')}
               destructive
               onPress={() => chooseOverflow('delete')}
             />
@@ -891,10 +922,10 @@ export default function RecipeDetailScreen() {
         onClose={() => {
           if (!deleteMine.isPending) setDeleteOpen(false);
         }}
-        title="Delete this recipe?"
-        body={`“${recipe.name}” will be removed from your cookbook, lists and suggestions. Plan slots that already use it keep it. You can undo right after.`}
-        confirmLabel="Delete"
-        cancelLabel="Keep it"
+        title={t('recipes.detail.deleteTitle')}
+        body={t('recipes.detail.deleteBody', { name: recipe.name })}
+        confirmLabel={t('common.actions.delete')}
+        cancelLabel={t('recipes.detail.keepIt')}
         destructive
         busy={deleteMine.isPending}
         error={deleteMine.isError ? userFacingErrorMessage(deleteMine.error) : null}

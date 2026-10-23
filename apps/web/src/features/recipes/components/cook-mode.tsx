@@ -14,6 +14,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { useQueryState } from '@/lib/use-query-state';
 import {
@@ -60,16 +61,11 @@ import { useCookTimers, type CookTimerView } from './use-cook-timers';
 // absolute `endsAt` stamps held here (UX-COOK-01); each step lists its own
 // ingredient amounts (UX-COOK-04).
 
-const MEAL_SLOTS = [
-  { value: 'breakfast', label: 'Breakfast' },
-  { value: 'lunch', label: 'Lunch' },
-  { value: 'dinner', label: 'Dinner' },
-  { value: 'snack', label: 'Snack' },
-] as const;
-type MealSlot = (typeof MEAL_SLOTS)[number]['value'];
+const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+type MealSlot = (typeof MEAL_SLOTS)[number];
 
 const isMealSlot = (value: string | null | undefined): value is MealSlot =>
-  MEAL_SLOTS.some((slot) => slot.value === value);
+  MEAL_SLOTS.some((slot) => slot === value);
 
 function todayIso(): string {
   const now = new Date();
@@ -96,6 +92,7 @@ function StepTimer({
   /** Space starts/pauses the timer (off while the ingredients drawer is open). */
   shortcutsEnabled: boolean;
 }) {
+  const { t } = useT();
   const { status, remainingSec } = view;
   const done = status === 'done';
   const running = status === 'running';
@@ -126,12 +123,12 @@ function StepTimer({
           done ? 'text-emerald-700' : 'text-[#944a00]'
         }`}
       >
-        {done ? 'Done!' : formatCookTimer(remainingSec)}
+        {done ? t('cook.timer.done') : formatCookTimer(remainingSec)}
       </span>
       {!done && (
         <button
           onClick={onToggle}
-          aria-label={running ? 'Pause timer' : 'Start timer'}
+          aria-label={running ? t('cook.timer.pause') : t('cook.timer.start')}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-[#944a00] text-white hover:bg-[#7a3d00]"
         >
           {running ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
@@ -139,7 +136,7 @@ function StepTimer({
       )}
       <button
         onClick={onReset}
-        aria-label="Reset timer"
+        aria-label={t('cook.timer.reset')}
         className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50"
       >
         <RotateCcw className="h-4 w-4" />
@@ -151,6 +148,7 @@ function StepTimer({
 // ── Cook mode ─────────────────────────────────────────────────────────────────
 
 export function CookMode({ recipeId }: { recipeId: string }) {
+  const { t } = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
@@ -325,11 +323,11 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-white px-6">
         {notFound ? (
           <p data-testid="cook-not-found" className="text-sm text-gray-500">
-            Recipe not found.
+            {t('recipes.detail.notFound')}
           </p>
         ) : (
           <div data-testid="cook-load-error">
-            <ErrorState title="Couldn't load this recipe" onRetry={recipeState.retry} />
+            <ErrorState title={t('recipes.detail.loadError')} onRetry={recipeState.retry} />
           </div>
         )}
         <Link
@@ -337,7 +335,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           data-testid="cook-error-close"
           className="flex min-h-11 items-center px-3 text-sm font-medium text-[#944a00] hover:underline"
         >
-          Close
+          {t('common.actions.close')}
         </Link>
       </div>
     );
@@ -370,34 +368,36 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <ChefHat className="h-10 w-10 text-emerald-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Enjoy your {recipe.name}!</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t('cook.finish.title', { name: recipe.name })}
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
             {logged
-              ? `Logged to today's tracker as ${loggedAs?.slot ?? slot}.`
-              : 'Log it to your tracker and tell the chef what you thought.'}
+              ? t('cook.finish.logged', { meal: t(`cook.mealLower.${loggedAs?.slot ?? slot}`) })
+              : t('cook.finish.logPrompt')}
           </p>
         </div>
 
         {!logged ? (
           <div
             role="group"
-            aria-label="Log it as"
+            aria-label={t('cook.finish.logAs')}
             data-testid="cook-slot"
             className="flex flex-wrap justify-center gap-2"
           >
             {MEAL_SLOTS.map((option) => (
               <button
-                key={option.value}
+                key={option}
                 type="button"
-                aria-pressed={slot === option.value}
-                onClick={() => setSlot(option.value)}
+                aria-pressed={slot === option}
+                onClick={() => setSlot(option)}
                 className={`min-h-11 rounded-full border px-4 text-sm font-medium ${
-                  slot === option.value
+                  slot === option
                     ? 'border-[#944a00] bg-[#944a00] text-white'
                     : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {option.label}
+                {t(`recipes.mealTypes.${option}`)}
               </button>
             ))}
           </div>
@@ -409,15 +409,13 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             className="flex min-h-12 items-center gap-2 rounded-2xl bg-[#944a00] px-8 text-base font-semibold text-white shadow-sm hover:bg-[#7a3d00] disabled:opacity-50"
           >
             <Check className="h-5 w-5" />
-            {upsertDay.isPending ? 'Logging…' : 'Made it! Log this meal'}
+            {upsertDay.isPending ? t('cook.finish.logging') : t('cook.finish.madeIt')}
           </button>
         ) : (
           <div className="w-full max-w-sm rounded-2xl border bg-white p-4 text-left shadow-sm">
-            <p className="mb-2 text-sm font-semibold text-gray-800">How was it?</p>
+            <p className="mb-2 text-sm font-semibold text-gray-800">{t('cook.finish.howWasIt')}</p>
             {/* Ratings feed next week's generation (P1-1) — say so. */}
-            <p className="mb-3 text-xs text-gray-500">
-              Your rating shapes what the chef cooks up next week.
-            </p>
+            <p className="mb-3 text-xs text-gray-500">{t('cook.finish.ratingHint')}</p>
             <StarRatingWidget recipeId={recipe.id} />
           </div>
         )}
@@ -428,9 +426,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             <RebalanceBanner onUndone={() => void utils.mealPlan.invalidate()} />
           </div>
         )}
-        {upsertDay.isError && (
-          <p className="text-sm text-red-600">Could not log the meal — try again.</p>
-        )}
+        {upsertDay.isError && <p className="text-sm text-red-600">{t('cook.finish.logError')}</p>}
         {logged && loggedAs ? (
           <button
             data-testid="cook-log-undo"
@@ -444,25 +440,23 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             disabled={undoLog.isPending}
             className="flex min-h-11 items-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Undo
+            {t('recipes.list.undo')}
           </button>
         ) : null}
-        {undoLog.isError && (
-          <p className="text-sm text-red-600">Could not undo that — try again.</p>
-        )}
+        {undoLog.isError && <p className="text-sm text-red-600">{t('cook.finish.undoError')}</p>}
 
         <div className="flex items-center gap-4 text-sm">
           <button
             onClick={() => setFinished(false)}
             className="flex min-h-11 items-center px-1 text-gray-600 hover:underline"
           >
-            Back to steps
+            {t('cook.finish.backToSteps')}
           </button>
           <Link
             href={`/recipes/${recipe.id}`}
             className="flex min-h-11 items-center px-1 text-[#944a00] hover:underline"
           >
-            Done
+            {t('common.actions.done')}
           </Link>
         </div>
       </div>
@@ -480,7 +474,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <button
           onClick={() => router.back()}
-          aria-label="Exit cook mode"
+          aria-label={t('cook.exit')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
         >
           <X className="h-5 w-5" />
@@ -491,7 +485,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
         <div className="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-1">
           <button
             onClick={() => setServings(clampCookServings(selectedServings - 1))}
-            aria-label="Fewer servings"
+            aria-label={t('cook.fewerServings')}
             className="flex h-11 w-11 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Minus className="h-4 w-4" />
@@ -501,7 +495,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           </span>
           <button
             onClick={() => setServings(clampCookServings(selectedServings + 1))}
-            aria-label="More servings"
+            aria-label={t('cook.moreServings')}
             className="flex h-11 w-11 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Plus className="h-4 w-4" />
@@ -510,7 +504,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
         <button
           onClick={() => setDrawerOpen(true)}
-          aria-label="Show ingredients"
+          aria-label={t('cook.showIngredients')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[#944a00] hover:bg-[#fff3e8]"
         >
           <ListChecks className="h-5 w-5" />
@@ -521,33 +515,44 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           view whichever step you are reading; a click jumps to its step. */}
       {cookTimers.active.length > 0 && (
         <div data-testid="cook-timer-chips" className="mx-4 mt-3 flex flex-wrap gap-2">
-          {cookTimers.active.map((t) => (
+          {cookTimers.active.map((timer) => (
             <button
-              key={t.step}
+              key={timer.step}
               type="button"
-              data-testid={`cook-timer-chip-${t.step}`}
-              onClick={() => setStep(t.step)}
+              data-testid={`cook-timer-chip-${timer.step}`}
+              onClick={() => setStep(timer.step)}
               aria-label={
-                t.status === 'done'
-                  ? `Step ${t.step + 1} timer finished. Go to step`
-                  : `Step ${t.step + 1} timer, ${formatCookTimer(t.remainingSec)} ${
-                      t.status === 'paused' ? 'paused' : 'left'
-                    }. Go to step`
+                timer.status === 'done'
+                  ? t('cook.timer.chipAriaDone', { step: timer.step + 1 })
+                  : timer.status === 'paused'
+                    ? t('cook.timer.chipAriaPaused', {
+                        step: timer.step + 1,
+                        time: formatCookTimer(timer.remainingSec),
+                      })
+                    : t('cook.timer.chipAriaRunning', {
+                        step: timer.step + 1,
+                        time: formatCookTimer(timer.remainingSec),
+                      })
               }
               className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold tabular-nums ${
-                t.status === 'done'
+                timer.status === 'done'
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                   : 'border-[#944a00]/30 bg-[#fff3e8] text-[#944a00]'
               }`}
             >
-              {t.status === 'done' ? (
+              {timer.status === 'done' ? (
                 <Check className="h-4 w-4" aria-hidden="true" />
-              ) : t.status === 'paused' ? (
+              ) : timer.status === 'paused' ? (
                 <Pause className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <Timer className="h-4 w-4" aria-hidden="true" />
               )}
-              Step {t.step + 1} · {t.status === 'done' ? 'Done!' : formatCookTimer(t.remainingSec)}
+              {timer.status === 'done'
+                ? t('cook.timer.chipDone', { step: timer.step + 1 })
+                : t('cook.timer.chipTime', {
+                    step: timer.step + 1,
+                    time: formatCookTimer(timer.remainingSec),
+                  })}
             </button>
           ))}
         </div>
@@ -576,12 +581,12 @@ export function CookMode({ recipeId }: { recipeId: string }) {
               data-testid="cook-no-steps"
               className="max-w-xl text-xl font-medium leading-relaxed text-gray-900"
             >
-              This recipe has no steps yet. Its ingredients are one tap away.
+              {t('cook.noSteps')}
             </p>
           ) : (
             <>
               <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Step {safeStep + 1} of {totalSteps}
+                {t('cook.stepOf', { step: safeStep + 1, total: totalSteps })}
               </p>
               <p className="max-w-xl text-2xl font-medium leading-relaxed text-gray-900 sm:text-3xl">
                 {instruction}
@@ -595,8 +600,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             className="mt-6 w-full max-w-md rounded-2xl border bg-gray-50 p-3 text-left"
           >
             <p className="mb-1 text-xs font-medium text-gray-600">
-              For {formatFractionalQuantity(selectedServings)}{' '}
-              {selectedServings === 1 ? 'serving' : 'servings'}
+              {t(selectedServings === 1 ? 'cook.forServingOne' : 'cook.forServings', {
+                servings: formatFractionalQuantity(selectedServings),
+              })}
             </p>
             <ul className="space-y-0.5">
               {stepAmounts.map((a) => (
@@ -622,12 +628,12 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       <p className="hidden items-center justify-center gap-1.5 pb-3 text-xs text-gray-600 lg:flex">
         <kbd className={KBD_CLS}>←</kbd>
         <kbd className={KBD_CLS}>→</kbd>
-        <span>steps</span>
+        <span>{t('cook.hintSteps')}</span>
         {timerSeconds !== null && (
           <>
             <span aria-hidden="true">·</span>
-            <kbd className={KBD_CLS}>Space</kbd>
-            <span>start/pause timer</span>
+            <kbd className={KBD_CLS}>{t('cook.hintSpaceKey')}</kbd>
+            <span>{t('cook.hintTimer')}</span>
           </>
         )}
       </p>
@@ -642,7 +648,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           className="flex min-h-12 items-center gap-1 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back
+          {t('common.actions.back')}
         </button>
         <button
           onClick={() =>
@@ -650,7 +656,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           }
           className="flex min-h-12 flex-1 items-center justify-center gap-1 rounded-xl bg-[#944a00] text-base font-semibold text-white hover:bg-[#7a3d00]"
         >
-          {isLastStep ? 'Finish' : 'Next step'}
+          {isLastStep ? t('cook.finish.button') : t('cook.nextStep')}
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
@@ -659,17 +665,18 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        label="Ingredients"
+        label={t('recipes.detail.ingredients')}
         side="left"
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-semibold text-gray-900">
-            Ingredients · {formatFractionalQuantity(selectedServings)} serving
-            {selectedServings === 1 ? '' : 's'}
+            {t(selectedServings === 1 ? 'cook.drawerTitleOne' : 'cook.drawerTitle', {
+              servings: formatFractionalQuantity(selectedServings),
+            })}
           </p>
           <button
             onClick={() => setDrawerOpen(false)}
-            aria-label="Close ingredients"
+            aria-label={t('cook.closeIngredients')}
             className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
           >
             <X className="h-5 w-5" />
