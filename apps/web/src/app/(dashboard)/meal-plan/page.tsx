@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { PartnerBanner } from '@/features/household-sharing/components/PartnerBanner';
+import { isMealSlotConflict } from '@/features/household-sharing/lib/conflict';
+import { useHouseholdSharing } from '@/features/household-sharing/use-household-sharing';
 import { DayView, TailoringDayMark } from '@/features/meal-plan/components/day-view';
 import { DayFitSuggestionCard } from '@/features/meal-plan/components/DayFitSuggestionCard';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
@@ -68,7 +71,12 @@ import {
   Wallet,
   Wand2,
 } from 'lucide-react';
-import { PLAN_TAILORING_POLL_MS, planSlotMealTypeSchema } from '@chefer/types';
+import {
+  HOUSEHOLD_SHARING_COPY,
+  HOUSEHOLD_SHARING_LIMITS,
+  PLAN_TAILORING_POLL_MS,
+  planSlotMealTypeSchema,
+} from '@chefer/types';
 import { ErrorState, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
@@ -208,6 +216,14 @@ export default function MealPlanPage() {
   );
   const todaySlots = usePlanDaySlots(isCurrent ? dayDate(todayIndex) : null, showToastAction);
 
+  // ADR 0002: a shared week. Both people edit it, so it refreshes while open;
+  // a partner sees the owner's week and leaves the week-level actions to them.
+  const sharing = useHouseholdSharing();
+  const isPartner = sharing.isPartner;
+  const ownerOnlyNote = isPartner
+    ? HOUSEHOLD_SHARING_COPY.ownerOnly(sharing.ownerName ?? '')
+    : null;
+
   const {
     data: plan,
     isLoading,
@@ -219,10 +235,15 @@ export default function MealPlanPage() {
     {
       retry: false,
       // Live tailoring (premium instant week): poll while the chef is still
-      // working — and only then. React Query pauses the interval while the
-      // tab is hidden (refetchIntervalInBackground defaults to false).
+      // working. A shared week (ADR 0002) also polls, more slowly, so the
+      // other person's swaps show up. React Query pauses the interval while
+      // the tab is hidden (refetchIntervalInBackground defaults to false).
       refetchInterval: (query) =>
-        isTailoringRunning(query.state.data?.tailoring) ? PLAN_TAILORING_POLL_MS : false,
+        isTailoringRunning(query.state.data?.tailoring)
+          ? PLAN_TAILORING_POLL_MS
+          : sharing.isShared
+            ? HOUSEHOLD_SHARING_LIMITS.planPollMs
+            : false,
     },
   );
   // A failed load is not an empty week: never offer "Generate" over a plan we
@@ -519,7 +540,37 @@ export default function MealPlanPage() {
       usesAi: true,
     });
   };
-  const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({ onSuccess: () => void refetch() });
+  // ADR 0002: the other person changed this slot first — say so and show the latest week.
+  const handleConflict = () => {
+    capture('shared_plan_conflict', {});
+    setToast({ message: HOUSEHOLD_SHARING_COPY.conflictSomeone });
+    void refetch();
+    void utils.shoppingList.invalidate();
+  };
+  /** The recipe a slot holds right now: plan edits send it so a stale tap conflicts. */
+  const slotRecipeId = (dayOfWeek: number, slotIndex: number): string | undefined =>
+    plan?.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals[slotIndex]?.recipe.id;
+  const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void refetch(),
+    onError: (err) =>
+      isMealSlotConflict(err)
+        ? handleConflict()
+        : setToast({ message: userFacingErrorMessage(err) }),
+  });
+  const togglePin = (dayOfWeek: number, mealType: string, slotIndex: number, pinned: boolean) => {
+    const type = planSlotMealTypeSchema.safeParse(mealType);
+    if (!plan || !type.success) return;
+    const expectedRecipeId = slotRecipeId(dayOfWeek, slotIndex);
+    pinMutation.mutate({
+      planId: plan.planId,
+      dayOfWeek,
+      mealType: type.data,
+      slotIndex,
+      pinned,
+      ...(expectedRecipeId && { expectedRecipeId }),
+    });
+  };
 
   // FB7-04: a side dish is a second slot of the same meal type on that day
   // (`recipe.addToWeek` mode 'add'); "Remove from plan" takes one back out.
@@ -552,7 +603,9 @@ export default function MealPlanPage() {
       invalidateDerived();
     },
     onError: (err) =>
-      setToast({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
+      isMealSlotConflict(err)
+        ? handleConflict()
+        : setToast({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
   });
   const openAddSide = (
     dayOfWeek: number,
@@ -582,7 +635,13 @@ export default function MealPlanPage() {
     const type = planSlotMealTypeSchema.safeParse(mealType);
     if (!plan || !type.success) return;
     removeSlotMutation.mutate(
-      { planId: plan.planId, dayOfWeek, mealType: type.data, slotIndex },
+      {
+        planId: plan.planId,
+        dayOfWeek,
+        mealType: type.data,
+        slotIndex,
+        expectedRecipeId: recipe.id,
+      },
       {
         onSuccess: () =>
           setToast({
@@ -682,7 +741,8 @@ export default function MealPlanPage() {
     if (!wantsAutoGenerate || autoGenerateFired.current || isLoading) return;
     autoGenerateFired.current = true;
     router.replace('/meal-plan', { scroll: false });
-    if (!plan && !isGenerating) generateWithConsent({ weekOffset });
+    // Generating is the owner's (ADR 0002).
+    if (!plan && !isGenerating && !isPartner) generateWithConsent({ weekOffset });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger keyed on load completion
   }, [wantsAutoGenerate, isLoading]);
 
@@ -706,6 +766,7 @@ export default function MealPlanPage() {
   const trainingChip = trainingDaysChip(trainingCount);
   const replanVisible =
     !isPast &&
+    !isPartner &&
     plan !== null &&
     plan !== undefined &&
     targetDrifted(plan.calorieTarget, targetsView?.effective.dailyCalorieTarget) &&
@@ -728,9 +789,11 @@ export default function MealPlanPage() {
           recipeId: firstPlannedMeal.recipe.id,
         }
       : null;
-  const openMiss = isPast ? undefined : (dayOfWeek: number) => setMissDay(dayOfWeek);
+  // The miss sheet scales the day: the owner's (ADR 0002).
+  const openMiss = isPast || isPartner ? undefined : (dayOfWeek: number) => setMissDay(dayOfWeek);
   // Day rebalance (board DayFitSuggest): the one change that closes a day.
   const daySuggestionFor = (dayOfWeek: number, compact: boolean) => {
+    if (isPartner) return null; // day fit runs on the owner's targets only
     const pending = dayFit.suggestionFor(dayOfWeek);
     if (!pending) return null;
     return (
@@ -841,7 +904,7 @@ export default function MealPlanPage() {
         )}
 
         {/* F3 "cook once, eat twice" toggle — premium generation option */}
-        {!isPast && !loadFailed && isPremium && (
+        {!isPast && !loadFailed && isPremium && !isPartner && (
           <button
             type="button"
             onClick={() => setLeftovers((v) => !v)}
@@ -859,7 +922,7 @@ export default function MealPlanPage() {
         )}
 
         {/* T-07.6: opens the shared "how you cook" plan settings sheet. */}
-        {!isPast && (
+        {!isPast && !isPartner && (
           <button
             type="button"
             data-testid="plan-settings-open"
@@ -878,7 +941,7 @@ export default function MealPlanPage() {
             exists, ONE "Week options" button replaces Regenerate + Rebalance
             (a new plan always asks first, T-08.9 / UX-08 §3); an empty week
             has nothing to lose, so that one still generates directly. */}
-        {!isPast && !loadFailed && plan && (
+        {!isPast && !loadFailed && plan && !isPartner && (
           <button
             type="button"
             data-testid="plan-week-options"
@@ -890,7 +953,7 @@ export default function MealPlanPage() {
             {PLAN_WEEK_COPY.optionsLabel}
           </button>
         )}
-        {!isPast && !loadFailed && !plan && (
+        {!isPast && !loadFailed && !plan && !isPartner && (
           <button
             data-testid="plan-regenerate"
             onClick={handleGenerate}
@@ -912,6 +975,14 @@ export default function MealPlanPage() {
           one <h1> for screen-reader heading navigation (F-X-5-3). */}
       <h1 className="sr-only">Meal planner</h1>
       {navBar}
+
+      {isPartner && (
+        <PartnerBanner
+          ownerName={sharing.ownerName ?? ''}
+          note={ownerOnlyNote}
+          className="mx-4 mb-2 sm:mx-6"
+        />
+      )}
 
       {/* Day rebalance (board PlanRefit): new targets resized this week's portions */}
       {refitVisible && plan?.portionRefit && (
@@ -952,7 +1023,9 @@ export default function MealPlanPage() {
           className="mx-4 mb-2 sm:mx-6"
           tailoring={plan.tailoring}
           sawRunning={sawRunning}
-          onResume={isPremium && plan.tailoring?.canResume ? resumeTailoring : undefined}
+          onResume={
+            isPremium && plan.tailoring?.canResume && !isPartner ? resumeTailoring : undefined
+          }
           resuming={resumeTailoringMutation.isPending}
         />
       )}
@@ -998,7 +1071,7 @@ export default function MealPlanPage() {
         )}
 
       {/* Week-rebalance banner (F4 Snap-to-Log): what the chef adjusted + undo */}
-      {isCurrent && plan && (
+      {isCurrent && plan && !isPartner && (
         <div className="mx-4 sm:mx-6">
           <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
         </div>
@@ -1184,7 +1257,12 @@ export default function MealPlanPage() {
                 : 'Generate a personalised 7-day plan based on your goals and dietary preferences.'}
             </p>
           </div>
-          {!isPast && (
+          {!isPast && isPartner && ownerOnlyNote && (
+            <p data-testid="plan-owner-only" className="max-w-xs text-sm text-gray-600">
+              {ownerOnlyNote}
+            </p>
+          )}
+          {!isPast && !isPartner && (
             <button
               data-testid="plan-generate-empty"
               onClick={handleGenerate}
@@ -1215,7 +1293,7 @@ export default function MealPlanPage() {
             calorieTarget={plan.calorieTarget}
             planShapeSummary={planShapeSummaryText}
             onPlanDay={
-              !isPast
+              !isPast && !isPartner
                 ? (dayOfWeek) => planDayMutation.mutate({ planId: plan.planId, dayOfWeek })
                 : undefined
             }
@@ -1231,13 +1309,7 @@ export default function MealPlanPage() {
             onTogglePin={
               !isPast
                 ? (mealType, slotIndex, pinned) =>
-                    pinMutation.mutate({
-                      planId: plan.planId,
-                      dayOfWeek: selectedDay,
-                      mealType: mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                      slotIndex,
-                      pinned,
-                    })
+                    togglePin(selectedDay, mealType, slotIndex, pinned)
                 : undefined
             }
             onReplaceMeal={(mealType, mealName, slotIndex, recipeId) =>
@@ -1339,22 +1411,24 @@ export default function MealPlanPage() {
                         >
                           Not planned
                         </p>
-                        <button
-                          type="button"
-                          data-testid={`plan-day-add-${day.dayOfWeek}`}
-                          disabled={planDayMutation.isPending && planningDay === day.dayOfWeek}
-                          onClick={() =>
-                            planDayMutation.mutate({
-                              planId: plan.planId,
-                              dayOfWeek: day.dayOfWeek,
-                            })
-                          }
-                          className="min-h-11 px-1 text-xs font-semibold text-[#944a00] hover:underline disabled:opacity-50"
-                        >
-                          {planDayMutation.isPending && planningDay === day.dayOfWeek
-                            ? '…'
-                            : 'Plan this day'}
-                        </button>
+                        {!isPartner && (
+                          <button
+                            type="button"
+                            data-testid={`plan-day-add-${day.dayOfWeek}`}
+                            disabled={planDayMutation.isPending && planningDay === day.dayOfWeek}
+                            onClick={() =>
+                              planDayMutation.mutate({
+                                planId: plan.planId,
+                                dayOfWeek: day.dayOfWeek,
+                              })
+                            }
+                            className="min-h-11 px-1 text-xs font-semibold text-[#944a00] hover:underline disabled:opacity-50"
+                          >
+                            {planDayMutation.isPending && planningDay === day.dayOfWeek
+                              ? '…'
+                              : 'Plan this day'}
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -1379,17 +1453,9 @@ export default function MealPlanPage() {
                           recipeId,
                         })
                       }
-                      onTogglePin={(mealType, slotIndex, pinned) => {
-                        const type = planSlotMealTypeSchema.safeParse(mealType);
-                        if (type.success)
-                          pinMutation.mutate({
-                            planId: plan.planId,
-                            dayOfWeek: day.dayOfWeek,
-                            mealType: type.data,
-                            slotIndex,
-                            pinned,
-                          });
-                      }}
+                      onTogglePin={(mealType, slotIndex, pinned) =>
+                        togglePin(day.dayOfWeek, mealType, slotIndex, pinned)
+                      }
                       onAddSide={(mealType, mealName, slotIndex, recipeId) =>
                         openAddSide(day.dayOfWeek, mealType, mealName, slotIndex, recipeId)
                       }
@@ -1415,8 +1481,9 @@ export default function MealPlanPage() {
         </div>
       )}
 
-      {/* My weeks (P2-8): saved weeks + past weeks live on their own page */}
-      {!isPast && (
+      {/* My weeks (P2-8): saved weeks + past weeks live on their own page.
+          Following / saving weeks is the owner's (ADR 0002). */}
+      {!isPast && !isPartner && (
         <div className="mx-4 mb-6 sm:mx-6">
           <Link
             href="/my-weeks"
@@ -1454,6 +1521,7 @@ export default function MealPlanPage() {
         onClose={() => setReplaceTarget(null)}
         onSideAdded={onSideAdded}
         onChanged={dayFit.onSlotChanged}
+        onConflict={handleConflict}
       />
 
       {/* FB7-11: one sheet for "New meal plan for this week" and "Rebalance my week". */}

@@ -67,6 +67,8 @@ export const APP_ROUTES = [
   // does not exist (the uniform "This trainer isn't available" state).
   '/coaching/find',
   '/coaching/trainers/zzzzzzzzzz',
+  // Household sharing (ADR 0002): a join link whose code never existed.
+  '/household/join/ZZZZZZZZZZ',
   // Email-link pages (P2-5): without a token they render the invalid-link state.
   '/unsubscribe',
   '/verify-email',

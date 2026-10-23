@@ -53,13 +53,26 @@ export function joinHref(code: string): `/coaching/join/${string}` {
 // In memory only (a cold start in between falls back to Gym Today's "Carry on joining your trainer",
 // which reads the persisted pending code). Separate from `readPendingJoin` because the gym-setup
 // carry-on must NOT bounce the client back to the invite the moment they open /gym/setup.
+// Household invites (ADR 0002) use the same return: `kind` says which join screen to reopen.
 
-let returnAfterSignIn: string | null = null;
+export type ReturnAfterSignInKind = 'coaching' | 'household';
+export type ReturnAfterSignIn = { kind: ReturnAfterSignInKind; code: string };
 
-export function setReturnAfterSignIn(code: string | null): void {
-  returnAfterSignIn = code !== null && JOIN_CODE.test(code) ? code : null;
+let returnAfterSignIn: ReturnAfterSignIn | null = null;
+
+export function setReturnAfterSignIn(
+  code: string | null,
+  kind: ReturnAfterSignInKind = 'coaching',
+): void {
+  returnAfterSignIn = code !== null && JOIN_CODE.test(code) ? { kind, code } : null;
 }
 
+/** The remembered invite code (either kind). */
 export function getReturnAfterSignIn(): string | null {
+  return returnAfterSignIn?.code ?? null;
+}
+
+/** The remembered invite and which join screen it belongs to. */
+export function getReturnTarget(): ReturnAfterSignIn | null {
   return returnAfterSignIn;
 }

@@ -48,3 +48,29 @@ describe('middleware: coaching invite links', () => {
     expect(redirectedTo(res)).toBe('https://chefer.test/login?from=%2Fcoaching%2Ffind');
   });
 });
+
+describe('middleware: household invite links (ADR 0002)', () => {
+  it.each([IPHONE, ANDROID])('signed out on a phone: the app page, same address', (ua) => {
+    const res = run('/household/join/AbC-123', { ua });
+    expect(redirectedTo(res)).toBeNull();
+    expect(rewrittenTo(res)).toBe('https://chefer.test/household-invite/AbC-123');
+  });
+
+  it('signed out on a desktop: sign in, then back to the invite', () => {
+    const res = run('/household/join/AbC-123', { ua: DESKTOP });
+    expect(rewrittenTo(res)).toBeNull();
+    expect(redirectedTo(res)).toBe('https://chefer.test/login?next=%2Fhousehold%2Fjoin%2FAbC-123');
+  });
+
+  it('a malformed code on a phone is not rewritten', () => {
+    const res = run('/household/join/bad%20code', { ua: IPHONE });
+    expect(rewrittenTo(res)).toBeNull();
+    expect(redirectedTo(res)).toContain('/login?next=');
+  });
+
+  it('signed in: the normal join page', () => {
+    const res = run('/household/join/AbC-123', { ua: IPHONE, signedIn: true });
+    expect(rewrittenTo(res)).toBeNull();
+    expect(redirectedTo(res)).toBeNull();
+  });
+});

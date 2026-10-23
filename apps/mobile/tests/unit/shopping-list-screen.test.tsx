@@ -16,6 +16,7 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useLocalSearchParams: () => ({}),
   router: { push: jest.fn() },
+  useIsFocused: () => true,
 }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
@@ -40,11 +41,14 @@ jest.mock('../../src/lib/trpc', () => ({
     shoppingList: {
       getForWeek: { useQuery: () => mockList() },
       toggleItems: { useMutation: () => mockMutation },
+      sync: { useQuery: () => ({ data: undefined }) },
       addCustomItems: { useMutation: () => mockMutation },
       removeCustomItem: { useMutation: () => mockMutation },
     },
     mealPlan: { getForWeek: { useQuery: () => mockPlan() } },
     preferences: { get: { useQuery: () => ({ data: undefined }) } },
+    // ADR 0002: a solo household — no live sync.
+    household: { sharing: { useQuery: () => ({ data: undefined }) } },
   },
 }));
 

@@ -16,6 +16,13 @@ const m = vi.hoisted(() => ({
   extraItems: [] as Record<string, unknown>[],
   total: 0,
   fromDay: undefined as number | undefined,
+  // ADR 0002: a shared household's live list.
+  shared: false,
+  checkedBy: {},
+  checkedKeys: new Array<string>(),
+  toggleMutate: vi.fn(),
+  beginToggle: vi.fn(),
+  endToggle: vi.fn(),
 }));
 
 vi.mock('next/image', () => ({
@@ -38,6 +45,16 @@ vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ memberCount: 0 }
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => m.units }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+vi.mock('@/features/household-sharing/use-household-sharing', () => ({
+  useHouseholdSharing: () => ({ isShared: m.shared }),
+}));
+vi.mock('@/features/household-sharing/use-shared-list-sync', () => ({
+  useSharedListSync: ({ enabled }: { enabled: boolean }) => ({
+    checkedBy: enabled ? m.checkedBy : {},
+    beginToggle: m.beginToggle,
+    endToggle: m.endToggle,
+  }),
+}));
 
 const list = {
   planId: 'p1',
@@ -60,7 +77,13 @@ const list = {
 };
 
 vi.mock('@/lib/trpc', () => {
-  const noopMutation = { mutate: vi.fn(), isPending: false, isError: false };
+  const toggleMutation = {
+    mutate: (vars: unknown) => {
+      m.toggleMutate(vars);
+    },
+    isPending: false,
+    isError: false,
+  };
   const cache = { cancel: vi.fn(), getData: vi.fn(), setData: vi.fn(), invalidate: vi.fn() };
   return {
     trpc: {
@@ -75,6 +98,7 @@ vi.mock('@/lib/trpc', () => {
               items: [...list.items, ...m.extraItems],
               estimatedTotalEur: m.total,
               fromDayOfWeek: m.fromDay,
+              checkedKeys: m.checkedKeys,
             },
             isLoading: false,
             isError: false,
@@ -82,7 +106,7 @@ vi.mock('@/lib/trpc', () => {
             refetch: vi.fn(),
           }),
         },
-        toggleItems: { useMutation: () => noopMutation },
+        toggleItems: { useMutation: () => toggleMutation },
         removeCustomItem: {
           useMutation: () => ({
             mutate: (vars: unknown, opts?: { onSuccess?: () => void }) => {
@@ -114,6 +138,9 @@ beforeEach(() => {
   m.extraItems = [];
   m.total = 0;
   m.fromDay = undefined;
+  m.shared = false;
+  m.checkedBy = {};
+  m.checkedKeys = [];
   localStorage.removeItem('chefer.shopping-expanded.v2');
   resetAppToastForTests();
 });
@@ -281,5 +308,57 @@ describe('Shop: thumbnails are never blank (FB7-10)', () => {
     fireEvent.error(img);
     expect(await within(row).findByTestId('item-thumb-fallback')).toBeTruthy();
     expect(within(row).queryByTestId('item-img')).toBeNull();
+  });
+});
+
+describe('Shop: a shared household’s live list (ADR 0002)', () => {
+  const butter = {
+    key: 'butter|g',
+    ingredientName: 'Butter',
+    category: 'dairy',
+    quantity: '250',
+    unit: 'g',
+    recipeNames: [],
+    imageUrl: '',
+    estimatedPriceEur: null,
+    isCustom: false,
+    checkedBy: { name: 'Maria', isYou: false },
+  };
+
+  it('says who ticked an item and who added one', () => {
+    m.shared = true;
+    m.extraItems = [butter];
+    m.checkedKeys = ['butter|g'];
+    renderPage();
+    const lines = screen.getAllByTestId('shop-item-who').map((el) => el.textContent);
+    expect(lines).toContain('Ticked by Maria');
+  });
+
+  it('a fresher sync answer wins over the list’s own "who"', () => {
+    m.shared = true;
+    m.extraItems = [butter];
+    m.checkedKeys = ['butter|g'];
+    m.checkedBy = { 'butter|g': { name: 'Dan', isYou: true } };
+    renderPage();
+    expect(screen.getByTestId('shop-item-who').textContent).toBe('Ticked by you');
+  });
+
+  it('no "who" lines when the list is not shared', () => {
+    m.extraItems = [butter];
+    m.checkedKeys = ['butter|g'];
+    renderPage();
+    expect(screen.queryByTestId('shop-item-who')).toBeNull();
+  });
+
+  it('a tick carries the device time', () => {
+    m.extraItems = [butter];
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Butter/, pressed: false }));
+    expect(m.toggleMutate).toHaveBeenCalledWith({
+      planId: 'p1',
+      keys: ['butter|g'],
+      checked: true,
+      at: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) as unknown,
+    });
   });
 });

@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { resetLandingCacheForTests as resetLandingCache } from '../../navigation/landing-cache';
 import { setHealthConsentDeclined } from '../../privacy/health-declined-store';
 import { REVIEW_PROMPT_KEY } from '../../review/review-store';
+import { shopOutbox } from '../../shopping-list/shop-outbox';
 import { clearPendingRebalance } from '../../tracker/rebalance-store';
 import { coachedOutboxes } from '../../trainer-coach/coached-outbox';
 import { coachedSessionStore } from '../../trainer-coach/coached-session-store';
@@ -78,6 +79,8 @@ export async function clearLocalUserData(opts: { keepGymData: boolean }): Promis
   resetTrainerModeAvailableCache();
   setHealthConsentDeclined(false);
   clearPendingRebalance();
+  // ADR 0002: the Shop outbox's key was just wiped (it is the account's, not `gym.`).
+  shopOutbox.reload();
   if (!opts.keepGymData) {
     activeSessionStore.clear();
     outbox.reload();

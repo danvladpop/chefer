@@ -18,8 +18,34 @@ const m = vi.hoisted(() => {
     listState: noState,
     prefsState: noState,
     table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
+    // ADR 0002: the sharing status (null = flag off / SOLO without the flag).
+    sharingStatus: null as Record<string, unknown> | null,
   };
 });
+// Household sharing (ADR 0002): the section's own wiring is tested here; the
+// sharing pieces (they call tRPC themselves) have their own tests.
+vi.mock('@/features/household-sharing/use-household-sharing', () => ({
+  useHouseholdSharing: () => ({
+    status: m.sharingStatus,
+    role: m.sharingStatus?.['role'] ?? 'SOLO',
+    isShared: Boolean(m.sharingStatus && m.sharingStatus['role'] !== 'SOLO'),
+    isPartner: m.sharingStatus?.['role'] === 'PARTNER',
+    ownerName: null,
+  }),
+}));
+vi.mock('@/features/household-sharing/components/HouseholdNotices', () => ({
+  HouseholdNotices: () => <div data-testid="stub-notices" />,
+}));
+vi.mock('@/features/household-sharing/components/LeaveHousehold', () => ({
+  LeaveHousehold: ({ ownerName }: { ownerName: string }) => (
+    <button type="button">Leave {ownerName}</button>
+  ),
+}));
+vi.mock('@/features/household-sharing/components/MemberSharingLine', () => ({
+  MemberSharingLine: ({ member }: { member: { name: string } }) => (
+    <span data-testid="stub-sharing-line">{member.name}</span>
+  ),
+}));
 // T-26.2: these tests are about the save itself — the health-consent guard is
 // covered in privacy/use-health-consent.test.tsx, so here consent is always on record.
 vi.mock('@/features/privacy/use-health-consent', () => ({
@@ -112,6 +138,7 @@ beforeEach(() => {
   m.isPremium = false;
   m.ownSafety = { allergies: [], dietaryRestrictions: [] };
   m.table = { people: [], hasRules: false, needsReview: false };
+  m.sharingStatus = null;
 });
 
 describe('HouseholdSection', () => {
@@ -285,5 +312,61 @@ describe('HouseholdSection', () => {
     expect(screen.getByTestId('household-you-unavailable').textContent).toContain('Couldn’t load');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(refetch).toHaveBeenCalled();
+  });
+
+  describe('household sharing (ADR 0002)', () => {
+    const maria = {
+      ...sam,
+      id: 'm2',
+      name: 'Maria',
+      isKid: false,
+      portionFactor: 1,
+      hasAccount: true,
+      isYou: true,
+    };
+
+    it('flag off: no sharing line under the members', () => {
+      m.members = [sam];
+      render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+      expect(screen.queryByTestId('stub-sharing-line')).toBeNull();
+      expect(screen.queryByTestId('stub-notices')).toBeNull();
+    });
+
+    it('owner: every member gets its sharing line, and the notices show', () => {
+      m.members = [sam];
+      m.sharingStatus = { enabled: true, role: 'SOLO', canInvite: true, partners: [], invites: [] };
+      render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+      expect(screen.getByTestId('stub-sharing-line').textContent).toBe('Sam');
+      expect(screen.getByTestId('stub-notices')).toBeTruthy();
+    });
+
+    it('partner: the owner’s table is read-only except their own profile, and they can leave', () => {
+      m.members = [sam, maria];
+      m.sharingStatus = {
+        enabled: true,
+        role: 'PARTNER',
+        canInvite: false,
+        owner: { name: 'Dan' },
+        partners: [],
+        invites: [],
+      };
+      render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+      expect(screen.getByTestId('household-partner-banner').textContent).toContain(
+        "You're sharing Dan's week and shopping list.",
+      );
+      expect(screen.queryByRole('button', { name: 'Edit Sam' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Remove Sam' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Edit Maria' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Remove Maria' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Add someone/ })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Leave Dan' })).toBeTruthy();
+    });
+
+    it('the onboarding step never shows sharing', () => {
+      m.members = [sam];
+      m.sharingStatus = { enabled: true, role: 'SOLO', canInvite: true, partners: [], invites: [] };
+      render(<HouseholdSection isPremium={false} ownerSafety={owner} variant="onboarding" />);
+      expect(screen.queryByTestId('stub-sharing-line')).toBeNull();
+    });
   });
 });

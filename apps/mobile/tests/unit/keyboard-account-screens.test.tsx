@@ -88,6 +88,11 @@ jest.mock('../../src/lib/trpc', () => {
         setJobs: { useMutation: jest.fn() },
       },
       feedback: { submit: { useMutation: jest.fn() } },
+      // ADR 0002: the Household screen reads `household.sharing` (off here).
+      household: {
+        sharing: { useQuery: () => ({ data: undefined }) },
+        notices: { useQuery: () => ({ data: undefined }) },
+      },
     },
   };
 });

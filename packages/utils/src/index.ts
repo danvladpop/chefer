@@ -907,3 +907,7 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+
+// ─── Shared shopping list reconcile (ADR 0002, household sharing) ──────────────
+export { mergeSyncedChecks, type CheckedKeysState, type MergedChecks } from './shared-list';
+export { householdPortionPhrase } from './household-sharing';
