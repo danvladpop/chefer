@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, MAX_SUPERSET_SIZE } from '@chefer/utils';
+import { getTranslator, useT } from '../../../lib/i18n';
 
 // "Superset" pick sheet (plan-library-supersets S2): shared by the routine day
 // editor and the active workout. The user ticks 2 to MAX_SUPERSET_SIZE
@@ -10,16 +11,33 @@ import { cn, MAX_SUPERSET_SIZE } from '@chefer/utils';
 // (which moves the picks together at the first pick's place). Ticks beyond
 // the max are disabled. The workout can also offer "Also change my routine".
 
+// Getters, not strings: each read translates in the language the UI is in now.
 export const SUPERSET_COPY = {
-  title: 'Superset',
-  hint: `Pick 2 to ${MAX_SUPERSET_SIZE} exercises to do back to back. You rest after the round.`,
-  apply: 'Group as superset',
-  needMore: 'Pick at least 2 exercises.',
-  full: `That’s the most for one superset.`,
-  ungroup: 'Ungroup',
-  alsoRoutine: 'Also change my routine',
-  alsoRoutineDetail: 'Next time this day starts with the same superset.',
-} as const;
+  get title() {
+    return getTranslator().t('gym.shared.superset.title');
+  },
+  get hint() {
+    return getTranslator().t('gym.shared.superset.hint', { min: 2, max: MAX_SUPERSET_SIZE });
+  },
+  get apply() {
+    return getTranslator().t('gym.shared.superset.group');
+  },
+  get needMore() {
+    return getTranslator().t('gym.shared.superset.needMore');
+  },
+  get full() {
+    return getTranslator().t('gym.shared.superset.full');
+  },
+  get ungroup() {
+    return getTranslator().t('gym.workout.view.ungroup');
+  },
+  get alsoRoutine() {
+    return getTranslator().t('gym.shared.superset.alsoRoutine');
+  },
+  get alsoRoutineDetail() {
+    return getTranslator().t('gym.shared.superset.alsoRoutineDetail');
+  },
+};
 
 export interface SupersetPickItem {
   key: string;
@@ -107,6 +125,7 @@ export function SupersetSheet({
   onApply: (keys: string[], alsoRoutine: boolean) => void;
   testID: string;
 }) {
+  const { t } = useT();
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
   const [alsoRoutine, setAlsoRoutine] = useState(false);
 
@@ -161,7 +180,7 @@ export function SupersetSheet({
               ? SUPERSET_COPY.needMore
               : full
                 ? SUPERSET_COPY.full
-                : `${picked.length} picked`}
+                : t('gym.shared.superset.picked', { count: picked.length })}
           </Text>
           <Button
             testID={`${testID}-apply`}

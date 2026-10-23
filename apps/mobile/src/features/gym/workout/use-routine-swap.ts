@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { GymBootstrap, RoutineDoc, RoutineDto } from '@chefer/types';
+import { getTranslator } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { routineWithSwap, type SlotParams } from './workout-model';
@@ -80,21 +81,12 @@ export function useRoutineSwap(): (
   );
 }
 
-export const ROUTINE_SWAP_NOTICE: Record<RoutineSwapResult, string> = {
-  saved: 'Routine updated. Next time you’ll get this exercise too.',
-  missing: 'That exercise is no longer in your routine, so the swap applies to today only.',
-  failed: 'Couldn’t update your routine. The swap still applies today.',
-};
-
-export const ROUTINE_SUPERSET_NOTICE: Record<RoutineSwapResult, string> = {
-  saved: 'Routine updated. Next time this superset is there too.',
-  missing:
-    'Those exercises aren’t on one day of your routine any more, so this applies to today only.',
-  failed: 'Couldn’t update your routine. The superset still applies today.',
-};
-
-export const ROUTINE_UNGROUP_NOTICE: Record<RoutineSwapResult, string> = {
-  saved: 'Routine updated. Next time these are separate too.',
-  missing: 'That superset isn’t in your routine any more, so this applies to today only.',
-  failed: 'Couldn’t update your routine. The change still applies today.',
-};
+/** The notice for the outcome of a routine edit, in the UI language at call time. */
+export function routineNotice(
+  kind: 'swap' | 'superset' | 'ungroup',
+  result: RoutineSwapResult,
+): string {
+  const key =
+    `${kind}${result === 'saved' ? 'Saved' : result === 'missing' ? 'Missing' : 'Failed'}` as const;
+  return getTranslator().t(`gym.workout.logger.routineNotice.${key}`);
+}

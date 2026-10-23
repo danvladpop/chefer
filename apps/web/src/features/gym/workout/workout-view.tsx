@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import {
   ArrowDown,
   ArrowUp,
@@ -84,6 +85,7 @@ const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
 type Picker = { kind: 'swap'; seId: string } | { kind: 'add' } | null;
 
 export function WorkoutView() {
+  const { t } = useT();
   const router = useRouter();
   const { session, dispatch, finish, discard } = useActiveWorkout();
   const { data, lookup, profile, unit, hasMounted, today } = useGymData();
@@ -295,7 +297,7 @@ export function WorkoutView() {
   if (!hasMounted) {
     return (
       <Frame>
-        <h1 className="sr-only">Workout</h1>
+        <h1 className="sr-only">{t('gym.workout.view.title')}</h1>
         <GymSkeleton rows={3} />
       </Frame>
     );
@@ -304,11 +306,11 @@ export function WorkoutView() {
   if (!session) {
     return (
       <Frame>
-        <h1 className="sr-only">Workout</h1>
+        <h1 className="sr-only">{t('gym.workout.view.title')}</h1>
         <div className="rounded-2xl border border-dashed bg-white p-8 text-center">
-          <p className="text-sm text-gray-600">No workout in progress.</p>
+          <p className="text-sm text-gray-600">{t('gym.workout.view.noneInProgress')}</p>
           <Button asChild className="mt-4">
-            <Link href="/gym">Back to Today</Link>
+            <Link href="/gym">{t('gym.workout.view.backToToday')}</Link>
           </Button>
         </div>
       </Frame>
@@ -343,7 +345,7 @@ export function WorkoutView() {
     const slot = supersets.get(se.id);
     return {
       id: se.id,
-      name: lookup(se.exerciseId)?.name ?? 'Exercise',
+      name: lookup(se.exerciseId)?.name ?? t('gym.workout.exerciseCard.fallbackName'),
       badge: slot ? `${slot.label}${slot.index + 1}` : null,
     };
   });
@@ -416,7 +418,9 @@ export function WorkoutView() {
   // UX-GYM-01: the session schema allows 30 exercises and 20 sets each — past that a
   // finished workout can never sync, so the buttons stop there and say why.
   const atExerciseCap = exercises.length >= GYM_MAX_EXERCISES_PER_SESSION;
-  const exerciseCapReason = `Max ${String(GYM_MAX_EXERCISES_PER_SESSION)} exercises per workout.`;
+  const exerciseCapReason = t('gym.workout.view.capReason', {
+    max: String(GYM_MAX_EXERCISES_PER_SESSION),
+  });
   const noteSe = noteFor === 'session' ? null : (exercises.find((e) => e.id === noteFor) ?? null);
 
   return (
@@ -432,7 +436,7 @@ export function WorkoutView() {
       <div className="mt-4 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start lg:gap-6">
         {/* Desktop navigator */}
         <nav
-          aria-label="Exercises"
+          aria-label={t('gym.workout.view.navLabel')}
           className="hidden lg:sticky lg:top-24 lg:block"
           data-testid="gym-exercise-navigator"
         >
@@ -472,10 +476,10 @@ export function WorkoutView() {
                           {(supersets.get(se.id)?.index ?? 0) + 1}
                         </span>
                       )}
-                      {meta?.name ?? 'Exercise'}
+                      {meta?.name ?? t('gym.workout.exerciseCard.fallbackName')}
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-gray-400">
-                      {se.skipped ? 'skip' : `${doneSets}/${sets.length}`}
+                      {se.skipped ? t('gym.workout.view.skipTag') : `${doneSets}/${sets.length}`}
                     </span>
                   </button>
                 </li>
@@ -490,7 +494,7 @@ export function WorkoutView() {
             title={atExerciseCap ? exerciseCapReason : undefined}
           >
             <Plus aria-hidden="true" />
-            Add exercise
+            {t('gym.workout.view.addExercise')}
           </Button>
           {atExerciseCap && (
             <p className="mt-1 text-center text-xs text-gray-500">{exerciseCapReason}</p>
@@ -503,7 +507,7 @@ export function WorkoutView() {
             data-testid="gym-superset-open"
           >
             <Link2 aria-hidden="true" />
-            Superset
+            {t('gym.shared.superset.title')}
           </Button>
           <SyncIndicator className="mt-2" />
         </nav>
@@ -550,7 +554,7 @@ export function WorkoutView() {
 
           {exercises.length === 0 && (
             <div className="rounded-2xl border border-dashed bg-white p-6 text-center text-sm text-gray-600">
-              Freestyle: add your first exercise.
+              {t('gym.workout.view.freestyleEmpty')}
             </div>
           )}
 
@@ -563,7 +567,7 @@ export function WorkoutView() {
               title={atExerciseCap ? exerciseCapReason : undefined}
             >
               <Plus aria-hidden="true" />
-              Add exercise
+              {t('gym.workout.view.addExercise')}
             </Button>
             <Button
               variant="outline"
@@ -573,20 +577,17 @@ export function WorkoutView() {
               data-testid="gym-superset-open"
             >
               <Link2 aria-hidden="true" />
-              Superset
+              {t('gym.shared.superset.title')}
             </Button>
           </div>
           {!canPrescribe && (
-            <p className="mt-2 text-xs text-gray-500">
-              Swapping and adding exercises need your gym profile. Reconnect to load it; logging
-              works offline.
-            </p>
+            <p className="mt-2 text-xs text-gray-500">{t('gym.workout.view.needProfile')}</p>
           )}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
             <Button variant="ghost" onClick={() => setNoteFor('session')}>
               <StickyNote aria-hidden="true" />
-              Workout note
+              {t('gym.workout.view.workoutNote')}
             </Button>
             <Button
               variant="ghost"
@@ -594,7 +595,7 @@ export function WorkoutView() {
               onClick={() => setConfirm('discard')}
             >
               <Trash2 aria-hidden="true" />
-              Discard workout
+              {t('gym.workout.view.discardWorkout')}
             </Button>
           </div>
           <div className="lg:hidden">
@@ -609,15 +610,19 @@ export function WorkoutView() {
       <Sheet
         open={actionsSe !== null}
         onClose={() => setActionsFor(null)}
-        title={actionsSe ? (lookup(actionsSe.exerciseId)?.name ?? 'Exercise') : 'Exercise'}
-        description="Changes apply to this workout only."
+        title={
+          actionsSe
+            ? (lookup(actionsSe.exerciseId)?.name ?? t('gym.workout.exerciseCard.fallbackName'))
+            : t('gym.workout.exerciseCard.fallbackName')
+        }
+        description={t('gym.workout.view.changesThisWorkout')}
         size="sm"
       >
         {actionsSe && (
           <ul className="px-3 pb-4" data-testid="gym-exercise-actions-sheet">
             <ActionItem
               icon={Repeat}
-              label="Swap exercise"
+              label={t('gym.workout.view.swapExercise')}
               disabled={!canPrescribe}
               onClick={() => {
                 setActionsFor(null);
@@ -626,7 +631,11 @@ export function WorkoutView() {
             />
             <ActionItem
               icon={CircleSlash}
-              label={actionsSe.skipped ? 'Un-skip exercise' : 'Skip exercise'}
+              label={
+                actionsSe.skipped
+                  ? t('gym.workout.view.unskipExercise')
+                  : t('gym.workout.view.skipExercise')
+              }
               onClick={() => {
                 act({ type: 'skipExercise', seId: actionsSe.id, skipped: !actionsSe.skipped });
                 setActionsFor(null);
@@ -634,14 +643,16 @@ export function WorkoutView() {
             />
             <ActionItem
               icon={Trash2}
-              label="Remove exercise"
+              label={t('gym.workout.view.removeExercise')}
               onClick={() => {
                 const index = exercises.findIndex((e) => e.id === actionsSe.id);
                 act({ type: 'removeExercise', seId: actionsSe.id });
                 setUndoRemoveExercise({
                   exercise: actionsSe,
                   index,
-                  name: lookup(actionsSe.exerciseId)?.name ?? 'exercise',
+                  name:
+                    lookup(actionsSe.exerciseId)?.name ??
+                    t('gym.workout.view.removedExerciseFallback'),
                 });
                 setActionsFor(null);
               }}
@@ -649,7 +660,7 @@ export function WorkoutView() {
             {!actionsSe.skipped && (
               <ActionItem
                 icon={Link2}
-                label="Superset"
+                label={t('gym.shared.superset.title')}
                 disabled={pickable.length < 2}
                 onClick={() => {
                   setActionsFor(null);
@@ -659,11 +670,11 @@ export function WorkoutView() {
             )}
             <ActionItem
               icon={Plus}
-              label="Add set"
+              label={t('gym.workout.view.addSet')}
               disabled={actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE}
               hint={
                 actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE
-                  ? `Max ${String(GYM_MAX_SETS_PER_EXERCISE)} sets per exercise.`
+                  ? t('gym.workout.view.maxSets', { max: String(GYM_MAX_SETS_PER_EXERCISE) })
                   : undefined
               }
               onClick={() => {
@@ -673,7 +684,7 @@ export function WorkoutView() {
             />
             <ActionItem
               icon={Minus}
-              label="Remove last set"
+              label={t('gym.workout.view.removeLastSet')}
               disabled={workingSets(actionsSe).length === 0}
               onClick={() => {
                 const sets = workingSets(actionsSe);
@@ -684,19 +695,21 @@ export function WorkoutView() {
             />
             <ActionItem
               icon={ArrowUp}
-              label="Move up"
+              label={t('gym.workout.view.moveUp')}
               disabled={actionsSe.position === 0}
               onClick={() => act({ type: 'moveExercise', seId: actionsSe.id, direction: 'up' })}
             />
             <ActionItem
               icon={ArrowDown}
-              label="Move down"
+              label={t('gym.workout.view.moveDown')}
               disabled={actionsSe.position >= exercises.length - 1}
               onClick={() => act({ type: 'moveExercise', seId: actionsSe.id, direction: 'down' })}
             />
             <ActionItem
               icon={StickyNote}
-              label={actionsSe.notes ? 'Edit note' : 'Add note'}
+              label={
+                actionsSe.notes ? t('gym.workout.view.editNote') : t('gym.workout.view.addNote')
+              }
               onClick={() => {
                 setNoteFor(actionsSe.id);
                 setActionsFor(null);
@@ -726,7 +739,11 @@ export function WorkoutView() {
       <NoteSheet
         key={noteFor ?? 'none'}
         open={noteFor !== null}
-        title={noteFor === 'session' ? 'Workout note' : 'Exercise note'}
+        title={
+          noteFor === 'session'
+            ? t('gym.workout.view.workoutNote')
+            : t('gym.workout.view.exerciseNote')
+        }
         initial={noteFor === 'session' ? (session.notes ?? '') : (noteSe?.notes ?? '')}
         max={noteFor === 'session' ? 1000 : 500}
         onClose={() => setNoteFor(null)}
@@ -742,7 +759,11 @@ export function WorkoutView() {
           open={picker !== null}
           onClose={() => setPicker(null)}
           library={data.library}
-          title={picker?.kind === 'swap' ? 'Swap for…' : 'Add an exercise'}
+          title={
+            picker?.kind === 'swap'
+              ? t('gym.workout.view.swapTitle')
+              : t('gym.workout.view.addTitle')
+          }
           preferSwapGroup={
             picker?.kind === 'swap'
               ? (lookup(exercises.find((e) => e.id === picker.seId)?.exerciseId ?? '')?.swapGroup ??
@@ -793,14 +814,14 @@ export function WorkoutView() {
           setMenu
             ? (() => {
                 const se = exercises.find((e) => e.id === setMenu.seId);
-                return se ? setLabelOf(se, setMenu.setId) : null;
+                return se ? setLabelOf(se, setMenu.setId, t) : null;
               })()
             : null
         }
         exerciseName={
           setMenu
             ? (lookup(exercises.find((e) => e.id === setMenu.seId)?.exerciseId ?? '')?.name ??
-              'Exercise')
+              t('gym.workout.exerciseCard.fallbackName'))
             : ''
         }
         onClose={() => setSetMenu(null)}
@@ -814,7 +835,7 @@ export function WorkoutView() {
                 seId: se.id,
                 set,
                 index: set.position,
-                label: setLabelOf(se, set.id) ?? 'set',
+                label: setLabelOf(se, set.id, t) ?? t('gym.workout.view.setFallback'),
               });
             }
           }
@@ -824,11 +845,11 @@ export function WorkoutView() {
 
       {undoRemove && (
         <Toast
-          message={`Removed ${undoRemove.label.toLowerCase()}`}
+          message={t('gym.workout.view.removedSet', { label: undoRemove.label.toLowerCase() })}
           onClose={() => setUndoRemove(null)}
           duration={8000}
           action={{
-            label: 'Undo',
+            label: t('gym.workout.view.undo'),
             onClick: () => {
               act({
                 type: 'restoreSet',
@@ -844,11 +865,11 @@ export function WorkoutView() {
 
       {undoRemoveExercise && (
         <Toast
-          message={`Removed ${undoRemoveExercise.name}`}
+          message={t('gym.workout.view.removedExercise', { name: undoRemoveExercise.name })}
           onClose={() => setUndoRemoveExercise(null)}
           duration={8000}
           action={{
-            label: 'Undo',
+            label: t('gym.workout.view.undo'),
             onClick: () => {
               act({
                 type: 'restoreExercise',
@@ -866,13 +887,13 @@ export function WorkoutView() {
       <Sheet
         open={confirm === 'finish'}
         onClose={() => setConfirm(null)}
-        title="Finish workout?"
-        description={`${unfinishedSets(session)} set${unfinishedSets(session) === 1 ? ' is' : 's are'} not ticked. They won't count, and that's fine.`}
+        title={t('gym.workout.view.finishTitle')}
+        description={t('gym.workout.view.finishDescription', { count: unfinishedSets(session) })}
         size="sm"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => setConfirm(null)}>
-              Keep going
+              {t('gym.workout.view.keepGoing')}
             </Button>
             <Button
               onClick={() => void doFinish()}
@@ -880,7 +901,7 @@ export function WorkoutView() {
               className="bg-[#944a00] hover:bg-[#7a3d00]"
               data-testid="gym-finish-anyway"
             >
-              Finish anyway
+              {t('gym.workout.view.finishAnyway')}
             </Button>
           </div>
         }
@@ -891,13 +912,13 @@ export function WorkoutView() {
       <Sheet
         open={confirm === 'discard'}
         onClose={() => setConfirm(null)}
-        title="Discard this workout?"
-        description="Nothing from this session will be saved to your history."
+        title={t('gym.workout.view.discardTitle')}
+        description={t('gym.workout.view.discardDescription')}
         size="sm"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => setConfirm(null)}>
-              Keep it
+              {t('gym.workout.view.keepIt')}
             </Button>
             <Button
               variant="destructive"
@@ -907,7 +928,7 @@ export function WorkoutView() {
                 router.replace('/gym');
               }}
             >
-              Discard
+              {t('gym.workout.view.discard')}
             </Button>
           </div>
         }
@@ -927,20 +948,23 @@ function SupersetHeading({
   restSec: number;
   onUngroup: () => void;
 }) {
+  const { t } = useT();
   return (
     <div
       className="mb-1.5 flex min-w-0 items-center gap-2 px-1 text-sm"
       data-testid="gym-superset-heading"
     >
       <span className="h-4 w-1 shrink-0 rounded-full bg-violet-500" aria-hidden="true" />
-      <span className="shrink-0 font-semibold text-violet-800">Superset {label}</span>
+      <span className="shrink-0 font-semibold text-violet-800">
+        {t('gym.workout.view.supersetHeading', { label })}
+      </span>
       <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
-        {restSec} s rest after each round
+        {t('gym.workout.view.supersetRest', { sec: restSec })}
       </span>
       <button
         type="button"
         onClick={onUngroup}
-        aria-label={`Ungroup superset ${label}`}
+        aria-label={t('gym.workout.view.ungroupAria', { label })}
         data-testid="gym-superset-ungroup"
         // MO-01 press feedback; the hit area grows to 44 px via touch-target.
         className={cn(
@@ -948,7 +972,7 @@ function SupersetHeading({
           pressControl,
         )}
       >
-        Ungroup
+        {t('gym.workout.view.ungroup')}
       </button>
     </div>
   );
@@ -964,6 +988,7 @@ function UngroupSheet({
   onClose: () => void;
   onUngroup: (alsoRoutine: boolean) => void;
 }) {
+  const { t } = useT();
   const [alsoRoutine, setAlsoRoutine] = useState(false);
   useEffect(() => {
     if (label !== null) setAlsoRoutine(false);
@@ -972,16 +997,16 @@ function UngroupSheet({
     <Sheet
       open={label !== null}
       onClose={onClose}
-      title={label ? `Ungroup superset ${label}` : 'Ungroup'}
-      description="You'll rest after every set again."
+      title={label ? t('gym.workout.view.ungroupAria', { label }) : t('gym.workout.view.ungroup')}
+      description={t('gym.workout.view.ungroupDescription')}
       size="sm"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button onClick={() => onUngroup(alsoRoutine)} data-testid="gym-ungroup-confirm">
-            Ungroup
+            {t('gym.workout.view.ungroup')}
           </Button>
         </div>
       }
@@ -995,7 +1020,7 @@ function UngroupSheet({
             className="h-5 w-5 shrink-0 accent-[#944a00]"
             data-testid="gym-ungroup-also-routine"
           />
-          <span className="min-w-0 flex-1">Also change my routine</span>
+          <span className="min-w-0 flex-1">{t('gym.shared.superset.alsoRoutine')}</span>
         </label>
       </div>
     </Sheet>
@@ -1014,12 +1039,13 @@ export function SetMenuSheet({
   onClose: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useT();
   return (
     <Sheet
       open={label !== null}
       onClose={onClose}
-      title={label ? `${label} · ${exerciseName}` : 'Set'}
-      description="Changes apply to this workout only."
+      title={label ? `${label} · ${exerciseName}` : t('gym.workout.view.setFallbackTitle')}
+      description={t('gym.workout.view.changesThisWorkout')}
       size="sm"
     >
       <ul className="px-3 pb-4" data-testid="gym-set-menu-sheet">
@@ -1031,7 +1057,9 @@ export function SetMenuSheet({
             className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-red-600 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Remove {label?.toLowerCase() ?? 'set'}
+            {t('gym.workout.view.removeSet', {
+              label: label?.toLowerCase() ?? t('gym.workout.view.setFallback'),
+            })}
           </button>
         </li>
       </ul>
@@ -1056,6 +1084,7 @@ function WorkoutHeader({
   onFinish: () => void;
   finishing: boolean;
 }) {
+  const { t } = useT();
   return (
     <div className="sticky top-16 z-20 -mx-4 border-b bg-gray-50/95 px-4 py-2 backdrop-blur lg:top-0">
       <div className="flex items-center gap-3">
@@ -1063,10 +1092,12 @@ function WorkoutHeader({
           <h1 className="truncate font-serif text-lg font-bold text-gray-900">{session.name}</h1>
           <p className="flex flex-wrap gap-x-2 text-xs text-gray-500">
             <ElapsedClock startedAt={session.startedAt} />
-            <span aria-label={`${done} of ${planned} sets done`}>
-              {done}/{planned} sets
+            <span aria-label={t('gym.workout.view.setsDoneAria', { done, planned })}>
+              {t('gym.workout.exerciseCard.progress', { done, total: planned })}
             </span>
-            {session.isDeload && <span className="text-sky-700">Deload</span>}
+            {session.isDeload && (
+              <span className="text-sky-700">{t('gym.workout.view.deload')}</span>
+            )}
           </p>
         </div>
         <Button
@@ -1075,7 +1106,7 @@ function WorkoutHeader({
           className="shrink-0 bg-[#944a00] hover:bg-[#7a3d00]"
           data-testid="gym-finish"
         >
-          Finish
+          {t('gym.workout.view.finish')}
         </Button>
       </div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-gray-200" aria-hidden="true">
@@ -1144,6 +1175,7 @@ export function NoteSheet({
   onClose: () => void;
   onSave: (text: string) => void;
 }) {
+  const { t } = useT();
   const [text, setText] = useState(initial);
   return (
     <Sheet
@@ -1154,9 +1186,9 @@ export function NoteSheet({
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
-          <Button onClick={() => onSave(text)}>Save note</Button>
+          <Button onClick={() => onSave(text)}>{t('gym.workout.view.saveNote')}</Button>
         </div>
       }
     >
@@ -1165,7 +1197,7 @@ export function NoteSheet({
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, max))}
           rows={4}
-          placeholder="Seat height, grip, how it felt…"
+          placeholder={t('gym.workout.view.notePlaceholder')}
           className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#944a00]/30"
           aria-label={title}
         />

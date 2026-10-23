@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { addDaysLocal, weekdayDateLabel, weekStartOf } from '@chefer/utils';
+import { addDaysLocal, weekStartOf } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { localDate } from '../offline/ids';
-import { SessionWhenFields } from './session-when-fields';
+import { SessionWhenFields, weekdayDateLabelT } from './session-when-fields';
 
 // The header of the logger over a past workout.
 // - Edit mode (UX-44, T-44.3): `Cancel · Editing {weekday d Mon} · Save` over
@@ -46,6 +47,7 @@ export function EditSessionHeader({
   onSave,
   onChangeWhen,
 }: EditSessionHeaderProps) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<WhenValue>({ localDate: sessionDate, durationMin });
   const today = localDate();
@@ -63,7 +65,10 @@ export function EditSessionHeader({
     onChangeWhen(picked);
   };
 
-  const title = logging ? 'Log workout' : `Editing · ${weekdayDateLabel(sessionDate)}`;
+  const dateLabel = weekdayDateLabelT(sessionDate, t);
+  const title = logging
+    ? t('gym.session.edit.logWorkout')
+    : t('gym.session.edit.editing', { date: dateLabel });
 
   return (
     <View className="border-b border-border px-2 pb-2 pt-1">
@@ -74,13 +79,15 @@ export function EditSessionHeader({
           onPress={onCancel}
           className="min-h-11 min-w-11 justify-center px-2"
         >
-          <Text className="text-base text-primary">Cancel</Text>
+          <Text className="text-base text-primary">{t('common.actions.cancel')}</Text>
         </Pressable>
         <Text
           testID="edit-session-title"
           accessibilityRole="header"
           accessibilityLabel={
-            logging ? `Log ${name}` : `Editing ${name}, ${weekdayDateLabel(sessionDate)}`
+            logging
+              ? t('gym.session.edit.logA11y', { name })
+              : t('gym.session.edit.editingA11y', { name, date: dateLabel })
           }
           className="min-w-0 flex-1 text-center text-base font-semibold"
           numberOfLines={1}
@@ -88,7 +95,7 @@ export function EditSessionHeader({
           {title}
         </Text>
         <Button testID="edit-session-save" size="sm" loading={saving} onPress={onSave}>
-          Save
+          {t('common.actions.save')}
         </Button>
       </View>
 
@@ -115,16 +122,20 @@ export function EditSessionHeader({
             className="min-w-0 flex-1"
             numberOfLines={1}
           >
-            {`${name} · ${weekdayDateLabel(sessionDate)} · ${durationMin} min`}
+            {t('gym.session.edit.subtitle', {
+              name,
+              date: dateLabel,
+              minutes: t('common.counts.minutes', { count: durationMin }),
+            })}
           </Text>
           <Pressable
             testID="edit-session-change-when"
             accessibilityRole="button"
-            accessibilityLabel="Change date and duration"
+            accessibilityLabel={t('gym.session.edit.changeA11y')}
             onPress={openSheet}
             className="min-h-11 justify-center pl-2"
           >
-            <Text className="text-sm font-medium text-primary">Change ›</Text>
+            <Text className="text-sm font-medium text-primary">{t('gym.session.edit.change')}</Text>
           </Pressable>
         </View>
       )}
@@ -133,11 +144,11 @@ export function EditSessionHeader({
         <Sheet
           visible={open}
           onClose={() => setOpen(false)}
-          title="When was this workout?"
+          title={t('gym.session.edit.whenTitle')}
           testID="edit-session-when-sheet"
           footer={
             <Button testID="edit-session-when-done" size="lg" onPress={apply}>
-              Done
+              {t('common.actions.done')}
             </Button>
           }
         >

@@ -12,6 +12,7 @@ import {
   touchedExerciseIds,
   type ProgressionTargetSnapshot,
 } from '@chefer/utils';
+import { getTranslator } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
@@ -236,6 +237,7 @@ export interface DeleteSessionArgs {
  */
 export async function deleteSessionWithUndo(args: DeleteSessionArgs): Promise<void> {
   const { queryClient, session, source, show } = args;
+  const { t } = getTranslator();
   const id = session.id;
   await queryClient.cancelQueries({ queryKey: gymBootstrapQueryKey });
   const before = queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey);
@@ -282,8 +284,8 @@ export async function deleteSessionWithUndo(args: DeleteSessionArgs): Promise<vo
   captureGymEvent('session_deleted', { from: source });
 
   show({
-    message: 'Workout deleted',
-    actionLabel: 'Undo',
+    message: t('gym.session.delete.deleted'),
+    actionLabel: t('gym.workout.view.undo'),
     durationMs: UNDO_WINDOW_MS,
     onAction: () => {
       const timer = holdTimers.get(id);
@@ -291,7 +293,7 @@ export async function deleteSessionWithUndo(args: DeleteSessionArgs): Promise<vo
       holdTimers.delete(id);
       if (outbox.cancelHeld(id) === null) {
         // The hold already lapsed: the delete is on its way; don't pretend otherwise.
-        show({ message: 'Too late to undo. The workout is already deleted.' });
+        show({ message: t('gym.session.delete.tooLate') });
         return;
       }
       if (displaced) outbox.enqueue(displaced.doc, { ownerId: displaced.ownerId });

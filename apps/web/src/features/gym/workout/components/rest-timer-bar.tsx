@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useT } from '@/lib/i18n';
 import { Timer } from 'lucide-react';
 import { cn } from '@chefer/utils';
 import {
@@ -19,6 +20,7 @@ import { formatClock } from '../workout-model';
  * at lg+. It owns the ticking, so nothing else re-renders each second.
  */
 export function RestTimerBar() {
+  const { t } = useT();
   const onDone = useCallback(() => {
     playRestDoneSound();
     notifyRestDone();
@@ -33,7 +35,7 @@ export function RestTimerBar() {
       className="sticky bottom-nav-safe z-20 mt-4 lg:bottom-0"
       role="timer"
       aria-live="off"
-      aria-label={`Rest ${formatClock(remainingSec)} left`}
+      aria-label={t('gym.workout.restTimer.ariaLabel', { clock: formatClock(remainingSec) })}
       data-testid="gym-rest-timer"
     >
       <div className="overflow-hidden rounded-2xl border bg-gray-900 text-white shadow-lg">
@@ -50,15 +52,18 @@ export function RestTimerBar() {
           </span>
           <TimerButton
             onClick={() => adjustRest(-REST_ADJUST_STEP_SEC)}
-            label="Subtract 15 seconds"
+            label={t('gym.workout.restTimer.subtract')}
           >
             −15
           </TimerButton>
-          <TimerButton onClick={() => adjustRest(REST_ADJUST_STEP_SEC)} label="Add 15 seconds">
+          <TimerButton
+            onClick={() => adjustRest(REST_ADJUST_STEP_SEC)}
+            label={t('gym.workout.restTimer.add')}
+          >
             +15
           </TimerButton>
-          <TimerButton onClick={skipRest} label="Skip rest" wide>
-            Skip
+          <TimerButton onClick={skipRest} label={t('gym.workout.restTimer.skip')} wide>
+            {t('common.actions.skip')}
           </TimerButton>
         </div>
       </div>

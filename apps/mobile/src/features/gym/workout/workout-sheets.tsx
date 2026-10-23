@@ -8,10 +8,11 @@ import {
 } from '@chefer/types';
 import { Button, ExplainSheet, Input, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { ExerciseImage } from '../components/exercise-image';
 import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
 import { exerciseImageUrl } from '../library/exercise-image';
-import { isAtSetCap, SET_CAP_REASON } from './caps';
+import { isAtSetCap, setCapReason } from './caps';
 import type { ExerciseHistoryEntry } from './workout-model';
 
 // Sheets opened from an exercise card. They live once at screen level (not one
@@ -30,6 +31,7 @@ export function TechniqueSheet({
   onClose: () => void;
   exercise: ExerciseDto | null;
 }) {
+  const { t } = useT();
   // R-16: "Watch technique" plays in the in-app video sheet instead of
   // throwing the user out to YouTube mid-set. iOS refuses to present a Modal
   // while another is still dismissing, so the technique sheet closes first and
@@ -48,8 +50,8 @@ export function TechniqueSheet({
       <Sheet
         visible={visible}
         onClose={onClose}
-        title={exercise?.name ?? 'Technique'}
-        eyebrow="Technique"
+        title={exercise?.name ?? t('gym.workout.logger.sheets.technique')}
+        eyebrow={t('gym.workout.logger.sheets.technique')}
         testID="technique-sheet"
         onExited={() => {
           if (pendingVideo) {
@@ -102,12 +104,14 @@ export function TechniqueSheet({
               onClose();
             }}
           >
-            ▶ Watch technique
+            {t('gym.workout.logger.sheets.watch')}
           </Button>
         ) : null}
         {exercise && exercise.cues.length > 0 ? (
           <View className="gap-1">
-            <Text className="text-headline font-semibold text-label">Focus on</Text>
+            <Text className="text-headline font-semibold text-label">
+              {t('gym.workout.logger.sheets.focusOn')}
+            </Text>
             {exercise.cues.map((cue) => (
               <Text key={cue} className="text-callout text-label">
                 • {cue}
@@ -117,7 +121,9 @@ export function TechniqueSheet({
         ) : null}
         {exercise && exercise.mistakes.length > 0 ? (
           <View className="gap-1">
-            <Text className="text-headline font-semibold text-label">Avoid</Text>
+            <Text className="text-headline font-semibold text-label">
+              {t('gym.workout.logger.sheets.avoid')}
+            </Text>
             {exercise.mistakes.map((m) => (
               <Text key={m} className="text-callout text-label">
                 • {m}
@@ -127,7 +133,7 @@ export function TechniqueSheet({
         ) : null}
         {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
           <Text className="text-subhead text-label-secondary">
-            No coaching notes for this exercise yet.
+            {t('gym.workout.logger.sheets.noNotes')}
           </Text>
         ) : null}
       </Sheet>
@@ -163,6 +169,7 @@ export function WhySheet({
   /** Trainer coaching: who set a trainer-set target ("Ana"); "Set by Ana" replaces "Your own target". */
   setBy?: string | null;
 }) {
+  const { t } = useT();
   // D2 protected (gym-why-sheet.test.tsx pins the exact copy/testIDs): this
   // is the gym instance of the kit ExplainSheet (PAT-1, T-00.1) — same
   // sentence, rows and footnote as before the refactor, unchanged.
@@ -171,11 +178,11 @@ export function WhySheet({
       visible={visible}
       onClose={onClose}
       title={name}
-      eyebrow="Why this target"
+      eyebrow={t('gym.workout.logger.sheets.whyEyebrow')}
       testID="why-sheet"
       sentence={exercise ? explain(exercise.prescription, unit, 'today', setBy) : undefined}
       rows={exercise ? explainInputs(exercise.prescription, unit, setBy) : []}
-      footnote="Change any number freely: the next suggestion uses what you actually lift."
+      footnote={t('gym.workout.logger.sheets.whyFootnote')}
     />
   );
 }
@@ -260,6 +267,7 @@ function MenuRow({
 }
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
+  const { t } = useT();
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
   const swapAsksScope = props.swapAsksScope ?? true;
   // Log mode (a new past workout) is edit mode where every listed set counts.
@@ -274,9 +282,9 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
 
   const titles: Record<MenuPage, string> = {
     actions: name,
-    swap: `Swap ${name}`,
-    note: 'Note',
-    history: 'History',
+    swap: t('gym.workout.logger.sheets.swapTitle', { name }),
+    note: t('gym.workout.logger.sheets.note'),
+    history: t('gym.workout.logger.sheets.history'),
   };
 
   return (
@@ -293,13 +301,13 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             <>
               <MenuRow
                 testID="menu-replace"
-                label="Replace exercise"
-                hint="Changes this workout only."
+                label={t('gym.workout.logger.sheets.replace')}
+                hint={t('gym.workout.view.changesThisWorkout')}
                 onPress={() => props.onSwap('today')}
               />
               <MenuRow
                 testID="menu-remove-exercise"
-                label="Remove from this workout"
+                label={t('gym.workout.logger.sheets.removeFromWorkout')}
                 destructive
                 onPress={() => props.onRemoveExercise?.()}
               />
@@ -308,21 +316,25 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             <>
               <MenuRow
                 testID="menu-swap"
-                label="Swap exercise"
+                label={t('gym.workout.view.swapExercise')}
                 onPress={() => (swapAsksScope ? setPage('swap') : props.onSwap('today'))}
               />
               <MenuRow
                 testID="menu-skip"
-                label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
-                hint={exercise.skipped ? undefined : 'Skipping never counts as a miss.'}
+                label={
+                  exercise.skipped
+                    ? t('gym.workout.logger.sheets.unskip')
+                    : t('gym.workout.view.skipExercise')
+                }
+                hint={exercise.skipped ? undefined : t('gym.workout.logger.sheets.skipHint')}
                 onPress={props.onSkip}
               />
               {/* Owner dogfood 2026-09-30: an exercise added by mistake must be
                   removable, not just skippable. Undo comes from the snackbar. */}
               <MenuRow
                 testID="menu-remove-exercise"
-                label="Remove exercise"
-                hint="Removes it from this workout only."
+                label={t('gym.workout.view.removeExercise')}
+                hint={t('gym.workout.logger.sheets.removeExerciseHint')}
                 destructive
                 onPress={() => props.onRemoveExercise?.()}
               />
@@ -330,49 +342,49 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
           )}
           <MenuRow
             testID="menu-add-set"
-            label="Add set"
-            hint={isAtSetCap(exercise.sets.length) ? SET_CAP_REASON : undefined}
+            label={t('gym.workout.view.addSet')}
+            hint={isAtSetCap(exercise.sets.length) ? setCapReason() : undefined}
             disabled={isAtSetCap(exercise.sets.length)}
             onPress={props.onAddSet}
           />
           <MenuRow
             testID="menu-remove-set"
-            label="Remove last set"
+            label={t('gym.workout.view.removeLastSet')}
             hint={
               logging && hasWorkingSet
-                ? 'Removes the last set.'
+                ? t('gym.workout.logger.sheets.removesLast')
                 : hasOpenSet
-                  ? 'Removes the last set you haven’t logged.'
+                  ? t('gym.workout.logger.sheets.removesLastUnlogged')
                   : hasWorkingSet
-                    ? 'Removes the last set.'
-                    : 'No sets to remove.'
+                    ? t('gym.workout.logger.sheets.removesLast')
+                    : t('gym.workout.logger.sheets.noSetsToRemove')
             }
             disabled={!hasWorkingSet}
             onPress={props.onRemoveSet}
           />
           <MenuRow
             testID="menu-move-up"
-            label="Move up"
+            label={t('gym.workout.view.moveUp')}
             disabled={isFirst}
             onPress={() => props.onMove('up')}
           />
           <MenuRow
             testID="menu-move-down"
-            label="Move down"
+            label={t('gym.workout.view.moveDown')}
             disabled={isLast}
             onPress={() => props.onMove('down')}
           />
           {!editing && props.onSuperset ? (
             <MenuRow
               testID="menu-superset"
-              label="Superset"
-              hint="Do it back to back with other exercises."
+              label={t('gym.shared.superset.title')}
+              hint={t('gym.workout.logger.sheets.supersetHint')}
               onPress={props.onSuperset}
             />
           ) : null}
           <MenuRow
             testID="menu-note"
-            label={exercise.notes ? 'Edit note' : 'Add note'}
+            label={exercise.notes ? t('gym.workout.view.editNote') : t('gym.workout.view.addNote')}
             onPress={() => {
               setNote(exercise.notes ?? '');
               setPage('note');
@@ -380,7 +392,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
           />
           <MenuRow
             testID="menu-history"
-            label="Exercise history"
+            label={t('gym.workout.logger.sheets.exerciseHistory')}
             onPress={() => setPage('history')}
           />
         </View>
@@ -389,10 +401,10 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
       {page === 'swap' ? (
         <View className="gap-3">
           <Text className="text-subhead text-label-secondary">
-            Pick where the change applies, then choose the exercise.
+            {t('gym.workout.logger.sheets.swapPrompt')}
           </Text>
           <Button testID="menu-swap-today" size="lg" onPress={() => props.onSwap('today')}>
-            Just today
+            {t('gym.workout.logger.sheets.justToday')}
           </Button>
           <Button
             testID="menu-swap-routine"
@@ -401,7 +413,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             disabled={routineBlockedReason !== null}
             onPress={() => props.onSwap('routine')}
           >
-            Today and my routine
+            {t('gym.workout.logger.sheets.todayAndRoutine')}
           </Button>
           {routineBlockedReason ? (
             <Text testID="menu-swap-routine-blocked" className="text-subhead text-label-secondary">
@@ -409,7 +421,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             </Text>
           ) : null}
           <Button testID="menu-back" variant="ghost" onPress={() => setPage('actions')}>
-            Back
+            {t('common.actions.back')}
           </Button>
         </View>
       ) : null}
@@ -418,10 +430,10 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
         <View className="gap-3">
           <Input
             testID="menu-note-input"
-            accessibilityLabel="Exercise note"
+            accessibilityLabel={t('gym.workout.view.exerciseNote')}
             value={note}
             onChangeText={setNote}
-            placeholder="Seat height, grip, a cue…"
+            placeholder={t('gym.workout.logger.sheets.notePlaceholder')}
             multiline
             maxLength={500}
             className="min-h-24 rounded-control border-separator p-3"
@@ -431,10 +443,10 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             testID="menu-note-save"
             onPress={() => props.onSaveNote(note.trim() === '' ? null : note.trim())}
           >
-            Save note
+            {t('gym.workout.view.saveNote')}
           </Button>
           <Button variant="ghost" onPress={() => setPage('actions')}>
-            Back
+            {t('common.actions.back')}
           </Button>
         </View>
       ) : null}
@@ -443,7 +455,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
         <View className="gap-2">
           {props.history.length === 0 ? (
             <Text className="text-subhead text-label-secondary">
-              No history yet. This will be the first time.
+              {t('gym.workout.logger.sheets.noHistory')}
             </Text>
           ) : (
             props.history.map((h) => (
@@ -465,14 +477,16 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
                     )
                     .join(', ')}
                   {h.lastSetRir !== null
-                    ? ` · ${h.lastSetRir >= 3 ? '3+' : String(h.lastSetRir)} left`
+                    ? ` · ${t('gym.workout.logger.sheets.historyRir', {
+                        value: h.lastSetRir >= 3 ? '3+' : String(h.lastSetRir),
+                      })}`
                     : ''}
                 </Text>
               </View>
             ))
           )}
           <Button variant="ghost" onPress={() => setPage('actions')}>
-            Back
+            {t('common.actions.back')}
           </Button>
         </View>
       ) : null}

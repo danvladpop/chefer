@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import {
   ChevronRight,
@@ -16,7 +17,6 @@ import {
 import type {
   EquipmentProfile,
   ExerciseMeta,
-  PrKind,
   ProgressionDto,
   SessionExerciseDoc,
   WeightUnit,
@@ -35,7 +35,6 @@ import {
   repBucket,
   stepDown,
   stepUp,
-  streakWeeksLabel,
   unitToKg,
 } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
@@ -57,10 +56,10 @@ import { livePrs, loadSlotOf, sessionProgress, sortedExercises } from './workout
 // decision per exercise with its reason, each with an Adjust stepper (the
 // target-level edit, gym.progression.setOverride).
 
-const PR_LABEL: Record<PrKind, string> = { e1rm: 'e1RM', weight: 'Weight', reps: 'Reps' };
 const serverOwner = () => null;
 
 export function SummaryView({ id }: { id: string }) {
+  const { t } = useT();
   const { data, lookup, profile, unit, ready, hasMounted } = useGymData();
   const outboxState = useOutboxState();
   const owner = useSyncExternalStore(subscribeGymOwner, getGymOwner, serverOwner);
@@ -124,7 +123,7 @@ export function SummaryView({ id }: { id: string }) {
     <Frame>
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          {doc.status === 'COMPLETED' ? 'Workout done' : 'Workout'}
+          {doc.status === 'COMPLETED' ? t('gym.summary.workoutDone') : t('gym.workout.view.title')}
         </p>
         <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">{doc.name}</h1>
       </div>
@@ -133,9 +132,13 @@ export function SummaryView({ id }: { id: string }) {
         <div className="flex min-w-0 flex-col gap-4">
           <GymCard data-testid="gym-summary-stats">
             <dl className="grid grid-cols-3 gap-2 text-center">
-              <Stat icon={Clock} label="Minutes" value={String(minutes)} />
-              <Stat icon={ListChecks} label="Sets" value={String(progress.done)} />
-              <Stat icon={Trophy} label="PRs" value={String(prs.size)} />
+              <Stat icon={Clock} label={t('gym.summary.stats.minutes')} value={String(minutes)} />
+              <Stat
+                icon={ListChecks}
+                label={t('gym.summary.stats.sets')}
+                value={String(progress.done)}
+              />
+              <Stat icon={Trophy} label={t('gym.summary.stats.prs')} value={String(prs.size)} />
             </dl>
           </GymCard>
 
@@ -143,11 +146,16 @@ export function SummaryView({ id }: { id: string }) {
             <WeekRing done={data.streak.thisWeekSessions} goal={data.streak.thisWeekGoal} />
             <div className="min-w-0 text-sm">
               <p className="font-semibold text-gray-900">
-                {data.streak.thisWeekSessions} of {data.streak.thisWeekGoal} this week
+                {t('gym.summary.weekProgress', {
+                  done: data.streak.thisWeekSessions,
+                  goal: data.streak.thisWeekGoal,
+                })}
               </p>
               <p className="flex items-center gap-1 text-xs text-gray-500">
                 <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
-                {streakWeeksLabel(data.streak.current)}
+                {data.streak.current === 0
+                  ? t('gym.summary.streakNone')
+                  : t('gym.summary.streakWeeks', { count: data.streak.current })}
               </p>
             </div>
           </GymCard>
@@ -156,7 +164,7 @@ export function SummaryView({ id }: { id: string }) {
 
           {prs.size > 0 && (
             <GymCard>
-              <CardLabel>Personal records</CardLabel>
+              <CardLabel>{t('gym.summary.personalRecords')}</CardLabel>
               <ul className="mt-2 space-y-1.5">
                 {[...prs.entries()].map(([seId, pr]) => {
                   const se = doc.exercises.find((e) => e.id === seId);
@@ -166,10 +174,12 @@ export function SummaryView({ id }: { id: string }) {
                     <li key={seId} className="flex items-center justify-between gap-2 text-sm">
                       <span className="flex min-w-0 items-center gap-1.5">
                         <Trophy className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
-                        <span className="truncate">{meta?.name ?? 'Exercise'}</span>
+                        <span className="truncate">
+                          {meta?.name ?? t('gym.workout.exerciseCard.fallbackName')}
+                        </span>
                       </span>
                       <span className="shrink-0 text-xs text-gray-500">
-                        {PR_LABEL[pr.kind]} ·{' '}
+                        {t(`gym.summary.prKind.${pr.kind}`)} ·{' '}
                         {set
                           ? `${formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })} × ${set.reps}`
                           : ''}
@@ -185,7 +195,7 @@ export function SummaryView({ id }: { id: string }) {
         </div>
 
         <GymCard data-testid="gym-next-time">
-          <CardLabel>Next time</CardLabel>
+          <CardLabel>{t('gym.summary.nextTime')}</CardLabel>
           <ul className="mt-3 divide-y">
             {exercises.map((se) =>
               isCardioExercise(lookup(se.exerciseId)) ? (
@@ -193,7 +203,7 @@ export function SummaryView({ id }: { id: string }) {
                 <CardioRow
                   key={se.id}
                   se={se}
-                  name={lookup(se.exerciseId)?.name ?? 'Exercise'}
+                  name={lookup(se.exerciseId)?.name ?? t('gym.workout.exerciseCard.fallbackName')}
                   distanceUnit={profileDistanceUnit(data.profile)}
                 />
               ) : (
@@ -214,7 +224,7 @@ export function SummaryView({ id }: { id: string }) {
               ),
             )}
             {exercises.length === 0 && (
-              <li className="py-3 text-sm text-gray-500">No exercises were logged.</li>
+              <li className="py-3 text-sm text-gray-500">{t('gym.summary.noExercises')}</li>
             )}
           </ul>
         </GymCard>
@@ -227,7 +237,7 @@ export function SummaryView({ id }: { id: string }) {
           className="w-full bg-[#944a00] hover:bg-[#7a3d00] sm:w-auto"
           data-testid="gym-summary-done"
         >
-          <Link href="/gym">Done</Link>
+          <Link href="/gym">{t('common.actions.done')}</Link>
         </Button>
       </div>
     </Frame>
@@ -240,6 +250,7 @@ export function SummaryView({ id }: { id: string }) {
  * — offline or without a plan it falls back to quick add in the tracker.
  */
 function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
+  const { t } = useT();
   const grams = postWorkoutProteinG(bodyweightKg);
   const { data } = trpc.dashboard.summary.useQuery(
     { localDate: localDateStr(), localHour: new Date().getHours() },
@@ -250,17 +261,17 @@ function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
     <GymCard data-testid="gym-refuel">
       <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
         <Utensils className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
-        Aim for ~{grams} g protein in your next meal
+        {t('gym.summary.refuelAim', { grams })}
       </p>
-      <p className="mt-0.5 text-xs text-gray-500">
-        It helps your muscles recover from this session.
-      </p>
+      <p className="mt-0.5 text-xs text-gray-500">{t('gym.summary.refuelHelp')}</p>
       <Link
         href={next ? `/recipes/${next.recipe.id}` : '/tracker'}
         className="-mx-2 mt-1 flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 text-sm font-medium text-[#944a00] hover:bg-[#fff3e8]"
       >
         <span className="min-w-0 truncate">
-          {next ? `Next up: ${next.recipe.name}` : 'Log a meal in the tracker'}
+          {next
+            ? t('gym.summary.refuelNext', { name: next.recipe.name })
+            : t('gym.summary.refuelLog')}
         </span>
         <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
       </Link>
@@ -273,13 +284,14 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 function NotFound() {
+  const { t } = useT();
   return (
     <Frame>
-      <h1 className="sr-only">Workout summary</h1>
+      <h1 className="sr-only">{t('gym.summary.notFoundTitle')}</h1>
       <div className="rounded-2xl border border-dashed bg-white p-8 text-center">
-        <p className="text-sm text-gray-600">We couldn&apos;t find that workout.</p>
+        <p className="text-sm text-gray-600">{t('gym.summary.notFound')}</p>
         <Button asChild className="mt-4">
-          <Link href="/gym">Back to Today</Link>
+          <Link href="/gym">{t('gym.workout.view.backToToday')}</Link>
         </Button>
       </div>
     </Frame>
@@ -307,6 +319,7 @@ function CardioRow({
   name: string;
   distanceUnit: ReturnType<typeof profileDistanceUnit>;
 }) {
+  const { t } = useT();
   const logged = se.sets.filter((s) => !s.isWarmup && s.completedAt !== null);
   return (
     <li className="py-3" data-testid="gym-summary-cardio-row">
@@ -314,7 +327,7 @@ function CardioRow({
       <p className="text-xs text-gray-500">
         {logged.length > 0
           ? logged.map((s) => cardioSetText(s, se.exerciseId, distanceUnit)).join(' · ')
-          : 'Not logged'}
+          : t('gym.summary.notLogged')}
       </p>
     </li>
   );
@@ -333,6 +346,7 @@ function NextTimeRow({
   profile: EquipmentProfile;
   unit: WeightUnit;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [editing, setEditing] = useState(false);
   const suggestion = progression?.suggestion ?? null;
@@ -346,12 +360,12 @@ function NextTimeRow({
     },
   });
 
-  const name = meta?.name ?? 'Exercise';
+  const name = meta?.name ?? t('gym.workout.exerciseCard.fallbackName');
   if (!suggestion) {
     return (
       <li className="py-3">
         <p className="truncate text-sm font-medium text-gray-900">{name}</p>
-        <p className="text-xs text-gray-500">Next target appears once this workout syncs.</p>
+        <p className="text-xs text-gray-500">{t('gym.summary.targetPending')}</p>
       </li>
     );
   }
@@ -392,7 +406,7 @@ function NextTimeRow({
               className="-ml-2 mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-[#944a00] hover:bg-[#fff3e8]"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-              Adjust
+              {t('gym.summary.adjust')}
             </button>
           )}
         </div>
@@ -405,9 +419,11 @@ function NextTimeRow({
               // T-05.4 (CI-31, AC6): typed entry — 40 → 150 kg takes a few
               // keystrokes here instead of ~44 ± clicks.
               <Stepper
-                label="next weight"
+                label={t('gym.summary.nextWeight')}
                 value={formatLoad(weightKg, unit, meta?.loadType, { each: meta?.perHand })}
-                valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType, { each: meta?.perHand })}`}
+                valueLabel={t('gym.summary.nextWeightValue', {
+                  load: formatLoad(weightKg, unit, meta?.loadType, { each: meta?.perHand }),
+                })}
                 rawValue={kgToUnit(weightKg, unit)}
                 onValueChange={(v) => setWeightKg(unitToKg(v, unit))}
                 onDecrement={() =>
@@ -420,8 +436,12 @@ function NextTimeRow({
               />
             )}
             <Stepper
-              label="next reps"
-              value={`${repsText(reps, timed)}${timed ? '' : ' reps'}`}
+              label={t('gym.summary.nextReps')}
+              value={
+                timed
+                  ? repsText(reps, timed)
+                  : t('gym.summary.repsValue', { value: repsText(reps, timed) })
+              }
               onDecrement={() => setRepsDelta((d) => d - 1)}
               onIncrement={() => setRepsDelta((d) => d + 1)}
               canDecrement={reps.some((r) => r > 1)}
@@ -429,7 +449,7 @@ function NextTimeRow({
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-              Cancel
+              {t('common.actions.cancel')}
             </Button>
             <Button
               size="sm"
@@ -458,12 +478,12 @@ function NextTimeRow({
                 });
               }}
             >
-              Save target
+              {t('gym.summary.saveTarget')}
             </Button>
           </div>
           {save.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              Couldn&apos;t save. Adjusting targets needs a connection.
+              {t('gym.summary.saveError')}
             </p>
           )}
         </div>

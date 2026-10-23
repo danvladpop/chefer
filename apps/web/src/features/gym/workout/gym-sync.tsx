@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/features/auth/hooks/use-auth';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { showGymToast } from '../shared/gym-toast';
 import { activeSessionStore } from './active-session-store';
@@ -32,6 +33,12 @@ export function GymSync() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const userId = user?.id ?? null;
+  const { t } = useT();
+  // The outbox callbacks are wired once; they read the current language here.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   // Configure the sender first: effects run in order, and the owner effect
   // below flushes straight away.
@@ -52,7 +59,7 @@ export function GymSync() {
         dropHardDeletes(ids);
         if (takeCorrectedIds(ids).length > 0) {
           showGymToast({
-            message: 'This workout was changed on another device. Showing the latest.',
+            message: tRef.current('gym.workout.view.conflictToast'),
           });
         }
       },

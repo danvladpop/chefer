@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import { radius } from '@chefer/tokens';
-import type { ExerciseDto, PersonalRecord, StreakInfo } from '@chefer/types';
+import type { ExerciseDto, PersonalRecord } from '@chefer/types';
 import {
   Button,
   Celebration,
@@ -29,22 +30,23 @@ import {
   sessionKcalCopy,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../../gym/components/exercise-name-link';
 import { setByText } from '../../gym/routine/attribution';
-import { formatStreakLine } from '../../gym/today/today-helpers';
 import { useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { getFinished } from '../../gym/workout/finished-store';
 import {
   nextTimeRows,
   sessionPrs,
+  streakLineText,
   summaryFromDoc,
   summaryFromRecent,
   type NextTimeRow,
 } from '../../gym/workout/summary-model';
-import { AdjustSheet, goToday, PR_KIND_LABEL } from '../../gym/workout/summary-screen';
+import { AdjustSheet, goToday, prKindLabel } from '../../gym/workout/summary-screen';
 import { useIsOnline } from '../../gym/workout/use-is-online';
-import { DIRECTION_LABEL, fallbackMeta, unitOf } from '../../gym/workout/workout-model';
+import { directionLabel, fallbackMeta, unitOf } from '../../gym/workout/workout-model';
 import { useWorkoutReviewPrompt } from '../../review/review-signals';
 import { BurnTile } from './burn-tile';
 
@@ -82,24 +84,21 @@ function useSummaryBurst(id: string, earned: boolean): number {
 }
 
 /** Duration tile: "52" + "min", or "1:05" + "h" from an hour on. */
-function durationTile(sec: number | null): { value: string; unit?: string } {
+function durationTile(
+  sec: number | null,
+  t: Translator['t'],
+): { value: string; unit?: string; isMinutes?: boolean } {
   if (sec === null) return { value: '—' };
   const min = Math.max(0, Math.round(sec / 60));
-  if (min < 60) return { value: String(min), unit: 'min' };
-  return { value: `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`, unit: 'h' };
-}
-
-/** Same copy as the legacy summary's streak line. */
-function streakLine(streak: StreakInfo): string {
-  if (streak.current > 0) return formatStreakLine(streak);
-  const goal = streak.thisWeekGoal;
-  const sessions = streak.thisWeekSessions;
-  return sessions >= goal && goal > 0
-    ? 'Weekly goal met. Your streak starts now.'
-    : `${Math.max(0, goal - sessions)} more this week to meet your goal.`;
+  if (min < 60) return { value: String(min), unit: t('gym.summary.unitMin'), isMinutes: true };
+  return {
+    value: `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`,
+    unit: t('gym.summary.unitHour'),
+  };
 }
 
 export function WorkoutSummaryV2({ id }: { id: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const { data: bootstrap } = useGymBootstrap();
   const online = useIsOnline();
@@ -137,9 +136,9 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
       <Screen className="bg-canvas" edges={['top', 'bottom', 'left', 'right']}>
         <EmptyState
           testID="summary-missing"
-          title="Workout saved"
-          description="It will sync as soon as you have a connection."
-          action={{ label: 'Done', onPress: goToday, testID: 'summary-done' }}
+          title={t('gym.summary.savedTitle')}
+          description={t('gym.summary.savedBody')}
+          action={{ label: t('common.actions.done'), onPress: goToday, testID: 'summary-done' }}
         />
       </Screen>
     );
@@ -149,7 +148,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
     session: view.summary,
     bodyweightKg: bootstrap?.bodyweightKg,
   });
-  const duration = durationTile(view.durationSec);
+  const duration = durationTile(view.durationSec, t);
   const exerciseCount = view.exercises.filter((e) => !e.skipped && e.workingSets > 0).length;
   const day = formatDate(`${view.summary.localDate}T00:00:00Z`, 'weekday-short', {
     timeZone: 'UTC',
@@ -180,7 +179,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
               accessibilityRole="header"
               className="text-center text-title1 font-bold text-label"
             >
-              Workout complete
+              {t('gym.summary.complete')}
             </Text>
             <Text
               testID="summary-subline"
@@ -198,9 +197,9 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
               testID="summary-duration"
               icon={<Icon name="time" size={18} color={colors.brand} />}
               value={duration.value}
-              {...(duration.unit === 'min' && { count: Number(duration.value) })}
+              {...(duration.isMinutes && { count: Number(duration.value) })}
               unit={duration.unit}
-              label="Duration"
+              label={t('gym.summary.duration')}
             />
             {burn ? (
               <BurnTile testID="summary-kcal" copy={sessionKcalCopy(burn)} />
@@ -210,7 +209,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                 icon={<Icon name="barbell" size={18} color={colors.brand} />}
                 value={String(view.workingSets)}
                 count={view.workingSets}
-                label={view.workingSets === 1 ? 'Set' : 'Sets'}
+                label={t('gym.summary.setsLabel', { count: view.workingSets })}
               />
             )}
             <StatTile
@@ -218,7 +217,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
               icon={<Icon name="list" size={18} color={colors.brand} />}
               value={String(exerciseCount)}
               count={exerciseCount}
-              label={exerciseCount === 1 ? 'Exercise' : 'Exercises'}
+              label={t('gym.summary.exercisesLabel', { count: exerciseCount })}
             />
           </StatTiles>
         </Animated.View>
@@ -240,7 +239,10 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
               size={56}
               color={colors.brand}
               trackColor={colors.surfaceSunken}
-              accessibilityLabel={`${streak.thisWeekSessions} of ${streak.thisWeekGoal} workouts this week`}
+              accessibilityLabel={t('gym.summary.workoutsThisWeek', {
+                done: streak.thisWeekSessions,
+                goal: streak.thisWeekGoal,
+              })}
             >
               <Text className="text-subhead font-bold text-label">
                 {streak.thisWeekSessions}/{streak.thisWeekGoal}
@@ -248,10 +250,13 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
             </ProgressRing>
             <View className="min-w-0 flex-1">
               <Text testID="summary-week" className="text-headline font-semibold text-label">
-                {streak.thisWeekSessions} of {streak.thisWeekGoal} this week
+                {t('gym.summary.weekProgress', {
+                  done: streak.thisWeekSessions,
+                  goal: streak.thisWeekGoal,
+                })}
               </Text>
               <Text testID="summary-streak" className="text-subhead text-label-secondary">
-                {streakLine(streak)}
+                {streakLineText(streak, t)}
               </Text>
             </View>
           </Animated.View>
@@ -265,16 +270,16 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
             accessibilityRole="header"
             className="pt-2 text-title3 font-bold text-label"
           >
-            Next time
+            {t('gym.summary.nextTime')}
           </Text>
           {rows.length === 0 ? (
             <Text className="text-subhead text-label-secondary">
-              Your next targets appear here once this workout syncs.
+              {t('gym.summary.targetsPending')}
             </Text>
           ) : null}
           {!online && rows.length > 0 ? (
             <Text testID="summary-offline" className="text-caption text-label-secondary">
-              Adjusting targets needs a connection. Your workout is saved and will sync.
+              {t('gym.summary.offlineAdjust')}
             </Text>
           ) : null}
           {rows.length > 0 ? (
@@ -306,7 +311,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                         className="text-subhead text-label-secondary"
                       >
                         {loadOf(row.exerciseId, s.weightKg)} × {s.reps.join(' / ')}
-                        {meta.isTimed ? ' s' : ''}
+                        {meta.isTimed ? ` ${t('gym.workout.logger.setRow.secondsUnit')}` : ''}
                       </Text>
                       {/* WP-18: a next target the trainer set says so. */}
                       {setByText(row.progression.override) ? (
@@ -322,7 +327,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                     <PressableScale
                       testID={`summary-next-${i}-adjust`}
                       accessibilityRole="button"
-                      accessibilityLabel={`Adjust next target for ${meta.name}`}
+                      accessibilityLabel={t('gym.summary.adjustA11y', { name: meta.name })}
                       accessibilityHint={row.sentence}
                       accessibilityState={{ disabled: !online }}
                       disabled={!online}
@@ -335,7 +340,9 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                         !online && 'opacity-40',
                       )}
                     >
-                      <Text className="text-callout font-semibold text-brand">Adjust</Text>
+                      <Text className="text-callout font-semibold text-brand">
+                        {t('gym.summary.adjust')}
+                      </Text>
                     </PressableScale>
                   </View>
                 );
@@ -346,12 +353,12 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
 
         {bootstrap?.nextWorkout ? (
           <Text testID="summary-next-up" className="text-subhead text-label-secondary">
-            Next up: {bootstrap.nextWorkout.dayName}
+            {t('gym.summary.refuelNext', { name: bootstrap.nextWorkout.dayName })}
           </Text>
         ) : null}
 
         <Button testID="summary-done" size="lg" className="w-full" onPress={goToday}>
-          Done
+          {t('common.actions.done')}
         </Button>
       </ScrollView>
       <Celebration
@@ -389,7 +396,7 @@ function DirectionDot({
       testID={`summary-next-${index}-direction`}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={DIRECTION_LABEL[direction]}
+      accessibilityLabel={directionLabel(direction)}
       className={cn(
         'h-8 w-8 items-center justify-center rounded-full',
         direction === 'up'
@@ -419,13 +426,14 @@ function PrCard({
   nameOf: (exerciseId: string) => string;
   loadOf: (exerciseId: string, weightKg: number) => string;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const single = prs.length === 1;
   return (
     <View testID="summary-prs" className="gap-3 rounded-card bg-brand-tint p-4">
       {single ? null : (
         <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-          {prs.length} new PRs
+          {t('gym.summary.newPrs', { count: prs.length })}
         </Text>
       )}
       {prs.map((pr) => {
@@ -441,11 +449,15 @@ function PrCard({
               <ExerciseNameLink
                 testID={`summary-pr-${pr.exerciseId}-name`}
                 exerciseId={pr.exerciseId}
-                name={single ? `New PR · ${name}` : name}
+                name={single ? t('gym.summary.newPr', { name }) : name}
                 textClassName="text-headline font-semibold text-label"
               />
               <Text className="text-subhead text-label-secondary">
-                {loadOf(pr.exerciseId, pr.weightKg)} × {pr.reps} · {PR_KIND_LABEL[pr.kind]}
+                {t('gym.summary.prLine', {
+                  load: loadOf(pr.exerciseId, pr.weightKg),
+                  reps: pr.reps,
+                  kind: prKindLabel(pr.kind),
+                })}
               </Text>
             </View>
           </View>
@@ -461,6 +473,7 @@ function PrCard({
  * plan, the tracker. Same query and destinations as the legacy RefuelCard.
  */
 function RefuelRow({ bodyweightKg }: { bodyweightKg: number | null }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const grams = postWorkoutProteinG(bodyweightKg);
   const { data } = trpc.dashboard.summary.useQuery(
@@ -468,7 +481,7 @@ function RefuelRow({ bodyweightKg }: { bodyweightKg: number | null }) {
     { retry: false, staleTime: 60_000 },
   );
   const next = data?.nextMeal ?? data?.tomorrowFirstMeal ?? null;
-  const title = next ? next.recipe.name : 'Log a meal in the tracker';
+  const title = next ? next.recipe.name : t('gym.summary.refuelLog');
   return (
     <View testID="summary-refuel">
       {/* MO-01 card press. */}
@@ -476,17 +489,17 @@ function RefuelRow({ bodyweightKg }: { bodyweightKg: number | null }) {
         testID="summary-refuel-link"
         pressScale="card"
         accessibilityRole="link"
-        accessibilityLabel={`Next meal, aim for about ${grams} g protein: ${title}`}
-        accessibilityHint={`It helps your muscles recover from this session. ${
-          next ? 'Opens the recipe.' : 'Opens the tracker.'
-        }`}
+        accessibilityLabel={t('gym.summary.refuelRowA11y', { grams, title })}
+        accessibilityHint={t('gym.summary.refuelRowHint', {
+          action: next ? t('gym.summary.opensRecipe') : t('gym.summary.opensTracker'),
+        })}
         onPress={() => router.push(next ? `/recipe/${next.recipe.id}` : '/tracker')}
         className="min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4"
       >
         <Icon name="cook" size={20} color={colors.brand} />
         <View className="min-w-0 flex-1">
           <Text testID="summary-refuel-grams" className="text-caption text-label-secondary">
-            Next meal · aim for ~{grams} g protein
+            {t('gym.summary.refuelRowLabel', { grams })}
           </Text>
           <Text numberOfLines={1} className="text-headline font-semibold text-label">
             {title}

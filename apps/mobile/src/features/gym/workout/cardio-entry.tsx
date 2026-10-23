@@ -11,6 +11,7 @@ import {
   toMetres,
   type CardioDistanceUnit,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import {
   cardioElapsedSec,
   clearCardioTimer,
@@ -45,6 +46,7 @@ export interface CardioEntryProps {
 }
 
 export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEntryProps) {
+  const { t } = useT();
   const [mode, setMode] = useState<'timer' | 'enter'>('timer');
   const [enterMin, setEnterMin] = useState<number | null>(null);
   const [distanceDisplay, setDistanceDisplay] = useState<number | null>(null);
@@ -106,7 +108,7 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
     <View className="gap-3" testID={testID}>
       {alreadyLogged ? (
         <Text testID={`${testID}-logged`} variant="muted">
-          Logged.
+          {t('gym.workout.logger.cardio.logged')}
         </Text>
       ) : null}
 
@@ -115,7 +117,7 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
           testID={`${testID}-same-as-last-time`}
           variant="secondary"
           onPress={applySameAsLastTime}
-          accessibilityLabel="Fill in the same time, distance and effort as last time"
+          accessibilityLabel={t('gym.workout.logger.cardio.sameAsLastA11y')}
         >
           {nextTime.text}
         </Button>
@@ -125,10 +127,10 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
         <>
           <SegmentedControl
             testID={`${testID}-mode`}
-            accessibilityLabel="How do you want to log the time?"
+            accessibilityLabel={t('gym.workout.logger.cardio.modeA11y')}
             options={[
-              { value: 'timer', label: 'Timer' },
-              { value: 'enter', label: 'Enter' },
+              { value: 'timer', label: t('gym.workout.logger.cardio.timer') },
+              { value: 'enter', label: t('gym.workout.logger.cardio.enter') },
             ]}
             value={mode}
             onChange={setMode}
@@ -144,7 +146,9 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
                   testID={`${testID}-timer-start`}
                   onPress={() => (isThisTimer ? resumeCardioTimer() : startCardioTimer(se.id))}
                 >
-                  {isThisTimer && timerElapsedSec > 0 ? 'Resume' : 'Start'}
+                  {isThisTimer && timerElapsedSec > 0
+                    ? t('gym.workout.logger.cardio.resume')
+                    : t('gym.workout.logger.cardio.start')}
                 </Button>
               ) : (
                 <Button
@@ -152,7 +156,7 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
                   variant="secondary"
                   onPress={() => pauseCardioTimer()}
                 >
-                  Pause
+                  {t('gym.workout.logger.cardio.pause')}
                 </Button>
               )}
             </View>
@@ -166,7 +170,7 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
                   variant={enterMin === min ? 'default' : 'secondary'}
                   onPress={() => setEnterMin(min)}
                 >
-                  {`${min} min`}
+                  {t('common.counts.minutes', { count: min })}
                 </Button>
               ))}
             </View>
@@ -175,7 +179,7 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
           {showDistance ? (
             <ValueStepper
               testID={`${testID}-distance`}
-              name="Distance"
+              name={t('gym.workout.logger.cardio.distance')}
               value={distanceDisplay ?? 0}
               next={(v, dir) => Math.max(0, round1(v + dir * distanceStepFor(distanceUnit)))}
               onChange={setDistanceDisplay}
@@ -187,19 +191,19 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
           {showLevel ? (
             <ValueStepper
               testID={`${testID}-level`}
-              name="Level"
+              name={t('gym.workout.logger.cardio.level')}
               value={level ?? 0}
               next={(v, dir) => Math.max(0, Math.min(20, v + dir))}
               onChange={setLevel}
               format={(v) => String(v)}
-              caption="level"
+              caption={t('gym.workout.logger.cardio.levelCaption')}
             />
           ) : null}
 
           <EffortChips testID={`${testID}-effort`} value={rpe} onChange={setRpe} />
 
           <Button testID={`${testID}-log-it`} disabled={!canLog} onPress={handleLogIt}>
-            Log it
+            {t('gym.workout.logger.cardio.logIt')}
           </Button>
         </>
       ) : null}

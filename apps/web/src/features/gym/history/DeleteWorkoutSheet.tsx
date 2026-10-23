@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useT } from '@/lib/i18n';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { deleteConfirmLines } from '../workout/session-corrections';
@@ -20,6 +21,7 @@ export function DeleteWorkoutSheet({
   onClose: () => void;
   onConfirm: (session: SessionSummaryDto) => void;
 }) {
+  const { t } = useT();
   // Keep the last session while the sheet animates out.
   const last = useRef<SessionSummaryDto | null>(null);
   if (session) last.current = session;
@@ -29,7 +31,7 @@ export function DeleteWorkoutSheet({
     <Sheet
       open={session !== null}
       onClose={onClose}
-      title="Delete this workout?"
+      title={t('gym.session.deleteTitle')}
       size="sm"
       footer={
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
@@ -40,7 +42,7 @@ export function DeleteWorkoutSheet({
             data-testid="gym-delete-confirm"
             onClick={() => session && onConfirm(session)}
           >
-            Delete workout
+            {t('gym.session.deleteWorkout')}
           </Button>
           <Button
             variant="outline"
@@ -49,14 +51,16 @@ export function DeleteWorkoutSheet({
             data-testid="gym-delete-cancel"
             onClick={onClose}
           >
-            Keep it
+            {t('gym.workout.view.keepIt')}
           </Button>
         </div>
       }
     >
       <div className="space-y-1.5 px-5 pb-4 text-sm text-gray-700" data-testid="gym-delete-body">
         {shown
-          ? deleteConfirmLines(shown, bootstrap).map((line) => <p key={line}>{line}</p>)
+          ? deleteConfirmLines(shown, bootstrap, undefined, t).map((line) => (
+              <p key={line}>{line}</p>
+            ))
           : null}
       </div>
     </Sheet>

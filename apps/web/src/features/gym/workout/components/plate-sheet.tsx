@@ -1,5 +1,6 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import type { EquipmentProfile } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { formatLoad, formatLoadNumber, platesPerSide, unitLabel } from '@chefer/utils';
@@ -14,6 +15,7 @@ export function PlateSheet({
   profile: EquipmentProfile;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const open = weightKg !== null;
   const total = weightKg ?? 0;
   const { plates, remainderKg } = platesPerSide(total, profile);
@@ -31,15 +33,20 @@ export function PlateSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={`Plates for ${formatLoad(total, unit)}`}
-      description={`Per side, on a ${formatLoad(profile.barWeightKg, unit)} bar`}
+      title={t('gym.workout.plates.title', { load: formatLoad(total, unit) })}
+      description={t('gym.workout.plates.description', {
+        bar: formatLoad(profile.barWeightKg, unit),
+      })}
       size="sm"
     >
       <div className="px-5 pb-5" data-testid="gym-plate-sheet">
         {grouped.length === 0 ? (
-          <p className="text-sm text-gray-600">Just the empty bar.</p>
+          <p className="text-sm text-gray-600">{t('gym.workout.plates.emptyBar')}</p>
         ) : (
-          <ul className="flex flex-wrap items-end gap-2" aria-label="Plates per side">
+          <ul
+            className="flex flex-wrap items-end gap-2"
+            aria-label={t('gym.workout.plates.perSide')}
+          >
             {grouped.map(({ plate, count }) => (
               <li
                 key={plate}
@@ -57,8 +64,7 @@ export function PlateSheet({
         )}
         {remainderKg > 0.001 && (
           <p className="mt-3 text-xs text-amber-700">
-            {formatLoad(remainderKg, unit)} per side can&apos;t be made with your plates. Adjust the
-            inventory in gym settings.
+            {t('gym.workout.plates.leftover', { load: formatLoad(remainderKg, unit) })}
           </p>
         )}
       </div>
