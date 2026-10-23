@@ -9,7 +9,10 @@ import {
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import type { Ingredient } from '../../lib/ai/index.js';
-import { curatedPoolByType, ensureCuratedRecipes } from '../../lib/curated-recipes/index.js';
+import {
+  curatedPoolByType,
+  refreshIngestedCuratedRecipes,
+} from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import {
   estimateItemPriceEur,
@@ -277,7 +280,10 @@ export class PantryService {
     // B-34/B-46/T-01.2: never suggest a dish the household can't eat — one
     // SafetyService context instead of a duplicated merge+matcher call, so
     // this stays in sync with every other safety-aware surface.
-    const [ctx] = await Promise.all([this.safety.loadContext(user.id), ensureCuratedRecipes()]);
+    const [ctx] = await Promise.all([
+      this.safety.loadContext(user.id),
+      refreshIngestedCuratedRecipes(),
+    ]);
 
     const pantryNames = pantry.map((p) => p.ingredientName);
     const curatedCandidates = Object.values(curatedPoolByType())

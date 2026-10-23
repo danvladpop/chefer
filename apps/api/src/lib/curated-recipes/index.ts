@@ -193,6 +193,15 @@ export function curatedMealTypeOf(id: string): MealType | undefined {
   return mealTypeById.get(id);
 }
 
+/**
+ * Reloads the ingested slice when stale, without the fixture upsert that
+ * ensureCuratedRecipes also does — for readers that only need the pool in
+ * memory (pantry suggestions). Never throws.
+ */
+export async function refreshIngestedCuratedRecipes(): Promise<void> {
+  await refreshIngested();
+}
+
 async function refreshIngested(): Promise<void> {
   if (Date.now() - ingestedLoadedAt < INGESTED_TTL_MS) return;
   try {
