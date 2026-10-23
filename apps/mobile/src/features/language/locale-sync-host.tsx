@@ -3,7 +3,7 @@ import { getDeviceLocale, setLocaleChoice, useLocaleChoice } from '../../lib/i18
 import { trpc } from '../../lib/trpc';
 
 /**
- * Renders nothing (ADR 0002). Signed in, the account is the source of truth
+ * Renders nothing (ADR 0004). Signed in, the account is the source of truth
  * for the language choice: one made on web or another phone replaces this
  * phone's copy. It also reports the phone's own language when it changes, so
  * emails reach people who never open the setting in their language. Shares

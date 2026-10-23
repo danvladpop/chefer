@@ -4,7 +4,7 @@ import { createTranslator, deviceLanguageTags, resolveLocale, type Translator } 
 import { supportedLocaleSchema, type SupportedLocale } from '@chefer/types';
 import { setFormatLocale } from '@chefer/utils';
 
-// ─── The app's UI language (ADR 0002) ────────────────────────────────────────
+// ─── The app's UI language (ADR 0004) ────────────────────────────────────────
 // A module-level store rather than a React context: local notifications
 // (cook timers, booking reminders, food nudges) are scheduled outside React
 // and must be written in the same language as the screens.

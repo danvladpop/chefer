@@ -200,7 +200,7 @@ model User {
   // S15, rev 2: cache of the terms/privacy version last accepted (the log
   // entry is the source of truth, ConsentEvent kind TERMS).
   termsAcceptedVersion     String?
-  // UI language (ADR 0002, Lane J): 'en' | 'ro' (supportedLocaleSchema,
+  // UI language (ADR 0004, Lane J): 'en' | 'ro' (supportedLocaleSchema,
   // @chefer/types — a string + Zod enum, so a new language is never a
   // migration). `locale` is the explicit Settings choice, null = "same as my
   // phone". `deviceLocale` is the supported language a client last resolved

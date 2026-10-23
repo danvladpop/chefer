@@ -1,5 +1,5 @@
 // @ts-check
-// ADR 0002 (i18n): text a person reads comes from the @chefer/i18n catalogs
+// ADR 0004 (i18n): text a person reads comes from the @chefer/i18n catalogs
 // through `t()`, never from a literal in a component. This rule flags JSX text
 // and literal strings in the attributes people read or hear (placeholder,
 // aria-label, accessibilityLabel…). WARN while the app is converted screen by
@@ -61,12 +61,12 @@ export const noHardcodedUiString = {
     type: 'suggestion',
     docs: {
       description:
-        'Disallow hard-coded user-facing text in JSX; use t() from @chefer/i18n (ADR 0002).',
+        'Disallow hard-coded user-facing text in JSX; use t() from @chefer/i18n (ADR 0004).',
     },
     schema: [],
     messages: {
       hardcoded:
-        'Hard-coded UI text "{{text}}". Add a key to @chefer/i18n and render it with t() (ADR 0002).',
+        'Hard-coded UI text "{{text}}". Add a key to @chefer/i18n and render it with t() (ADR 0004).',
     },
   },
   create(context) {

@@ -1,7 +1,7 @@
 import { createTranslator, resolveLocale, type Translator } from '@chefer/i18n';
 import { supportedLocaleSchema, type SupportedLocale } from '@chefer/types';
 
-// ─── The language an email goes out in (ADR 0002) ─────────────────────────────
+// ─── The language an email goes out in (ADR 0004) ─────────────────────────────
 // The Settings choice, else the language the user's device last reported,
 // else English. The columns are plain strings, so anything unknown is unset.
 

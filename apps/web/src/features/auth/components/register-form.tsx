@@ -109,7 +109,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
     setAccountExists(false);
     // Location defaults (P2-6): the browser's region seeds units + currency.
     const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
-    // ADR 0002: the confirmation email goes out in the browser's language.
+    // ADR 0004: the confirmation email goes out in the browser's language.
     const deviceLocale = deviceSupportedLocale();
     registerMutation.mutate({
       email: data.email,

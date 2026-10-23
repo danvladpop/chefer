@@ -225,7 +225,7 @@ export const userRouter = router({
     }),
 
   /**
-   * ADR 0002: sets the UI language (`locale`, null = follow the device) and/or
+   * ADR 0004: sets the UI language (`locale`, null = follow the device) and/or
    * reports the device's language (`deviceLocale`). Additive — `user.me`
    * carries both; emails go out in `locale ?? deviceLocale ?? 'en'`.
    */

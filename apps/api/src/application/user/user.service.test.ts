@@ -164,7 +164,7 @@ describe('UserService.dismissEmailDefaultsNotice (T-39.3)', () => {
   });
 });
 
-// ─── UI language (ADR 0002) ───────────────────────────────────────────────────
+// ─── UI language (ADR 0004) ───────────────────────────────────────────────────
 
 describe('UserService.setLocale', () => {
   it('stores the Settings choice and returns both languages', async () => {

@@ -1,6 +1,6 @@
 import { supportedLocaleSchema, type SupportedLocale } from '@chefer/types';
 
-// ADR 0002: the Settings language choice, mirrored into a cookie so the
+// ADR 0004: the Settings language choice, mirrored into a cookie so the
 // server renders the first paint (and <html lang>) in it before any tRPC
 // call. Absent = follow the browser. User.locale stays the source of truth;
 // LocaleSync rewrites the cookie when the account says otherwise.

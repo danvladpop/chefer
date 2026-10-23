@@ -104,7 +104,7 @@ export function AccountV4() {
       ageConfirmed: true,
       acceptedTermsVersion: CURRENT_TERMS_VERSION,
       ...(region ? { region } : {}),
-      // ADR 0002: the confirmation email goes out in the app's language.
+      // ADR 0004: the confirmation email goes out in the app's language.
       deviceLocale: getTranslator().locale,
     });
   }

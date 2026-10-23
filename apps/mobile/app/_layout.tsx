@@ -233,7 +233,7 @@ export default function RootLayout() {
             <ShellFlagHost signedIn={token !== null} />
             {/* Trainer mode §5.1: caches "available" for the next cold start, falls back to personal. */}
             <TrainerModeHost signedIn={token !== null} />
-            {/* ADR 0002: the account's language choice wins; reports the phone's language. */}
+            {/* ADR 0004: the account's language choice wins; reports the phone's language. */}
             <LocaleSyncHost signedIn={token !== null} />
             {/* M1-6: crash reports carry the account id (not name/email). */}
             <CrashReportingUserHost signedIn={token !== null} />

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// ─── UI language (ADR 0002, Lane J) ──────────────────────────────────────────
+// ─── UI language (ADR 0004, Lane J) ──────────────────────────────────────────
 // The languages Chefer ships copy in. Catalogs live in @chefer/i18n; this is
 // only the contract the API and both clients agree on. Adding a language here
 // without a catalog fails the i18n catalog check.

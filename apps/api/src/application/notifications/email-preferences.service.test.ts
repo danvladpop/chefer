@@ -109,7 +109,7 @@ describe('EmailPreferencesService', () => {
       expect(message.text).toContain('https://app.test/verify-email?token=');
     });
 
-    it("is written in the account's language (ADR 0002)", async () => {
+    it("is written in the account's language (ADR 0004)", async () => {
       repo.getPreferences.mockResolvedValueOnce({ ...PREFS, deviceLocale: 'ro' });
       await service.sendConfirmation('u1', 'Ana');
       expect(send.mock.calls[0]![0].subject).toBe('Confirmă-ți adresa de email pentru Chefer');

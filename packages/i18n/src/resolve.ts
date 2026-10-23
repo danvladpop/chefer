@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from '@chefer/types';
 
-// ─── Locale resolution (ADR 0002) ────────────────────────────────────────────
+// ─── Locale resolution (ADR 0004) ────────────────────────────────────────────
 // One order everywhere: the user's explicit choice (User.locale) → the
 // device or browser languages, in preference order → English.
 

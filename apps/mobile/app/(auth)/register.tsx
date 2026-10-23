@@ -135,7 +135,7 @@ function RegisterForm() {
       // Location defaults (P2-6): the device region seeds units + currency.
       // Intl only — Hermes ships it, no native dependency.
       ...withRegion(detectRegion()),
-      // ADR 0002: the confirmation email goes out in the app's language.
+      // ADR 0004: the confirmation email goes out in the app's language.
       deviceLocale: getTranslator().locale,
     });
   });

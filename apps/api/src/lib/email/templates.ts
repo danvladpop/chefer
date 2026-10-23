@@ -8,7 +8,7 @@
 // guilt copy. A quiet week gets an encouraging line, not a scolding one.
 //
 // Copy lives in @chefer/i18n (`email.*`): every renderer takes the
-// recipient's Translator (ADR 0002), so the subject, body and <html lang>
+// recipient's Translator (ADR 0004), so the subject, body and <html lang>
 // follow User.locale ?? User.deviceLocale ?? 'en'.
 
 import type { Translator } from '@chefer/i18n';

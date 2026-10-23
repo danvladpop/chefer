@@ -152,7 +152,7 @@ describe('renderVerifyEmail', () => {
   });
 });
 
-describe('Romanian (ADR 0002)', () => {
+describe('Romanian (ADR 0004)', () => {
   it('renders the Monday email in Romanian, with the right plural forms', () => {
     const email = renderWeekReadyEmail(RO, { ...READY, listTotal: '~74 RON' });
     expect(email.subject).toBe('Săptămâna ta este gata: 2 cine, listă de cumpărături de ~74 RON');

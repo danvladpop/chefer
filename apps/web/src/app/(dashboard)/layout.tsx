@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           {/* T-39.1: re-accept sheet for an existing account whose stored
             Terms/Privacy acceptance predates a document version bump. */}
           <TermsReacceptGate />
-          {/* ADR 0002: the account's language choice wins over this browser's cookie. */}
+          {/* ADR 0004: the account's language choice wins over this browser's cookie. */}
           <LocaleSync />
         </DashboardShell>
       </NumbersModeHost>

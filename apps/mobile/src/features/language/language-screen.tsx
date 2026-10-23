@@ -44,7 +44,7 @@ function OptionRow({
 }
 
 /**
- * Settings › Language (ADR 0002). Applies on tap — the screen itself switches
+ * Settings › Language (ADR 0004). Applies on tap — the screen itself switches
  * — and saves to the account so web and emails follow. Each language is
  * written in itself, so a wrong pick is easy to undo.
  */

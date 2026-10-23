@@ -6,7 +6,7 @@ import { firstSupportedLocale } from '@chefer/i18n';
 import { useLocaleSetting } from './i18n-provider';
 
 /**
- * ADR 0002, signed-in pages only. The account is the source of truth for the
+ * ADR 0004, signed-in pages only. The account is the source of truth for the
  * language choice: a choice made on the phone (or another browser) replaces
  * this browser's cookie. It also reports the browser's language once per
  * change, so emails reach people who never open the setting in their language.

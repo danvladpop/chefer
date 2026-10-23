@@ -106,7 +106,7 @@ export const base = tseslint.config(
     },
   },
   {
-    // i18n (ADR 0002): text people read goes through t() from @chefer/i18n.
+    // i18n (ADR 0004): text people read goes through t() from @chefer/i18n.
     // WARN while Lane J converts the app screen by screen; it flips to
     // 'error' in phase 4, once every screen is converted. Write new UI with
     // keys from day one so the flip finds nothing new.

@@ -276,7 +276,7 @@ describe('Register', () => {
         ageConfirmed: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         region: 'US',
-        // ADR 0002: the app's language, for the confirmation email.
+        // ADR 0004: the app's language, for the confirmation email.
         deviceLocale: 'en',
       }),
     );

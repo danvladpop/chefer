@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { LanguageScreen } from '../../src/features/language/language-screen';
 import { getTranslator, resetLocaleForTests } from '../../src/lib/i18n';
 
-// ADR 0002: Settings › Language switches every screen at once and saves the
+// ADR 0004: Settings › Language switches every screen at once and saves the
 // choice to the account; "Same as my phone" follows the phone's language.
 
 jest.mock('expo-router', () => ({

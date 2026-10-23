@@ -6,7 +6,7 @@ import type { SupportedLocale } from '@chefer/types';
 import { setFormatLocale } from '@chefer/utils';
 import { writeLocaleCookie } from './locale-cookie';
 
-// ADR 0002: one translator for every client component. The server resolves
+// ADR 0004: one translator for every client component. The server resolves
 // the first locale (cookie → Accept-Language) and passes it in, so the
 // hydration render is byte-identical to the SSR HTML.
 
@@ -20,7 +20,17 @@ type I18nContextValue = {
   applyChoice: (choice: SupportedLocale | null) => void;
 };
 
-const I18nContext = createContext<I18nContextValue | null>(null);
+// Outside <I18nProvider> (a component rendered on its own, as in unit tests)
+// the UI is in English, the fallback language. The app always renders inside
+// the provider (app/layout.tsx), so this never decides what a user sees.
+const ENGLISH: I18nContextValue = {
+  translator: createTranslator('en'),
+  choice: null,
+  browserLocale: 'en',
+  applyChoice: () => undefined,
+};
+
+const I18nContext = createContext<I18nContextValue>(ENGLISH);
 
 export function I18nProvider({
   initialChoice,
@@ -59,20 +69,14 @@ export function I18nProvider({
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
-function useI18nContext(): I18nContextValue {
-  const value = useContext(I18nContext);
-  if (!value) throw new Error('useT() needs <I18nProvider> (app/layout.tsx)');
-  return value;
-}
-
 /** `const { t } = useT(); t('common.actions.save')`. */
 export function useT(): Translator {
-  return useI18nContext().translator;
+  return useContext(I18nContext).translator;
 }
 
 export function useLocaleSetting(): Omit<I18nContextValue, 'translator'> & {
   locale: SupportedLocale;
 } {
-  const { translator, ...rest } = useI18nContext();
+  const { translator, ...rest } = useContext(I18nContext);
   return { ...rest, locale: translator.locale };
 }

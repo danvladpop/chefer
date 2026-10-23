@@ -16,7 +16,7 @@ export interface WeeklyEmailRecipient {
   role: UserRole;
   planTier: PlanTier;
   image: string | null;
-  /** ADR 0002: the email goes out in locale ?? deviceLocale ?? 'en'. */
+  /** ADR 0004: the email goes out in locale ?? deviceLocale ?? 'en'. */
   locale: string | null;
   deviceLocale: string | null;
 }
@@ -26,7 +26,7 @@ export interface WeeklyEmailPreferences {
   weeklyEmailRecap: boolean;
   emailVerified: Date | null;
   email: string;
-  /** ADR 0002: the confirmation email's language. */
+  /** ADR 0004: the confirmation email's language. */
   locale: string | null;
   deviceLocale: string | null;
 }

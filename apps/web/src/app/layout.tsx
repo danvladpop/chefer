@@ -85,7 +85,7 @@ interface RootLayoutProps {
 }
 
 export default async function RootLayout({ children }: RootLayoutProps) {
-  // ADR 0002: the first paint is already in the reader's language.
+  // ADR 0004: the first paint is already in the reader's language.
   const { locale, choice, deviceTags } = await getRequestI18n();
   const { t } = createTranslator(locale, deviceTags);
   return (

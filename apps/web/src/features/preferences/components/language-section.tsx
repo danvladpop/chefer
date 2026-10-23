@@ -9,7 +9,7 @@ import { Section } from './section';
 type Option = SupportedLocale | 'auto';
 
 /**
- * Language (ADR 0002). Saves on change, outside the form's Save button: the
+ * Language (ADR 0004). Saves on change, outside the form's Save button: the
  * page itself should switch the moment the reader picks a language they can
  * read. Each language is written in itself, so a wrong pick is reversible.
  */

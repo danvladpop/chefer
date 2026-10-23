@@ -299,7 +299,7 @@ export function PreferencesForm({
           }}
         />
 
-        {/* Language (ADR 0002) — saves on change, outside the form's Save. */}
+        {/* Language (ADR 0004) — saves on change, outside the form's Save. */}
         <LanguageSection />
 
         {/* Units & currency — free on every tier (backlog P2-6, audit F-DASH-3-2). */}

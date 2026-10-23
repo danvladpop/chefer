@@ -28,7 +28,7 @@ export interface RegisterInput {
   lastName?: string | undefined;
   /** Device region, e.g. "US" — seeds units + currency (P2-6). */
   region?: string | undefined;
-  /** Device UI language ('en' | 'ro', ADR 0002) — the language of the first emails. */
+  /** Device UI language ('en' | 'ro', ADR 0004) — the language of the first emails. */
   deviceLocale?: SupportedLocale | undefined;
   /**
    * Explicit sign-up consent (T-39.1, T-26.5). All optional at the schema

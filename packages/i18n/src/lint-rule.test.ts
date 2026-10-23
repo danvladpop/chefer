@@ -2,7 +2,7 @@ import { RuleTester, type Rule } from 'eslint';
 import { describe, it } from 'vitest';
 import { noHardcodedUiString } from '@chefer/eslint-config/rules/no-hardcoded-ui-string';
 
-// The warn-only guard from ADR 0002: new UI text goes through t().
+// The warn-only guard from ADR 0004: new UI text goes through t().
 RuleTester.describe = describe;
 RuleTester.it = it;
 RuleTester.itOnly = it.only;

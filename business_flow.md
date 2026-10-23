@@ -44,7 +44,7 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
-39. [Language Flow (i18n, ADR 0002)](#39-language-flow-i18n-adr-0002)
+39. [Language Flow (i18n, ADR 0004)](#39-language-flow-i18n-adr-0004)
 
 ---
 
@@ -6226,7 +6226,7 @@ silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructur
 
 ---
 
-## 39. Language Flow (i18n, ADR 0002)
+## 39. Language Flow (i18n, ADR 0004)
 
 Chefer speaks English and Romanian. Which one a person sees is decided the same way on every surface:
 

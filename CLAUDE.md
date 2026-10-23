@@ -121,7 +121,7 @@ For business flows see [`business_flow.md`](./business_flow.md).
 
 ### Copy and languages (i18n)
 
-Chefer ships in **English and Romanian** ([ADR 0002](./docs/adr/0002-i18n-shared-catalogs-own-runtime.md)). Text that a person reads or hears comes from the `@chefer/i18n` catalogs, never from a string literal in a component.
+Chefer ships in **English and Romanian** ([ADR 0004](./docs/adr/0004-i18n-shared-catalogs-own-runtime.md)). Text that a person reads or hears comes from the `@chefer/i18n` catalogs, never from a string literal in a component.
 
 - **Where text goes.**
   - Add the key to `packages/i18n/src/catalog/en/<namespace>.ts` and the same key to `ro/<namespace>.ts`.

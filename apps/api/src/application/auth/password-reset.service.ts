@@ -51,7 +51,7 @@ export class PasswordResetService {
     const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
     await emailService.send({
       to: normalized,
-      // The account's language (ADR 0002), not the requesting browser's: the
+      // The account's language (ADR 0004), not the requesting browser's: the
       // reset page itself never says whether the address exists.
       ...renderPasswordResetEmail(emailTranslator(user), { resetUrl }),
     });

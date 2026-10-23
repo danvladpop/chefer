@@ -71,9 +71,9 @@ export interface UserDto {
   healthDataConsentAt: Date | null;
   /** T-39.3: when the one-time "emails changed" notice was shown (null = not yet). */
   emailDefaultsNoticeAt: Date | null;
-  /** ADR 0002: the UI language chosen in Settings; null = follow the device. */
+  /** ADR 0004: the UI language chosen in Settings; null = follow the device. */
   locale: SupportedLocale | null;
-  /** ADR 0002: the supported language a client last resolved from the device. */
+  /** ADR 0004: the supported language a client last resolved from the device. */
   deviceLocale: SupportedLocale | null;
   createdAt: Date;
   updatedAt: Date;
@@ -310,7 +310,7 @@ export class UserService {
   }
 
   /**
-   * ADR 0002: the UI language. `locale` is the Settings choice (null =
+   * ADR 0004: the UI language. `locale` is the Settings choice (null =
    * follow the device again); `deviceLocale` is what the client resolved from
    * the device, kept so emails follow someone who never opened the setting.
    * Nothing is written when both already match (clients report on launch).

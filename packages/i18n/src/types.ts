@@ -1,6 +1,6 @@
 import type { en } from './catalog/en';
 
-// ─── Catalog types (ADR 0002) ────────────────────────────────────────────────
+// ─── Catalog types (ADR 0004) ────────────────────────────────────────────────
 // English is the source catalog. Every other locale is typed from it, so a
 // missing or extra key is a type error, and `t()` only accepts real keys with
 // the placeholders the English message uses.

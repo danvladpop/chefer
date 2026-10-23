@@ -31,7 +31,7 @@ const registerSchema = z.object({
    */
   region: regionCodeSchema.optional(),
   /**
-   * The device's UI language (ADR 0002), so the confirmation email sent
+   * The device's UI language (ADR 0004), so the confirmation email sent
    * right after sign-up is already in it. Optional: older apps don't send it.
    */
   deviceLocale: supportedLocaleSchema.optional(),

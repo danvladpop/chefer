@@ -60,7 +60,7 @@ function accountRows(
       value: isPremium === undefined ? undefined : isPremium ? 'Premium' : 'Free',
     },
     { title: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
-    // ADR 0002: shows the language in itself ("Română"), so it is findable in any language.
+    // ADR 0004: shows the language in itself ("Română"), so it is findable in any language.
     { ...language, testID: 'settings-language', href: '/settings/language' },
     { title: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
     {

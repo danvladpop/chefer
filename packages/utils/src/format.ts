@@ -9,7 +9,7 @@ import { formatQuantity, type UnitSystem } from './units';
 // otherwise follows the DEVICE locale: Hermes and every browser resolve the
 // default `Intl` locale from the OS language settings.
 
-// Once the app picks a UI language (ADR 0002), numbers and dates follow it
+// Once the app picks a UI language (ADR 0004), numbers and dates follow it
 // rather than the phone: Romanian copy next to "October 22" reads as a bug.
 // Clients set this from their i18n layer; the server never does (it formats
 // per recipient through @chefer/i18n's translator instead).
