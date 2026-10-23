@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { ConfirmSheet, ErrorState, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   customEntryChipLabel,
@@ -110,6 +110,7 @@ function LegacyTrackerScreen() {
     loggedFat,
   } = useTrackerDay();
   const [mealActionsOpen, setMealActionsOpen] = useState(false);
+  const colors = useThemeColors();
 
   return (
     <NumbersModeProvider mode={data?.numbersMode}>
@@ -135,7 +136,7 @@ function LegacyTrackerScreen() {
             onPress={() => setMealActionsOpen(true)}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="bookmark-outline" size={20} color="#6b7280" />
+            <Ionicons name="bookmark-outline" size={20} color={colors.labelSecondary} />
           </Pressable>
           <Pressable
             testID="tracker-copy-day"

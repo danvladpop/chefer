@@ -11,6 +11,7 @@ import {
   Sheet,
   Text,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   copyMealMessage,
@@ -55,6 +56,7 @@ export function MealActionsSheet({
   loggedMealTypes,
 }: MealActionsSheetProps) {
   const snackbar = useSnackbar();
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const [mealType, setMealType] = useState<QuickAddMealType>(() =>
     defaultMealSlot(new Date().getHours()),
@@ -144,7 +146,7 @@ export function MealActionsSheet({
     >
       <View className="gap-4">
         <View className="gap-1">
-          <Text className="text-xs font-medium text-gray-600">Meal</Text>
+          <Text className="text-xs font-medium text-label-secondary">Meal</Text>
           <SegmentedControl
             size="sm"
             options={MEAL_OPTIONS}
@@ -155,7 +157,7 @@ export function MealActionsSheet({
             }}
             accessibilityLabel="Meal to save or copy"
           />
-          <Text testID="meal-actions-count" className="text-xs text-gray-500">
+          <Text testID="meal-actions-count" className="text-xs text-label-secondary">
             {count === 0
               ? SAVED_MEALS_COPY.nothingLogged
               : `${count} ${count === 1 ? 'entry' : 'entries'} logged`}
@@ -163,7 +165,7 @@ export function MealActionsSheet({
         </View>
 
         <View className="gap-2 rounded-xl border border-border bg-card p-3">
-          <Text className="text-sm font-semibold text-gray-900">{SAVED_MEALS_COPY.saveAs}</Text>
+          <Text className="text-sm font-semibold text-label">{SAVED_MEALS_COPY.saveAs}</Text>
           <Input
             testID="meal-actions-name"
             accessibilityLabel="Name for this meal"
@@ -179,7 +181,7 @@ export function MealActionsSheet({
             onSubmitEditing={save}
           />
           {(nameError ?? createMutation.error) && (
-            <Text testID="meal-actions-save-error" className="text-sm text-red-600">
+            <Text testID="meal-actions-save-error" className="text-sm text-danger">
               {nameError ?? userFacingErrorMessage(createMutation.error)}
             </Text>
           )}
@@ -195,7 +197,7 @@ export function MealActionsSheet({
         </View>
 
         <View className="gap-2 rounded-xl border border-border bg-card p-3">
-          <Text className="text-sm font-semibold text-gray-900">{SAVED_MEALS_COPY.copyTo}</Text>
+          <Text className="text-sm font-semibold text-label">{SAVED_MEALS_COPY.copyTo}</Text>
           <View className="flex-row flex-wrap gap-1.5">
             {days.map((d) => (
               <Chip
@@ -219,10 +221,10 @@ export function MealActionsSheet({
             accessibilityLabel="Meal to copy to"
           />
           {sameTarget && count > 0 && (
-            <Text className="text-xs text-gray-500">{SAVED_MEALS_COPY.sameTarget}</Text>
+            <Text className="text-xs text-label-secondary">{SAVED_MEALS_COPY.sameTarget}</Text>
           )}
           {copyMutation.isError && (
-            <Text testID="meal-actions-copy-error" className="text-sm text-red-600">
+            <Text testID="meal-actions-copy-error" className="text-sm text-danger">
               {userFacingErrorMessage(copyMutation.error)}
             </Text>
           )}
@@ -242,7 +244,7 @@ export function MealActionsSheet({
           <View className="gap-1.5">
             <Text
               accessibilityRole="header"
-              className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+              className="text-xs font-semibold uppercase tracking-widest text-label-secondary"
             >
               Your saved meals
             </Text>
@@ -252,10 +254,10 @@ export function MealActionsSheet({
                 className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
               >
                 <View className="min-w-0 flex-1">
-                  <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                  <Text numberOfLines={1} className="text-sm font-medium text-label">
                     {meal.name}
                   </Text>
-                  <Text className="text-xs text-gray-500">
+                  <Text className="text-xs text-label-secondary">
                     {savedMealSummary(meal.items, false)}
                   </Text>
                 </View>
@@ -272,7 +274,7 @@ export function MealActionsSheet({
                   }
                   className="h-11 w-11 items-center justify-center"
                 >
-                  <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                  <Ionicons name="trash-outline" size={18} color={colors.labelTertiary} />
                 </Pressable>
               </View>
             ))}

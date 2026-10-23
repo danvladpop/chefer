@@ -662,7 +662,7 @@ export function QuickAddSheet({
           </View>
 
           {logSavedMutation.isError && (
-            <Text testID="log-sheet-saved-error" className="text-sm text-red-600">
+            <Text testID="log-sheet-saved-error" className="text-sm text-danger">
               {"Couldn't log that: "}
               {userFacingErrorMessage(logSavedMutation.error)}
             </Text>
@@ -676,12 +676,12 @@ export function QuickAddSheet({
                   key={meal.id}
                   className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
                 >
-                  <Ionicons name="bookmark" size={18} color="#944a00" />
+                  <Ionicons name="bookmark" size={18} color={colors.brand} />
                   <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
                       {meal.name}
                     </Text>
-                    <Text numberOfLines={1} className="text-xs text-gray-500">
+                    <Text numberOfLines={1} className="text-xs text-label-secondary">
                       {savedMealSummary(meal.items, proteinOnly)}
                     </Text>
                   </View>
@@ -700,7 +700,7 @@ export function QuickAddSheet({
                     }
                     className="h-11 w-11 items-center justify-center"
                   >
-                    <Ionicons name="add-circle" size={26} color="#944a00" />
+                    <Ionicons name="add-circle" size={26} color={colors.brand} />
                   </Pressable>
                 </View>
               ))}
