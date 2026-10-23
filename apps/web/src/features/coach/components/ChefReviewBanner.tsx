@@ -32,7 +32,9 @@ const TEASER_PLACEHOLDER =
  * makes, so full-mode screens never pay for it.
  */
 export function ChefReviewBanner() {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
+  // Lane E3 "Hide numbers": the weekly review is calories, protein and weight — not shown.
+  if (noNumbers) return null;
   return proteinOnly ? <ProteinReviewBanner /> : <ReviewBanner proteinAverage={null} />;
 }
 

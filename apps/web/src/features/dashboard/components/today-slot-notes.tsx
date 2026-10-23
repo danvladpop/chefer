@@ -13,7 +13,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 type Slot = NonNullable<RouterOutputs['dashboard']['summary']['today']['slots']>[number];
 
 export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow }) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
   return (
@@ -36,6 +36,7 @@ export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow 
                     s.replacedBy.kcal,
                     s.replacedBy.protein,
                     proteinOnly,
+                    noNumbers,
                   )
                 : SKIPPED_LABEL}
             </p>

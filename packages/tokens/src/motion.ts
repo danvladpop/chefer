@@ -74,6 +74,3 @@ export type HapticName = keyof typeof haptic;
 
 /** Press-feedback scale targets (MO-01): controls shrink to 0.97, whole cards to 0.98. */
 export const pressScale = { control: 0.97, card: 0.98 } as const;
-
-/** Colour for "over target" progress (MO-06): amber-600. */
-export const overTargetColor = '#d97706';

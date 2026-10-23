@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { SourceBadge } from '@/features/ingredients/components/SourceBadge';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import type { RouterOutputs } from '@/lib/trpc';
 import { AlertTriangle, Calculator, ChevronDown, PenLine } from 'lucide-react';
 import { cn, pressControl } from '@chefer/ui';
@@ -47,7 +48,10 @@ export function RecipeNutritionPanel({
   const status = recipe.nutritionStatus;
   const counted = lines.filter((l) => !l.optional);
   const missing = lines.filter(needsData).length;
+  // Lane E3 "Hide numbers": no nutrition facts.
+  const { noNumbers } = useNumbersMode();
 
+  if (noNumbers) return null;
   return (
     <section className="mt-8 rounded-2xl border bg-white p-5" aria-labelledby={`${panelId}-title`}>
       <h2 id={`${panelId}-title`} className="mb-3 font-serif text-sm font-semibold text-gray-900">

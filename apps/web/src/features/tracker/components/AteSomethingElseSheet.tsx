@@ -5,21 +5,7 @@ import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Camera, Pencil } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import {
-  EAT_OUT_CUISINE_LABELS,
-  EAT_OUT_CUISINES,
-  EAT_OUT_SIZE_HINTS,
-  EAT_OUT_SIZE_LABELS,
-  EAT_OUT_SIZES,
-  eatOutEstimate,
-  eatOutLogValues,
-  eatOutMealName,
-  formatEatOutKcal,
-  formatEatOutProtein,
-  proteinLabel,
-  type EatOutCuisine,
-  type EatOutSize,
-} from '@chefer/utils';
+import { EAT_OUT_CUISINE_LABELS, EAT_OUT_CUISINES, EAT_OUT_SIZE_HINTS, EAT_OUT_SIZE_LABELS, EAT_OUT_SIZES, eatOutEstimate, eatOutLogValues, eatOutMealName, formatEatOutKcal, formatEatOutProtein, proteinLabel, type EatOutCuisine, type EatOutSize, HIDE_NUMBERS_COPY } from '@chefer/utils';
 import type { ReplacementInput, SlotTarget } from '../lib/use-slot-actions';
 
 // ─── "Ate something else" (WP-06, Food 1) ─────────────────────────────────────
@@ -87,7 +73,7 @@ export function AteSomethingElseSheet({
   onSnap,
 }: AteSomethingElseSheetProps) {
   // WP-08: protein-only mode asks protein first and never shows a calorie figure.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [tab, setTab] = useState<Tab>('estimate');
   const [cuisine, setCuisine] = useState<EatOutCuisine | null>(null);
   const [size, setSize] = useState<EatOutSize>('normal');
@@ -219,7 +205,9 @@ export function AteSomethingElseSheet({
               className="min-w-0 rounded-xl bg-neutral-50 px-3 py-3 text-center text-sm font-semibold text-neutral-800"
             >
               {estimate
-                ? proteinOnly
+                ? noNumbers
+                  ? HIDE_NUMBERS_COPY.estimateHidden
+                  : proteinOnly
                   ? formatEatOutProtein(estimate)
                   : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
                 : 'Pick what you had'}
@@ -247,9 +235,11 @@ export function AteSomethingElseSheet({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-neutral-800">{r.name}</p>
-                  <p className="text-xs text-neutral-500">
-                    {proteinOnly ? proteinLabel(r.protein) : `${Math.round(r.kcal)} kcal`}
-                  </p>
+                  {noNumbers ? null : (
+                    <p className="text-xs text-neutral-500">
+                      {proteinOnly ? proteinLabel(r.protein) : `${Math.round(r.kcal)} kcal`}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"

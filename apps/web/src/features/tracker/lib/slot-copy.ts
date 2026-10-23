@@ -12,7 +12,10 @@ export function youHadLine(
   kcal: number,
   protein?: number,
   proteinOnly = false,
+  /** Lane E3 "Hide numbers": just the name. */
+  noNumbers = false,
 ): string {
+  if (noNumbers) return `You had: ${name}`;
   if (proteinOnly) {
     return protein === undefined
       ? `You had: ${name}`

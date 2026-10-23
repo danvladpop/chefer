@@ -84,7 +84,7 @@ export default function DashboardPage() {
     { placeholderData: keepPreviousData },
   );
   // WP-08: protein-only mode hides every kcal figure on this page.
-  const { proteinOnly } = useNumbersMode(data?.numbersMode);
+  const { proteinOnly, noNumbers } = useNumbersMode(data?.numbersMode);
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
@@ -290,6 +290,12 @@ export default function DashboardPage() {
               targetMode={targetsData?.targetMode}
               remainingPlannedKcal={remainingPlannedKcal(d.nextMeal, d.restOfToday)}
               proteinGuide={d.proteinGuide}
+              onPlan={{
+                eaten: (d.today.slots ?? []).filter(
+                  (slot) => slot.status === 'eaten' || slot.status === 'replaced',
+                ).length,
+                planned: (d.today.slots ?? []).length,
+              }}
               className="xl:hidden"
             />
           )}
@@ -541,8 +547,8 @@ export default function DashboardPage() {
               })()}
           </div>
 
-          {/* Weekly Progress Chart */}
-          {weekSummary && weekSummary.days.some((d) => d.hasLog) && (
+          {/* Weekly Progress Chart — lane E3 "Hide numbers": no intake chart. */}
+          {!noNumbers && weekSummary && weekSummary.days.some((d) => d.hasLog) && (
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
@@ -672,6 +678,12 @@ export default function DashboardPage() {
               targetMode={targetsData?.targetMode}
               remainingPlannedKcal={remainingPlannedKcal(d.nextMeal, d.restOfToday)}
               proteinGuide={d.proteinGuide}
+              onPlan={{
+                eaten: (d.today.slots ?? []).filter(
+                  (slot) => slot.status === 'eaten' || slot.status === 'replaced',
+                ).length,
+                planned: (d.today.slots ?? []).length,
+              }}
               className="sticky top-6"
             />
           </div>
