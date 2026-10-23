@@ -56,7 +56,9 @@ const onToast = vi.fn();
 const onClose = vi.fn();
 
 afterEach(cleanup);
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 function renderSheet(loggedMealTypes: string[]) {
   render(
