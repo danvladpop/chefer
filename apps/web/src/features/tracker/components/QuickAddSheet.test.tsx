@@ -17,7 +17,7 @@ const m = vi.hoisted(() => ({
   products: [] as unknown[],
   lookupBarcode: vi.fn(),
   logProduct: vi.fn(),
-  createProduct: vi.fn<[vars: unknown], void>(),
+  createProduct: vi.fn<[vars: unknown], undefined>(),
   canScanLabel: false,
   search: { isFetching: false, isError: false },
   refetch: vi.fn(),
