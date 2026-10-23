@@ -1,5 +1,6 @@
 import type { ProgressSettings, ProgressSettingsPatch } from '@chefer/types';
-import { localDateStr } from '@chefer/utils';
+import { localDateStr, progressSettingsEvents } from '@chefer/utils';
+import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 
 // Rewards & motivation writes (mockup 12). A switch must not snap back while
@@ -41,7 +42,10 @@ export function useUpdateProgressSettings() {
     onSettled: () => void utils.progress.summary.invalidate(),
   });
   return {
-    update: (patch: ProgressSettingsPatch) => mutation.mutate(patch),
+    update: (patch: ProgressSettingsPatch) => {
+      for (const e of progressSettingsEvents(patch)) track(e.name, e.props);
+      mutation.mutate(patch);
+    },
     pending: mutation.isPending,
   };
 }

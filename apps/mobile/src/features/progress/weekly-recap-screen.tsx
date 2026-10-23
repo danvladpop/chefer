@@ -25,6 +25,7 @@ import {
   PROGRESS_COPY,
 } from '@chefer/utils';
 import { Icon } from '../../components/icon';
+import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { useProgressEnabled, useProgressSummary } from './use-progress';
 
@@ -203,6 +204,7 @@ export function WeeklyRecapScreen({ week }: { week: string }) {
     if (!enabled || marked.current) return;
     marked.current = true;
     markSeen.mutate({ recapWeek: week });
+    track('kitchen_recap_opened', { source: 'banner' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per visit
   }, [enabled, week]);
 

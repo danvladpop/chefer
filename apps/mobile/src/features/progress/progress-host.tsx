@@ -3,6 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import type { LevelUp, ProgressInbox } from '@chefer/types';
 import { showSnackbar } from '@chefer/ui-mobile';
+import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { flushCookQueue } from './cook-queue';
 import { useGentleReminder } from './gentle-reminder';
@@ -95,7 +96,13 @@ function ProgressHostInner(): React.ReactElement | null {
     if (plan.ack === null) return;
     for (const r of fresh.receipts) seen.receipts.add(r.id);
     for (const u of fresh.unlocks) seen.unlocks.add(u.id);
-    if (fresh.levelUp) seen.level = fresh.levelUp.to;
+    if (fresh.levelUp) {
+      seen.level = fresh.levelUp.to;
+      track('progress_level_up', {
+        level: fresh.levelUp.to,
+        rankChanged: fresh.levelUp.rankChanged,
+      });
+    }
     sendMessages(plan.messages);
     if (plan.levelUpModal) setModal(plan.levelUpModal);
     ack.mutate(plan.ack);

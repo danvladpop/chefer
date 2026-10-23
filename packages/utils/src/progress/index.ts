@@ -12,3 +12,4 @@ export * from './todays-three';
 export * from './full-day';
 export * from './low-intake';
 export * from './recap';
+export * from './analytics';

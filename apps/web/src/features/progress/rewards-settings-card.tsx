@@ -1,10 +1,11 @@
 'use client';
 
 import { useId } from 'react';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import type { CelebrationLevel, ProgressSettingsPatch, ProgressSummary } from '@chefer/types';
 import { pressControl, Switch } from '@chefer/ui';
-import { cn, localDateStr, PROGRESS_COPY } from '@chefer/utils';
+import { cn, localDateStr, PROGRESS_COPY, progressSettingsEvents } from '@chefer/utils';
 import { WeeklyGoalSelect } from './flame-sheet';
 import { PauseFlameCard } from './pause-flame-card';
 import { useProgressSummary } from './use-progress';
@@ -83,7 +84,10 @@ export function RewardsSettingsCard() {
   });
   if (!enabled || !summary) return null;
   const { settings, flame } = summary;
-  const save = (patch: ProgressSettingsPatch) => update.mutate(patch);
+  const save = (patch: ProgressSettingsPatch) => {
+    for (const e of progressSettingsEvents(patch)) capture(e.name, e.props);
+    update.mutate(patch);
+  };
 
   return (
     <section

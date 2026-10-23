@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
 import type { LevelUp } from '@chefer/types';
@@ -49,6 +50,12 @@ export function ProgressHost() {
     });
     if (plan.toast) showAppToast({ message: plan.toast, type: 'success', durationMs: TOAST_MS });
     if (plan.levelUp) setLevelUp(plan.levelUp);
+    if (data.levelUp) {
+      capture('progress_level_up', {
+        level: data.levelUp.to,
+        rankChanged: data.levelUp.rankChanged,
+      });
+    }
 
     // Always ack, even at OFF: "Off still saves your XP and badges, just quietly".
     sendAck({

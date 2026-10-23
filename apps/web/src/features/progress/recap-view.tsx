@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
 import { localDateSchema, type WeeklyRecap } from '@chefer/types';
@@ -210,6 +211,7 @@ export function RecapView({ week }: { week: string }) {
     if (!enabled || !recap || seenSent.current) return;
     seenSent.current = true;
     sendSeen({ recapWeek: week }, { onSuccess: () => void utils.progress.summary.invalidate() });
+    capture('kitchen_recap_opened', { source: 'banner' });
   }, [enabled, recap, week, sendSeen, utils]);
 
   useEffect(() => {
