@@ -15,6 +15,7 @@ import {
 import { COACHING_DATA_LIMITS, type ClientFoodDto, type ClientWeightDto } from '@chefer/types';
 import {
   addDaysLocal,
+  dbDateKey,
   foodDaySummary,
   trainerNumbersView,
   weekStartOf,
@@ -117,7 +118,7 @@ export class CoachingDataService {
     const base = resolveDailyTargets(profile, lifterBodyweightKg);
     const planByWeek = new Map(weeks.map((w, i) => [w, plans[i] ?? null]));
     const trainingByWeek = new Map(weeks.map((w, i) => [w, trainingWeeks[i] ?? null]));
-    const logByDate = new Map(logs.map((l) => [l.date.toISOString().slice(0, 10), l]));
+    const logByDate = new Map(logs.map((l) => [dbDateKey(l.date), l]));
 
     const entriesByDate = new Map(
       dates.map((date) => [

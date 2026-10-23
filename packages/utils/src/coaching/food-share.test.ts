@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dbDateKey,
   foodDaySummary,
   planAdherence,
   trainerNumbersView,
@@ -110,5 +111,12 @@ describe('weighInsByDay', () => {
       { date: '2026-10-01', weightKg: 81 },
       { date: '2026-10-02', weightKg: 80.6 },
     ]);
+  });
+});
+
+describe('dbDateKey', () => {
+  it('reads the calendar day a @db.Date column holds, whatever the host time zone', () => {
+    expect(dbDateKey(new Date('2026-10-05T00:00:00.000Z'))).toBe('2026-10-05');
+    expect(dbDateKey(new Date('2026-12-31T00:00:00.000Z'))).toBe('2026-12-31');
   });
 });

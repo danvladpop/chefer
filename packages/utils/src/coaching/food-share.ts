@@ -124,3 +124,14 @@ export function weighInsByDay(
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([date, v]) => ({ date, weightKg: Math.round(v.weightKg * 10) / 10 }));
 }
+
+/**
+ * The `YYYY-MM-DD` a Prisma `@db.Date` column holds (e.g. `DailyLog.date`).
+ * Such a value is the user's own calendar day, stored as UTC midnight, so its
+ * UTC parts ARE the day. Never use it on "now": that is the server's day
+ * (`scripts/check-utc-days.mjs`); take the client's `localDate` instead.
+ */
+export function dbDateKey(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
