@@ -43,3 +43,6 @@ yarn-error.*
 
 # local release binaries + their runtime fingerprints (scripts/release-*.sh)
 /release-builds/
+
+# @bacons/apple-targets writes these from each target's expo-target.config.js (colors/images) on prebuild
+/targets/*/Assets.xcassets/

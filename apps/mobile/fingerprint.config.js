@@ -6,6 +6,9 @@
 /** @type {import('expo/fingerprint').Config} */
 const config = {
   extraSources: [{ type: 'dir', filePath: 'targets', reasons: ['appleTargets'] }],
+  // Generated on prebuild from expo-target.config.js (already hashed) and
+  // gitignored, so a checkout that has run prebuild must hash the same.
+  ignorePaths: ['targets/*/Assets.xcassets/**'],
 };
 
 module.exports = config;
