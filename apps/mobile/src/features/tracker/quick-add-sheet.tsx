@@ -15,6 +15,7 @@ import {
   Sheet,
   Text,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
@@ -145,6 +146,7 @@ export function QuickAddSheet({
   targetSlot,
   onSlotLogged,
 }: QuickAddSheetProps) {
+  const colors = useThemeColors();
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
   // WP-08: protein-only mode asks protein first and shows no calorie figure.
@@ -575,7 +577,7 @@ export function QuickAddSheet({
         <View className="gap-3">
           {!targetSlot && (
             <View className="gap-1">
-              <Text className="text-xs font-medium text-gray-600">Meal</Text>
+              <Text className="text-xs font-medium text-label-secondary">Meal</Text>
               <SegmentedControl
                 size="sm"
                 options={MEAL_OPTIONS}
@@ -625,7 +627,7 @@ export function QuickAddSheet({
                 >
                   <RecipeImage imageUrl={r.imageUrl} className="h-9 w-9 rounded-lg" />
                   <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
                       {r.name}
                     </Text>
                     <Text className="text-xs text-gray-500">{nutritionLabel(r, proteinOnly)}</Text>
@@ -830,7 +832,7 @@ export function QuickAddSheet({
                     <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                       {productDisplayName(product)}
                     </Text>
-                    <Text className="text-xs text-gray-500">
+                    <Text className="text-xs text-label-secondary">
                       {product.per100g.kcal === null
                         ? 'No calories yet'
                         : proteinOnly
@@ -842,9 +844,9 @@ export function QuickAddSheet({
                     </Text>
                   </View>
                   {warnings.length > 0 && (
-                    <Ionicons name="warning-outline" size={18} color="#b45309" />
+                    <Ionicons name="warning-outline" size={18} color={colors.attention} />
                   )}
-                  <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+                  <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />
                 </Pressable>
               ))}
             </View>
@@ -1013,7 +1015,7 @@ export function QuickAddSheet({
               onPress={() => openProduct()}
               className="min-h-11 flex-row items-center gap-1"
             >
-              <Ionicons name="barcode-outline" size={16} color="#944a00" />
+              <Ionicons name="barcode-outline" size={16} color={colors.brand} />
               <Text className="text-sm font-medium text-primary">
                 {PACKAGED_PRODUCT_COPY.scanBarcode}
               </Text>
@@ -1051,7 +1053,7 @@ export function QuickAddSheet({
             onPress={() => setView('search')}
             className="min-h-11 flex-row items-center gap-1"
           >
-            <Ionicons name="arrow-back" size={16} color="#944a00" />
+            <Ionicons name="arrow-back" size={16} color={colors.brand} />
             <Text className="text-sm font-medium text-primary">Back to search</Text>
           </Pressable>
           {!targetSlot && (

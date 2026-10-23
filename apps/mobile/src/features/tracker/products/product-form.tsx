@@ -64,25 +64,25 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
     <View testID="product-form" className="gap-3">
       {scan && (
         <View className="gap-1 rounded-lg bg-muted p-3">
-          <Text className="text-sm font-medium text-gray-800">
+          <Text className="text-sm font-medium text-label">
             {PACKAGED_PRODUCT_COPY.labelDraftHint}
           </Text>
           {scan.notes.map((note) => (
-            <Text key={note} className="text-xs text-gray-600">
+            <Text key={note} className="text-xs text-label-secondary">
               {note}
             </Text>
           ))}
           {scan.confidence !== 'high' && (
-            <Text className="text-xs text-amber-700">
+            <Text className="text-xs text-attention">
               Some numbers were hard to read. Check them carefully.
             </Text>
           )}
         </View>
       )}
-      {form.barcode && <Text className="text-xs text-gray-500">Barcode {form.barcode}</Text>}
+      {form.barcode && <Text className="text-xs text-label-secondary">Barcode {form.barcode}</Text>}
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Product name</Text>
+        <Text className="text-xs font-medium text-label-secondary">Product name</Text>
         <Input
           testID="product-form-name"
           accessibilityLabel="Product name"
@@ -94,7 +94,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         />
       </View>
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Brand (optional)</Text>
+        <Text className="text-xs font-medium text-label-secondary">Brand (optional)</Text>
         <Input
           testID="product-form-brand"
           accessibilityLabel="Brand"
@@ -105,13 +105,13 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         />
       </View>
 
-      <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text className="text-xs font-semibold uppercase tracking-widest text-label-secondary">
         Per 100 g (leave blank if not on the pack)
       </Text>
       <View className="flex-row flex-wrap gap-2">
         {PRODUCT_FORM_FIELDS.map(({ key, label, unit, required }) => (
           <View key={key} className="min-w-0 basis-[47%] gap-1">
-            <Text className="text-xs font-medium text-gray-600">
+            <Text className="text-xs font-medium text-label-secondary">
               {label} ({unit}){required ? ' *' : ''}
             </Text>
             <Input
@@ -127,7 +127,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         ))}
       </View>
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Serving size (g, optional)</Text>
+        <Text className="text-xs font-medium text-label-secondary">Serving size (g, optional)</Text>
         <Input
           testID="product-form-serving"
           accessibilityLabel="Serving size in grams"
@@ -140,7 +140,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       </View>
 
       <View className="gap-1.5">
-        <Text className="text-xs font-medium text-gray-600">Contains (from the pack)</Text>
+        <Text className="text-xs font-medium text-label-secondary">Contains (from the pack)</Text>
         <View className="flex-row flex-wrap gap-1.5">
           {PRODUCT_ALLERGEN_PICKS.map(({ id, label }) => (
             <Chip
@@ -159,7 +159,9 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
           />
         </View>
         {!form.noneListed && form.contains.length === 0 && (
-          <Text className="text-xs text-gray-500">{PACKAGED_PRODUCT_COPY.allergensUnknown}</Text>
+          <Text className="text-xs text-label-secondary">
+            {PACKAGED_PRODUCT_COPY.allergensUnknown}
+          </Text>
         )}
       </View>
 
@@ -167,7 +169,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         <Text
           testID="product-form-error"
           accessibilityLiveRegion="polite"
-          className="text-sm text-red-600"
+          className="text-sm text-danger"
         >
           {formError ?? error}
         </Text>

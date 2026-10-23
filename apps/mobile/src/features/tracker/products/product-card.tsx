@@ -7,7 +7,15 @@ import {
   type ProductAllergenWarning,
   type ProductAmount,
 } from '@chefer/types';
-import { Button, Chip, DONE_FIELD_PROPS, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Chip,
+  DONE_FIELD_PROPS,
+  Input,
+  SegmentedControl,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   formatNumber,
   productAllergenLine,
@@ -58,6 +66,7 @@ export function ProductCard({
   onLog,
   onCompleteNumbers,
 }: ProductCardProps) {
+  const colors = useThemeColors();
   const hasServing = product.servingSizeG !== null;
   const [unit, setUnit] = useState<Unit>(hasServing ? 'serving' : 'g');
   const [amountText, setAmountText] = useState(hasServing ? '1' : '100');
@@ -85,11 +94,11 @@ export function ProductCard({
           <Text
             testID="product-name"
             numberOfLines={2}
-            className="text-sm font-semibold text-gray-900"
+            className="text-sm font-semibold text-label"
           >
             {name}
           </Text>
-          <Text className="text-xs text-gray-500">
+          <Text className="text-xs text-label-secondary">
             {product.isOwn
               ? product.source === 'LABEL'
                 ? 'Your product · from a label photo'
@@ -105,22 +114,22 @@ export function ProductCard({
         <View
           testID="product-allergen-warnings"
           accessibilityRole="alert"
-          className="gap-1 rounded-lg bg-amber-50 p-3"
+          className="gap-1 rounded-lg bg-attention/10 p-3"
         >
           {warnings.map((w) => (
             <View key={`${w.kind}:${w.allergenId}`} className="flex-row items-start gap-2">
-              <Ionicons name="warning-outline" size={16} color="#92400e" />
-              <Text className="min-w-0 flex-1 text-sm font-medium text-amber-900">
+              <Ionicons name="warning-outline" size={16} color={colors.attention} />
+              <Text className="min-w-0 flex-1 text-sm font-medium text-attention">
                 {productAllergenWarningText(w)}
               </Text>
             </View>
           ))}
         </View>
       )}
-      <Text testID="product-allergen-line" className="text-xs text-gray-600">
+      <Text testID="product-allergen-line" className="text-xs text-label-secondary">
         {productAllergenLine(product.allergens)}
       </Text>
-      {stale && <Text className="text-xs text-amber-700">{PACKAGED_PRODUCT_COPY.stale}</Text>}
+      {stale && <Text className="text-xs text-attention">{PACKAGED_PRODUCT_COPY.stale}</Text>}
 
       {complete ? (
         <>
@@ -168,7 +177,7 @@ export function ProductCard({
           <Text
             testID="product-live-nutrition"
             accessibilityLiveRegion="polite"
-            className="text-xs text-gray-600"
+            className="text-xs text-label-secondary"
           >
             {tooMuch
               ? `One entry holds up to ${formatNumber(maxGrams)} g.`
@@ -189,7 +198,7 @@ export function ProductCard({
         </>
       ) : (
         <View className="gap-2">
-          <Text className="text-sm text-gray-700">{PACKAGED_PRODUCT_COPY.incomplete}</Text>
+          <Text className="text-sm text-label-secondary">{PACKAGED_PRODUCT_COPY.incomplete}</Text>
           <Button testID="product-complete-numbers" variant="outline" onPress={onCompleteNumbers}>
             Add the numbers from the pack
           </Button>
@@ -199,7 +208,7 @@ export function ProductCard({
         <Text
           testID="product-log-error"
           accessibilityLiveRegion="polite"
-          className="text-sm text-red-600"
+          className="text-sm text-danger"
         >
           {error}
         </Text>
@@ -219,9 +228,9 @@ export function ProductCard({
           }
           className="min-h-11 justify-center"
         >
-          <Text className="text-xs text-gray-500">
+          <Text className="text-xs text-label-secondary">
             {PACKAGED_PRODUCT_COPY.attribution} ·{' '}
-            <Text className="text-xs text-gray-500 underline">ODbL</Text>
+            <Text className="text-xs text-label-secondary underline">ODbL</Text>
           </Text>
         </Pressable>
       )}

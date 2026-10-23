@@ -11,7 +11,7 @@ import {
   type ProductAllergenWarning,
   type ProductAmount,
 } from '@chefer/types';
-import { Button, DONE_FIELD_PROPS, Input, Text } from '@chefer/ui-mobile';
+import { Button, DONE_FIELD_PROPS, Input, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   blankProductDraft,
   cleanBarcodeInput,
@@ -70,6 +70,7 @@ export function ProductFlow({
   initial,
   onLogged,
 }: ProductFlowProps) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const requestAiConsent = useAiConsent();
   const { enabled: canScanLabel } = useEntitlement('mealScansPerDay');
@@ -290,13 +291,15 @@ export function ProductFlow({
     return (
       <View testID="product-not-found" className="gap-3">
         <View className="gap-1 rounded-xl border border-border bg-card p-3">
-          <Text className="text-sm font-semibold text-gray-900">
+          <Text className="text-sm font-semibold text-label">
             {state.unreadable
               ? PACKAGED_PRODUCT_COPY.unreadable
               : PACKAGED_PRODUCT_COPY.notFoundTitle}
           </Text>
           {!state.unreadable && (
-            <Text className="text-xs text-gray-600">{PACKAGED_PRODUCT_COPY.notFoundBody}</Text>
+            <Text className="text-xs text-label-secondary">
+              {PACKAGED_PRODUCT_COPY.notFoundBody}
+            </Text>
           )}
         </View>
         {state.unreadable ? (
@@ -309,7 +312,7 @@ export function ProductFlow({
               onPress={() => photographLabel(state.barcode)}
             >
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="camera-outline" size={16} color="#ffffff" />
+                <Ionicons name="camera-outline" size={16} color={colors.onBrand} />
                 <Text className="text-sm font-medium text-primary-foreground">
                   {PACKAGED_PRODUCT_COPY.photographLabel}
                   {canScanLabel ? '' : ' · Premium'}
@@ -333,7 +336,7 @@ export function ProductFlow({
         )}
         {cameraNotice}
         {error && (
-          <Text testID="product-flow-error" className="text-sm text-red-600">
+          <Text testID="product-flow-error" className="text-sm text-danger">
             {error}
           </Text>
         )}
@@ -355,7 +358,7 @@ export function ProductFlow({
           onPress={() => void lookupPhoto('camera')}
         >
           <View className="flex-row items-center gap-1.5">
-            <Ionicons name="barcode-outline" size={16} color="#944a00" />
+            <Ionicons name="barcode-outline" size={16} color={colors.brand} />
             <Text className="text-sm font-medium text-primary">Camera</Text>
           </View>
         </Button>
@@ -367,14 +370,14 @@ export function ProductFlow({
           onPress={() => void lookupPhoto('library')}
         >
           <View className="flex-row items-center gap-1.5">
-            <Ionicons name="images-outline" size={16} color="#944a00" />
+            <Ionicons name="images-outline" size={16} color={colors.brand} />
             <Text className="text-sm font-medium text-primary">Photos</Text>
           </View>
         </Button>
       </View>
       {cameraNotice}
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">
+        <Text className="text-xs font-medium text-label-secondary">
           {PACKAGED_PRODUCT_COPY.typeBarcode}
         </Text>
         <View className="flex-row items-center gap-2">
@@ -407,12 +410,14 @@ export function ProductFlow({
         <Text
           testID="product-flow-error"
           accessibilityLiveRegion="polite"
-          className="text-sm text-red-600"
+          className="text-sm text-danger"
         >
           {error}
         </Text>
       )}
-      <Text className="text-xs text-gray-500">{PACKAGED_PRODUCT_COPY.attribution} (ODbL)</Text>
+      <Text className="text-xs text-label-secondary">
+        {PACKAGED_PRODUCT_COPY.attribution} (ODbL)
+      </Text>
     </View>
   );
 }
@@ -424,6 +429,7 @@ function ScanAnother({
   label?: string;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID="product-scan-another"
@@ -431,7 +437,7 @@ function ScanAnother({
       onPress={onPress}
       className="min-h-11 flex-row items-center gap-1 self-start"
     >
-      <Ionicons name="barcode-outline" size={16} color="#944a00" />
+      <Ionicons name="barcode-outline" size={16} color={colors.brand} />
       <Text className="text-sm font-medium text-primary">{label}</Text>
     </Pressable>
   );
