@@ -40,13 +40,15 @@ beforeEach(() => {
   m.mutateAsync.mockResolvedValue(LINK);
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(new Blob(['png'], { type: 'image/png' }), { status: 200 })),
+    vi.fn(() =>
+      Promise.resolve(new Response(new Blob(['png'], { type: 'image/png' }), { status: 200 })),
+    ),
   );
 });
 
 describe('ShareCardButton (lane E2)', () => {
   it('shares the PNG with the link when the browser can share files', async () => {
-    const share = vi.fn(async () => undefined);
+    const share = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { share, canShare: () => true });
     render(<ShareCardButton input={INPUT} message="Lemon pasta" />);
     fireEvent.click(screen.getByRole('button', { name: /share as a card/i }));
