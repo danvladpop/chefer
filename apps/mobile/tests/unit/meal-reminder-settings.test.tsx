@@ -18,7 +18,7 @@ const DTO: MealRemindersDto = {
 };
 
 let mockData: MealRemindersDto = DTO;
-const mockMutate = jest.fn();
+const mockMutate = jest.fn<undefined, [unknown]>();
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
