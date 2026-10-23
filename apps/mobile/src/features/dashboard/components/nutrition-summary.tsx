@@ -2,7 +2,6 @@ import { View } from 'react-native';
 import type { ProteinGuide } from '@chefer/types';
 import {
   Card,
-  colors,
   CountUp,
   isOverTarget,
   ProgressBar,
@@ -25,9 +24,10 @@ import { TrainingDayNote } from './training-day-note';
 // Port of apps/web/src/features/dashboard/components/nutrition-summary.tsx.
 // The calorie ring matches web's (128pt, 12pt stroke, brand brown) and adds
 // the MO-06 motion: it animates to what was EATEN today (audit F-DASH-1-2 —
-// it used to show planned food) with a count-up in the centre; past 100% of
-// the target the ring and the macro bars turn amber with an overflow lap /
-// end cap (owner decision 3, 2026-09-25). The chip judges eaten + still-planned against the target (UX-FOOD-05).
+// it used to show planned food) with a count-up in the centre. Past 100% of
+// the target the ring and bars stay brand and say so in words — lane E3
+// (market review 2026-10, eating-disorder-safe) replaces owner decision 3's
+// amber (2026-09-25). The chip judges eaten + still-planned against the target (UX-FOOD-05).
 
 type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 
@@ -55,7 +55,8 @@ function MacroBar({
     <View>
       <View className="mb-1 flex-row items-baseline justify-between gap-2">
         <Text className="text-xs font-medium text-gray-700">{label}</Text>
-        <Text className={cn('text-xs', over ? 'font-semibold text-amber-700' : 'text-gray-500')}>
+        {/* Lane E3: over target is said, never coloured as a warning. */}
+        <Text className={cn('text-xs text-gray-500', over && 'font-semibold')}>
           {value}g / {target}g
         </Text>
       </View>
@@ -63,7 +64,6 @@ function MacroBar({
         testID={`macro-${label.toLowerCase()}`}
         accessibilityLabel={`${label}: ${value} of ${target} grams eaten, ${planned} planned`}
         progress={progress}
-        overColor={colors.warning}
       />
     </View>
   );
@@ -161,7 +161,9 @@ export function NutritionSummary({
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
+  // Lane E3 "Hide numbers": no ring, no figures — the day's meals list says it.
+  if (noNumbers) return null;
   if (proteinOnly) {
     return <ProteinSummary nutrition={n} targetMode={targetMode} proteinGuide={proteinGuide} />;
   }
@@ -181,11 +183,11 @@ export function NutritionSummary({
   );
   const calories = progressOf(n.eatenKcal, target.dailyCalorieTarget);
 
-  // Neutral palette: amber for "past the target" (never red), grey when
-  // there is nothing to judge or room is left.
+  // Neutral palette (lane E3, eating-disorder-safe): "past the target" is grey
+  // like "room left" — never amber or red; only "on target" gets a colour.
   const statusStyle = {
-    over: { bg: 'bg-amber-100', text: 'text-amber-800' },
-    heading_over: { bg: 'bg-amber-50', text: 'text-amber-800' },
+    over: { bg: 'bg-gray-100', text: 'text-gray-700' },
+    heading_over: { bg: 'bg-gray-100', text: 'text-gray-600' },
     under: { bg: 'bg-gray-100', text: 'text-gray-600' },
     on: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
     none: { bg: 'bg-gray-100', text: 'text-gray-500' },
@@ -222,7 +224,6 @@ export function NutritionSummary({
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
-          overColor={colors.warning}
         >
           <CountUp
             testID="calorie-count"

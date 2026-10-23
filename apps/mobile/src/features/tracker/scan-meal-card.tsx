@@ -146,7 +146,7 @@ function SnapTaste() {
 function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
   const snackbar = useSnackbar();
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -370,7 +370,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          {proteinOnly ? (
+          {noNumbers ? null : proteinOnly ? (
             <Text testID="scan-protein" className="text-sm font-semibold text-gray-800">
               {`≈ ${proteinLabel(logged.protein)}`}
             </Text>

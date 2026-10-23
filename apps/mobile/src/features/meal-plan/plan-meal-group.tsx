@@ -34,17 +34,20 @@ export function PlanMealGroup({
       </View>
       {main}
       <View className="ml-4 gap-2 border-l-2 border-border pl-2">{sides}</View>
-      <View
-        testID={`${testID}-total`}
-        accessible
-        accessibilityLabel={`${PLAN_MEAL_MENU_COPY.groupTotal(mealType)}: ${totalLine}`}
-        className="min-w-0 flex-row flex-wrap items-center gap-x-2 rounded-xl bg-gray-50 px-3 py-2"
-      >
-        <Text className="text-xs font-semibold uppercase text-gray-500">
-          {PLAN_MEAL_MENU_COPY.groupTotal(mealType)}
-        </Text>
-        <Text className="min-w-0 flex-shrink text-xs text-gray-700">{totalLine}</Text>
-      </View>
+      {/* An empty total ("Hide numbers", lane E3) drops the row. */}
+      {totalLine ? (
+        <View
+          testID={`${testID}-total`}
+          accessible
+          accessibilityLabel={`${PLAN_MEAL_MENU_COPY.groupTotal(mealType)}: ${totalLine}`}
+          className="min-w-0 flex-row flex-wrap items-center gap-x-2 rounded-xl bg-gray-50 px-3 py-2"
+        >
+          <Text className="text-xs font-semibold uppercase text-gray-500">
+            {PLAN_MEAL_MENU_COPY.groupTotal(mealType)}
+          </Text>
+          <Text className="min-w-0 flex-shrink text-xs text-gray-700">{totalLine}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -221,7 +221,7 @@ export function MealsScreen() {
   const reducedMotion = useReducedMotion();
   const { show: showSnackbar } = useSnackbar();
   // WP-08: protein-only mode shows protein, never kcal.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
 
   // Live tailoring polls only while the chef works AND this tab is on screen.
   const isFocused = useIsFocused();
@@ -619,7 +619,7 @@ export function MealsScreen() {
         label={label}
         frameSize={72}
         title={meal.recipe.name}
-        meta={mealTileMeta(meal, isSide, proteinOnly)}
+        meta={mealTileMeta(meal, isSide, proteinOnly, noNumbers)}
         imageUri={getRecipeImageUrl(meal.recipe.imageUrl)}
         illustration={<Icon name="cook" color={colors.brand} size={32} />}
         {...(conflict
@@ -912,8 +912,9 @@ export function MealsScreen() {
                 </Text>
               ) : null}
 
-              {/* The day's totals: the legacy maths (portions, swapped/skipped left out). */}
-              {meals.length > 0 ? (
+              {/* The day's totals: the legacy maths (portions, swapped/skipped left out).
+                  Lane E3 "Hide numbers": no totals at all. */}
+              {meals.length > 0 && !noNumbers ? (
                 <View
                   testID="meals-day-totals"
                   accessibilityLabel="Day totals"
@@ -1083,7 +1084,7 @@ export function MealsScreen() {
                     <SlotStatusLine
                       key={`replaced-${entry.slotIndex}`}
                       testID={`meals-slot-replaced-${entry.slotIndex}`}
-                      text={`${who}: ${youHadText(replaced, proteinOnly)}`}
+                      text={`${who}: ${youHadText(replaced, proteinOnly, noNumbers)}`}
                       actionLabel={replaced.entryId ? SLOT_COPY.remove : undefined}
                       onAction={() => {
                         if (!replaced.entryId || !replaced.custom) return;

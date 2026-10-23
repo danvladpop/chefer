@@ -33,8 +33,14 @@ export function compareRows(before: WeekLike | null | undefined, after: WeekLike
   })).filter((r) => r.before !== null || r.after !== null);
 }
 
-const cell = (t: { kcal: number; protein: number } | null, proteinOnly = false): string => {
+const cell = (
+  t: { kcal: number; protein: number } | null,
+  proteinOnly = false,
+  noNumbers = false,
+): string => {
   if (!t) return '—';
+  // Lane E3 "Hide numbers": a day is just planned.
+  if (noNumbers) return 'Planned';
   // WP-08: protein-only mode compares protein alone.
   return proteinOnly ? `${t.protein} g protein` : `${formatKcal(t.kcal)} kcal · ${t.protein} g`;
 };
@@ -50,7 +56,7 @@ export function CompareWeeksSheet({
   previousPlanId: string | undefined;
   current: WeekLike;
 }) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const { data, isLoading, isError } = trpc.mealPlan.getById.useQuery(
     { planId: previousPlanId ?? '' },
     { enabled: visible && !!previousPlanId, retry: false },
@@ -93,10 +99,10 @@ export function CompareWeeksSheet({
                 {weekdayLongName(r.dayOfWeek).slice(0, 3)}
               </Text>
               <Text className="min-w-0 flex-1 text-xs text-gray-600">
-                {cell(r.before, proteinOnly)}
+                {cell(r.before, proteinOnly, noNumbers)}
               </Text>
               <Text className="min-w-0 flex-1 text-xs text-gray-900">
-                {cell(r.after, proteinOnly)}
+                {cell(r.after, proteinOnly, noNumbers)}
               </Text>
             </View>
           ))}

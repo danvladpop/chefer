@@ -54,7 +54,7 @@ export function TonightCard({
 }) {
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   // UX-FOOD-04: "Rate it" opens the real StarRating (the one cook mode's
   // finish screen uses) inline; the link is gone once a rating exists.
   const [rateOpen, setRateOpen] = useState(false);
@@ -118,7 +118,7 @@ export function TonightCard({
         <Card testID="tonight-card-done" className="py-1">
           <SlotStatusLine
             testID="tonight-replaced"
-            text={`Dinner done · ${youHadText({ custom: { name: slot.name }, kcal: slot.kcal, protein: slot.protein }, proteinOnly)}`}
+            text={`Dinner done · ${youHadText({ custom: { name: slot.name }, kcal: slot.kcal, protein: slot.protein }, proteinOnly, noNumbers)}`}
             actionLabel={slot.onRemove ? SLOT_COPY.remove : undefined}
             onAction={slot.onRemove}
           />

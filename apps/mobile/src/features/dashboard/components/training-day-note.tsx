@@ -43,7 +43,7 @@ export function TrainingDayNote({
   const [explainOpen, setExplainOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion.
   const [explainMounted, setExplainMounted] = useState(false);
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   if (!t.isTrainingDay) return null;
   const kind = t.kind ?? 'lift';
   const isRun = kind !== 'lift';
@@ -62,7 +62,8 @@ export function TrainingDayNote({
             testID="training-day-line"
             className="min-w-0 flex-1 text-xs font-semibold text-primary"
           >
-            {`Training day · +${t.proteinBonus} g protein`}
+            {/* Lane E3 "Hide numbers": the day is named, the bump is not. */}
+            {noNumbers ? 'Training day' : `Training day · +${t.proteinBonus} g protein`}
           </Text>
         </View>
       </View>

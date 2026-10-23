@@ -556,7 +556,7 @@ export default function MealPlanScreen() {
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
   // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
 
   const planShapeSummaryText = shape ? planShapeSummary(shape) : '';
 
@@ -683,7 +683,7 @@ export default function MealPlanScreen() {
           slotState?.status === 'replaced' ? (
             <SlotStatusLine
               testID={`plan-slot-replaced-${slotIndex}`}
-              text={youHadText(slotState.entry, proteinOnly)}
+              text={youHadText(slotState.entry, proteinOnly, noNumbers)}
               actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
               onAction={() => {
                 const entry = slotState.entry;
@@ -1269,6 +1269,7 @@ export default function MealPlanScreen() {
                           return (eaten.length > 0 ? eaten : group.entries).map((e) => e.meal);
                         })(),
                         proteinOnly,
+                        noNumbers,
                       )}
                       main={renderSlot(group.main, 'main')}
                       sides={group.sides.map((entry) => renderSlot(entry, 'side'))}

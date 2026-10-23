@@ -66,7 +66,8 @@ export function PlanMealCard({
   hideTypeBadge?: boolean;
 }) {
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
-  const { proteinOnly } = useNumbersMode();
+  // Lane E3 "Hide numbers": time and portion only, no figures.
+  const { proteinOnly, noNumbers } = useNumbersMode();
   // P1-1: the slot may be sized to the day's targets (1½× the recipe).
   const portion = slotPortion(meal.portion);
   const portionParam = portion !== 1 ? { portion: String(portion) } : {};
@@ -157,6 +158,7 @@ export function PlanMealCard({
                 meal.recipe.nutritionInfo,
                 portion,
                 proteinOnly,
+                noNumbers,
               )}
             </Text>
             <NutritionStatusTag status={meal.recipe.nutritionStatus} />

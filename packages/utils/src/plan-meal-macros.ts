@@ -1,6 +1,6 @@
 import { formatKcal } from './format';
 import { slotPortion, sumPlanDay } from './meal-portion';
-import { proteinLabel } from './numbers-mode-copy';
+import { portionLabel, proteinLabel } from './numbers-mode-copy';
 
 // FB7-11: the Plan card's meta and macro lines, and the total line of a meal
 // group (FB7-04). One formatter for mobile and web.
@@ -60,14 +60,21 @@ export function planMealNutritionLabel(
   return proteinOnly ? proteinLabel(m.protein) : `${formatKcal(m.kcal)} kcal`;
 }
 
-/** "10 min · 687 kcal" (or "10 min · 32 g protein"). */
+/**
+ * "10 min · 687 kcal" (or "10 min · 32 g protein"); "10 min · 1 portion" in
+ * "Hide numbers" (lane E3), where the portion stands in for the figures.
+ */
 export function planMealMetaLine(
   minutes: number,
   nutrition: PlanMealNutrition,
   portion: number | null | undefined,
   proteinOnly: boolean,
+  noNumbers = false,
 ): string {
-  return `${formatPlanMinutes(minutes)} · ${planMealNutritionLabel(nutrition, portion, proteinOnly)}`;
+  const tail = noNumbers
+    ? portionLabel(portion ?? 1)
+    : planMealNutritionLabel(nutrition, portion, proteinOnly);
+  return `${formatPlanMinutes(minutes)} · ${tail}`;
 }
 
 /**
@@ -80,7 +87,10 @@ export function mealGroupTotalLine(
     recipe: { nutritionInfo: PlanMealNutrition };
   }[],
   proteinOnly: boolean,
+  /** Lane E3 "Hide numbers": no total ("" — callers drop the row). */
+  noNumbers = false,
 ): string {
+  if (noNumbers) return '';
   const t = sumPlanDay([...slots]);
   return proteinOnly
     ? proteinLabel(t.protein)
