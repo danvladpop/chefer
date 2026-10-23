@@ -80,6 +80,13 @@ export {
 } from './weight-entry.repository';
 
 export {
+  BodyMeasurementRepository,
+  bodyMeasurementRepository,
+  type IBodyMeasurementRepository,
+  type BodyMeasurementValuesData,
+} from './body-measurement.repository';
+
+export {
   ChefReviewRepository,
   chefReviewRepository,
   type IChefReviewRepository,

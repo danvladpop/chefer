@@ -1,3 +1,4 @@
+import type { BodyMeasure } from './body-measurements';
 import type { CoachReason } from './coach-review';
 import type { PremiumJobId, PremiumSource } from './plan-features';
 import type { PlanSlot } from './plan-shape';
@@ -211,4 +212,6 @@ export interface EventMap {
   // Lane D2 (market review 2026-10): the explained coach.
   day_incomplete_set: { incomplete: boolean };
   coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
+  // Lane D3: which measures were saved (never the values) and the unit system.
+  body_measurement_logged: { measures: readonly BodyMeasure[]; units: 'metric' | 'imperial' };
 }

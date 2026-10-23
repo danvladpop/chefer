@@ -2366,6 +2366,31 @@ incomplete })` → `DailyLog.incomplete`. `tracker.getDay` returns the flag.
   adherence-neutral (a unit test sweeps every reason for forbidden or judging
   words: missed, failed, cheat, compensate, make up…).
 
+### Body measurements (lane D3, 2026-10-23)
+
+Free for everyone, next to the weight chart: web `/progress` ("Body
+measurements" section), the app's Stats (under Weight) and the legacy
+Progress screen.
+
+- **Measures:** waist, hips, chest, upper arm, thigh (cm) and body fat (%),
+  every one optional (`BODY_MEASURES`, `@chefer/types`). One entry per local
+  calendar day: both platforms save today's entry, and saving again the same
+  day fills in or corrects it (the API merges). Typed and shown in the user's
+  units — IMPERIAL types inches — with the same parser and messages on both
+  platforms (`parseMeasurementForm`, `@chefer/utils`); the API takes cm.
+- **Charts:** one measure at a time, picked with chips (only measures with
+  data). The change line is a direction, never a verdict ("−2.0 cm since your
+  first entry", `measureChangeText`). One value asks for another entry
+  instead of drawing a dot. The latest entries are listed with a labelled
+  delete.
+- **Health data:** saving asks for the health-data consent once, like a
+  weigh-in (`requireHealthConsent` on `tracker.logBodyMeasurement`). Withdrawing
+  consent deletes the measurements; the data export includes them
+  (`food.bodyMeasurements`); account deletion cascades them (§24, the delete
+  sheet lists them).
+- **Analytics:** `body_measurement_logged { measures, units }` — which
+  measures, never the values.
+
 ### Trend weight (lane D1, 2026-10-22)
 
 One smoothing for every surface, in `@chefer/utils` `weight-trend.ts`, so the
@@ -4341,7 +4366,8 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
   │
   └─ Sheet (ACCOUNT_DELETION_COPY, shared): "This permanently deletes your Chefer
      account. It can't be undone." + the list of what goes (profile/preferences/
-     body metrics; plans, shopping lists, logs, weights, pantry; own + imported
+     body metrics; plans, shopping lists, logs, weights, body measurements,
+     pantry; own + imported
      recipes, favourites, ratings; workouts, routines, custom exercises;
      household, feedback, sign-in on every device) + "Backup copies age out
      within about 30 days."
@@ -4877,7 +4903,7 @@ Profile → Your data → "Download my data" / "Export my data"
   │
   └─ user.exportData ──► exportAccountData(userId)
         food (chefProfile, dietaryPreferences, householdMembers, mealPlans,
-              dailyLogs, weightEntries, favourites, ratings, pantryItems,
+              dailyLogs, weightEntries, bodyMeasurements, favourites, ratings, pantryItems,
               recipes, chefReviews, shoppingLists — resolved through the
               user's own meal-plan ids, since ShoppingList has no userId)
         gym  (gymProfile, routines, workoutSessions, exerciseProgressions,
@@ -5568,7 +5594,7 @@ installed builds show the wave-3 OTA) and stays there — `all` is not planned.
 
 **5. Withdraw (Profile › Privacy & data › Health information).** Shows `Allowed on {date}`; `Withdraw and delete` →
 confirm (`Delete your health information?`) → `privacy.withdrawHealthData({ confirm: 'WITHDRAW' })`: one transaction
-deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, target-change history, blanks
+deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, body measurements (lane D3), target-change history, blanks
 the allergy snapshot in safety reports, clears the consent cache and logs the withdrawal (AC3). The account and the
 household people stay. Plans stop showing `Checked for` because the rules are gone. Then all caches are invalidated. Not
 allowed → the row offers `Allow health information`.

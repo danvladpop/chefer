@@ -74,6 +74,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       householdMember: { findMany: emptyFindMany() },
       dailyLog: { findMany: emptyFindMany() },
       weightEntry: { findMany: emptyFindMany() },
+      bodyMeasurement: { findMany: emptyFindMany() },
       favouriteRecipe: { findMany: emptyFindMany() },
       mealRating: { findMany: emptyFindMany() },
       pantryItem: { findMany: emptyFindMany() },

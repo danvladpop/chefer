@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { bodyMeasurementValuesSchema } from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
+import { bodyMeasurementService } from '../application/body/body-measurement.service.js';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
 
@@ -380,6 +382,33 @@ export const trackerRouter = router({
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return trackerService.deleteWeight(ctx.user.id, input.id);
+    }),
+
+  // Lane D3: body measurements (free). Lengths in cm, body fat in %; one
+  // entry per local day, measures merge. Health data, so writes need consent
+  // like weigh-ins. Additive — shipped clients never call these.
+  bodyMeasurements: protectedProcedure
+    .input(z.object({ days: z.number().int().min(1).max(730).default(365) }))
+    .query(async ({ ctx, input }) => {
+      return bodyMeasurementService.list(ctx.user.id, input.days);
+    }),
+
+  logBodyMeasurement: protectedProcedure
+    .input(
+      bodyMeasurementValuesSchema.extend({
+        date: calendarDateSchema.refine(notFuture, "A measurement can't be in the future"),
+      }),
+    )
+    .use(requireHealthConsent())
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...values } = input;
+      return bodyMeasurementService.log(ctx.user.id, date, values);
+    }),
+
+  deleteBodyMeasurement: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return bodyMeasurementService.delete(ctx.user.id, input.id);
     }),
 
   weightHistory: protectedProcedure

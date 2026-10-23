@@ -214,6 +214,7 @@ model User {
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
   weightEntries        WeightEntry[]
+  bodyMeasurements     BodyMeasurement[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
   aiCallLogs           AiCallLog[]
   aiUsageEvents        AiUsageEvent[]
@@ -807,6 +808,31 @@ model WeightEntry {
 
   @@index([userId, recordedAt])
   @@map("weight_entries")
+}
+
+// Lane D3 (market review 2026-10): body measurements, free for everyone.
+// One row per user and local calendar day; every measure is optional (a row
+// holds whatever the user measured that day). Lengths are stored in cm and
+// shown in the user's units. Health data: export, consent withdrawal and
+// account deletion cover it (cascade).
+model BodyMeasurement {
+  id         String   @id @default(cuid())
+  userId     String
+  /// The user's local calendar day (UTC midnight of that date).
+  measuredOn DateTime @db.Date
+  waistCm    Float?
+  hipsCm     Float?
+  chestCm    Float?
+  upperArmCm Float?
+  thighCm    Float?
+  bodyFatPct Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, measuredOn])
+  @@map("body_measurements")
 }
 
 // Sign in with Google / Apple (WP-22). One row per linked provider identity;

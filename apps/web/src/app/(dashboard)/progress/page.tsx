@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BodyMeasurementsSection } from '@/features/coach/components/BodyMeasurementsSection';
 import { WeightTrendSection } from '@/features/coach/components/WeightTrendSection';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
@@ -293,6 +294,9 @@ export default function ProgressPage() {
         system={system}
         goal={preferences?.chefProfile?.goal}
       />
+
+      {/* Body measurements: free, per-measure charts (lane D3) */}
+      <BodyMeasurementsSection system={system} />
     </div>
   );
 }
