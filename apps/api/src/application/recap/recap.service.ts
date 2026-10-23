@@ -8,7 +8,8 @@ import {
 } from '@chefer/database';
 import type { WeeklyRecapDto } from '@chefer/types';
 import {
-  addDaysLocal,
+  lastCompletedWeekStart,
+  mondayOf,
   recapFoodCounts,
   weekLabel,
   weekStartForDate,
@@ -28,18 +29,6 @@ import { resolveTargets } from '../preferences/preferences.service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NEW_RECIPES_SHOWN = 5;
-
-/** Monday ("YYYY-MM-DD") of the week before the one containing `localDate`. */
-export function lastCompletedWeekStart(localDate: string): string {
-  const weekday = (new Date(`${localDate}T00:00:00Z`).getUTCDay() + 6) % 7;
-  return addDaysLocal(localDate, -weekday - 7);
-}
-
-/** The Monday of the week containing `date` ("YYYY-MM-DD"). */
-export function mondayOf(date: string): string {
-  const weekday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
-  return addDaysLocal(date, -weekday);
-}
 
 type GymWeek = Pick<GymStatsService, 'weekRecap'>;
 

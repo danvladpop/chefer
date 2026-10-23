@@ -23,6 +23,7 @@ import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
 import { NumbersModeProvider, useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../privacy/health-consent-notice';
+import { RecapTodayCard } from '../../recap/recap-today-card';
 import { MigrationCard } from '../../safety/migration-card';
 import { DayFitNote } from '../../tracker/day-fit-note';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
@@ -167,6 +168,9 @@ export function TodayScreen() {
                 </Text>
               </BoardCard>
             ) : null}
+
+            {/* Lane E2: Monday's door into last week's recap (self-gated). */}
+            <RecapTodayCard isMonday={d.today.dayOfWeek === 0} />
 
             {/* Premium without a profile: one compact line into onboarding. */}
             {showProfileNudge ? (

@@ -342,6 +342,7 @@ export class WeeklyEmailService {
       nextWeekUrl: `${app}/meal-plan?week=1`,
       listUrl: `${app}/shopping-list`,
       progressUrl: `${app}/progress`,
+      recapUrl: `${app}/recap`,
       preferencesUrl: `${app}/preferences`,
       unsubscribeUrl: this.deps.unsubscribeUrl(userId, SCOPE[kind]),
     };
@@ -379,6 +380,7 @@ export class WeeklyEmailService {
       listTotal: totalEur != null ? `~${formatMoney(totalEur, currency, { decimals: 0 })}` : null,
       planUrl: urls.planUrl,
       listUrl: urls.listUrl,
+      recapUrl: urls.recapUrl,
       preferencesUrl: urls.preferencesUrl,
       unsubscribeUrl: urls.unsubscribeUrl,
     });

@@ -53,3 +53,70 @@ const SLOT_NAME: Readonly<Record<PlanSlot, string>> = {
 export function mealReminderLabel(slot: PlanSlot): string {
   return SLOT_NAME[slot];
 }
+
+// ─── Weekly recap (lane E2) ──────────────────────────────────────────────────
+// Only what happened, never a denominator that reads as a shortfall ("9 meals
+// cooked from your plan", not "9 of 14") and never a zero row. The one ratio
+// is protein days, which is opt-in on the share card and hidden in
+// "Hide numbers" mode.
+
+export const RECAP_COPY = {
+  title: 'Your week in review',
+  todayCardTitle: 'Your week in review',
+  todayCardBody: 'What you cooked and trained last week.',
+  foodHeading: 'Food',
+  gymHeading: 'Training',
+  newRecipesHeading: 'New recipes you tried',
+  quietTitle: 'A quiet week',
+  quietBody: 'Your recap fills in as you cook, log and train.',
+  foodQuiet: 'Nothing cooked or logged from your plan that week.',
+  share: 'Share your week',
+  shareSheetTitle: 'What goes on the card?',
+  shareCooking: 'Cooking',
+  shareProtein: 'Protein days',
+  shareTraining: 'Training',
+  shareNote: 'Your card never shows your weight, allergies or what you logged.',
+  previousWeek: 'Previous week',
+  nextWeek: 'Next week',
+} as const;
+
+/** The text that travels with a shared recap card. */
+export function recapShareMessage(label: string): string {
+  return `My week with Chefer, ${label}.`;
+}
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** The food lines of a recap: only non-zero facts. */
+export function recapFoodLines(food: {
+  cookedFromPlan: number;
+  newRecipesTried: number;
+  proteinDays: { hit: number; logged: number } | null;
+}): string[] {
+  const lines: string[] = [];
+  if (food.cookedFromPlan > 0) {
+    lines.push(`${count(food.cookedFromPlan, 'meal', 'meals')} cooked from your plan`);
+  }
+  if (food.newRecipesTried > 0) {
+    lines.push(`${count(food.newRecipesTried, 'new recipe', 'new recipes')} tried`);
+  }
+  if (food.proteinDays && food.proteinDays.hit > 0) {
+    lines.push(
+      `Protein goal reached on ${food.proteinDays.hit} of ${count(food.proteinDays.logged, 'logged day', 'logged days')}`,
+    );
+  }
+  return lines;
+}
+
+/** The training lines of a recap: only non-zero facts. */
+export function recapGymLines(gym: {
+  sessions: number;
+  prCount: number;
+  streakWeeks: number;
+}): string[] {
+  const lines: string[] = [];
+  if (gym.sessions > 0) lines.push(count(gym.sessions, 'workout', 'workouts'));
+  if (gym.prCount > 0) lines.push(count(gym.prCount, 'new personal best', 'new personal bests'));
+  if (gym.streakWeeks > 0) lines.push(`${gym.streakWeeks}-week streak`);
+  return lines;
+}

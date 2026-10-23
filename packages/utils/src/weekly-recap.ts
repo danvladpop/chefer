@@ -1,3 +1,4 @@
+import { addDaysLocal } from './gym/weeks';
 import { proteinGapG } from './meal-portion';
 import { matchLoggedToSlots, type LoggedMealRef, type PlannedMealSlot } from './today';
 
@@ -97,4 +98,15 @@ export function weekLabel(monday: Date): string {
   return startMonth === endMonth
     ? `${monday.getUTCDate()}–${sunday.getUTCDate()} ${endMonth}`
     : `${monday.getUTCDate()} ${startMonth} – ${sunday.getUTCDate()} ${endMonth}`;
+}
+
+/** The Monday ("YYYY-MM-DD") of the week containing `date`. */
+export function mondayOf(date: string): string {
+  const weekday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return addDaysLocal(date, -weekday);
+}
+
+/** The Monday of the last COMPLETED week before `localDate` — what "your week in review" shows. */
+export function lastCompletedWeekStart(localDate: string): string {
+  return addDaysLocal(mondayOf(localDate), -7);
 }

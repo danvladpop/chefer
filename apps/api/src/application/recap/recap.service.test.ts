@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { lastCompletedWeekStart, mondayOf, RecapService } from './recap.service';
+import { lastCompletedWeekStart, mondayOf } from '@chefer/utils';
+import { RecapService } from './recap.service';
 
 vi.mock('../gym/gym-stats.service.js', () => ({ gymStatsService: { weekRecap: vi.fn() } }));
 vi.mock('../preferences/preferences.service.js', () => ({
