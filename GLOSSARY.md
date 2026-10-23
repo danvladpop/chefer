@@ -86,6 +86,11 @@ Copying the entries of one meal of a day to another day and/or meal, with an Und
 does the same for a whole day.
 _Avoid_: Duplicate, repeat meal
 
+**Hidden fat**:
+Oil or butter a dish was cooked in, which a photo can't see. After a Snap-to-Log estimate the user says none, a little
+or a lot, and that fat is added on top as an estimate.
+_Avoid_: Cooking oil adjustment, fat correction
+
 **Allergens unknown**:
 What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
 _Avoid_: No allergens, allergen-free

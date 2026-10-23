@@ -908,3 +908,4 @@ export * from './onboarding-v4';
 export * from './day-fit-copy';
 export * from './packaged-product';
 export * from './saved-meals';
+export * from './hidden-fat';
