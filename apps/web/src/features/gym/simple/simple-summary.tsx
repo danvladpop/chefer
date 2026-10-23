@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { WorkoutReceipt } from '@/features/progress/workout-progress';
 import { Check, Flame, Info } from 'lucide-react';
 import type { GymBootstrap, WorkoutSessionDoc, WorkoutType } from '@chefer/types';
 import { Button, pressControl, ProgressRing, Sheet } from '@chefer/ui';
@@ -120,6 +121,9 @@ export function SimpleSummary({
             </ul>
           </GymCard>
         )}
+
+        {/* Kitchen progress: what this workout earned (nothing until synced, or when off). */}
+        <WorkoutReceipt doc={doc} />
 
         <SyncIndicator />
       </div>
