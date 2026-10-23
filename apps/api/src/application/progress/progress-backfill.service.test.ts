@@ -91,8 +91,9 @@ describe('ProgressBackfillService.backfillUser', () => {
     ]);
     // 3 meals + 5 meals (the cap), not 10.
     expect(world.ledger.ofKind('MEAL_LOGGED')).toHaveLength(8);
-    // The first session sets baselines; the second beats bench: PRs on both.
-    expect(world.ledger.ofKind('WORKOUT_PRS').map((r) => r.sourceId)).toEqual(['s1', 's2']);
+    // The first session only sets baselines (no PR XP for a first-ever lift);
+    // the second beats bench, so only it earns PRs.
+    expect(world.ledger.ofKind('WORKOUT_PRS').map((r) => r.sourceId)).toEqual(['s2']);
     expect(world.states.state?.backfillVersion).toBe(BACKFILL_VERSION);
     expect(world.ledger.total).toBe(res.xp);
   });

@@ -273,7 +273,9 @@ export class ProgressRecorder implements IProgressRecorder {
 
     const entries = (log.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const planMeals = await resolvePlanMeals(d.plans, plan?.days, date);
-    const proteinTargetG = await d.proteinTarget(userId, profile, date);
+    // "Hide numbers" (numbersMode NONE, the ED-safe mode): no protein reward or receipt.
+    const proteinTargetG =
+      profile?.numbersMode === 'NONE' ? null : await d.proteinTarget(userId, profile, date);
     const facts = buildDayFacts({
       date,
       entries,
@@ -318,7 +320,8 @@ export class ProgressRecorder implements IProgressRecorder {
     // PRs exactly as gym-stats counts them: one chronological pass over the
     // completed history, so a session is compared with everything before it.
     const prs = collectPrs(rows.map((r) => toSessionSummary(toSessionDoc(r))));
-    const mine = prs.filter((pr) => wanted.has(pr.sessionId));
+    // A first-ever lift is a baseline, not beating your past self: it earns no PR XP.
+    const mine = prs.filter((pr) => wanted.has(pr.sessionId) && !pr.isFirst);
     const names = new Map(
       (await d.exercises.findVisibleByIds(userId, [...new Set(mine.map((p) => p.exerciseId))])).map(
         (e) => [e.id, e.name],

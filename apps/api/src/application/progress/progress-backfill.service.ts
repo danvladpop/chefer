@@ -176,7 +176,10 @@ export class ProgressBackfillService {
     if (rows.length === 0) return [];
     const scorable = new Set(await d.source.sessionIds(scorableSessionWhere(userId)));
     // Imported history still counts as the baseline the PRs are compared with.
-    const prs = collectPrs(rows.map((r) => toSessionSummary(toSessionDoc(r))));
+    // A first-ever lift is a baseline, not beating your past self: it earns no PR XP.
+    const prs = collectPrs(rows.map((r) => toSessionSummary(toSessionDoc(r)))).filter(
+      (pr) => !pr.isFirst,
+    );
     const names = new Map(
       (await d.exercises.findVisibleByIds(userId, [...new Set(prs.map((p) => p.exerciseId))])).map(
         (e) => [e.id, e.name],

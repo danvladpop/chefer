@@ -320,6 +320,22 @@ describe('ProgressRecorder.onDayChanged', () => {
     expect(w.ledger.ofKind('PROTEIN_GOAL')).toHaveLength(1);
   });
 
+  it('pays no PROTEIN_GOAL in "hide numbers" mode (numbersMode NONE)', async () => {
+    const w = makeWorld({
+      dailyLogs: {
+        findLastN: () => Promise.resolve([]),
+        findByDate: () => Promise.resolve(log([custom(1)], { totalProtein: 200 })),
+      },
+      proteinTarget: () => Promise.resolve(120),
+    });
+    w.deps.profiles = {
+      findByUserId: () => Promise.resolve({ numbersMode: 'NONE' } as never),
+    } as typeof w.deps.profiles;
+    await new ProgressRecorder(w.deps).onDayChanged(USER, '2026-10-22');
+    expect(w.ledger.ofKind('PROTEIN_GOAL')).toHaveLength(0);
+    expect(w.ledger.ofKind('MEAL_LOGGED')).toHaveLength(1);
+  });
+
   it('does nothing for a day without a log (a removal that emptied it)', async () => {
     const w = makeWorld();
     await new ProgressRecorder(w.deps).onDayChanged(USER, '2026-10-22');
