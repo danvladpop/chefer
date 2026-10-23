@@ -19,6 +19,7 @@ import { TrainerFeedbackLink } from '../components/trainer-feedback-link';
 import { TrainerHeader } from '../components/trainer-header';
 import { CheckInSettingsCard } from './check-in-settings-card';
 import { RequestsSection } from './requests-section';
+import { TrainerAlertsCard } from './trainer-alerts-card';
 import { TrainerNotices } from './trainer-notices';
 import { TrainerProfileCard } from './trainer-profile-card';
 import { useTurnOffTrainerTools } from './use-turn-off-trainer-tools';
@@ -87,6 +88,7 @@ export function TrainerHome() {
 
         <TrainerProfileCard />
         <CheckInSettingsCard />
+        <TrainerAlertsCard />
 
         <CoachingCard className="mt-4 gap-2">
           <Text testID="trainer-home-turn-off-body" className="text-subhead text-label-secondary">

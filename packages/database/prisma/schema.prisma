@@ -1841,6 +1841,12 @@ model TrainerProfile {
   checkInEnabled   Boolean   @default(false)
   checkInDay       Int       @default(6)
   checkInQuestions String[]  @default([])
+  /// Lane K4: a client "goes quiet" after this many days with nothing logged (no workout, and
+  /// no food log when they share it). `quietDigestEmail`: a daily email listing quiet clients.
+  /// `quietSeenAt`: the trainer last looked at Today; the badge counts clients quiet since.
+  quietAfterDays   Int       @default(3)
+  quietDigestEmail Boolean   @default(false)
+  quietSeenAt      DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

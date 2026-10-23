@@ -7,7 +7,7 @@
 // Tone (docs/gym/programming-research.md §4.3, applied to food too): never
 // guilt copy. A quiet week gets an encouraging line, not a scolding one.
 
-import { CHECK_IN_COPY } from '@chefer/types';
+import { CHECK_IN_COPY, QUIET_COPY, QUIET_LIMITS } from '@chefer/types';
 
 export interface RenderedEmail {
   subject: string;
@@ -393,6 +393,55 @@ export function renderCheckInEmail(data: CheckInEmailData): RenderedEmail {
   ].join('');
   return {
     subject: copy.subject(data.trainerName),
+    text,
+    html: layout({
+      preheader: copy.preheader,
+      bodyHtml,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
+    }),
+  };
+}
+
+// ─── Lane K4: the trainer's daily "went quiet" digest ─────────────────────────
+
+export interface QuietDigestEmailData {
+  firstName: string | null;
+  quietAfterDays: number;
+  /** Most quiet first; names only (no food, weight or check-in data). */
+  clients: { name: string; days: number }[];
+  clientsUrl: string;
+  unsubscribeUrl: string;
+}
+
+export function renderQuietDigestEmail(data: QuietDigestEmailData): RenderedEmail {
+  const copy = QUIET_COPY.email;
+  const shown = data.clients.slice(0, QUIET_LIMITS.digestMaxNames);
+  const more = data.clients.length - shown.length;
+  const lines = [
+    ...shown.map((c) => copy.line(c.name, c.days)),
+    ...(more > 0 ? [copy.more(more)] : []),
+  ];
+  const intro = copy.intro(data.quietAfterDays);
+  const text = [
+    greeting(data.firstName),
+    '',
+    intro,
+    ...lines.map((l) => `- ${l}`),
+    '',
+    `${copy.cta}: ${data.clientsUrl}`,
+    '',
+    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+  ].join('\n');
+  const bodyHtml = [
+    paragraph(escapeHtml(greeting(data.firstName))),
+    paragraph(escapeHtml(intro)),
+    `<ul style="margin:0 0 16px;padding-left:20px;color:${INK};font-size:15px;line-height:1.5;">${lines
+      .map((l) => `<li>${escapeHtml(l)}</li>`)
+      .join('')}</ul>`,
+    `<p style="margin:0 0 16px;">${button(copy.cta, data.clientsUrl)}</p>`,
+  ].join('');
+  return {
+    subject: copy.subject(data.clients.length),
     text,
     html: layout({
       preheader: copy.preheader,

@@ -103,6 +103,10 @@ _Avoid_: Permissions, access (in user copy), sync
 A trainer's short weekly questionnaire (a few 1–5 questions and an optional note) that each client answers in the app.
 _Avoid_: Survey, form, questionnaire (in user copy)
 
+**Quiet client**:
+A client who has logged nothing their trainer can see (no workout, and no food log if they share it) for the trainer's chosen number of days.
+_Avoid_: Inactive, churned, lapsed
+
 **Coaching request**:
 A client's ask to be coached, which the trainer accepts or declines.
 _Avoid_: Application, follow request

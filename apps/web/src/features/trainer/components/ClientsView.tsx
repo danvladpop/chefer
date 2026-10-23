@@ -12,6 +12,7 @@ import { CheckInSettings } from './CheckInSettings';
 import { ClientList } from './ClientList';
 import { InviteSheet } from './InviteSheet';
 import { InvitesSection } from './InvitesSection';
+import { TrainerAlertsSettings } from './TrainerAlertsSettings';
 import { TrainerRequests } from './TrainerRequests';
 import { TrainerSettings } from './TrainerSettings';
 
@@ -76,6 +77,7 @@ export function ClientsView({
         activeClients={clients.data?.length ?? activeClients}
       />
       <CheckInSettings />
+      <TrainerAlertsSettings />
 
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </div>

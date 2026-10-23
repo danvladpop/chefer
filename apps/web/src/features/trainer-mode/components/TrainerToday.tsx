@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CoachingNoticeList,
   NoticeCard,
@@ -9,6 +9,7 @@ import {
 } from '@/features/coaching/components/CoachingNoticeList';
 import { formatDayWithWeekday } from '@/features/coaching/lib/dates';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import { useOptionalAppMode } from '@/features/nav/mode-context';
 import {
   BookingEditor,
   type EditorTarget,
@@ -25,6 +26,7 @@ import { trpc } from '@/lib/trpc';
 import { CalendarPlus, ChevronRight, UserPlus, UsersRound } from 'lucide-react';
 import {
   COACHING_LIMITS,
+  QUIET_COPY,
   TRAINER_MODE_COPY,
   TRAINER_MODE_LIMITS,
   type TrainerDashboardSummaryDto,
@@ -140,7 +142,11 @@ function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
         </Stat>
         <Stat
           label={copy.quietClients}
-          hint={copy.quietHint(COACHING_LIMITS.inactiveDays)}
+          hint={
+            summary.quietAfterDays !== undefined
+              ? QUIET_COPY.statHint(summary.quietAfterDays)
+              : copy.quietHint(COACHING_LIMITS.inactiveDays)
+          }
           testId="trainer-stat-quiet"
         >
           <CountUp
@@ -195,7 +201,9 @@ function NeedsAttention({
                       : copy.noWorkoutYet}
                   </span>
                   <span className="block text-sm font-medium text-amber-800">
-                    {copy.quietRow(client.inactiveDays)}
+                    {summary.quietAfterDays !== undefined
+                      ? QUIET_COPY.row(client.inactiveDays)
+                      : copy.quietRow(client.inactiveDays)}
                   </span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
@@ -273,6 +281,17 @@ export function TrainerToday() {
     },
   );
   const data = summary.data;
+  // Lane K4: opening Today is looking at the quiet clients — the Today badge starts over.
+  const utils = trpc.useUtils();
+  const quietBadge = useOptionalAppMode()?.trainerBadges?.quietClients ?? 0;
+  const markSeen = trpc.trainer.quiet.markSeen.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.trainer.badges.invalidate(),
+  });
+  const { mutate: markQuietSeen } = markSeen;
+  useEffect(() => {
+    if (quietBadge > 0) markQuietSeen();
+  }, [quietBadge, markQuietSeen]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
