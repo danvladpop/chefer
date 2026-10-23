@@ -4,7 +4,8 @@ import WidgetKit
 // Home-screen widget data (C4, next store build). The app writes Today's
 // snapshot (JSON built in src/features/widget/today-widget-snapshot.ts) into
 // the App Group the widget extension shares, then asks WidgetKit to redraw.
-// The JS feature-detects this module; older binaries never call it.
+// The JS feature-detects this module; older binaries never call it. The pod is
+// CheferWidgetData, not CheferWidgets: that is the widget extension's module.
 public class CheferWidgetsModule: Module {
   // KEEP IN SYNC with targets/widgets/TodayWidget.swift.
   static let snapshotKey = "today.snapshot"

@@ -1,5 +1,5 @@
 Pod::Spec.new do |s|
-  s.name           = 'CheferWidgets'
+  s.name           = 'CheferWidgetData'
   s.version        = '1.0.0'
   s.summary        = 'Chefer home-screen widget data (App Group snapshot + reload)'
   s.description    = s.summary
