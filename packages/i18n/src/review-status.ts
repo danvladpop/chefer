@@ -13,4 +13,12 @@ export const roReviewStatus: Readonly<Record<Namespace, ReviewStatus>> = {
   common: 'machine-draft',
   settings: 'machine-draft',
   email: 'machine-draft',
+  auth: 'machine-draft',
+  legal: 'machine-draft',
+  consent: 'machine-draft',
+  recipes: 'machine-draft',
+  cook: 'machine-draft',
+  gym: 'machine-draft',
+  friends: 'machine-draft',
+  nav: 'machine-draft',
 };
