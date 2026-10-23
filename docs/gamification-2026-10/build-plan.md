@@ -178,6 +178,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
    - The rest are straightforward. Settings are parsed with `progressSettingsSchema` merged over `DEFAULT_PROGRESS_SETTINGS`. A goal change appends `{ fromWeek: weekStartOf(localDate), goal }`, replacing an entry for the same week. A pause is at most 4 weeks, and `resumeFlame` ends it yesterday.
 6. **`weeklyRecap`** aggregates from the ledger, `CookLog` (dish of the week = the most-cooked recipe that week, then the highest `MealRating`), workouts (`listCompletedInLocalDateRange`) and the gym goal. Flame and level from/to are recomputed with the week before as the cut-off.
 7. **Back-date** (`progress-backfill.service.ts` + script `src/scripts/progress-backfill.ts [--user=email] [--dry-run]`): tech-plan §7. Process chronologically, use the same keys as live, set `origin: 'BACKFILL'` and `backfillVersion = 1`. Re-running is a no-op.
+   7b. **Numbers mode NONE** (market-review Lane E, 2026-10-23): when the raw `ChefProfile.numbersMode === 'NONE'` (the ED-safe "hide numbers" mode), `pickTodaysThree` gets `showProtein: false`, so there is no protein quest or protein progress. Read the raw column, not `effectiveNumbersMode()`. Lane E's `/recap` (factual, always on) is a different route; ours is `/kitchen-recap/[week]`.
    7a. **Imported workouts never score** (market-review Lane G, 2026-10-23). Strong/Hevy imports write `WorkoutSession` rows with a new nullable `importSource` ('STRONG' | 'HEVY'). They go through `gym.import.commit`, not `upsertMany`, so the live hook never sees them. Back-dating must skip them. The column is not on master yet, so put the session filter for back-dating in ONE place (`scorableSessionWhere()` in the back-date service) with a `// TODO(lane-G importSource)` comment. The orchestrator adds `importSource: null` once Lane G's PR lands.
 8. **Privacy:** add the five tables to `privacy.exportData`. Account deletion is covered by `onDelete: Cascade`; check that `deleteAccount` doesn't need a manual step.
 9. **Tests**, Vitest with mocked repositories:
@@ -208,7 +209,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 **Owns:**
 
 - `apps/mobile/src/features/progress/**` (new)
-- new routes `apps/mobile/app/achievements.tsx`, `app/recap/[week].tsx`, `app/settings/rewards.tsx`
+- new routes `apps/mobile/app/achievements.tsx`, `app/kitchen-recap/[week].tsx`, `app/settings/rewards.tsx`
 - the mount lines in `src/features/shell/today/today-screen.tsx`, `src/features/shell/you-screen.tsx`, `app/cook/[id].tsx`, `src/features/gym/workout/workout-screen.tsx`, `src/features/shell/train/workout-summary-v2.tsx`, `src/features/gym/offline/gym-sync-provider.tsx` (`onSynced`), `src/lib/trpc.ts` (mutation-cache hook) and `app/_layout.tsx` (`ProgressHost`)
 - `packages/ui-mobile` only for a genuinely reusable primitive (say so in your report)
 - `apps/mobile/tests/unit/progress-*.test.tsx`
@@ -240,7 +241,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 6. **`FlameSheet`** (mockup 05, ui-mobile `Sheet`): the big count, `flameBestLabel`, a "This week" card with the dots and the explainer, pilot lights, milestones (`FLAME_MILESTONES`, the next one dashed), a training-streak row when `flame.training` is set, "Change weekly goal" (a `SelectSheet` of 1–7 → `setActiveDayGoal`), and pause/resume.
 7. **Achievements** (`app/achievements.tsx`, mockup 06): the earned/total pill, group filter chips, the "Closest next" card, and a grid per group (an icon tile with a tier numeral badge; grey when tier 0). Tapping a tile opens a small sheet with the description and progress. Call `markSeen({ achievements: true })` on mount. Linked from You → "Your progress".
 8. **`ChefCard`** (mockup 09) between `ShellTopBar` and `TierRow` in `you-screen.tsx`: level ring, rank, XP bar, flame, and a badges count → Achievements. Hidden when `showXp` is false.
-9. **Weekly recap** (`app/recap/[week].tsx`, mockup 10): story cards with segment progress at the top, tap left or right, and close. The tiles: cooked at home, workouts · goal met, new PRs, new recipes; dish of the week; Flame from→to, XP and Lv from→to, Biscuit's take (when `biscuit`); "Plan next week" → Meals. No Share (P2). A Today banner shows when `summary.recap` is set, and opening the recap calls `markSeen({ recapWeek })`.
+9. **Weekly recap** (`app/kitchen-recap/[week].tsx`, mockup 10): story cards with segment progress at the top, tap left or right, and close. The tiles: cooked at home, workouts · goal met, new PRs, new recipes; dish of the week; Flame from→to, XP and Lv from→to, Biscuit's take (when `biscuit`); "Plan next week" → Meals. No Share (P2). A Today banner shows when `summary.recap` is set, and opening the recap calls `markSeen({ recapWeek })`.
 10. **Intro card**: when `summary.intro` is set, a Today card "Welcome to the kitchen", with back-dated XP and badges and `introCta`, which calls `markSeen({ intro: true })`. **Quiet card**: when `quiet`, a calm card with `quietSupportTitle`/`Body`.
 11. **Settings** (`app/settings/rewards.tsx`, mockup 12), linked from You → Settings ("Rewards & motivation"): a celebrations segmented control, toggles for `showXp`/`biscuit`/`showFlameOnToday`, the goal picker, the pause card, and the reminder time (a time picker plus an on/off switch).
 12. **Gentle reminder** (`features/progress/gentle-reminder.ts`), from tech-plan §6, using `expo-notifications` like `features/gym/reminders/schedule.ts`:
@@ -271,7 +272,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 **Owns:**
 
 - `apps/web/src/features/progress/**` (new)
-- new routes `apps/web/src/app/(dashboard)/achievements/{page,layout}.tsx` and `recap/[week]/{page,layout}.tsx`
+- new routes `apps/web/src/app/(dashboard)/achievements/{page,layout}.tsx` and `kitchen-recap/[week]/{page,layout}.tsx`
 - the mount lines in `dashboard/page.tsx`, `profile/page.tsx`, `preferences/page.tsx`, `features/recipes/components/cook-mode.tsx`, `features/gym/workout/summary-view.tsx` and the web workout logger's set-tick handler, the dashboard layout (`ProgressHost`), the web tRPC provider's mutation cache
 - `tests/e2e/helpers/layout.ts` (`APP_ROUTES`)
 - web tests
@@ -284,8 +285,8 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 2. Cook mode: in the finished state, call `progress.finishCook` once (a ref guard; `crypto.randomUUID()` for the id) for everyone, and render `KitchenReceipt` + the Biscuit line when gated and not null.
 3. Gym: in `summary-view.tsx`, the receipt from `progress.receiptFor`; in the web workout logger, the live PR banner where `livePrs` detects a new best on tick.
 4. `ProgressHost` in the dashboard layout: invalidate on the same mutations as mobile C5, read the inbox, and by celebration level show a `Toast`, a `LevelUpModal` (a `Sheet` with `usePresence` exit, `CountUp`), or nothing. Then ack. There is no confetti primitive on web, so the level-up uses a CSS scale/opacity pop with tokens.
-5. `/achievements` (mockup 06), `/recap/[week]` (mockup 10, a card sequence with keyboard ←/→), a `ChefCard` at the top of `/profile`, and a "Rewards & motivation" card on `/preferences`: celebrations, `showXp`, `showFlameOnToday`, the Biscuit toggle, the goal select, pause/resume. **No reminder row on web** (no web push).
-6. Add `/achievements` and a `/recap/<this-week-monday>` route to `APP_ROUTES`. Gated pages render a friendly "not available" state when the gate is off, so the sweep still passes. CI `FEATURE_FLAGS` gaining `gamification` is the orchestrator's job.
+5. `/achievements` (mockup 06), `/kitchen-recap/[week]` (mockup 10, a card sequence with keyboard ←/→), a `ChefCard` at the top of `/profile`, and a "Rewards & motivation" card on `/preferences`: celebrations, `showXp`, `showFlameOnToday`, the Biscuit toggle, the goal select, pause/resume. **No reminder row on web** (no web push).
+6. Add `/achievements` and a `/kitchen-recap/<this-week-monday>` route to `APP_ROUTES`. Gated pages render a friendly "not available" state when the gate is off, so the sweep still passes. CI `FEATURE_FLAGS` gaining `gamification` is the orchestrator's job.
 7. Tests (Vitest + RTL, next to the existing web tests): strip/quests render and hide; the receipt total; host routing by celebration level; the cook page calls `finishCook` once; the achievements page shows closest next; the preferences card calls `updateSettings`.
 
 **Run before reporting:** `pnpm --filter @chefer/web typecheck && pnpm --filter @chefer/web lint && pnpm --filter @chefer/web test`.
