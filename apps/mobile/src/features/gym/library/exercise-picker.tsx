@@ -8,7 +8,14 @@ import {
   type ExerciseDto,
   type LibraryFilterGroup,
 } from '@chefer/types';
-import { Button, ChipGroup, keyboardDismissMode, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ChipGroup,
+  keyboardDismissMode,
+  Sheet,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   exerciseMatchesFilterGroup,
@@ -95,6 +102,7 @@ export function ExercisePicker({
   curatedOnly = false,
   testID = 'exercise-picker',
 }: ExercisePickerProps) {
+  const colors = useThemeColors();
   const online = useIsOnline();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
@@ -121,7 +129,7 @@ export function ExercisePicker({
             value={query}
             onChangeText={setQuery}
             placeholder="Search exercises"
-            placeholderTextColor="#4b5563"
+            placeholderTextColor={colors.labelSecondary}
             autoCorrect={false}
             returnKeyType="search"
             onSubmitEditing={() => Keyboard.dismiss()}

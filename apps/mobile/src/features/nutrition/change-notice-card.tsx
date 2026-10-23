@@ -85,16 +85,19 @@ export function ChangeNoticeCard() {
   const useLabel = kcalField ? `Use ${kcalField.after}` : isSuggested ? 'Use suggested' : 'Use new';
 
   return (
-    <Card testID="change-notice-card" className="gap-3 border-2 border-amber-300 bg-amber-50">
+    <Card
+      testID="change-notice-card"
+      className="gap-3 border-2 border-attention/30 bg-attention/10"
+    >
       <View className="flex-row items-center gap-2">
-        <View className="rounded-full bg-amber-200 px-2 py-0.5">
-          <Text className="text-xs font-semibold uppercase text-amber-900">{badgeLabel}</Text>
+        <View className="rounded-full bg-attention/20 px-2 py-0.5">
+          <Text className="text-xs font-semibold uppercase text-attention">{badgeLabel}</Text>
         </View>
       </View>
-      <Text className="text-sm font-semibold text-gray-900">{REASON_HEADING[reason]}</Text>
+      <Text className="text-sm font-semibold text-label">{REASON_HEADING[reason]}</Text>
       <View className="gap-1">
         {shownFields.map((f) => (
-          <Text key={f.field} className="text-xs text-gray-700">
+          <Text key={f.field} className="text-xs text-label-secondary">
             {fieldLine(f)}
           </Text>
         ))}

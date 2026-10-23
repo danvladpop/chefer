@@ -2,9 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light palette from apps/web globals.css (brand brown #944a00). Web's .dark
-   block is legacy shadcn blue and unused — dark mode is deferred on mobile
-   until the web product actually ships one. */
+/* Light palette from apps/web globals.css (brand brown #944a00). The night
+   palette is the `prefers-color-scheme: dark` block below (web's .dark block
+   is legacy shadcn blue and unused). */
 :root {
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
@@ -31,8 +31,8 @@
   --input: 214.3 31.8% 91.4%;
   --ring: 30 100% 29%;
 
-  /* Revamp colour roles (@chefer/tokens color.ts, light values; dark values
-     land with the Appearance setting in phase 4). Stored as "r g b" so
+  /* Revamp colour roles (@chefer/tokens color.ts, light values; the dark
+     values are in the block below). Stored as "r g b" so
      Tailwind can add alpha: bg-brand/10. Kept identical to the tokens by
      tests/unit/color-sync.test.ts. */
   --canvas: 250 247 242;
@@ -50,4 +50,53 @@
   --attention: 168 81 0;
   --info: 29 95 208;
   --danger: 198 40 40;
+}
+
+/* Night (dark) palette — the Appearance setting (features/appearance) picks
+   it, or the phone does on Automatic. The roles are the dark values of
+   @chefer/tokens color.ts (same sync test); the legacy shadcn names point at
+   the nearest role so the screens the revamp hasn't reached follow too. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 24 12.8% 7.6%;
+    --foreground: 33.3 31% 94.3%;
+
+    --card: 26.7 15.8% 11.2%;
+    --card-foreground: 33.3 31% 94.3%;
+
+    --primary: 29.2 83.3% 64.7%;
+    --primary-foreground: 24 9.8% 10%;
+
+    --secondary: 27.3 14.7% 14.7%;
+    --secondary-foreground: 33.3 31% 94.3%;
+
+    --muted: 27.3 14.7% 14.7%;
+    --muted-foreground: 30 11% 60.8%;
+
+    --accent: 29 36.5% 16.7%;
+    --accent-foreground: 33.3 31% 94.3%;
+
+    --destructive: 4.7 100% 75.1%;
+    --destructive-foreground: 24 9.8% 10%;
+
+    --border: 27.7 12.6% 20.2%;
+    --input: 27.7 12.6% 20.2%;
+    --ring: 29.2 83.3% 64.7%;
+
+    --canvas: 22 19 17;
+    --surface: 33 28 24;
+    --surface-raised: 43 37 32;
+    --surface-sunken: 16 13 11;
+    --separator: 58 51 45;
+    --label: 245 241 236;
+    --label-secondary: 207 198 188;
+    --label-tertiary: 166 155 144;
+    --brand: 240 163 90;
+    --on-brand: 28 25 23;
+    --brand-tint: 58 42 27;
+    --positive: 107 203 147;
+    --attention: 242 176 94;
+    --info: 134 174 255;
+    --danger: 255 138 128;
+  }
 }

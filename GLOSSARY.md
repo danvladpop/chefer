@@ -128,3 +128,19 @@ _Avoid_: Trainer session
 **Session delivered**:
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
+
+## Appearance
+
+**Appearance**:
+The phone setting that picks the app's colours: Automatic, Day or Night. It lives on the phone, not the account.
+_Avoid_: theme (there is one theme, Ember), display settings
+
+**Night mode**:
+The app in its dark colours — what Night pins, and what Automatic shows while the phone is in dark mode.
+In code it is the `dark` scheme; in user copy it is always "Night" / "night mode".
+_Avoid_: dark mode (in user copy), dark theme
+
+**Colour role**:
+A colour named for what it does (`canvas`, `label-secondary`, `brand`, `attention`…) with a Day and a Night
+value, from `@chefer/tokens`. Every colour on mobile is one.
+_Avoid_: palette colour, hex

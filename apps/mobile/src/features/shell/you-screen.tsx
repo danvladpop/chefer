@@ -12,6 +12,7 @@ import {
 import { Icon, type IconName } from '../../components/icon';
 import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
+import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
@@ -126,7 +127,12 @@ export function YouScreen() {
 
           <ListSection title="Your progress">{PROGRESS_ROWS.map(row)}</ListSection>
 
-          <ListSection title="Settings">{SETTINGS_ROWS.map(row)}</ListSection>
+          <ListSection title="Settings">
+            {SETTINGS_ROWS.filter((r) => r.testID !== 'you-account').map(row)}
+            {/* Night mode: Automatic · Day · Night, just above Account. */}
+            <AppearanceRow />
+            {SETTINGS_ROWS.filter((r) => r.testID === 'you-account').map(row)}
+          </ListSection>
 
           <ListSection title="People">
             <ListRow

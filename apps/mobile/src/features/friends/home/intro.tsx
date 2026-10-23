@@ -12,7 +12,6 @@ import {
 import {
   Avatar,
   Button,
-  colors,
   DONE_FIELD_PROPS,
   FormField,
   haptics,
@@ -22,6 +21,7 @@ import {
   Screen,
   Text,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
@@ -83,6 +83,7 @@ function VisibilityCard({
   checked: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <PressableScale
       testID={testID}
@@ -99,7 +100,7 @@ function VisibilityCard({
       <Ionicons
         name={checked ? 'radio-button-on' : 'radio-button-off'}
         size={22}
-        color={checked ? colors.primary : '#9ca3af'}
+        color={checked ? colors.brand : colors.labelTertiary}
       />
       <Text className="min-w-0 flex-1">{label}</Text>
     </PressableScale>
@@ -107,6 +108,7 @@ function VisibilityCard({
 }
 
 function IntroForm({ me, onActivated }: FriendsIntroProps) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const activate = trpc.friends.activate.useMutation({ meta: { silent: true } });
   const online = useIsOnline();
@@ -317,7 +319,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           FRIENDS_COPY.intro.what.workouts,
         ].map((line) => (
           <View key={line} className="flex-row items-start gap-2">
-            <Ionicons name="checkmark" size={18} color={colors.primary} />
+            <Ionicons name="checkmark" size={18} color={colors.brand} />
             <Text className="min-w-0 flex-1">{line}</Text>
           </View>
         ))}
@@ -338,7 +340,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           className="min-h-11 flex-row items-center gap-1 self-start"
         >
           <Text className="text-sm font-medium text-primary">{FRIENDS_COPY.intro.policy}</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          <Ionicons name="chevron-forward" size={14} color={colors.brand} />
         </PressableScale>
       </View>
 

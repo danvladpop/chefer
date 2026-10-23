@@ -1,5 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '@chefer/ui-mobile';
 import { PLAN_MEAL_MENU_COPY } from '@chefer/utils';
 import { SlotOverflowButton } from '../tracker/slot-controls';
 
@@ -25,6 +26,7 @@ export function PlanMealActions({
   onSwap: () => void;
   onMore: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="w-11 items-center justify-center border-l border-border">
       <Pressable
@@ -34,7 +36,7 @@ export function PlanMealActions({
         onPress={onSwap}
         className="h-11 w-11 items-center justify-center"
       >
-        <Ionicons name="swap-horizontal-outline" size={20} color="#944a00" />
+        <Ionicons name="swap-horizontal-outline" size={20} color={colors.brand} />
       </Pressable>
       <SlotOverflowButton
         testID={moreTestID}
