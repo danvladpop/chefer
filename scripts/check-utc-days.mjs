@@ -46,7 +46,15 @@ const ALLOWLIST = new Set([
 // ALREADY-COMPUTED week-start `Date` for a chat reply, not deriving a day
 // from "now". Matched by a distinctive substring, not a line number (which
 // drifts) — never widen this to a whole-file allowance again.
-const LINE_ALLOWLIST = new Map([['chat/chat.service.ts', ['weekStart.toISOString()']]]);
+//
+// `coach/review.service.ts` (lane D1): the Sunday review runs in the server
+// sweep with no client in the loop, and its weeks are already UTC
+// (`weekStartUtc`, ChefReview.weekStart) — weigh-ins are grouped into the
+// same UTC days so the trend window lines up with the reviewed week.
+const LINE_ALLOWLIST = new Map([
+  ['chat/chat.service.ts', ['weekStart.toISOString()']],
+  ['coach/review.service.ts', ['const utcDay = (d: Date) => d.toISOString()']],
+]);
 
 function walk(dir, files = []) {
   for (const entry of readdirSync(dir)) {
