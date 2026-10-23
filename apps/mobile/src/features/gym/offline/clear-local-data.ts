@@ -8,7 +8,10 @@ import { coachedSessionStore } from '../../trainer-coach/coached-session-store';
 import { resetTrainerModeAvailableCache, SHELL_MODE_KEY } from '../../trainer-mode/mode-store';
 import { resetModeForTests as resetModeStore } from '../mode-store';
 import { getNativeRestTimer } from '../rest-native';
-import { resetRestTimerForTests as resetRestTimerStore } from '../rest-timer';
+import {
+  EXACT_ALARM_ASKED_KEY,
+  resetRestTimerForTests as resetRestTimerStore,
+} from '../rest-timer';
 import { resetCardioTimerForTests as resetCardioTimerStore } from '../workout/cardio-timer';
 import { activeSessionStore } from './active-session-store';
 import { KV_KEYS } from './keys';
@@ -36,6 +39,7 @@ import { resetSessionCorrectionsForTests as resetSessionCorrectionsStore } from 
  */
 export const DEVICE_KV_KEYS_KEPT: readonly string[] = [
   'analytics.consent',
+  EXACT_ALARM_ASKED_KEY,
   REVIEW_PROMPT_KEY,
   SHELL_MODE_KEY,
 ];

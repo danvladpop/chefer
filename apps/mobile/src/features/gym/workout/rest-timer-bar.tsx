@@ -22,6 +22,7 @@ import {
 import { cn } from '@chefer/utils';
 import {
   adjustRest,
+  answerExactAlarms,
   ensureRestNotificationPermission,
   hasRestNotificationPermission,
   hasShownRestPermissionRationale,
@@ -30,11 +31,12 @@ import {
   REST_ADJUST_STEP_SEC,
   REST_OVER_ANNOUNCEMENT,
   restPermissionNeedsSettings,
+  shouldAskExactAlarms,
   skipRest,
   useRestRemaining,
   type RestAnnounceStage,
 } from '../rest-timer';
-import { RestPermissionSheet } from './rest-permission-sheet';
+import { RestPermissionSheet, type RestPermissionStep } from './rest-permission-sheet';
 import { formatClock } from './workout-model';
 
 // Sticky rest bar (gym_plan.md §1.3). The ONLY subscriber to the 4×/s tick —
@@ -94,20 +96,29 @@ function RestClock({ remainingSec }: { remainingSec: number }) {
   );
 }
 
-/** B-40 (T-36.2): the rationale sheet the first time a rest actually starts. */
+/**
+ * B-40 (T-36.2): the rationale sheet the first time a rest actually starts —
+ * the notification permission, then (Android, once per device) exact alarms.
+ * The second step only follows a granted notification permission: without
+ * notifications there is no alert to make exact.
+ */
 function useRestPermissionRationale(active: boolean): {
   visible: boolean;
+  step: RestPermissionStep;
   onAllow: () => void;
   onClose: () => void;
 } {
-  const [visible, setVisible] = useState(false);
+  const [step, setStep] = useState<RestPermissionStep | null>(null);
   useEffect(() => {
-    if (!active || hasShownRestPermissionRationale()) return;
+    if (!active) return;
     let cancelled = false;
     void hasRestNotificationPermission().then((granted) => {
-      if (!cancelled && !granted) {
+      if (cancelled) return;
+      if (!granted && !hasShownRestPermissionRationale()) {
         markRestPermissionRationaleShown();
-        setVisible(true);
+        setStep('notifications');
+      } else if (granted && shouldAskExactAlarms()) {
+        setStep('exactAlarms');
       }
     });
     return () => {
@@ -115,17 +126,31 @@ function useRestPermissionRationale(active: boolean): {
     };
   }, [active]);
   return {
-    visible,
+    visible: step !== null,
+    step: step ?? 'notifications',
     onAllow: () => {
-      setVisible(false);
+      if (step === 'exactAlarms') {
+        setStep(null);
+        answerExactAlarms(true);
+        return;
+      }
+      setStep(null);
       // UX-GYM-11: already denied (or asked this session) → the OS won't show
       // its prompt again, so send the user to Settings instead of doing nothing.
       void restPermissionNeedsSettings().then((needsSettings) => {
-        if (needsSettings) void Linking.openSettings();
-        else void ensureRestNotificationPermission();
+        if (needsSettings) {
+          void Linking.openSettings();
+          return;
+        }
+        void ensureRestNotificationPermission().then((granted) => {
+          if (granted && shouldAskExactAlarms()) setStep('exactAlarms');
+        });
       });
     },
-    onClose: () => setVisible(false),
+    onClose: () => {
+      if (step === 'exactAlarms') answerExactAlarms(false);
+      setStep(null);
+    },
   };
 }
 
@@ -174,6 +199,7 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
         visible={rationale.visible}
         onClose={rationale.onClose}
         onAllow={rationale.onAllow}
+        step={rationale.step}
       />
     ) : null;
   }
@@ -221,6 +247,7 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
         visible={rationale.visible}
         onClose={rationale.onClose}
         onAllow={rationale.onAllow}
+        step={rationale.step}
       />
     </Animated.View>
   );

@@ -3851,6 +3851,13 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
     alarm that needs no special permission; UX-GYM-10). It is not shown while the
     app is open — the timer bar buzzes instead. Older binaries keep the previous
     alert. Native details: `infrastructure.md` §4 (mobile).
+  - _Exact rest alarms (Android 12+, owner decision 2026-10-23):_ Android keeps a
+    rest exact for about 3 min without extra permission. The first time a rest
+    starts with notifications allowed and "Alarms & reminders" off, the rest sheet
+    asks once — `Long rests can buzz up to a minute late unless Chefer may set
+exact alarms. Turn on "Alarms & reminders" for Chefer in Settings?` /
+    `Open Settings` / `Not now`. Either answer is final for the device (kept on
+    sign-out); never asked on iOS, without notifications, or when already on.
   - _Gym Today:_ planned days dated before `profile.setupCompletedAt` are never
     "missed" (`missedPlannedDays`/`todayStatus` take `since`), the first week's goal
     is pro-rated to the days left (`proRatedWeekGoal`, display only), "Still time

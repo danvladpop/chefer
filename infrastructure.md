@@ -613,7 +613,9 @@ API, Maestro E2E in `e2e/`).
     14+ freezes a backgrounded app within ~1 min and drops its listener alarms, so `RestTimerService` (a `shortService`
     foreground service whose notification is the countdown; `FOREGROUND_SERVICE` permission only) keeps the process
     unfrozen during the rest — measured: alert 22 ms after the end (58–93 s late without it). The OS caps shortService at
-    ~3 min (`onTimeout` detaches, the countdown stays, the backstop delivers late). It can only start while the app is in
+    ~3 min (`onTimeout` detaches, the countdown stays, the backstop delivers late) — unless the user turned on "Alarms &
+    reminders" (`SCHEDULE_EXACT_ALARM`, asked once per device by the rest sheet: `needsExactAlarmPermission` /
+    `openExactAlarmSettings`, `rest-timer.exact-alarm-asked` kept on sign-out), which makes every rest exact. It can only start while the app is in
     front (a tick), so a rest started from the background degrades to the plain notification. Not shown while the app is
     in the foreground (the timer bar buzzes there).
   - **JS:** `src/features/gym/rest-native.ts` looks the module up with `requireOptionalNativeModule('CheferRestTimer')`;

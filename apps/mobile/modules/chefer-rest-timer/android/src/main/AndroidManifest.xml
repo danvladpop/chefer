@@ -5,6 +5,10 @@
   <!-- Keeps the app unfrozen during a rest so the alarm is on time (RestTimerService).
        shortService needs no FOREGROUND_SERVICE_<TYPE> permission. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <!-- "Alarms & reminders": denied by default on Android 14+; the user may turn it
+       on once, in context (rest rationale sheet). Granted → exact alarms that
+       survive the app being frozen or killed. Not USE_EXACT_ALARM (Play-restricted). -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   <application>
     <!-- The rest-over alarm and the notification's Skip / +30 s buttons. -->
     <receiver android:name=".RestTimerReceiver" android:exported="false" />

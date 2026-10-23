@@ -31,6 +31,10 @@ export interface NativeRestTimer {
   sync(rest: NativeRest | null): Promise<void>;
   getState(): NativeRestState;
   addListener(event: 'onChange', listener: (state: NativeRestState) => void): Subscription;
+  /** Android 12+ only: "Alarms & reminders" is off, so long rests can ring late. */
+  needsExactAlarmPermission?(): boolean;
+  /** Android only: opens this app's "Alarms & reminders" switch. */
+  openExactAlarmSettings?(): boolean;
 }
 
 let override: NativeRestTimer | null | undefined;
