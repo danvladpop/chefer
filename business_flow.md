@@ -6269,7 +6269,7 @@ The ledger records for everyone from deploy (D1); the flag only decides who sees
 
 - **The Flame sheet:** this week, pilot lights, milestones (4/8/12/26/52 weeks), the training-streak row, change goal,
   pause (up to 4 weeks).
-- **You → Achievements** (11 achievements, 36 badges, "Closest next" first), the chef card on You (web `/profile`),
+- **You → Achievements** (11 achievements, 33 badges, "Closest next" first), the chef card on You (web `/profile`),
   **You → Settings → Rewards & motivation** (web `/preferences`): celebrations, show XP, show flame, Biscuit, goal,
   pause, and the gentle reminder (mobile only; at most one a day, only on days the app wasn't opened, backs off when
   ignored, off by default).

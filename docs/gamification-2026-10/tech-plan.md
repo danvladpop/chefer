@@ -355,7 +355,7 @@ Gate: `progressProcedure = protectedProcedure.use(requireProgressEnabled)`. It i
 | 38, 39        | tiered achievements and closest next. The full-screen "unlocked" sheet (mockup 07) is P2: in P1 an unlock is a receipt line plus a "new" dot on the shelf. |
 | 44, 52, 56–59 | the Biscuit cameo, weekly recap, celebration level, hide it all, gentle reminders, no-restriction rule                                                     |
 
-**Achievements at launch: 11 achievements, 36 badges** (the README said "about 25"; trim if you like):
+**Achievements at launch: 11 achievements, 33 badges** (the README said "about 25"; trim if you like):
 
 | Group   | Achievement            | Tiers                        | Counts                       |
 | ------- | ---------------------- | ---------------------------- | ---------------------------- |
