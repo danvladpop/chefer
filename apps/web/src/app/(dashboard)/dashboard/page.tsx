@@ -25,6 +25,7 @@ import {
   HealthConsentLaunchPrompt,
   HealthConsentTodayNotice,
 } from '@/features/privacy/components/HealthConsentNudges';
+import { ProgressToday } from '@/features/progress/progress-today';
 import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
@@ -275,6 +276,10 @@ export default function DashboardPage() {
               See full day <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
+
+          {/* Kitchen progress: strip, Today's three, welcome / recap / quiet cards
+            (renders nothing while the gamification flag is off). */}
+          <ProgressToday />
 
           {/* What you ate vs target — inline here below xl, in the right rail
             above it. The ring reads the dashboard summary's nutrition fields,
