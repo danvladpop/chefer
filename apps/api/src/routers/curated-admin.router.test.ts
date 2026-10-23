@@ -69,7 +69,9 @@ function everyProcedure(caller: ReturnType<typeof callerAs>) {
 }
 
 describe('curatedAdmin gating', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it.each(['USER', 'MODERATOR'] as const)('rejects a %s on every procedure', async (role) => {
     for (const call of everyProcedure(callerAs(role))) {

@@ -33,7 +33,9 @@ vi.mock('./recipe-line.repository', () => ({ recipeLineRepository: { writeLines:
 const repo = new CuratedRecipeDraftRepository();
 
 describe('CuratedRecipeDraftRepository.findApproved', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('reads APPROVED drafts only, and only their live CURATED recipe rows', async () => {
     p.draftFindMany.mockResolvedValue([{ id: 'd1', status: 'APPROVED', recipeId: 'r1' }]);

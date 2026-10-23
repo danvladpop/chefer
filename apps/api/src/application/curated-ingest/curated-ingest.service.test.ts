@@ -204,10 +204,10 @@ function makeService(overrides: Partial<CuratedIngestDeps> = {}) {
     },
     nutrition: {
       compute: vi.fn(async (lines, _owner, servings: number) => {
-        const rows = new Map(
-          lines.flatMap((l: { ingredientId: string | null }) => {
+        const rows = new Map<string, CatalogIngredientRow>(
+          lines.flatMap((l: { ingredientId: string | null }): [string, CatalogIngredientRow][] => {
             const row = l.ingredientId ? BY_ID.get(l.ingredientId) : undefined;
-            return row ? [[row.id, row] as const] : [];
+            return row ? [[row.id, row]] : [];
           }),
         );
         const engine = new Map(
@@ -249,7 +249,7 @@ function makeService(overrides: Partial<CuratedIngestDeps> = {}) {
     onPoolChanged: vi.fn(),
     onImageQueued: vi.fn(),
     ...overrides,
-  } as unknown as CuratedIngestDeps;
+  };
   const pending: Promise<void>[] = [];
   const service = new CuratedIngestService(deps);
   return {
