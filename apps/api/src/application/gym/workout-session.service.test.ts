@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   Prisma,
   type GymProfile,
@@ -554,5 +554,75 @@ describe('upsertMany — coached (trainer.coach.sync)', () => {
     await service.upsertMany(USER, [sessionDoc()]);
     const opts = vi.mocked(memory.repo.upsertDocument).mock.calls[0]?.[2] as { coached?: unknown };
     expect(opts).not.toHaveProperty('coached');
+  });
+});
+
+// Kitchen progress hook (tech-plan §4.2): finished workouts that landed are handed to the
+// recorder, oldest-doc date and all; the recorder's idempotent keys do the rest.
+describe('WorkoutSessionService.upsertMany — Kitchen progress hook', () => {
+  function withRecorder(onWorkoutsCompleted: Mock<[string, string[]], Promise<void>>) {
+    const memory = makeMemorySessionRepo(new Map([['r1', 'day-a']]));
+    const service = new WorkoutSessionService(
+      memory.repo,
+      makeRoutineRepo(),
+      makeExerciseRepo(),
+      { recompute: vi.fn().mockResolvedValue(undefined) },
+      makeProfileRepo(),
+      { findMany: vi.fn() },
+      {
+        onDayChanged: vi.fn(),
+        onShoppingToggled: vi.fn(),
+        onWorkoutsCompleted,
+      },
+    );
+    return { service, memory };
+  }
+
+  it('records the COMPLETED docs that were applied, including an offline doc with an old date', async () => {
+    const onWorkoutsCompleted = vi
+      .fn<[string, string[]], Promise<void>>()
+      .mockResolvedValue(undefined);
+    const { service } = withRecorder(onWorkoutsCompleted);
+    const done = sessionDoc({ localDate: '2026-09-02' });
+    const old = sessionDoc({
+      localDate: '2026-08-01',
+      startedAt: '2026-08-01T17:00:00.000Z',
+      finishedAt: '2026-08-01T18:00:00.000Z',
+      clientUpdatedAt: '2026-08-01T18:00:00.000Z',
+    });
+    const running = sessionDoc({ status: 'IN_PROGRESS', finishedAt: null });
+
+    await service.upsertMany(USER, [done, old, running]);
+
+    expect(onWorkoutsCompleted).toHaveBeenCalledTimes(1);
+    expect(onWorkoutsCompleted).toHaveBeenCalledWith(USER, [old.id, done.id]);
+  });
+
+  it('records a re-send again (the ledger key makes it free) and skips stale docs', async () => {
+    const onWorkoutsCompleted = vi
+      .fn<[string, string[]], Promise<void>>()
+      .mockResolvedValue(undefined);
+    const { service } = withRecorder(onWorkoutsCompleted);
+    const doc = sessionDoc({ clientUpdatedAt: '2026-09-02T18:05:00.000Z' });
+    await service.upsertMany(USER, [doc]);
+    await service.upsertMany(USER, [doc]);
+    expect(onWorkoutsCompleted).toHaveBeenCalledTimes(2);
+
+    onWorkoutsCompleted.mockClear();
+    await service.upsertMany(USER, [{ ...doc, clientUpdatedAt: '2026-09-02T18:00:00.000Z' }]);
+    expect(onWorkoutsCompleted).not.toHaveBeenCalled();
+  });
+
+  it('a hook error does not fail the sync', async () => {
+    const onWorkoutsCompleted = vi
+      .fn<[string, string[]], Promise<void>>()
+      .mockRejectedValue(new Error('ledger down'));
+    const { service } = withRecorder(onWorkoutsCompleted);
+    const doc = sessionDoc();
+
+    const res = await service.upsertMany(USER, [doc]);
+
+    expect(res.results).toEqual([{ id: doc.id, status: 'applied' }]);
+    expect(onWorkoutsCompleted).toHaveBeenCalledTimes(1);
   });
 });
