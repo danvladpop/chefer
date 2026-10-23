@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY, type ProfileVisibility } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ProfileVisibility } from '@chefer/types';
 import { Button, haptics, Sheet, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 
 // ─── Following: confirmation copy + the confirm sheet (UX §3.3, §11.4) ────────
-// Every destructive Following confirm, worded from FRIENDS_COPY in one place,
+// Every destructive Following confirm, worded from the `friends` catalog in one place,
 // and one sheet to show them. It's the kit `Sheet` (not `ConfirmSheet`)
 // because these confirms need three things ConfirmSheet doesn't have:
 //   • `onExited` — the follow-up (navigate back, the next sheet) must wait
@@ -23,45 +25,51 @@ export type ConfirmCopy = {
   destructive: boolean;
 };
 
-export const FRIENDS_CONFIRMS = {
+export const friendsConfirms = (t: Translator['t']) => ({
   /** RelationButton `Following` → unfollow. The "ask again" line only applies to a private profile. */
   unfollow: (first: string, visibility?: ProfileVisibility): ConfirmCopy => ({
-    title: FRIENDS_COPY.confirm.unfollow.title(first),
-    body: visibility === 'PUBLIC' ? null : FRIENDS_COPY.confirm.unfollow.bodyPrivate,
-    confirmLabel: FRIENDS_COPY.confirm.unfollow.cta,
-    cancelLabel: FRIENDS_COPY.common.cancel,
+    title: t('friends.confirm.unfollow.title', { first }),
+    body: visibility === 'PUBLIC' ? null : t('friends.confirm.unfollow.bodyPrivate'),
+    confirmLabel: t('friends.confirm.unfollow.cta'),
+    cancelLabel: t('friends.common.cancel'),
     destructive: false,
   }),
   /** RelationButton `Requested` → cancel the request. */
   cancelRequest: (): ConfirmCopy => ({
-    title: FRIENDS_COPY.confirm.cancelRequest.title,
+    title: t('friends.confirm.cancelRequest.title'),
     body: null,
-    confirmLabel: FRIENDS_COPY.confirm.cancelRequest.cta,
-    cancelLabel: FRIENDS_COPY.confirm.cancelRequest.keep,
+    confirmLabel: t('friends.confirm.cancelRequest.cta'),
+    cancelLabel: t('friends.confirm.cancelRequest.keep'),
     destructive: false,
   }),
   removeFollower: (first: string): ConfirmCopy => ({
-    title: FRIENDS_COPY.remove.title(first),
-    body: FRIENDS_COPY.remove.body,
-    confirmLabel: FRIENDS_COPY.remove.cta,
-    cancelLabel: FRIENDS_COPY.common.cancel,
+    title: t('friends.remove.title', { first }),
+    body: t('friends.remove.body'),
+    confirmLabel: t('friends.remove.cta'),
+    cancelLabel: t('friends.common.cancel'),
     destructive: true,
   }),
   block: (first: string): ConfirmCopy => ({
-    title: FRIENDS_COPY.block.title(first),
-    body: FRIENDS_COPY.block.body,
-    confirmLabel: FRIENDS_COPY.block.cta,
-    cancelLabel: FRIENDS_COPY.common.cancel,
+    title: t('friends.block.title', { first }),
+    body: t('friends.block.body'),
+    confirmLabel: t('friends.block.cta'),
+    cancelLabel: t('friends.common.cancel'),
     destructive: true,
   }),
   unblock: (first: string): ConfirmCopy => ({
-    title: FRIENDS_COPY.unblock.title(first),
-    body: FRIENDS_COPY.unblock.body,
-    confirmLabel: FRIENDS_COPY.unblock.cta,
-    cancelLabel: FRIENDS_COPY.common.cancel,
+    title: t('friends.unblock.title', { first }),
+    body: t('friends.unblock.body'),
+    confirmLabel: t('friends.unblock.cta'),
+    cancelLabel: t('friends.common.cancel'),
     destructive: false,
   }),
-} as const;
+});
+
+/** `friendsConfirms` in the current language. */
+export function useFriendsConfirms(): ReturnType<typeof friendsConfirms> {
+  const { t } = useT();
+  return useMemo(() => friendsConfirms(t), [t]);
+}
 
 export type FriendsConfirmSheetProps = {
   visible: boolean;
@@ -90,9 +98,10 @@ export function FriendsConfirmSheet({
   onClose,
   onDone,
   onExited,
-  errorMessage = FRIENDS_COPY.relation.error,
+  errorMessage,
   testID,
 }: FriendsConfirmSheetProps) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const succeeded = useRef(false);
@@ -141,7 +150,7 @@ export function FriendsConfirmSheet({
           accessibilityLiveRegion="polite"
           className="text-sm text-destructive"
         >
-          {errorMessage}
+          {errorMessage ?? t('friends.relation.error')}
         </Text>
       ) : null}
       <View className="gap-2 pt-2">

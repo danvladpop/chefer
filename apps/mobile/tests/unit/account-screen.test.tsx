@@ -1,7 +1,9 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SettingsScreen } from '../../src/features/settings/settings-screen';
-import { ACCOUNT_DISCLAIMER } from '../../src/features/shell/you/account-screen';
+
+const ACCOUNT_DISCLAIMER =
+  "Chefer suggests meals and workouts as general guidance only. It isn't a medical device. Suggestions, including AI ones, can be wrong, even about allergens.";
 
 // 10 Oct redesign, board "Settings" → "Account": in the new shell `/settings`
 // keeps only You, Account and Legal; Food, Training, Notifications,

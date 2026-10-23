@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FRIENDS_COPY, type ActivityItemDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ActivityItemDto } from '@chefer/types';
 import { EmptyState, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { isFriendsUnavailableError } from '../api/friends-errors';
 import { FriendsGate, FriendsUnavailableScreen } from '../components/friends-gate';
@@ -32,15 +34,14 @@ type Row =
   | { type: 'item'; key: string; item: ActivityItemDto };
 
 /** `{name} wants to follow you` → `wants to follow you` (the name is the row's bold first line). */
-export function activitySentenceRest(item: ActivityItemDto): string {
-  const copy = FRIENDS_COPY.activity;
+export function activitySentenceRest(item: ActivityItemDto, t: Translator['t']): string {
   const name = item.actor.displayName;
   const sentence =
     item.kind === 'FOLLOW_REQUEST'
-      ? copy.request(name)
+      ? t('friends.activity.request', { name })
       : item.kind === 'NEW_FOLLOWER'
-        ? copy.newFollower(name)
-        : copy.accepted(name);
+        ? t('friends.activity.newFollower', { name })
+        : t('friends.activity.accepted', { name });
   return sentence.startsWith(name) ? sentence.slice(name.length).trim() : sentence;
 }
 
@@ -48,24 +49,26 @@ export function activitySentenceRest(item: ActivityItemDto): string {
 export function activityRows(
   items: readonly ActivityItemDto[],
   newIds: ReadonlySet<string>,
+  t: Translator['t'],
 ): Row[] {
   const fresh = items.filter((i) => newIds.has(i.id));
   const earlier = items.filter((i) => !newIds.has(i.id));
   const rows: Row[] = [];
   if (fresh.length > 0) {
-    rows.push({ type: 'header', key: 'h-new', label: FRIENDS_COPY.activity.new });
+    rows.push({ type: 'header', key: 'h-new', label: t('friends.activity.new') });
     for (const item of fresh) rows.push({ type: 'item', key: item.id, item });
   }
   if (earlier.length > 0) {
-    rows.push({ type: 'header', key: 'h-earlier', label: FRIENDS_COPY.activity.earlier });
+    rows.push({ type: 'header', key: 'h-earlier', label: t('friends.activity.earlier') });
     for (const item of earlier) rows.push({ type: 'item', key: item.id, item });
   }
   return rows;
 }
 
 function ActivityRowView({ item }: { item: ActivityItemDto }) {
+  const { t } = useT();
   const { actor } = item;
-  const secondary = `${activitySentenceRest(item)} · ${formatActivityAge(item.createdAt)}`;
+  const secondary = `${activitySentenceRest(item, t)} · ${formatActivityAge(item.createdAt, t)}`;
   const testID = `friends-activity-${item.id}`;
 
   if (item.kind === 'FOLLOW_REQUEST' && (item.requestState ?? 'pending') === 'pending') {
@@ -84,8 +87,8 @@ function ActivityRowView({ item }: { item: ActivityItemDto }) {
     trailing = (
       <Text testID={`${testID}-answered`} variant="muted">
         {item.requestState === 'declined'
-          ? FRIENDS_COPY.activity.youDeclined
-          : FRIENDS_COPY.activity.youAccepted}
+          ? t('friends.activity.youDeclined')
+          : t('friends.activity.youAccepted')}
       </Text>
     );
   } else if (item.kind === 'NEW_FOLLOWER') {
@@ -105,6 +108,7 @@ function ActivityRowView({ item }: { item: ActivityItemDto }) {
 }
 
 function ActivityBody() {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const markRead = trpc.friends.markActivityRead.useMutation();
   const { query, items } = useActivityList();
@@ -127,14 +131,14 @@ function ActivityBody() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the first fresh load
   }, [fresh, items, newIds]);
 
-  const rows = useMemo(() => activityRows(items, newIds ?? new Set()), [items, newIds]);
+  const rows = useMemo(() => activityRows(items, newIds ?? new Set(), t), [items, newIds, t]);
 
   if (isFriendsUnavailableError(query.error)) return <FriendsUnavailableScreen />;
   if (query.isError && items.length === 0) {
     return (
       <ErrorState
         testID="friends-activity-error"
-        title={FRIENDS_COPY.home.sectionError('list')}
+        title={t('friends.home.sectionError.list')}
         description=""
         onRetry={() => void query.refetch()}
       />
@@ -146,8 +150,8 @@ function ActivityBody() {
       <EmptyState
         testID="friends-activity-empty"
         icon={<Ionicons name="notifications-outline" size={40} color="#9ca3af" />}
-        title={FRIENDS_COPY.activity.empty.title}
-        description={FRIENDS_COPY.activity.empty.body}
+        title={t('friends.activity.empty.title')}
+        description={t('friends.activity.empty.body')}
       />
     );
   }
@@ -184,7 +188,7 @@ function ActivityBody() {
         <View className="items-center px-4 py-6">
           {query.isFetchingNextPage ? <ActivityIndicator /> : null}
           <Text testID="friends-activity-retention" variant="muted" className="text-center">
-            {FRIENDS_COPY.activity.retention}
+            {t('friends.activity.retention')}
           </Text>
         </View>
       }
@@ -193,12 +197,13 @@ function ActivityBody() {
 }
 
 export function FriendsActivityScreen() {
+  const { t } = useT();
   return (
     <FriendsGate>
-      <ActivatedGate title={FRIENDS_COPY.activity.title} testID="friends-activity">
+      <ActivatedGate title={t('friends.activity.title')} testID="friends-activity">
         <Screen testID="friends-activity" className="px-0">
           <FriendsScreenHeader
-            title={FRIENDS_COPY.activity.title}
+            title={t('friends.activity.title')}
             testID="friends-activity-header"
           />
           <ActivityBody />

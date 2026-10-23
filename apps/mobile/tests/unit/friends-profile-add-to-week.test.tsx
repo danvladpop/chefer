@@ -11,6 +11,7 @@ import {
 } from '../../src/features/friends/add-to-week/add-to-week-logic';
 import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
 import { weekdayShort } from '../../src/features/friends/profile/format';
+import { getTranslator } from '../../src/lib/i18n';
 import { renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
 
@@ -24,7 +25,7 @@ const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-route
 
 const RECIPE = { id: 'rcp-dal', name: 'Lentil dal', kcal: 480 };
 const TODAY = localWeekday();
-const DAY = weekdayShort(TODAY);
+const DAY = weekdayShort(TODAY, getTranslator().t);
 
 function plan() {
   return {

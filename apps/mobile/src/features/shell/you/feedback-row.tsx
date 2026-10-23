@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ListRow, Sheet, showSnackbar, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { FeedbackCard } from '../../feedback/feedback-card';
 
 // You → Help → "Send feedback" (10 Oct redesign). The form used to sit open on
@@ -10,6 +11,7 @@ import { FeedbackCard } from '../../feedback/feedback-card';
 // pattern Gym settings already uses (GymFeedbackRow) — and the sheet closes
 // with a thank-you snackbar once it is sent.
 export function YouFeedbackRow() {
+  const { t } = useT();
   const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion (MO-02).
@@ -18,9 +20,9 @@ export function YouFeedbackRow() {
     <>
       <ListRow
         testID="you-feedback"
-        title="Send feedback"
+        title={t('settings.you.feedback')}
         icon={<Icon name="feedback" color={colors.brand} />}
-        accessibilityHint="Tell us what is broken, confusing or missing"
+        accessibilityHint={t('settings.you.feedbackHint')}
         onPress={() => {
           setMounted(true);
           setOpen(true);
@@ -29,7 +31,7 @@ export function YouFeedbackRow() {
       <Sheet
         visible={open}
         onClose={() => setOpen(false)}
-        title="Send feedback"
+        title={t('settings.you.feedback')}
         testID="you-feedback-sheet"
       >
         {mounted ? (
@@ -37,7 +39,7 @@ export function YouFeedbackRow() {
             bare
             onSent={() => {
               setOpen(false);
-              showSnackbar({ message: 'Thanks, we read every note.' });
+              showSnackbar({ message: getTranslator().t('settings.you.feedbackThanks') });
             }}
           />
         ) : null}

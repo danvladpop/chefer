@@ -1,6 +1,7 @@
 import { View } from 'react-native';
-import { FRIENDS_COPY, type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
+import type { FriendProfileDto, FriendsMeDto } from '@chefer/types';
 import { ErrorState, Skeleton, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../../lib/i18n';
 import { trpc } from '../../../../lib/trpc';
 import { LockedPanel } from '../../components/locked-panel';
 import { sectionView } from '../sections';
@@ -19,7 +20,8 @@ export function GymTab({
   profile: FriendProfileDto;
   me: FriendsMeDto | undefined;
 }) {
-  const view = sectionView(profile, 'workouts', me);
+  const { t } = useT();
+  const view = sectionView(profile, 'workouts', t, me);
   if (view.kind === 'panel') {
     return <LockedPanel testID="friends-gym-panel" {...view.panel} />;
   }
@@ -27,6 +29,7 @@ export function GymTab({
 }
 
 function GymContent({ userId, firstName }: { userId: string; firstName: string }) {
+  const { t } = useT();
   const routine = trpc.friends.routine.useQuery({ userId }, { retry: false });
   const workouts = trpc.friends.workouts.useQuery({ userId }, { retry: false });
   const units = useViewerUnits();
@@ -37,14 +40,14 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
         accessibilityRole="header"
         className="text-xs font-semibold uppercase tracking-widest text-gray-500"
       >
-        {FRIENDS_COPY.gym.routine}
+        {t('friends.gym.routine')}
       </Text>
       {routine.isLoading ? (
         <Skeleton testID="friends-routine-loading" className="h-40 w-full rounded-2xl" />
       ) : routine.isError && routine.data === undefined ? (
         <ErrorState
           testID="friends-routine-error"
-          title={FRIENDS_COPY.profile.error}
+          title={t('friends.profile.error')}
           onRetry={() => void routine.refetch()}
         />
       ) : (
@@ -55,14 +58,14 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
         accessibilityRole="header"
         className="text-xs font-semibold uppercase tracking-widest text-gray-500"
       >
-        {FRIENDS_COPY.gym.lastSevenDays}
+        {t('friends.gym.lastSevenDays')}
       </Text>
       {workouts.isLoading ? (
         <Skeleton testID="friends-workouts-loading" className="h-32 w-full rounded-2xl" />
       ) : workouts.isError && workouts.data === undefined ? (
         <ErrorState
           testID="friends-workouts-error"
-          title={FRIENDS_COPY.profile.error}
+          title={t('friends.profile.error')}
           onRetry={() => void workouts.refetch()}
         />
       ) : (

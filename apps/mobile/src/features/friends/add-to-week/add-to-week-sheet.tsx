@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   Button,
   DENSE_MAX_FONT_SCALE,
@@ -13,8 +12,9 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
-import { weekdayFull, weekdayShort } from '../profile/format';
+import { mealTypeLabel, weekdayFull, weekdayShort } from '../profile/format';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 import {
   canPickNextWeek,
@@ -62,6 +62,7 @@ export function AddToWeekSheet({
   api?: 'friends' | 'recipe';
   testID?: string;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const nextWeekAllowed = canPickNextWeek();
@@ -81,7 +82,7 @@ export function AddToWeekSheet({
 
   const plan = week.data;
   const rows = plan ? slotRows(plan, day, shape.data?.slots ?? []) : [];
-  const dayLabel = weekdayShort(day);
+  const dayLabel = weekdayShort(day, t);
   const noPlan = failure?.kind === 'noPlan' || (!week.isLoading && !week.isError && plan === null);
 
   const switchWeek = (next: 0 | 1) => {
@@ -110,11 +111,11 @@ export function AddToWeekSheet({
       void utils.mealPlan.getForWeek.invalidate();
       void utils.recipe.list.invalidate();
       void utils.dashboard.summary.invalidate();
-      const meal = result.mealType;
+      const meal = mealTypeLabel(result.mealType, t);
       snackbar.show({
-        message: FRIENDS_COPY.addToWeek.done(weekdayShort(result.dayOfWeek), meal),
+        message: t('friends.addToWeek.done', { day: weekdayShort(result.dayOfWeek, t), meal }),
         tone: 'success',
-        actionLabel: FRIENDS_COPY.common.undo,
+        actionLabel: t('friends.common.undo'),
         onAction: () => {
           const undo =
             api === 'recipe'
@@ -138,7 +139,7 @@ export function AddToWeekSheet({
                 void utils.mealPlan.getForWeek.invalidate();
                 void utils.dashboard.summary.invalidate();
               },
-              () => snackbar.show({ message: FRIENDS_COPY.relation.error }),
+              () => snackbar.show({ message: t('friends.relation.error') }),
             );
         },
       });
@@ -205,25 +206,34 @@ export function AddToWeekSheet({
   const confirmCopy: ConfirmCopy | null =
     selected?.mode === 'replace'
       ? {
-          title: FRIENDS_COPY.addToWeek.replaceTitle(selected.currentName ?? selected.mealType),
-          body: FRIENDS_COPY.addToWeek.replaceBody(recipe.name, dayLabel, selected.mealType),
-          confirmLabel: FRIENDS_COPY.addToWeek.replace,
-          cancelLabel: FRIENDS_COPY.common.cancel,
+          title: t('friends.addToWeek.replaceTitle', {
+            meal: selected.currentName ?? mealTypeLabel(selected.mealType, t),
+          }),
+          body: t('friends.addToWeek.replaceBody', {
+            recipe: recipe.name,
+            day: dayLabel,
+            meal: mealTypeLabel(selected.mealType, t),
+          }),
+          confirmLabel: t('friends.addToWeek.replace'),
+          cancelLabel: t('friends.common.cancel'),
           destructive: false,
         }
       : null;
 
   const ctaLabel = selected
-    ? FRIENDS_COPY.addToWeek.cta(dayLabel, selected.mealType)
-    : FRIENDS_COPY.addToWeek.title;
+    ? t('friends.addToWeek.cta', { day: dayLabel, meal: mealTypeLabel(selected.mealType, t) })
+    : t('friends.addToWeek.title');
 
   return (
     <>
       <Sheet
         testID={testID}
         visible={phase === 'picker'}
-        title={FRIENDS_COPY.addToWeek.title}
-        eyebrow={FRIENDS_COPY.addToWeek.eyebrow(recipe.name, Math.round(recipe.kcal))}
+        title={t('friends.addToWeek.title')}
+        eyebrow={t('friends.addToWeek.eyebrow', {
+          recipe: recipe.name,
+          kcal: Math.round(recipe.kcal),
+        })}
         onClose={() => {
           if (!add.isPending) closeThen(null);
         }}
@@ -250,8 +260,8 @@ export function AddToWeekSheet({
             value={weekOffset === 0 ? '0' : '1'}
             onChange={(v) => switchWeek(v === '0' ? 0 : 1)}
             options={[
-              { value: '0', label: FRIENDS_COPY.addToWeek.thisWeek, testID: `${testID}-this-week` },
-              { value: '1', label: FRIENDS_COPY.addToWeek.nextWeek, testID: `${testID}-next-week` },
+              { value: '0', label: t('friends.addToWeek.thisWeek'), testID: `${testID}-this-week` },
+              { value: '1', label: t('friends.addToWeek.nextWeek'), testID: `${testID}-next-week` },
             ]}
           />
         ) : null}
@@ -265,7 +275,7 @@ export function AddToWeekSheet({
                 key={d}
                 testID={`${testID}-day-${d}`}
                 accessibilityRole="button"
-                accessibilityLabel={weekdayFull(d)}
+                accessibilityLabel={weekdayFull(d, t)}
                 accessibilityState={{ selected: isSelected, disabled: past }}
                 disabled={past}
                 onPress={() => pickDay(d)}
@@ -282,7 +292,7 @@ export function AddToWeekSheet({
                     isSelected ? 'text-primary-foreground' : 'text-gray-700',
                   )}
                 >
-                  {weekdayShort(d)}
+                  {weekdayShort(d, t)}
                 </Text>
                 <Text
                   maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
@@ -306,18 +316,18 @@ export function AddToWeekSheet({
           </View>
         ) : noPlan ? (
           <View testID={`${testID}-no-plan`} className="gap-3 py-2">
-            <Text>{FRIENDS_COPY.addToWeek.noPlan}</Text>
+            <Text>{t('friends.addToWeek.noPlan')}</Text>
             <Button
               testID={`${testID}-make-plan`}
               variant="outline"
               onPress={() => closeThen('makePlan')}
             >
-              {FRIENDS_COPY.addToWeek.makePlan}
+              {t('friends.addToWeek.makePlan')}
             </Button>
           </View>
         ) : week.isError ? (
           <Text testID={`${testID}-load-error`} className="text-sm text-destructive">
-            {FRIENDS_COPY.relation.error}
+            {t('friends.relation.error')}
           </Text>
         ) : (
           <View accessibilityRole="radiogroup" className="gap-2">
@@ -326,16 +336,16 @@ export function AddToWeekSheet({
               const action =
                 row.mode === 'add'
                   ? row.side
-                    ? FRIENDS_COPY.addToWeek.addAsSide
-                    : FRIENDS_COPY.addToWeek.addHere
-                  : FRIENDS_COPY.addToWeek.replaceThisMeal;
+                    ? t('friends.addToWeek.addAsSide')
+                    : t('friends.addToWeek.addHere')
+                  : t('friends.addToWeek.replaceThisMeal');
               return (
                 <Pressable
                   key={row.key}
                   testID={`${testID}-slot-${row.key}`}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: isSelected, checked: isSelected }}
-                  accessibilityLabel={[row.mealType, row.currentName, action]
+                  accessibilityLabel={[mealTypeLabel(row.mealType, t), row.currentName, action]
                     .filter(Boolean)
                     .join(', ')}
                   onPress={() => {
@@ -349,7 +359,7 @@ export function AddToWeekSheet({
                 >
                   <View className="min-w-0 flex-1">
                     <Text className="text-xs font-semibold uppercase text-gray-500">
-                      {row.mealType}
+                      {mealTypeLabel(row.mealType, t)}
                     </Text>
                     {row.currentName ? (
                       <Text numberOfLines={1} className="text-sm text-gray-900">
@@ -392,7 +402,7 @@ export function AddToWeekSheet({
                   }
                 }}
               >
-                {FRIENDS_COPY.addToWeek.useAnyway}
+                {t('friends.addToWeek.useAnyway')}
               </Button>
             ) : null}
           </View>
@@ -402,7 +412,7 @@ export function AddToWeekSheet({
             accessibilityRole="alert"
             className="text-sm text-destructive"
           >
-            {FRIENDS_COPY.relation.error}
+            {t('friends.relation.error')}
           </Text>
         ) : null}
       </Sheet>

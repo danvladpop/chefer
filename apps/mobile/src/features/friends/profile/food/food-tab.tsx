@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY, type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
+import type { FriendProfileDto, FriendsMeDto } from '@chefer/types';
 import { SegmentedControl } from '@chefer/ui-mobile';
+import { useT } from '../../../../lib/i18n';
 import { LockedPanel } from '../../components/locked-panel';
 import { sectionView, showsTargets } from '../sections';
 import { FriendRecipeGrid, type FriendRecipeGridProps } from './friend-recipe-grid';
@@ -22,11 +23,12 @@ export type FoodTabProps = {
 };
 
 export function FoodTab({ profile, me, registerLoadMore }: FoodTabProps) {
+  const { t } = useT();
   const [pane, setPane] = useState<Pane>('week');
   const [visited, setVisited] = useState<Record<Pane, boolean>>({ week: true, recipes: false });
   const { id: userId, firstName } = profile.user;
-  const plan = sectionView(profile, 'plan', me);
-  const recipes = sectionView(profile, 'recipes', me);
+  const plan = sectionView(profile, 'plan', t, me);
+  const recipes = sectionView(profile, 'recipes', t, me);
   const count = profile.recipeCount ?? 0;
 
   const choose = (next: Pane) => {
@@ -42,10 +44,11 @@ export function FoodTab({ profile, me, registerLoadMore }: FoodTabProps) {
         value={pane}
         onChange={choose}
         options={[
-          { value: 'week', label: FRIENDS_COPY.food.thisWeek, testID: 'friends-food-week' },
+          { value: 'week', label: t('friends.food.thisWeek'), testID: 'friends-food-week' },
           {
             value: 'recipes',
-            label: FRIENDS_COPY.food.recipes(count),
+            label:
+              count > 0 ? t('friends.food.recipesCount', { n: count }) : t('friends.food.recipes'),
             testID: 'friends-food-recipes',
           },
         ]}

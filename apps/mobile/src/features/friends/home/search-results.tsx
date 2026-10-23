@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, FlatList, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { FRIENDS_COPY, FRIENDS_LIMITS, type FriendUserSummary } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { FRIENDS_LIMITS, type FriendUserSummary } from '@chefer/types';
 import {
   duration,
   EmptyState,
@@ -12,6 +13,7 @@ import {
   useReducedMotion,
 } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { friendsErrorData } from '../api/friends-errors';
 import { useInvite } from '../components/invite';
 import { PersonRow } from '../components/person-row';
@@ -44,9 +46,10 @@ export function searchBucket(count: number): Bucket {
 /** `Follows you`, `Followed by {name}` (someone I follow follows them), or nothing. */
 export function searchSecondary(
   person: FriendUserSummary & { mutualName?: string },
+  t: Translator['t'],
 ): string | null {
-  if (person.followsYou) return FRIENDS_COPY.reason.followsYou;
-  if (person.mutualName) return FRIENDS_COPY.reason.mutualOne(person.mutualName);
+  if (person.followsYou) return t('friends.reason.followsYou');
+  if (person.mutualName) return t('friends.reason.mutualOne', { name: person.mutualName });
   return null;
 }
 
@@ -67,6 +70,7 @@ export type SearchResultsProps = {
 };
 
 export function SearchResults({ query, pending, online }: SearchResultsProps) {
+  const { t } = useT();
   const reduced = useReducedMotion();
   const { active, query: search, results } = useSearchResults(query);
   const trimmed = query.trim();
@@ -88,14 +92,18 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
   useEffect(() => {
     if (!settled || settledFor.current === trimmed) return;
     settledFor.current = trimmed;
-    announce(FRIENDS_COPY.search.announce(results.length));
+    announce(
+      results.length === 0
+        ? t('friends.search.announceNone')
+        : t('friends.search.announce', { count: results.length }),
+    );
     track('friends_search', { resultBucket: searchBucket(firstPageCount) });
-  }, [settled, trimmed, results.length, firstPageCount]);
+  }, [settled, trimmed, results.length, firstPageCount, t]);
 
   if (trimmed.length < FRIENDS_LIMITS.searchMinChars) {
     return (
       <Text testID="friends-search-hint" variant="muted" className="px-4 py-3">
-        {FRIENDS_COPY.search.keepTyping}
+        {t('friends.search.keepTyping')}
       </Text>
     );
   }
@@ -109,7 +117,7 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
         variant="muted"
         className="px-4 py-3"
       >
-        {FRIENDS_COPY.search.rateLimited}
+        {t('friends.search.rateLimited')}
       </Text>
     );
   }
@@ -117,7 +125,7 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
     return (
       <ErrorState
         testID="friends-search-error"
-        title={FRIENDS_COPY.search.error}
+        title={t('friends.search.error')}
         description=""
         onRetry={() => void search.refetch()}
       />
@@ -130,10 +138,10 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
       <EmptyState
         testID="friends-search-empty"
         icon={<Ionicons name="search-outline" size={40} color="#9ca3af" />}
-        title={FRIENDS_COPY.search.noResults.title(trimmed)}
-        description={FRIENDS_COPY.search.noResults.body}
+        title={t('friends.search.noResults.title', { query: trimmed })}
+        description={t('friends.search.noResults.body')}
         action={{
-          label: FRIENDS_COPY.invite.cta,
+          label: t('friends.invite.cta'),
           testID: 'friends-search-invite',
           onPress: () => void invite(),
         }}
@@ -156,7 +164,7 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
           <PersonRow
             testID={`friends-search-result-${person.id}`}
             person={person}
-            secondary={searchSecondary(person)}
+            secondary={searchSecondary(person, t)}
             trailing={
               <RelationButton
                 testID={`friends-search-result-${person.id}-relation`}

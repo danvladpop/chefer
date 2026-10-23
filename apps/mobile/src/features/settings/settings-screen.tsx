@@ -1,11 +1,13 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
+import type { Catalog } from '@chefer/i18n';
+import { COACHING_COPY } from '@chefer/types';
 import { Button, Screen, Text } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
 import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
+import { useT } from '../../lib/i18n';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { legalHref } from '../legal/legal-docs';
@@ -24,48 +26,85 @@ import { useSignOut } from './use-sign-out';
 // own screen (UX-PO-08), which gathers every reminder — Weekly updates
 // included.
 
+/** A row's label: a catalog key, or text that is not ours to translate (COACHING_COPY). */
+type RowKey =
+  | `settings.hub.rows.${keyof Catalog['settings']['hub']['rows']}`
+  | 'settings.language.title'
+  | 'friends.nav.label';
+type Label = { key: RowKey } | { text: string };
+
 interface SettingsRow {
-  label: string;
+  label: Label;
   testID: string;
   href: Href;
   onOpen?: () => void;
 }
 
+type GroupId = 'you' | 'food' | 'training' | 'account' | 'legal';
+
 interface SettingsGroup {
-  title: string;
+  id: GroupId;
   rows: SettingsRow[];
   /** Shows the "Set up training" call to action instead of the rows. */
   setUpCta?: boolean;
 }
 
+const GROUP_TITLE: Record<GroupId, `settings.hub.groups.${GroupId}`> = {
+  you: 'settings.hub.groups.you',
+  food: 'settings.hub.groups.food',
+  training: 'settings.hub.groups.training',
+  account: 'settings.hub.groups.account',
+  legal: 'settings.hub.groups.legal',
+};
+
 const YOU_GROUP: SettingsGroup = {
-  title: 'You',
+  id: 'you',
   rows: [
-    { label: 'What you use Chefer for', testID: 'settings-jobs', href: '/settings/jobs' },
     {
-      label: 'Goal & body',
+      label: { key: 'settings.hub.rows.jobs' },
+      testID: 'settings-jobs',
+      href: '/settings/jobs',
+    },
+    {
+      label: { key: 'settings.hub.rows.goalBody' },
       testID: 'settings-goal-body',
       href: '/preferences?section=goal-body',
     },
-    { label: 'Your targets', testID: 'settings-targets', href: '/preferences?section=targets' },
+    {
+      label: { key: 'settings.hub.rows.targets' },
+      testID: 'settings-targets',
+      href: '/preferences?section=targets',
+    },
   ],
 };
 
 // "How you cook" is gone: its three questions (who you cook for, units and
 // currency, budget) are the Household, Money & units and Weekly budget rows.
 const FOOD_GROUP: SettingsGroup = {
-  title: 'Food',
+  id: 'food',
   rows: [
-    { label: 'Allergies & diets', testID: 'settings-safety', href: '/preferences?section=safety' },
-    { label: 'Household', testID: 'settings-household', href: '/household' },
     {
-      label: 'Money & units',
+      label: { key: 'settings.hub.rows.safety' },
+      testID: 'settings-safety',
+      href: '/preferences?section=safety',
+    },
+    {
+      label: { key: 'settings.hub.rows.household' },
+      testID: 'settings-household',
+      href: '/household',
+    },
+    {
+      label: { key: 'settings.hub.rows.moneyUnits' },
       testID: 'settings-money-units',
       href: '/preferences?section=display',
     },
-    { label: 'Weekly budget', testID: 'settings-budget', href: '/preferences?section=budget' },
     {
-      label: 'Plan my week automatically',
+      label: { key: 'settings.hub.rows.budget' },
+      testID: 'settings-budget',
+      href: '/preferences?section=budget',
+    },
+    {
+      label: { key: 'settings.hub.rows.autoPlan' },
       testID: 'settings-auto-plan',
       href: '/preferences?section=auto-plan',
     },
@@ -73,48 +112,85 @@ const FOOD_GROUP: SettingsGroup = {
 };
 
 const TRAINING_GROUP: SettingsGroup = {
-  title: 'Training',
+  id: 'training',
   rows: [
     {
-      label: 'Training days & reminders',
+      label: { key: 'settings.hub.rows.trainingDays' },
       testID: 'settings-training-days',
       href: '/gym/settings?section=reminders',
     },
-    { label: 'Pause training', testID: 'settings-pause', href: '/gym/settings?section=pause' },
     {
-      label: 'Units, equipment & weekly goal',
+      label: { key: 'settings.hub.rows.pause' },
+      testID: 'settings-pause',
+      href: '/gym/settings?section=pause',
+    },
+    {
+      label: { key: 'settings.hub.rows.gymUnits' },
       testID: 'settings-gym-units',
       href: '/gym/settings?section=units',
     },
     // The History segment of the Stats tab (a completed-sessions list).
-    { label: 'Workout history', testID: 'settings-workout-history', href: '/stats?tab=history' },
-    { label: 'Export workouts', testID: 'settings-export', href: '/gym/settings?section=export' },
+    {
+      label: { key: 'settings.hub.rows.workoutHistory' },
+      testID: 'settings-workout-history',
+      href: '/stats?tab=history',
+    },
+    {
+      label: { key: 'settings.hub.rows.exportWorkouts' },
+      testID: 'settings-export',
+      href: '/gym/settings?section=export',
+    },
   ],
 };
 
 const ACCOUNT_ROWS: SettingsRow[] = [
-  { label: 'Plan & Premium', testID: 'settings-plan-premium', href: '/profile?section=plan' },
-  { label: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
-  // ADR 0004. The label names both languages so it can be found in either.
-  { label: 'Language / Limbă', testID: 'settings-language', href: '/settings/language' },
   {
-    label: 'Notifications',
+    label: { key: 'settings.hub.rows.planPremium' },
+    testID: 'settings-plan-premium',
+    href: '/profile?section=plan',
+  },
+  {
+    label: { key: 'settings.hub.rows.emails' },
+    testID: 'settings-emails',
+    href: '/preferences?section=weekly-updates',
+  },
+  // ADR 0004. Reads "Language" / "Limbă" in the current language, and the
+  // language screen shows each language in itself.
+  {
+    label: { key: 'settings.language.title' },
+    testID: 'settings-language',
+    href: '/settings/language',
+  },
+  {
+    label: { key: 'settings.hub.rows.notifications' },
     testID: 'settings-notifications',
     href: '/settings/notifications',
   },
-  { label: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
   {
-    label: 'Download or delete my data',
+    label: { key: 'settings.hub.rows.privacyData' },
+    testID: 'settings-privacy',
+    href: '/profile?section=privacy',
+  },
+  {
+    label: { key: 'settings.hub.rows.accountData' },
     testID: 'settings-account-data',
     href: '/profile?section=account',
   },
 ];
 
 const LEGAL_GROUP: SettingsGroup = {
-  title: 'Legal',
+  id: 'legal',
   rows: [
-    { label: 'Terms of Service', testID: 'settings-terms', href: legalHref('terms') },
-    { label: 'Privacy Policy', testID: 'settings-privacy-policy', href: legalHref('privacy') },
+    {
+      label: { key: 'settings.hub.rows.terms' },
+      testID: 'settings-terms',
+      href: legalHref('terms'),
+    },
+    {
+      label: { key: 'settings.hub.rows.privacyPolicy' },
+      testID: 'settings-privacy-policy',
+      href: legalHref('privacy'),
+    },
   ],
 };
 
@@ -122,7 +198,7 @@ const LEGAL_GROUP: SettingsGroup = {
 // mode's way in (Gym has no More tab). Only while `friends.availability` says
 // yes — with it off the row doesn't exist and nothing else is queried.
 const FOLLOWING_ROW: SettingsRow = {
-  label: FRIENDS_COPY.nav.label,
+  label: { key: 'friends.nav.label' },
   testID: 'settings-friends',
   href: '/friends',
   onOpen: () => track('friends_opened', { source: 'settings' }),
@@ -130,13 +206,14 @@ const FOLLOWING_ROW: SettingsRow = {
 
 // Trainer coaching (WP-18): "Your trainer" for anyone while `coaching.availability` says enabled,
 // "Trainer tools" only for users who may be a trainer — Gym mode's way in (Gym has no More tab).
+// COACHING_COPY is translated in phase 4; its text is shown as is until then.
 const YOUR_TRAINER_ROW: SettingsRow = {
-  label: COACHING_COPY.yourTrainer.title,
+  label: { text: COACHING_COPY.yourTrainer.title },
   testID: 'settings-your-trainer',
   href: '/coaching',
 };
 const TRAINER_TOOLS_ROW: SettingsRow = {
-  label: COACHING_COPY.trainer.title,
+  label: { text: COACHING_COPY.trainer.title },
   testID: 'settings-trainer-tools',
   href: '/trainer',
 };
@@ -160,9 +237,9 @@ function groupsFor(
     FOOD_GROUP,
     // UX-ACC-04: five training rows that all open "Set up your training first"
     // are one "Set up training" action until training is set up.
-    hasTraining ? TRAINING_GROUP : { title: 'Training', rows: [], setUpCta: true },
+    hasTraining ? TRAINING_GROUP : { id: 'training', rows: [], setUpCta: true },
     {
-      title: 'Account',
+      id: 'account',
       rows: accountRows,
     },
     LEGAL_GROUP,
@@ -216,15 +293,17 @@ function SettingsRowItem({
 }
 
 function TrainingSetupCta() {
+  const { t } = useT();
   return (
     <View testID="settings-training-setup" className="gap-2 p-4">
-      <Text className="text-sm font-medium text-gray-800">Training isn’t set up yet</Text>
+      <Text className="text-sm font-medium text-gray-800">
+        {t('settings.hub.trainingSetup.title')}
+      </Text>
       <Text variant="muted" className="text-sm">
-        Choose your training days, units and equipment to start logging workouts. Everything else in
-        Chefer works without it.
+        {t('settings.hub.trainingSetup.body')}
       </Text>
       <Button testID="settings-set-up-training" onPress={() => router.push('/gym/setup')}>
-        Set up training
+        {t('settings.hub.trainingSetup.cta')}
       </Button>
     </View>
   );
@@ -236,6 +315,7 @@ export function SettingsScreen() {
 }
 
 function LegacySettingsScreen() {
+  const { t } = useT();
   const { enabled: friendsAvailable } = useFriendsAvailability();
   const coachingAvailability = useCoachingAvailability();
   // Only a *loaded* "no gym profile" swaps the Training rows for the CTA — a
@@ -255,26 +335,26 @@ function LegacySettingsScreen() {
         <Pressable
           testID="settings-back"
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           className="h-11 w-11 items-center justify-center"
         >
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
         <Text testID="settings-title" variant="title">
-          Settings
+          {t('settings.hub.title')}
         </Text>
       </View>
       <ScrollView contentContainerClassName="gap-2 pb-8">
         {groups.map((group) => (
-          <View key={group.title}>
-            <GroupTitle>{group.title}</GroupTitle>
+          <View key={group.id}>
+            <GroupTitle>{t(GROUP_TITLE[group.id])}</GroupTitle>
             <View className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
               {group.setUpCta && <TrainingSetupCta />}
               {group.rows.map((row, i) => (
                 <SettingsRowItem
                   key={row.testID}
-                  label={row.label}
+                  label={'key' in row.label ? t(row.label.key) : row.label.text}
                   testID={row.testID}
                   isFirst={i === 0}
                   onPress={() => {
@@ -283,9 +363,9 @@ function LegacySettingsScreen() {
                   }}
                 />
               ))}
-              {group.title === 'Account' && (
+              {group.id === 'account' && (
                 <SettingsRowItem
-                  label="Sign out"
+                  label={t('settings.hub.rows.signOut')}
                   testID="settings-sign-out"
                   isFirst={false}
                   destructive

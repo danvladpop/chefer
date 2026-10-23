@@ -6,7 +6,7 @@ import { Text } from '@chefer/ui-mobile';
 // Icon, title, body — what a non-follower sees under a profile header
 // (`lock-closed-outline` for private, `people-outline` for public), and what
 // a tab shows for a section that isn't shared. Copy comes from
-// FRIENDS_COPY.locked / .notShared at the call site.
+// t('friends.locked.*') / t('friends.notShared.*') at the call site.
 
 export type LockedPanelProps = {
   icon?: keyof typeof Ionicons.glyphMap;

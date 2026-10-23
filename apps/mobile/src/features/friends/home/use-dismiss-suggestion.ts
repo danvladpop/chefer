@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { FRIENDS_COPY } from '@chefer/types';
 import { haptics, useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { removePerson, rollbackFriendsCache } from '../api/relation-cache';
 import type { SuggestionRowData } from './suggestion-row';
@@ -17,6 +17,7 @@ export function useDismissSuggestion(): (person: SuggestionRowData) => Promise<v
   const utils = trpc.useUtils();
   const mutation = trpc.friends.dismissSuggestion.useMutation({ meta: { silent: true } });
   const snackbar = useSnackbar();
+  const { t } = useT();
 
   const dismiss = async (person: SuggestionRowData): Promise<void> => {
     const snapshot = removePerson(queryClient, person.id, ['suggestions']);
@@ -27,8 +28,8 @@ export function useDismissSuggestion(): (person: SuggestionRowData) => Promise<v
       rollbackFriendsCache(queryClient, snapshot);
       haptics.error();
       snackbar.show({
-        message: FRIENDS_COPY.relation.error,
-        actionLabel: FRIENDS_COPY.relation.errorAction,
+        message: t('friends.relation.error'),
+        actionLabel: t('friends.relation.errorAction'),
         onAction: () => void dismiss(person),
       });
       return;

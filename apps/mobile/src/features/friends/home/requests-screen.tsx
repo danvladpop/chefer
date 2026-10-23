@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   duration,
   EmptyState,
@@ -11,6 +10,7 @@ import {
   Text,
   useReducedMotion,
 } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { isFriendsUnavailableError } from '../api/friends-errors';
 import { FriendsGate, FriendsUnavailableScreen } from '../components/friends-gate';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
@@ -25,6 +25,7 @@ import { PersonRowsSkeleton } from './skeletons';
 // after the last one the empty state fades in (MO-03).
 
 function RequestsBody() {
+  const { t } = useT();
   const reduced = useReducedMotion();
   const { query, people } = useRequestsList();
 
@@ -42,7 +43,7 @@ function RequestsBody() {
     return (
       <ErrorState
         testID="friends-requests-error"
-        title={FRIENDS_COPY.home.sectionError('requests')}
+        title={t('friends.home.sectionError.requests')}
         description=""
         onRetry={() => void query.refetch()}
       />
@@ -56,8 +57,8 @@ function RequestsBody() {
         <EmptyState
           testID="friends-requests-empty"
           icon={<Ionicons name="person-add-outline" size={40} color="#9ca3af" />}
-          title={FRIENDS_COPY.requests.empty.title}
-          description={FRIENDS_COPY.requests.empty.body}
+          title={t('friends.requests.empty.title')}
+          description={t('friends.requests.empty.body')}
         />
       </Animated.View>
     );
@@ -80,7 +81,7 @@ function RequestsBody() {
       onEndReachedThreshold={0.5}
       ListHeaderComponent={
         <Text testID="friends-requests-subtitle" variant="muted" className="px-4 pb-2">
-          {FRIENDS_COPY.requests.subtitle}
+          {t('friends.requests.subtitle')}
         </Text>
       }
       renderItem={({ item: person }) => (
@@ -104,12 +105,13 @@ function RequestsBody() {
 }
 
 export function FriendsRequestsScreen() {
+  const { t } = useT();
   return (
     <FriendsGate>
-      <ActivatedGate title={FRIENDS_COPY.requests.title} testID="friends-requests">
+      <ActivatedGate title={t('friends.requests.title')} testID="friends-requests">
         <Screen testID="friends-requests" className="px-0">
           <FriendsScreenHeader
-            title={FRIENDS_COPY.requests.title}
+            title={t('friends.requests.title')}
             testID="friends-requests-header"
           />
           <RequestsBody />

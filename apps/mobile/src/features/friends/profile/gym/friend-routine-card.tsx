@@ -3,8 +3,9 @@ import { Pressable, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendRoutineDto } from '@chefer/types';
+import type { FriendRoutineDto } from '@chefer/types';
 import { EmptyState, Text, useReducedMotion } from '@chefer/ui-mobile';
+import { useT } from '../../../../lib/i18n';
 import { DayCardView } from '../../../gym/routine/day-card-view';
 import { formatRest, weekdayShort } from '../format';
 
@@ -30,12 +31,13 @@ export function FriendRoutineCard({
   firstName: string;
   testID?: string;
 }) {
+  const { t } = useT();
   if (!routine) {
     return (
       <EmptyState
         testID={`${testID}-empty`}
         icon={<Ionicons name="barbell-outline" size={40} color="#9ca3af" />}
-        title={FRIENDS_COPY.gym.noRoutine(firstName)}
+        title={t('friends.gym.noRoutine', { first: firstName })}
       />
     );
   }
@@ -52,6 +54,7 @@ export function FriendRoutineCard({
 }
 
 function FriendRoutineDay({ day, testID }: { day: Day; testID: string }) {
+  const { t } = useT();
   const [expanded, setExpanded] = useState(false);
   const reduced = useReducedMotion();
   const collapsible = day.exercises.length > ROUTINE_DAY_PREVIEW;
@@ -63,17 +66,20 @@ function FriendRoutineDay({ day, testID }: { day: Day; testID: string }) {
         title={
           day.plannedWeekday === null
             ? day.name
-            : FRIENDS_COPY.gym.routineDay(day.name, weekdayShort(day.plannedWeekday))
+            : t('friends.gym.routineDay', {
+                dayName: day.name,
+                weekday: weekdayShort(day.plannedWeekday, t),
+              })
         }
         exercises={day.exercises.map((ex, i) => {
-          const name = ex.isCustom ? `${ex.name} ${FRIENDS_COPY.gym.custom}` : ex.name;
+          const name = ex.isCustom ? t('friends.gym.customName', { name: ex.name }) : ex.name;
           return {
             id: `${i}`,
             name,
             summary: `${ex.sets} × ${ex.repMin}–${ex.repMax} · ${formatRest(ex.restSec)}`,
             supersetGroup: ex.supersetGroup,
             restSec: ex.restSec,
-            accessibilityLabel: `${name}, ${FRIENDS_COPY.gym.setsLabel(ex.sets, ex.repMin, ex.repMax)}`,
+            accessibilityLabel: `${name}, ${t('friends.gym.setsLabel', { count: ex.sets, repMin: ex.repMin, repMax: ex.repMax })}`,
             ...(ex.isCustom
               ? {}
               : {
@@ -91,7 +97,7 @@ function FriendRoutineDay({ day, testID }: { day: Day; testID: string }) {
               onPress={() => setExpanded(true)}
               className="min-h-11 flex-row items-center justify-end"
             >
-              <Text className="text-sm font-semibold text-primary">{FRIENDS_COPY.gym.showAll}</Text>
+              <Text className="text-sm font-semibold text-primary">{t('friends.gym.showAll')}</Text>
             </Pressable>
           ) : null
         }

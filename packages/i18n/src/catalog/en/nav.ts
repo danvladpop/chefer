@@ -1,2 +1,55 @@
-// Lane J phase 2. Copy for this surface; keep English byte-identical to what shipped.
-export const nav = {} as const;
+// Lane J phase 2. Web navigation: sidebar, bottom tab bar, drawer, header.
+// `items.*` are the destination labels (nav-items.ts stores the keys);
+// `titles.*` are the header titles of routes that are not nav items.
+export const nav = {
+  items: {
+    today: 'Today',
+    mealPlanner: 'Meal Planner',
+    plan: 'Plan',
+    shop: 'Shop',
+    cookbook: 'Cookbook',
+    progress: 'Progress',
+    myWeeks: 'My weeks',
+    profile: 'Profile',
+    preferences: 'Preferences',
+    routine: 'Routine',
+    exercises: 'Exercises',
+    stats: 'Stats',
+    gymSettings: 'Gym settings',
+    clients: 'Clients',
+    schedule: 'Schedule',
+    workouts: 'Workouts',
+    trainerSettings: 'Trainer settings',
+  },
+  titles: {
+    workout: 'Workout',
+    workoutSummary: 'Workout summary',
+    gymSetup: 'Gym setup',
+    myWeek: 'My week',
+    gym: 'Gym',
+    ingredients: 'Ingredients',
+    tracker: 'Tracker',
+    premium: 'Premium',
+    admin: 'Admin',
+    findTrainer: 'Find a trainer',
+    getStarted: 'Get Started',
+  },
+  primary: 'Primary',
+  more: 'More',
+  moreNavigation: 'More navigation',
+  openMenu: 'Open navigation menu',
+  closeMenu: 'Close menu',
+  appMode: 'App mode',
+  modes: {
+    food: 'Food',
+    gym: 'Gym',
+  },
+  user: {
+    defaultName: 'User',
+    accountMenu: 'Account menu for {name}',
+    profile: 'Profile',
+    preferences: 'Preferences',
+    adminUsers: 'Admin · Users',
+    signOut: 'Sign out',
+  },
+} as const;
