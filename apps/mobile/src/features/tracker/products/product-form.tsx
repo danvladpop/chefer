@@ -109,10 +109,10 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         Per 100 g (leave blank if not on the pack)
       </Text>
       <View className="flex-row flex-wrap gap-2">
-        {PRODUCT_FORM_FIELDS.map(({ key, label, unit }) => (
+        {PRODUCT_FORM_FIELDS.map(({ key, label, unit, required }) => (
           <View key={key} className="min-w-0 basis-[47%] gap-1">
             <Text className="text-xs font-medium text-gray-600">
-              {label} ({unit}){key === 'kcal' ? ' *' : ''}
+              {label} ({unit}){required ? ' *' : ''}
             </Text>
             <Input
               testID={`product-form-${key}`}

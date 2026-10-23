@@ -167,17 +167,21 @@ export function parseProductForm(
 }
 
 /** Number fields in label order, shared by both platforms' forms. */
-export const PRODUCT_FORM_FIELDS: { key: keyof ProductFormNumbers; label: string; unit: string }[] =
-  [
-    { key: 'kcal', label: 'Calories', unit: 'kcal' },
-    { key: 'protein', label: 'Protein', unit: 'g' },
-    { key: 'carbs', label: 'Carbs', unit: 'g' },
-    { key: 'fat', label: 'Fat', unit: 'g' },
-    { key: 'fiber', label: 'Fibre', unit: 'g' },
-    { key: 'sugar', label: 'of which sugars', unit: 'g' },
-    { key: 'saturatedFat', label: 'of which saturates', unit: 'g' },
-    { key: 'salt', label: 'Salt', unit: 'g' },
-  ];
+export const PRODUCT_FORM_FIELDS: {
+  key: keyof ProductFormNumbers;
+  label: string;
+  unit: string;
+  required?: true;
+}[] = [
+  { key: 'kcal', label: 'Calories', unit: 'kcal', required: true },
+  { key: 'protein', label: 'Protein', unit: 'g' },
+  { key: 'carbs', label: 'Carbs', unit: 'g' },
+  { key: 'fat', label: 'Fat', unit: 'g' },
+  { key: 'fiber', label: 'Fibre', unit: 'g' },
+  { key: 'sugar', label: 'of which sugars', unit: 'g' },
+  { key: 'saturatedFat', label: 'of which saturates', unit: 'g' },
+  { key: 'salt', label: 'Salt', unit: 'g' },
+];
 
 /** Allergens offered as new picks: legacy Shellfish stays out (Crustaceans + Molluscs cover it). */
 export const PRODUCT_ALLERGEN_PICKS: { id: string; label: string }[] = PRODUCT_ALLERGEN_IDS.flatMap(

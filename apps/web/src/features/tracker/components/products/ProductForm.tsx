@@ -103,12 +103,12 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
         Per 100 g (leave blank if not on the pack)
       </p>
       <div className="grid grid-cols-2 gap-2">
-        {PRODUCT_FORM_FIELDS.map(({ key, label, unit }) => (
+        {PRODUCT_FORM_FIELDS.map(({ key, label, unit, required }) => (
           <label
             key={key}
             className="flex min-w-0 flex-col gap-1 text-xs font-medium text-neutral-600"
           >
-            {label} ({unit}){key === 'kcal' ? ' *' : ''}
+            {label} ({unit}){required ? ' *' : ''}
             <input
               type="text"
               inputMode="decimal"
