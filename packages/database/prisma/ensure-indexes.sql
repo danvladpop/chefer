@@ -16,7 +16,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "coaching_requests_one_pending"
   ON "coaching_requests" ("clientId")
   WHERE "status" = 'PENDING';
 
--- ADR 0002 household sharing: a person is a partner in at most one household,
+-- ADR 0003 household sharing: a person is a partner in at most one household,
 -- and a member profile is claimed by at most one partner. The join transaction
 -- checks both first; these indexes are the database-level backstop.
 CREATE UNIQUE INDEX IF NOT EXISTS "household_links_one_active_partner"

@@ -94,7 +94,7 @@ export {
   type UpdateHouseholdMemberData,
 } from './household-member.repository';
 
-// Household sharing (ADR 0002)
+// Household sharing (ADR 0003)
 export {
   HouseholdSharingRepository,
   householdSharingRepository,

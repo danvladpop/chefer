@@ -2824,7 +2824,7 @@ pantry, chat-locked, training-day); a successful Upgrade there opens the sheet.
 'household'}`, `teaser_engaged {feature: 'household'}`, `onboarding_intent
 {intent}` (see docs/analytics-funnel.md).
 
-### 17.1 Partners: a shared week and a live list (ADR 0002)
+### 17.1 Partners: a shared week and a live list (ADR 0003)
 
 Dark behind the `householdSharing` flag. A **partner** is a person with their own Chefer account who joins the
 **household owner**'s household by claiming one **member profile**. Both see and edit the same week and one live
@@ -4372,7 +4372,7 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
 
 **Households:** `HouseholdMember` rows are the account's own extra eaters (name,
 portion, allergies), deleted with the owner. There is no ownership to transfer.
-**Household sharing (ADR 0002):** before the transaction `householdAccess.beforeAccountDeleted`
+**Household sharing (ADR 0003):** before the transaction `householdAccess.beforeAccountDeleted`
 ends every link. As the owner: each partner keeps a "Dan stopped using Chefer — your plan is your
 own again" notice (actor = the partner, so it survives the cascade) and goes back to their own plans.
 As a partner: the owner gets "Maria left your household"; the claimed profile stays with the owner
@@ -6295,7 +6295,7 @@ silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructur
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
 web on the same release. Design and rules: [`tech-plan.md`](docs/gamification-2026-10/tech-plan.md); the decision
-record: [ADR 0002](docs/adr/0002-progress-ledger.md).
+record: [ADR 0003](docs/adr/0002-progress-ledger.md).
 
 ### 39.1 Earning (server-side, for every user)
 

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { AppRouter } from '@chefer/api';
 import { CONTRACT_CONSENT, makeContractClient, uniqueEmail, type ContractClient } from './client';
 
-// ADR 0002 — a partner with their own account joins the owner's household.
+// ADR 0003 — a partner with their own account joins the owner's household.
 // What a partner may and may NOT read is the point of this file: the shared
 // week and list, never the owner's logs, weight or targets. Every scenario
 // registers throwaway users; skipped when the `householdSharing` flag is off.
@@ -88,7 +88,7 @@ beforeAll(async () => {
   });
 }, 60_000);
 
-describe('invite → join (ADR 0002)', () => {
+describe('invite → join (ADR 0003)', () => {
   it('a partner previews the profile, confirms its allergies and joins', async () => {
     if (!enabled) return;
     const invite = await owner.api.household.invites.create.mutate({ memberId });
@@ -180,7 +180,7 @@ describe('the shared week', () => {
       expectedRecipeId: slot.recipe.id,
     });
     // The owner is premium, so the swap is an AI swap: it is the partner's action and
-    // needs the PARTNER's AI-data consent (ADR 0002), not just the owner's.
+    // needs the PARTNER's AI-data consent (ADR 0003), not just the owner's.
     const noConsent = await partner.api.mealPlan.swapRecipe
       .mutate({
         planId: theirs.planId,

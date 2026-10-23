@@ -80,7 +80,7 @@ export interface ShoppingListItemForWeek {
    */
   labelCheck?: string[];
   /**
-   * ADR 0002, only when the household has a partner: who ticked this item
+   * ADR 0003, only when the household has a partner: who ticked this item
    * (checked items) and, for a custom item, who added it. Names only, never ids.
    */
   checkedBy?: ListPersonDto;
@@ -145,11 +145,11 @@ interface StoredShoppingListItem {
   category: GroceryCategory;
   recipeNames: string[];
   isCustom?: boolean;
-  /** ADR 0002: the user id that added a custom item (persisted, never served). */
+  /** ADR 0003: the user id that added a custom item (persisted, never served). */
   addedById?: string;
 }
 
-/** ADR 0002: `ShoppingList.checkedMeta` — the last toggle of each key, ticks and unticks. */
+/** ADR 0003: `ShoppingList.checkedMeta` — the last toggle of each key, ticks and unticks. */
 type CheckMeta = Record<string, { by: string; at: string; checked: boolean }>;
 
 function readCheckMeta(raw: unknown): CheckMeta {
@@ -500,7 +500,7 @@ export class ShoppingListService {
   }
 
   /**
-   * `viewerId` (ADR 0002): the person looking, when `user` is the household
+   * `viewerId` (ADR 0003): the person looking, when `user` is the household
    * owner whose list a partner reads — adds "ticked by / added by" hints.
    */
   async getForWeek(
@@ -588,7 +588,7 @@ export class ShoppingListService {
     };
   }
 
-  /** ADR 0002: "Ticked by Maria" / "Added by you" on a shared list. */
+  /** ADR 0003: "Ticked by Maria" / "Added by you" on a shared list. */
   private attribute(
     items: ShoppingListItemForWeek[],
     people: HouseholdPeople,
@@ -614,7 +614,7 @@ export class ShoppingListService {
   }
 
   /**
-   * `shoppingList.sync` (ADR 0002): the shared list's cheap "anything new?" —
+   * `shoppingList.sync` (ADR 0003): the shared list's cheap "anything new?" —
    * polled every few seconds while Shop is open. `revision` changes only when
    * the items do (a swap, a custom item); ticks come back whole.
    */
@@ -714,7 +714,7 @@ export class ShoppingListService {
           async (tx) => {
             const existing = await tx.shoppingList.findUnique({ where: { planId } });
             const current = new Set(existing?.checkedKeys ?? []);
-            // ADR 0002: last write per key wins, by the time it was MADE — an
+            // ADR 0003: last write per key wins, by the time it was MADE — an
             // offline tick replayed later can't undo a newer untick. `at` is
             // clamped to now (a fast device clock can't win forever).
             const now = new Date();
@@ -806,7 +806,7 @@ export class ShoppingListService {
     userId: string,
     planId: string,
     inputs: CustomItemInput[],
-    /** ADR 0002: who added them, when a partner adds to the owner's list. */
+    /** ADR 0003: who added them, when a partner adds to the owner's list. */
     actorId: string = userId,
   ): Promise<{ added: string[] }> {
     const plan = await mealPlanRepository.findByIdForUser(userId, planId);

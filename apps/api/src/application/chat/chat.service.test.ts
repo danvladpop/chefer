@@ -362,7 +362,7 @@ describe('ChatService', () => {
       ],
     });
 
-    // The 4th argument is who added them (ADR 0002 "Added by").
+    // The 4th argument is who added them (ADR 0003 "Added by").
     expect(shoppingListService.addCustomItems).toHaveBeenCalledWith(
       'u1',
       'plan1',

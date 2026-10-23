@@ -10,7 +10,7 @@ import { getWeekStartDate, weekStartForDate } from '@chefer/utils';
 // week (B-13); every other reader goes through these two functions so they
 // can't drift apart again.
 
-// Household sharing (ADR 0002): a partner's "plan for date X" is the household
+// Household sharing (ADR 0003): a partner's "plan for date X" is the household
 // owner's, shown at the partner's own portion. Both resolvers go through
 // `planScope`, so the tracker, the coach and the pantry all see the shared week
 // without knowing about households. Fit and rebalance are unaffected: they

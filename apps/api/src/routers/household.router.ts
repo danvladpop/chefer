@@ -16,14 +16,14 @@ import { householdScopedProcedure } from '../lib/household-middleware.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
 
-// ─── Household router (F2, backlog P2-3; sharing ADR 0002) ────────────────────
+// ─── Household router (F2, backlog P2-3; sharing ADR 0003) ────────────────────
 // Thin wrapper per CLAUDE.md. Every procedure is open to every tier since
 // P2-3: members' allergies and restrictions are safety, and safety is never
 // premium. The count cap comes from `householdMembers` inside the service;
 // portion SCALING (`householdPlans`) is enforced where lists and costs are
 // built, not here.
 //
-// Sharing (ADR 0002): a partner sees the OWNER's members (the table they eat
+// Sharing (ADR 0003): a partner sees the OWNER's members (the table they eat
 // at) and may edit only the profile they claimed; adding and removing stay the
 // owner's. Members carry `hasAccount` / `isYou` (additive), never an account id.
 
@@ -37,7 +37,7 @@ export const householdRouter = router({
     const partner = ctx.household.role === 'PARTNER';
     return members.map(({ claimedBy, ...m }) => ({
       ...m,
-      // A partner never gets the owner's account id (ADR 0002 privacy line).
+      // A partner never gets the owner's account id (ADR 0003 privacy line).
       userId: partner ? '' : m.userId,
       hasAccount: claimedBy !== null,
       isYou: claimedBy === ctx.user.id,
@@ -76,7 +76,7 @@ export const householdRouter = router({
       return householdService.remove(ctx.user.id, input.id);
     }),
 
-  // ─── Sharing (ADR 0002) ────────────────────────────────────────────────────
+  // ─── Sharing (ADR 0003) ────────────────────────────────────────────────────
 
   /** The Household screen's sharing state: role, partners, open invites, the one entitlement. */
   sharing: protectedProcedure.query(({ ctx }) => householdAccess.status(ctx.user)),

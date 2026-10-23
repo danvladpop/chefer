@@ -195,7 +195,7 @@ export interface WeeklyEmailDeps {
   reviews: Pick<IChefReviewRepository, 'findByUserAndWeek'>;
   /** This week's shopping-list estimate in EUR (what the list page shows). */
   listTotalEur: (user: UserProfile) => Promise<number | null>;
-  /** ADR 0002: whose plan the email shows — the household owner's for a partner. */
+  /** ADR 0003: whose plan the email shows — the household owner's for a partner. */
   planUserId: (userId: string) => Promise<string>;
   appUrl: string;
   unsubscribeUrl: (userId: string, scope: UnsubscribeScope) => string;

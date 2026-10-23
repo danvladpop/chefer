@@ -195,7 +195,7 @@ export class ChatService {
     user: UserProfile,
     plan: WeekPlanDto | null,
     actions: ChatAction[] = [],
-    /** ADR 0002: whose week and list the tools change — the owner's for a partner. */
+    /** ADR 0003: whose week and list the tools change — the owner's for a partner. */
     planUser: UserProfile = user,
   ): ChatTools {
     return {
@@ -428,7 +428,7 @@ export class ChatService {
     // attempt was ours, not the user's.
     const reservation = await reserveChatMessage(user);
 
-    // ADR 0002: a partner chats about the household's week, at their own portion.
+    // ADR 0003: a partner chats about the household's week, at their own portion.
     const household = await householdAccess.scope(user.id);
     const planUser = await householdAccess.planUser(user, household);
     const plan = await mealPlanService.getActive(

@@ -396,7 +396,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
   const social = await exportSocialData(userId, consentEvents);
   const coaching = await exportCoachingData(userId, consentEvents);
   const progress = await exportProgressData(userId);
-  // ADR 0002: household sharing — links on either side, and invites made.
+  // ADR 0003: household sharing — links on either side, and invites made.
   const [householdLinks, householdInvites] = await Promise.all([
     prisma.householdLink.findMany({
       where: { OR: [{ ownerId: userId }, { partnerId: userId }] },
@@ -509,7 +509,7 @@ export async function deleteAccount(userId: string): Promise<void> {
   // first — every coaching ends and each client keeps a notice ("Your trainer
   // stopped using Chefer"), written so it survives this account's cascade.
   await trainerProfileService.deactivate(userId, 'web', { accountDeleted: true });
-  // ADR 0002: households end first — each partner keeps "Dan stopped using
+  // ADR 0003: households end first — each partner keeps "Dan stopped using
   // Chefer" (written so it survives this cascade); the claimed profile stays.
   await householdAccess.beforeAccountDeleted(userId);
   // Trainer mode M3 (§9): as a client, their places in future bookings are

@@ -58,7 +58,7 @@ export const featureFlagsSchema = z
      *  mobile and web. Off by default; GAMIFICATION_ALLOWLIST (emails, or `*`)
      *  sees it while it is off. The ledger records for everyone either way (D1). */
     gamification: z.boolean(),
-    /** Household sharing (ADR 0002): invite a partner with their own account to
+    /** Household sharing (ADR 0003): invite a partner with their own account to
      *  the shared week and live shopping list. Off by default; with it off no
      *  invite can be made or redeemed and every entry point stays hidden. */
     householdSharing: z.boolean(),

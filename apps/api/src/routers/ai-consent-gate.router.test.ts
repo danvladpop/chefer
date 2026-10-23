@@ -37,7 +37,7 @@ vi.mock('../application/shopping-list/shopping-list.service.js', () => ({
 }));
 const plan = vi.hoisted(() => ({
   swapRecipe: vi.fn().mockResolvedValue({ id: 'r1' }),
-  // ADR 0002: the optional stale-slot check (no expectedRecipeId here = no-op).
+  // ADR 0003: the optional stale-slot check (no expectedRecipeId here = no-op).
   assertSlotUnchanged: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../application/meal-plan/meal-plan.service.js', () => ({ mealPlanService: plan }));

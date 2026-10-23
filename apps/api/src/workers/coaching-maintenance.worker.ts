@@ -62,7 +62,7 @@ function monthsBefore(now: Date, months: number): Date {
 
 export interface CoachingMaintenanceDeps {
   invites: Pick<ICoachingInviteRepository, 'deleteExpiredBefore'>;
-  /** ADR 0002: household invites ride the same nightly prune (same 30-day rule). */
+  /** ADR 0003: household invites ride the same nightly prune (same 30-day rule). */
   householdInvites: Pick<IHouseholdSharingRepository, 'deleteExpiredInvitesBefore'>;
   notes: Pick<ICoachingNoteRepository, 'deleteHiddenBefore'>;
   links: Pick<ICoachingLinkRepository, 'deleteEndedBefore'>;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { inviteCodeSchema } from './coaching/schemas';
 
-// ─── Household sharing (ADR 0002, market review MUST 5) ──────────────────────
+// ─── Household sharing (ADR 0003, market review MUST 5) ──────────────────────
 // A partner with their own account joins the household owner's household by
 // claiming one member profile. Inputs, DTOs, limits and copy shared by the API,
 // web and mobile. Additive only once mobile binaries ship.

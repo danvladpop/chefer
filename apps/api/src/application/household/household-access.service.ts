@@ -23,7 +23,7 @@ import {
 import { getLimit } from '../../lib/entitlements.js';
 import { generateInviteCode } from '../../lib/invite-code.js';
 
-// ─── Household access (ADR 0002) ──────────────────────────────────────────────
+// ─── Household access (ADR 0003) ──────────────────────────────────────────────
 // THE seam that answers "whose plan and list does this request touch?" plus the
 // invite → join → leave lifecycle. A partner (own account) claims one of the
 // owner's member profiles; the owner's plans and lists are the household's.
@@ -139,7 +139,7 @@ export class HouseholdAccessService {
     return owner;
   }
 
-  /** FORBIDDEN for a partner: the action is driven by the owner's goals (ADR 0002). */
+  /** FORBIDDEN for a partner: the action is driven by the owner's goals (ADR 0003). */
   assertNotPartner(scope: HouseholdScope): void {
     if (scope.role === 'PARTNER') {
       throw new TRPCError({
@@ -176,7 +176,7 @@ export class HouseholdAccessService {
   }
 
   /**
-   * The ONE entitlement check for partners (ADR 0002): PLAN_FEATURES
+   * The ONE entitlement check for partners (ADR 0003): PLAN_FEATURES
    * .householdPartners on the owner's tier. Paid seats would change only that entry.
    */
   canInvite(owner: UserProfile, activePartners: number): boolean {

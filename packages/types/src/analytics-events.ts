@@ -208,7 +208,7 @@ export interface EventMap {
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
 
-  // ─── Household sharing (ADR 0002) — enums and counts only ────────────────────
+  // ─── Household sharing (ADR 0003) — enums and counts only ────────────────────
   household_invite_created: { via: 'share' | 'copy' };
   household_invite_opened: {
     state:

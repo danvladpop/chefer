@@ -33,7 +33,7 @@ export const COACHING_NOTIFICATION_KINDS = [
 ] as const satisfies readonly NotificationKind[];
 export type CoachingNotificationKindDb = (typeof COACHING_NOTIFICATION_KINDS)[number];
 
-/** Household sharing's kinds (ADR 0002): read only through `listHousehold`. */
+/** Household sharing's kinds (ADR 0003): read only through `listHousehold`. */
 export const HOUSEHOLD_NOTIFICATION_KINDS = [
   'HOUSEHOLD_PARTNER_JOINED',
   'HOUSEHOLD_PARTNER_LEFT',
@@ -243,7 +243,7 @@ export class NotificationRepository implements INotificationRepository {
 
 export const notificationRepository = new NotificationRepository();
 
-// ─── Household notices (ADR 0002) ─────────────────────────────────────────────
+// ─── Household notices (ADR 0003) ─────────────────────────────────────────────
 // Same table, own kinds, own reader — shipped Activity and coaching readers
 // filter on their kind lists, so they never meet these.
 

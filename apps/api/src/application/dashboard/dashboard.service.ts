@@ -392,7 +392,7 @@ export class DashboardService {
 
     const [chefProfile, plan, favourites, todayLog, recentLogs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
-      // ADR 0002: a partner's Today shows the household's week at their portion.
+      // ADR 0003: a partner's Today shows the household's week at their portion.
       householdPlanScope(userId).then(async ({ planUserId, partnerPortion }) => {
         const found = await mealPlanRepository.findForWeek(planUserId, monday);
         return found && partnerPortion !== null ? atPortion(found, partnerPortion) : found;
@@ -859,7 +859,7 @@ export class DashboardService {
     // every dashboard unit test) to pay for that, just for an opt-in field
     // most callers never ask for.
     const { shoppingListService } = await import('../shopping-list/shopping-list.service.js');
-    // ADR 0002: a partner's "shop for tomorrow" reads the household's list.
+    // ADR 0003: a partner's "shop for tomorrow" reads the household's list.
     const { householdAccess } = await import('../household/household-access.service.js');
     const listUser = await householdAccess.planUser(viewer, await householdAccess.scope(viewer.id));
     const list = await shoppingListService.getForWeek(listUser, 0);

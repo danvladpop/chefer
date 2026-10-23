@@ -4,7 +4,7 @@ import {
 } from '../application/household/household-access.service.js';
 import { protectedProcedure } from './trpc.js';
 
-// ─── Household scope (ADR 0002) ───────────────────────────────────────────────
+// ─── Household scope (ADR 0003) ───────────────────────────────────────────────
 // Resolves ONCE per request whose plan and list the caller touches. Plan and
 // list procedures read `ctx.household.planUserId` instead of `ctx.user.id`; a
 // partner's planUserId is the owner's. `ctx.user` stays the caller, so logs,

@@ -118,7 +118,7 @@ export async function isRecipeVisibleTo(
 }
 
 /**
- * ADR 0002: people in one household open each other's own recipes, so a partner
+ * ADR 0003: people in one household open each other's own recipes, so a partner
  * can put theirs in the shared week. Lazy and fail-closed (the household seam
  * loads env + flags).
  */

@@ -219,7 +219,7 @@ model User {
   aiUsageEvents        AiUsageEvent[]
   chefReviews          ChefReview[]
   householdMembers     HouseholdMember[]
-  // Household sharing (ADR 0002): invites this owner made / redeemed, and the
+  // Household sharing (ADR 0003): invites this owner made / redeemed, and the
   // partner links on both sides.
   householdInvitesMade HouseholdInvite[]     @relation("HouseholdInvitesMade")
   householdInvitesUsed HouseholdInvite[]     @relation("HouseholdInvitesUsed")
@@ -1235,7 +1235,7 @@ model ShoppingList {
   items       Json // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
   checkedKeys String[] @default([]) // synced check-off state (P1-5)
-  /// Household sharing (ADR 0002): per key `{ by: userId, at: ISO, checked }` — the
+  /// Household sharing (ADR 0003): per key `{ by: userId, at: ISO, checked }` — the
   /// last toggle of each item, ticks AND unticks, so offline replays reconcile by time
   /// and the list can say who ticked it. `checkedKeys` stays the source of truth.
   checkedMeta Json     @default("{}")
@@ -1680,7 +1680,7 @@ enum NotificationKind {
   COACHING_BOOKING_CHANGED // payload = { bookingId, startsAt, timeZone }
   COACHING_BOOKING_CANCELLED // payload = { bookingId, startsAt, timeZone, reason }
   COACHING_WORKOUT_LOGGED // payload = { workoutSessionId }
-  // Household sharing (ADR 0002). Never listed by friends.activity or coaching.notices;
+  // Household sharing (ADR 0003). Never listed by friends.activity or coaching.notices;
   // read through household.notices. payload = { name } (the other person's first name).
   HOUSEHOLD_PARTNER_JOINED // owner ← a partner joined
   HOUSEHOLD_PARTNER_LEFT // owner ← a partner left
@@ -2109,7 +2109,7 @@ model BookingClient {
   @@map("booking_clients")
 }
 
-// ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───
+// ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0003) ───
 
 /// Kitchen progress ledger. Append-only: rows are never updated or deleted
 /// (except by the user cascade). XP is stored as awarded, so later tuning of
@@ -2217,7 +2217,7 @@ model ProgressQuestDay {
 
   @@id([userId, localDate])
   @@map("progress_quest_days")
-// ─── Household sharing (ADR 0002, market review MUST 5) ──────────────────────
+// ─── Household sharing (ADR 0003, market review MUST 5) ──────────────────────
 // Additive only. A partner with their own account joins the OWNER's household by
 // claiming one of the owner's member profiles. The owner's plans and lists are the
 // household's; access is decided ONLY from ACTIVE links (householdAccess.scope).

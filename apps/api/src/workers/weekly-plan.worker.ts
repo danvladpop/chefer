@@ -158,7 +158,7 @@ export class WeeklyPlanWorker {
     for (const user of users) {
       if (user.premium && aiExhausted) continue;
       try {
-        // ADR 0002: a partner's week is the household owner's — the owner's
+        // ADR 0003: a partner's week is the household owner's — the owner's
         // own setting decides it, never the partner's.
         if ((await householdAccess.scope(user.id)).role === 'PARTNER') continue;
         const existing = await mealPlanRepository.findByWeekStart(user.id, nextMonday);

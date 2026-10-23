@@ -6,7 +6,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../client';
 
-// ─── Household sharing (ADR 0002) ─────────────────────────────────────────────
+// ─── Household sharing (ADR 0003) ─────────────────────────────────────────────
 // A partner (own account) joins the owner's household by redeeming a single-use
 // invite for one member profile. Access is decided ONLY from ACTIVE links; the
 // partial unique indexes in ensure-indexes.sql are the database-level backstop

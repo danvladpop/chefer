@@ -14,7 +14,7 @@ export type ConflictPayload =
   /** `trainer.bookings.update` (trainer mode M3): the booking as stored now. */
   | { kind: 'booking'; current: TrainerBookingDto }
   /**
-   * ADR 0002: a shared week's slot changed since the client loaded it (the
+   * ADR 0003: a shared week's slot changed since the client loaded it (the
    * other person swapped it). `recipeId` is what the slot holds now (null = gone).
    */
   | { kind: 'mealSlot'; current: { dayOfWeek: number; mealType: string; recipeId: string | null } };

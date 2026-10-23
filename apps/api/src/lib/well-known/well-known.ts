@@ -14,7 +14,7 @@ export const ANDROID_PACKAGE_NAME = 'dev.chefer.app';
 
 /**
  * The web paths the app opens instead of the browser: coaching invites and
- * household invites (ADR 0002). Every other page stays in the browser. The
+ * household invites (ADR 0003). Every other page stays in the browser. The
  * app's Android intent filter (apps/mobile/app.config.js) must claim the same
  * prefixes.
  */

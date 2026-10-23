@@ -520,7 +520,7 @@ export interface PlanViewOptions {
   /** UX-06 (T-06.1): the viewer's `trainingDayTargets` entitlement (the bump is applied, not previewed). */
   trainingAccess?: boolean;
   /**
-   * ADR 0002: a partner viewing the household owner's plan. The plan, safety,
+   * ADR 0003: a partner viewing the household owner's plan. The plan, safety,
    * shape and cost stay the owner's; targets, training days and logged meals
    * are the partner's own, and every slot shows at the partner's `portion` (the
    * claimed profile's portionFactor) — the owner's targets-driven portions,
@@ -2196,7 +2196,7 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
-    // ADR 0002: a partner's own targets/training, at their own portion.
+    // ADR 0003: a partner's own targets/training, at their own portion.
     const partner = userId && view.viewer && view.viewer.userId !== userId ? view.viewer : null;
     const personId = partner?.userId ?? userId;
     const refitNotice = partner ? null : portionRefitNotice(plan.portionRefit);
@@ -2463,7 +2463,7 @@ export class MealPlanService {
   }
 
   /**
-   * ADR 0002: with two people on one week, a change may be aimed at a slot the
+   * ADR 0003: with two people on one week, a change may be aimed at a slot the
    * other person just changed. When the client says which recipe it expects to
    * replace, a slot holding anything else is a CONFLICT carrying what it holds
    * now — checked before any AI call, so a stale tap never costs a generation.

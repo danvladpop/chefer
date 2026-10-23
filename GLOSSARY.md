@@ -51,7 +51,7 @@ _Avoid_: plan card, upgrade banner
 
 **Household**:
 The people one account plans meals for: the household owner and their member profiles, some of which may be claimed
-by partners. It is anchored on the owner's account (ADR 0002).
+by partners. It is anchored on the owner's account (ADR 0003).
 _Avoid_: family, group, team
 
 **Household owner**:

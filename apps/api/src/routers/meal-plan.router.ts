@@ -33,7 +33,7 @@ const planView = (user: Parameters<typeof hasFeature>[0]) => ({
   trainingAccess: hasFeature(user, 'trainingDayTargets'),
 });
 
-// ADR 0002: what a READ of the plan shows. The plan, its cost and safety are
+// ADR 0003: what a READ of the plan shows. The plan, its cost and safety are
 // the household owner's (`planUserId`); a partner sees their own targets and
 // training days, every slot at their own portion.
 function sharedView(user: UserProfile, scope: HouseholdScope, planUser: UserProfile) {
@@ -44,7 +44,7 @@ function sharedView(user: UserProfile, scope: HouseholdScope, planUser: UserProf
   };
 }
 
-// ADR 0002: the recipe the client expects in the slot it is changing. Optional
+// ADR 0003: the recipe the client expects in the slot it is changing. Optional
 // and additive — shipped builds omit it and keep last-write-wins.
 const expectedRecipeIdSchema = z.string().min(1).optional();
 
@@ -321,7 +321,7 @@ export const mealPlanRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // ADR 0002: a partner's swap runs on the owner's tier and quota; the AI
+      // ADR 0003: a partner's swap runs on the owner's tier and quota; the AI
       // call is the partner's action, so it needs the partner's consent too.
       const planUser = ctx.planUser;
       if (planUser.id !== ctx.user.id && isPremiumUser(planUser)) {
@@ -477,7 +477,7 @@ export const mealPlanRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      // ADR 0002: the rebalance is about the owner's targets — never a partner's.
+      // ADR 0003: the rebalance is about the owner's targets — never a partner's.
       if (ctx.household.role === 'PARTNER') return null;
       return rebalanceService.preview(ctx.user, {
         planId: input?.planId,

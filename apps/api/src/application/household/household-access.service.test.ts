@@ -3,7 +3,7 @@ import type { ActiveHouseholdLink, HouseholdInviteWithMember } from '@chefer/dat
 import type { UserProfile } from '@chefer/types';
 import { HouseholdAccessService, type HouseholdAccessDeps } from './household-access.service.js';
 
-// ADR 0002: the one seam that decides whose plan a request touches, the kill
+// ADR 0003: the one seam that decides whose plan a request touches, the kill
 // switch, the one entitlement check, and the order of invite states.
 
 const NOW = new Date('2026-10-22T12:00:00Z');

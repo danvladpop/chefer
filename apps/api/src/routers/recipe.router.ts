@@ -241,7 +241,7 @@ export const recipeRouter = router({
    * gate; the recipe-visibility rule still applies inside the service.
    * Additive.
    */
-  // ADR 0002: a partner adds to the household's (owner's) week.
+  // ADR 0003: a partner adds to the household's (owner's) week.
   addToWeek: householdScopedProcedure
     .input(addRecipeToWeekInputSchema)
     .mutation(async ({ ctx, input }) => {

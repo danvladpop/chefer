@@ -338,7 +338,7 @@ export class MealPlanRepository implements IMealPlanRepository {
   async isRecipeInUserPlans(userId: string, recipeId: string): Promise<boolean> {
     // `meals` is a JSON array of { type, recipeId } — array_contains maps to
     // jsonb @>, which matches an element carrying this recipeId.
-    // ADR 0002: a partner may open what is in the household's (owner's) plans.
+    // ADR 0003: a partner may open what is in the household's (owner's) plans.
     const hit = await prisma.mealPlanDay.findFirst({
       where: {
         mealPlan: {
@@ -501,7 +501,7 @@ export class MealPlanRepository implements IMealPlanRepository {
     slotIndex?: number,
     pinned?: boolean,
   ): Promise<void> {
-    // ADR 0002: two people edit one week — the day's read-modify-write runs
+    // ADR 0003: two people edit one week — the day's read-modify-write runs
     // SERIALIZABLE (retried) so a concurrent edit to another slot isn't lost.
     const written = await serializableDayWrite(async (tx) => {
       const day = await tx.mealPlanDay.findFirst({

@@ -4,7 +4,7 @@ import { shoppingListService } from '../application/shopping-list/shopping-list.
 import { householdPlanProcedure } from '../lib/household-middleware.js';
 import { premiumProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
-// ADR 0002: every procedure reads and writes the HOUSEHOLD's list — the owner's
+// ADR 0003: every procedure reads and writes the HOUSEHOLD's list — the owner's
 // (`ctx.planUser`) — while `ctx.user` (the caller) is who ticked or added.
 
 const weekOffsetSchema = z.number().int().min(-52).max(1).default(0);
@@ -18,7 +18,7 @@ export const shoppingListRouter = router({
     }),
 
   /**
-   * ADR 0002: the shared list's "anything new?" — ticks with who made them and
+   * ADR 0003: the shared list's "anything new?" — ticks with who made them and
    * a `revision` that changes only when the items do. Polled while Shop is open.
    */
   sync: householdPlanProcedure
@@ -40,7 +40,7 @@ export const shoppingListRouter = router({
         /** Kitchen progress: the client's local day (optional, additive). */
         localDate: localDateSchema.optional(),
         /**
-         * ADR 0002: when the toggle was made on the device (an offline replay
+         * ADR 0003: when the toggle was made on the device (an offline replay
          * sends the original time). Optional, additive: absent = now.
          */
         at: listToggleAtSchema.optional(),

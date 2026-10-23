@@ -27,7 +27,7 @@ export type UpdateHouseholdMemberData = {
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface IHouseholdMemberRepository {
-  /** With claimed profiles' safety terms overlaid by the partner's own (ADR 0002). */
+  /** With claimed profiles' safety terms overlaid by the partner's own (ADR 0003). */
   findByUserId(userId: string): Promise<(HouseholdMember & { claimedBy: string | null })[]>;
   countByUserId(userId: string): Promise<number>;
   create(userId: string, data: CreateHouseholdMemberData): Promise<HouseholdMember>;
@@ -69,7 +69,7 @@ export interface IHouseholdMemberRepository {
 
 export class HouseholdMemberRepository implements IHouseholdMemberRepository {
   /**
-   * ADR 0002: a profile claimed by a partner reads its safety terms as the union
+   * ADR 0003: a profile claimed by a partner reads its safety terms as the union
    * of the profile and the partner's OWN preferences, so a change the partner
    * makes in their own allergies reaches the shared plan with no sync step. Every
    * caller (safety filter, generation, allergen warnings, the editor) gets it.

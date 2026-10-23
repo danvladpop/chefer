@@ -80,7 +80,7 @@ ALTER TABLE "household_links" ADD CONSTRAINT "household_links_partnerId_fkey" FO
 ALTER TABLE "household_links" ADD CONSTRAINT "household_links_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "household_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 
--- ADR 0002: one active household per partner, one active partner per member profile
+-- ADR 0003: one active household per partner, one active partner per member profile
 -- (also in prisma/ensure-indexes.sql, which deploys apply after `db push`).
 CREATE UNIQUE INDEX "household_links_one_active_partner" ON "household_links"("partnerId") WHERE "status" = 'ACTIVE';
 CREATE UNIQUE INDEX "household_links_one_active_member" ON "household_links"("memberId") WHERE "status" = 'ACTIVE';
