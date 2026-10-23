@@ -167,6 +167,8 @@ describe('server-side consent rejection (R-10)', () => {
 
   it('maps a refused procedure to its consent-sheet copy', () => {
     expect(aiConsentFeatureForPath('mealPlan.swapRecipe')).toBe('meal-swap');
+    expect(aiConsentFeatureForPath('tracker.parseFoodText')).toBe('food-text');
+    expect(aiConsentFeatureForPath('products.scanLabel')).toBe('meal-scan');
     expect(aiConsentFeatureForPath('recipe.importVideoPreview')).toBe('recipe-import');
     expect(aiConsentFeatureForPath('shoppingList.regenerate')).toBe('shopping-list');
     expect(aiConsentFeatureForPath('ingredients.estimateNutrition')).toBe('ingredient-estimate');

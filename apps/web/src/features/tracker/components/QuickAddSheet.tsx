@@ -12,10 +12,12 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  PencilLine,
   Plus,
   Search,
 } from 'lucide-react';
 import {
+  FOOD_TEXT_COPY,
   PACKAGED_PRODUCT_COPY,
   SAVED_MEALS_COPY,
   type PackagedProductView,
@@ -48,6 +50,7 @@ import {
   REBALANCE_PREVIEW,
   type DayFitLike,
 } from '../lib/rebalance-storage';
+import { FoodTextFlow } from './FoodTextFlow';
 import { ProductFlow } from './products/ProductFlow';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
@@ -165,7 +168,7 @@ export function QuickAddSheet({
     replacesSlot
       ? { ...entry, replacesSlot, ...REBALANCE_PREVIEW }
       : { ...entry, ...REBALANCE_PREVIEW };
-  const [view, setView] = useState<'search' | 'manual' | 'product'>('search');
+  const [view, setView] = useState<'search' | 'manual' | 'product' | 'text'>('search');
   // The product a "Packaged products" row opens on; undefined = the barcode start.
   const [productStart, setProductStart] = useState<ProductStart | undefined>(undefined);
   const [query, setQuery] = useState('');
@@ -260,7 +263,8 @@ export function QuickAddSheet({
     data:
       | RouterOutputs['tracker']['logRecipe']
       | RouterOutputs['tracker']['logCustomMeal']
-      | RouterOutputs['tracker']['logProduct'],
+      | RouterOutputs['tracker']['logProduct']
+      | RouterOutputs['tracker']['logItems'],
     options: { announceDayFit?: boolean } = {},
   ) => {
     handleRebalanceOutcome(data, options);
@@ -523,9 +527,11 @@ export function QuickAddSheet({
               : 'Enter calories yourself'
             : view === 'product'
               ? PACKAGED_PRODUCT_COPY.scanBarcode
-              : replacesSlot
-                ? 'Ate something else'
-                : 'Log something'
+              : view === 'text'
+                ? FOOD_TEXT_COPY.entry
+                : replacesSlot
+                  ? 'Ate something else'
+                  : 'Log something'
         }
         size="sm"
         footer={
@@ -1088,6 +1094,18 @@ export function QuickAddSheet({
             )}
 
             <div className="flex flex-wrap gap-4 border-t border-neutral-100 pt-3">
+              {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
+              {!replacesSlot && (
+                <button
+                  type="button"
+                  data-testid="log-sheet-type-it"
+                  onClick={() => setView('text')}
+                  className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
+                >
+                  <PencilLine className="h-4 w-4" aria-hidden />
+                  {FOOD_TEXT_COPY.entry}
+                </button>
+              )}
               <button
                 type="button"
                 data-testid="log-sheet-manual"
@@ -1100,6 +1118,43 @@ export function QuickAddSheet({
                 {proteinOnly ? 'Enter protein yourself' : 'Enter calories yourself'}
               </button>
             </div>
+          </div>
+        ) : view === 'text' ? (
+          <div className="space-y-4 px-5 pb-4">
+            <button
+              type="button"
+              data-testid="log-sheet-text-back"
+              onClick={() => setView('search')}
+              className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
+            >
+              ← Back to search
+            </button>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+              {MEAL_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  data-testid={`log-sheet-text-meal-${o.value}`}
+                  onClick={() => setMealType(o.value)}
+                  className={chipBtn(mealType === o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <FoodTextFlow
+              date={date}
+              mealType={mealType}
+              proteinOnly={proteinOnly}
+              onLogged={(data, count) => {
+                trackMealLogged(quickAddSource({ mealType }, false), mealType);
+                onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
+                onLoggedEntries?.({
+                  entryIds: data.entryIds,
+                  name: `${count} ${count === 1 ? 'item' : 'items'}`,
+                });
+              }}
+            />
           </div>
         ) : view === 'product' ? (
           <div className="space-y-4 px-5 pb-4">

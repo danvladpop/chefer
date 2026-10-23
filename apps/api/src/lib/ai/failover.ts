@@ -11,6 +11,7 @@ import type {
   DayPlan,
   EstimateIngredientPricesOptions,
   ExtractedRecipe,
+  FoodTextParseItem,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
@@ -220,6 +221,10 @@ export class ChainAIService implements IAIService {
       (s) => s.analyzeMealPhoto(imageBase64, mimeType),
       { imageBase64, mimeType },
     );
+  }
+
+  parseFoodText(text: string): Promise<FoodTextParseItem[]> {
+    return this.run('parseFoodText', 'chat', (s) => s.parseFoodText(text), text);
   }
 
   readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {

@@ -909,3 +909,4 @@ export * from './day-fit-copy';
 export * from './packaged-product';
 export * from './saved-meals';
 export * from './hidden-fat';
+export * from './food-text';

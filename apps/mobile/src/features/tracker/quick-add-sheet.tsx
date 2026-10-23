@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  FOOD_TEXT_COPY,
   PACKAGED_PRODUCT_COPY,
   SAVED_MEALS_COPY,
   type PackagedProductView,
@@ -45,6 +46,7 @@ import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useNumericChain } from '../preferences/use-numeric-chain';
 import { RecipeImage } from '../recipes/recipe-image';
+import { FoodTextFlow } from './food-text-flow';
 import { invalidateDayQueries } from './invalidate';
 import { ProductFlow } from './products/product-flow';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
@@ -114,7 +116,7 @@ const INGREDIENT_PAGE_MAX = 36;
 const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
-type SheetView = 'search' | 'manual' | 'product';
+type SheetView = 'search' | 'manual' | 'product' | 'text';
 type ProductStart = { product: PackagedProductView; warnings: ProductAllergenWarning[] };
 
 /** A recent/plan row's stored mealType may pre-date the fixed enum; logCustomMeal
@@ -570,9 +572,11 @@ export function QuickAddSheet({
             : 'Enter calories yourself'
           : view === 'product'
             ? PACKAGED_PRODUCT_COPY.scanBarcode
-            : targetSlot
-              ? SLOT_COPY.ateElse
-              : 'Log something'
+            : view === 'text'
+              ? FOOD_TEXT_COPY.entry
+              : targetSlot
+                ? SLOT_COPY.ateElse
+                : 'Log something'
       }
       eyebrow={targetSlot ? mealLabel(targetSlot.mealType) : undefined}
       testID="log-sheet"
@@ -659,6 +663,21 @@ export function QuickAddSheet({
                 {PACKAGED_PRODUCT_COPY.scanBarcode}
               </Text>
             </Pressable>
+            {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
+            {!targetSlot && (
+              <Pressable
+                testID="log-sheet-type-it"
+                accessibilityRole="button"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setView('text');
+                }}
+                className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-separator bg-surface px-3"
+              >
+                <Ionicons name="create-outline" size={16} color={colors.brand} />
+                <Text className="text-sm font-medium text-brand">{FOOD_TEXT_COPY.entry}</Text>
+              </Pressable>
+            )}
           </View>
 
           {logSavedMutation.isError && (
@@ -1136,6 +1155,47 @@ export function QuickAddSheet({
               </Text>
             </Pressable>
           </View>
+        </View>
+      ) : view === 'text' ? (
+        <View className="gap-3">
+          <Pressable
+            testID="log-sheet-text-back"
+            accessibilityRole="button"
+            onPress={() => setView('search')}
+            className="min-h-11 flex-row items-center gap-1"
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.brand} />
+            <Text className="text-sm font-medium text-brand">Back to search</Text>
+          </Pressable>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-label-secondary">Meal</Text>
+            <SegmentedControl
+              size="sm"
+              options={MEAL_OPTIONS}
+              value={mealType}
+              onChange={setMealType}
+              accessibilityLabel="Meal"
+              testID="log-sheet-text-meal"
+            />
+          </View>
+          <FoodTextFlow
+            date={date}
+            mealType={mealType}
+            proteinOnly={proteinOnly}
+            onLogged={(data, count) => {
+              trackMealLogged(quickAddSource({ mealType }, false), mealType);
+              recordRebalanceOutcome(data);
+              invalidateDayQueries(utils, date);
+              onLogged();
+              snackbar.show({
+                message: `Logged ${count} ${count === 1 ? 'item' : 'items'}`,
+                tone: 'success',
+                actionLabel: 'Undo',
+                onAction: () => undoEntriesMutation.mutate({ date, entryIds: data.entryIds }),
+              });
+              onClose();
+            }}
+          />
         </View>
       ) : view === 'product' ? (
         <View className="gap-3">

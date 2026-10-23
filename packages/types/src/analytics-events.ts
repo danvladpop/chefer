@@ -217,4 +217,8 @@ export interface EventMap {
   // ─── Hidden fat on photo scans (lane A3) ─────────────────────────────────────
   /** The answer to "Cooked with oil or butter?" when a Snap-to-Log estimate is logged. */
   snap_hidden_fat: { level: 'none' | 'a-little' | 'a-lot' };
+
+  // ─── Typed "I ate…" logging (lane A4) — counts only, never the sentence ─────
+  food_text_parsed: { itemCount: number; estimated: number };
+  food_text_logged: { itemCount: number; edited: boolean };
 }

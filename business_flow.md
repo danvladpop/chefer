@@ -5263,6 +5263,36 @@ Log sheet → "Saved meals" group (first 5 by last use, or matching the search;
      lastLoggedAt moves it to the top → analytics saved_meal_logged { itemCount }
 ```
 
+**Typed log: "I ate…" outside the chat (lane A4, both platforms).** Free with
+a daily cap of 10 (`PLAN_FEATURES.foodTextPerDay`), unlimited on premium; AI
+consent first (new consent feature `food-text`). Voice is the keyboard's own
+dictation — no native module.
+
+```
+Log sheet → "Type what you ate" (hidden when the sheet replaces one plan slot)
+  → one line, e.g. "2 eggs, toast with butter, coffee with milk" → Read it
+  → AI consent sheet ('food-text': "turn what you typed into food entries")
+  → tracker.parseFoodText({ text ≤ 300 chars })            [aiConsentProcedure]
+      ├─ reserveFoodText (AiCallLog FOOD_TEXT; free 10/day → TOO_MANY_REQUESTS,
+      │    premium unlimited but logged and inside the AI budget; refunded on a
+      │    capacity failure)
+      ├─ aiService.parseFoodText → ≤ 12 items { text, food, grams, count,
+      │    per-100 g estimate } ("toast with butter" → toast + butter)
+      └─ each item's numbers from the most trusted match:
+           1. a recent log with that name (servings × its own numbers)
+           2. the user's own packaged product, or a cached one with that exact name
+           3. the ingredient catalog (a whole-word name match: "egg" ≠ "Eggplant")
+           4. the AI's per-100 g estimate — marked "Estimate", logged as estimatedBy 'vision'
+      → { items } — NOTHING is logged
+  → review list: each item with its source, an editable amount (g or
+    servings), a remove button; "Log 2 items · 575 kcal"
+  → tracker.logItems({ date, mealType, items[1–12] })  → custom entries
+    (product refs kept, unknown macros flagged) → snackbar/toast + Undo
+    (deleteEntries with the returned entryIds)
+analytics (counts only, never the sentence): food_text_parsed { itemCount,
+  estimated }, food_text_logged { itemCount, edited }
+```
+
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,
 `customTrainingProteinG` and `addTrainingBonus` (§29), but
