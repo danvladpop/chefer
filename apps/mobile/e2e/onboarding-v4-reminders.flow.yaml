@@ -1,0 +1,157 @@
+# Lane E1 (market review 2026-10): onboarding V4 offers mealtime reminders,
+# "Yes, remind me" asks the OS and saves, and Settings → Notifications shows
+# the meals with their times afterwards.
+# Run:  cd apps/mobile && maestro test -e METRO_PORT=8150 \
+#         -e EMAIL=<fresh account> -e PASSWORD=<its password> e2e/onboarding-v4-reminders.flow.yaml
+# Needs: the dev app on a booted iOS simulator, Metro and the local API with
+#        FEATURE_FLAGS=onboardingV4, and a FRESH account (no jobs saved yet),
+#        e.g. registered with auth.register against the local API.
+#        iOS keeps the session in the keychain across clearState, so reset it
+#        first: xcrun simctl keychain booted reset
+appId: dev.chefer.app.dev
+---
+- launchApp:
+    clearState: true
+# Connect the dev launcher to this lane's Metro by URL (a deep link leaves an
+# "Open in Chefer Dev?" system prompt behind on iOS 26).
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- tapOn:
+    text: 'OK'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Development Build'
+    timeout: 30000
+# localhost, not the LAN address the list shows (unreachable from some sims).
+- tapOn: 'Enter URL manually'
+- tapOn: 'http://'
+- inputText: 'http://localhost:${METRO_PORT}'
+- tapOn: 'Connect'
+# Under heavy machine load Metro can miss the launcher's timeout: retry.
+- repeat:
+    while:
+      visible: 'Error loading app'
+    times: 3
+    commands:
+      - tapOn: 'OK'
+      - tapOn:
+          text: 'Enter URL manually'
+          optional: true
+      - tapOn: 'Connect'
+- extendedWaitUntil:
+    visible: 'Continue'
+    timeout: 60000
+    optional: true
+- tapOn:
+    text: 'Continue'
+    optional: true
+- tapOn:
+    id: 'xmark'
+    optional: true
+
+# ── Sign in to the fresh account ───────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-sign-in'
+    timeout: 60000
+- tapOn:
+    id: 'welcome-sign-in'
+- tapOn:
+    id: 'login-email'
+- inputText: ${EMAIL}
+- tapOn:
+    id: 'login-password'
+- inputText: ${PASSWORD}
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+
+# ── Onboarding V4: Track food → Just good food → about you → can't eat ─────
+- extendedWaitUntil:
+    visible:
+      id: 'onb-v4-job-TRACK'
+    timeout: 30000
+- tapOn:
+    id: 'onb-v4-job-TRACK'
+- tapOn:
+    id: 'onb-v4-continue'
+- tapOn:
+    id: 'onb-v4-goal-GOOD_FOOD'
+- tapOn:
+    id: 'onb-v4-continue'
+- extendedWaitUntil:
+    visible:
+      id: 'onb-v4-aboutYou'
+    timeout: 10000
+- tapOn:
+    id: 'onb-v4-continue'
+# The health-information consent sheet (when the API enforces it).
+- tapOn:
+    text: 'Allow and save'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onb-v4-safety'
+    timeout: 10000
+- tapOn:
+    id: 'onb-v4-continue'
+
+# ── The offer: planned meals with their suggested times ───────────────────
+- extendedWaitUntil:
+    visible: 'Remind me at mealtimes?'
+    timeout: 10000
+- assertVisible: 'Breakfast'
+- assertVisible: '08:00'
+- assertVisible: 'Dinner'
+- assertVisible: '18:30'
+- takeScreenshot: onboarding-v4-reminders-offer
+- tapOn:
+    id: 'onb-v4-reminders-yes'
+- extendedWaitUntil:
+    visible: 'Allow'
+    timeout: 10000
+    optional: true
+- tapOn:
+    text: 'Allow'
+    optional: true
+
+# ── Premium (free account) → later → Today ─────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'onb-v4-premium-later'
+    timeout: 15000
+- tapOn:
+    id: 'onb-v4-premium-later'
+
+# ── Settings → Notifications: the meals with their times, switched on ──────
+- extendedWaitUntil:
+    visible:
+      id: 'today-scroll'
+    timeout: 30000
+    optional: true
+- openLink: chefer-dev://settings/notifications
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'notifications-meal-reminders'
+    timeout: 20000
+- assertVisible:
+    id: 'notifications-meals-breakfast-time'
+- scrollUntilVisible:
+    element:
+      id: 'notifications-meals-dinner-time'
+    direction: DOWN
+# The time is part of the button's accessible name, not a text node.
+- assertVisible:
+    id: 'notifications-meals-dinner-time'
+    text: '.*18:30.*'
+- takeScreenshot: settings-mealtime-reminders
