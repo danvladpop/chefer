@@ -13,11 +13,13 @@ export const IOS_BUNDLE_ID = 'com.popdan.chefer';
 export const ANDROID_PACKAGE_NAME = 'dev.chefer.app';
 
 /**
- * The web paths the app opens instead of the browser. Only coaching invites:
- * every other page stays in the browser. The app's Android intent filter
- * (apps/mobile/app.config.js) must claim the same prefix.
+ * The web paths the app opens instead of the browser: coaching invites and
+ * household invites (ADR 0002). Every other page stays in the browser. The
+ * app's Android intent filter (apps/mobile/app.config.js) must claim the same
+ * prefixes.
  */
 export const APP_LINK_PATH_PREFIX = '/coaching/join/';
+export const HOUSEHOLD_APP_LINK_PATH_PREFIX = '/household/join/';
 
 export type AppleAppSiteAssociation = {
   applinks: {
@@ -36,7 +38,10 @@ export function buildAppleAppSiteAssociation(
       details: [
         {
           appIDs: [appId],
-          components: [{ '/': `${APP_LINK_PATH_PREFIX}*`, comment: 'Coaching invite links' }],
+          components: [
+            { '/': `${APP_LINK_PATH_PREFIX}*`, comment: 'Coaching invite links' },
+            { '/': `${HOUSEHOLD_APP_LINK_PATH_PREFIX}*`, comment: 'Household invite links' },
+          ],
         },
       ],
     },
