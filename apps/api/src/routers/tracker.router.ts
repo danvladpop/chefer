@@ -6,7 +6,6 @@ import {
   productAmountSchema,
 } from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN, QUICK_ADD_MEAL_TYPES } from '@chefer/utils';
-import { foodTextService } from '../application/food-text/food-text.service.js';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import {
   aiConsentProcedure,
@@ -344,7 +343,12 @@ export const trackerRouter = router({
   // AI-consent gated; free 10 a day, premium unlimited (reserveFoodText).
   parseFoodText: aiConsentProcedure
     .input(z.object({ text: foodTextSchema }))
-    .mutation(async ({ ctx, input }) => foodTextService.parse(ctx.user, input.text)),
+    .mutation(async ({ ctx, input }) => {
+      // Loaded on first use: keeps the AI client (and its provider env) out of
+      // every other tracker procedure's import graph.
+      const { foodTextService } = await import('../application/food-text/food-text.service.js');
+      return foodTextService.parse(ctx.user, input.text);
+    }),
 
   // Lane A4: log the reviewed items in one go. FREE (no AI). Returns `entryIds`
   // for the snackbar's Undo (deleteEntries).
