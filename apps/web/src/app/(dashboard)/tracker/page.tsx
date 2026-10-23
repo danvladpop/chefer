@@ -462,8 +462,8 @@ export default function TrackerPage() {
               <QuickAddSheet
                 date={dateStr}
                 onLogged={() => void refetch()}
-                onLoggedEntries={({ entryIds, name }) =>
-                  showToast(`Logged ${name}`, {
+                onLoggedEntries={({ entryIds, name, dayFit }) =>
+                  showToast(withDayFitLine(`Logged ${name}`, { dayFit }), {
                     label: 'Undo',
                     onClick: () => deleteEntriesMutation.mutate({ date: dateStr, entryIds }),
                   })

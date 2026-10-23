@@ -16,7 +16,11 @@ import {
   type QuickAddMealType,
 } from '@chefer/utils';
 import { invalidateDayQueries } from '../lib/invalidate';
-import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+  withDayFitLine,
+} from '../lib/rebalance-storage';
 
 // Web counterpart of mobile's meal-actions-sheet.tsx (lane A2): save one meal
 // of the day under a name, or copy it to another day and/or meal with an
@@ -101,14 +105,15 @@ export function MealActionsSheet({
       { fromDate: date, fromMealType: mealType, toDate, toMealType, ...REBALANCE_PREVIEW },
       {
         onSuccess: (result) => {
-          handleRebalanceOutcome(result);
+          // Day rebalance: the resize line rides on this toast, not a second one.
+          handleRebalanceOutcome(result, { announceDayFit: false });
           invalidateDayQueries(utils);
           const ids = result.copiedEntryIds;
           capture('meal_copied', { itemCount: ids.length, sameDay: toDate === date });
           const dayLabel = days.find((d) => d.date === toDate)?.label ?? toDate;
           onClose();
           onToast(
-            copyMealMessage(ids.length, label(toMealType), dayLabel),
+            withDayFitLine(copyMealMessage(ids.length, label(toMealType), dayLabel), result),
             ids.length > 0
               ? {
                   label: 'Undo',

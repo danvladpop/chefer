@@ -16,6 +16,7 @@ vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('../lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+  withDayFitLine: (message: string) => message,
 }));
 vi.mock('../lib/invalidate', () => ({ invalidateDayQueries: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({

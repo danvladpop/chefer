@@ -98,7 +98,13 @@ interface QuickAddSheetProps {
     | ((entry: { entryId: string; name: string; dayFit?: DayFitLike | null | undefined }) => void)
     | undefined;
   /** Lane A2: after a saved meal is logged — its new entry ids, for an Undo toast. */
-  onLoggedEntries?: ((logged: { entryIds: string[]; name: string }) => void) | undefined;
+  onLoggedEntries?:
+    | ((logged: {
+        entryIds: string[];
+        name: string;
+        dayFit?: DayFitLike | null | undefined;
+      }) => void)
+    | undefined;
 }
 
 const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
@@ -309,7 +315,11 @@ export function QuickAddSheet({
       trackMealLogged(quickAddSource(vars, false), vars.mealType);
       void utils.savedMeals.list.invalidate();
       onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
-      onLoggedEntries?.({ entryIds: data.entryIds, name: meal?.name ?? 'saved meal' });
+      onLoggedEntries?.({
+        entryIds: data.entryIds,
+        name: meal?.name ?? 'saved meal',
+        dayFit: data.dayFit,
+      });
     },
   });
   const isPending =
