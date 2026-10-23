@@ -6,8 +6,9 @@
 # Needs: the dev app on a booted iOS simulator, Metro and the local API with
 #        FEATURE_FLAGS=onboardingV4, and a FRESH account (no jobs saved yet),
 #        e.g. registered with auth.register against the local API.
-#        iOS keeps the session in the keychain across clearState, so reset it
-#        first: xcrun simctl keychain booted reset
+#        iOS keeps the session in the keychain across clearState, so reset
+#        this simulator's keychain first, by UDID (never `booted`, which picks
+#        any booted simulator): xcrun simctl keychain <udid> reset
 appId: dev.chefer.app.dev
 ---
 - launchApp:
