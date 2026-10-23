@@ -49,7 +49,7 @@ describe('middleware: coaching invite links', () => {
   });
 });
 
-describe('middleware: household invite links (ADR 0002)', () => {
+describe('middleware: household invite links (ADR 0003)', () => {
   it.each([IPHONE, ANDROID])('signed out on a phone: the app page, same address', (ua) => {
     const res = run('/household/join/AbC-123', { ua });
     expect(redirectedTo(res)).toBeNull();

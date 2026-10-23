@@ -111,7 +111,7 @@ import { TailoringLine } from './tailoring-line';
 // paragraph (now behind the safety line's info button), the shape summary
 // row. A meal's other actions (keep, side dish, ate something else, skipped,
 // remove a side) open from "More options" on its Change sheet.
-// ADR 0002 (household sharing): a shared week refetches every 15 s while this
+// ADR 0003 (household sharing): a shared week refetches every 15 s while this
 // tab is focused; slot edits send the recipe they expect to replace and a lost
 // race shows "This meal changed a moment ago"; a partner sees whose week it is
 // and none of the owner-only planning actions (generate, plan a day, Change
@@ -232,7 +232,7 @@ export function MealsScreen() {
 
   // Live tailoring polls only while the chef works AND this tab is on screen.
   const isFocused = useIsFocused();
-  // ADR 0002: the shared week (polling, partner view, slot conflicts).
+  // ADR 0003: the shared week (polling, partner view, slot conflicts).
   const sharedWeek = useSharedWeek();
   const isPartner = sharedWeek.isPartner;
   const {
@@ -381,7 +381,7 @@ export function MealsScreen() {
       showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` });
     },
   });
-  // ADR 0002: a swap that lost a race closes the picker and shows the latest week.
+  // ADR 0003: a swap that lost a race closes the picker and shows the latest week.
   const onSlotSwapError = (err: unknown) => {
     if (!sharedWeek.handleSlotConflict(err, refetch)) return;
     setPickerTarget(null);
@@ -781,7 +781,7 @@ export function MealsScreen() {
                   </Text>
                 )}
                 {isPartner && sharedWeek.ownerName ? (
-                  // ADR 0002: planning a week is the owner's.
+                  // ADR 0003: planning a week is the owner's.
                   <PartnerBanner
                     testID="meals-partner-banner"
                     ownerName={sharedWeek.ownerName}
@@ -869,7 +869,7 @@ export function MealsScreen() {
           ) : (
             /* ── Day view ──────────────────────────────────────────────── */
             <>
-              {/* ADR 0002: a partner reads the owner's week; planning it stays the owner's. */}
+              {/* ADR 0003: a partner reads the owner's week; planning it stays the owner's. */}
               {isPartner && sharedWeek.ownerName ? (
                 <PartnerBanner
                   testID="meals-partner-banner"
@@ -1020,7 +1020,7 @@ export function MealsScreen() {
                     />
                   )}
                   {dayStatus !== null && isPartner ? (
-                    // ADR 0002: the day's options (bigger portions, rebalance) are the owner's.
+                    // ADR 0003: the day's options (bigger portions, rebalance) are the owner's.
                     <Text testID="meals-day-status" className="text-subhead text-label-secondary">
                       {dayStatus}
                     </Text>
@@ -1056,7 +1056,7 @@ export function MealsScreen() {
                 <Text accessibilityRole="header" className="text-title3 font-bold text-label">
                   Meals
                 </Text>
-                {/* MO-01: press feedback through PressableScale. ADR 0002: owner only. */}
+                {/* MO-01: press feedback through PressableScale. ADR 0003: owner only. */}
                 {isPartner ? null : (
                   <PressableScale
                     testID="meals-change-week"

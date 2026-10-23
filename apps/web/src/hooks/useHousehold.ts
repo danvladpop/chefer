@@ -21,9 +21,9 @@ export interface HouseholdMemberDto {
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
-  /** ADR 0002: a partner with their own account claimed this profile. */
+  /** ADR 0003: a partner with their own account claimed this profile. */
   hasAccount?: boolean;
-  /** ADR 0002: the profile the viewing partner claimed. */
+  /** ADR 0003: the profile the viewing partner claimed. */
   isYou?: boolean;
 }
 

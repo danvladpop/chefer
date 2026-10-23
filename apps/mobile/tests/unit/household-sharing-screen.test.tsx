@@ -4,7 +4,7 @@ import { HOUSEHOLD_SHARING_COPY, type HouseholdSharingStatus } from '@chefer/typ
 import HouseholdScreen from '../../app/household';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
 
-// ADR 0002 on the Household screen: an owner invites an adult member (the link, the OS share sheet,
+// ADR 0003 on the Household screen: an owner invites an adult member (the link, the OS share sheet,
 // Cancel invite), sees "Has Chefer" on a claimed profile and can remove that partner; a partner sees
 // whose household it is, the owner's table read-only except their own profile, and can leave.
 // Household notices sit at the top and can be dismissed.

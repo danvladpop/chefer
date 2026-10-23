@@ -1,7 +1,7 @@
 import type { HouseholdSharingStatus } from '@chefer/types';
 import { trpc } from '../../../lib/trpc';
 
-// ─── Household sharing state (ADR 0002) ───────────────────────────────────────
+// ─── Household sharing state (ADR 0003) ───────────────────────────────────────
 // One cached `household.sharing` read for every screen that changes with it
 // (Household, Meals, Shop, You). `enabled` is the `householdSharing` flag:
 // false hides every entry point. A failed or pending read counts as off, so a

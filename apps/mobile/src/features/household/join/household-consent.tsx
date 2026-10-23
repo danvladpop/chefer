@@ -12,7 +12,7 @@ import {
 import { Icon } from '../../../components/icon';
 import { HOUSEHOLD_MOBILE_COPY, joinPortionPhrase } from '../sharing/copy';
 
-// ─── Join a household: the consent screen (ADR 0002, business_flow §17.1) ─────
+// ─── Join a household: the consent screen (ADR 0003, business_flow §17.1) ─────
 // What is shared, what stays private, and the claimed profile's allergies / diet / dislikes to confirm
 // or fix before joining. Every sentence is the shared HOUSEHOLD_SHARING_COPY (the web join page renders
 // the same strings). The confirmed lists are what `household.join` writes.

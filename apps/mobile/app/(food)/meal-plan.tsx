@@ -243,7 +243,7 @@ export default function MealPlanScreen() {
   // working AND this tab is on screen; React Query also pauses it while the
   // app is backgrounded (focusManager ← AppState, app/_layout.tsx).
   const isFocused = useIsFocused();
-  // ADR 0002: the shared week (polling, partner view, slot conflicts).
+  // ADR 0003: the shared week (polling, partner view, slot conflicts).
   const sharedWeek = useSharedWeek();
   const isPartner = sharedWeek.isPartner;
   const {
@@ -256,7 +256,7 @@ export default function MealPlanScreen() {
     { weekOffset },
     {
       retry: false,
-      // ADR 0002: a shared week also refetches every 15 s while on screen.
+      // ADR 0003: a shared week also refetches every 15 s while on screen.
       refetchInterval: (query) =>
         !isFocused
           ? false
@@ -432,7 +432,7 @@ export default function MealPlanScreen() {
     },
   });
 
-  // ADR 0002: a swap that lost a race closes the picker and shows the latest week.
+  // ADR 0003: a swap that lost a race closes the picker and shows the latest week.
   const onSlotSwapError = (err: unknown) => {
     if (!sharedWeek.handleSlotConflict(err, refetch)) return;
     setPickerTarget(null);
@@ -944,7 +944,7 @@ export default function MealPlanScreen() {
                   : 'Generate a plan from our curated collection.'}
               </Text>
             )}
-            {/* ADR 0002: planning a week is the owner's. */}
+            {/* ADR 0003: planning a week is the owner's. */}
             {isPartner && sharedWeek.ownerName ? (
               <PartnerBanner
                 testID="plan-partner-banner"
@@ -1028,7 +1028,7 @@ export default function MealPlanScreen() {
           {/* UX-07 §2: compact "how you cook" summary + settings entry point.
               FB7-11: "Week options" sits here and replaces the Regenerate and
               "Rebalance my week" buttons (and the price line) of the old row. */}
-          {/* ADR 0002: a partner reads the owner's week; Week options and Plan settings are the owner's. */}
+          {/* ADR 0003: a partner reads the owner's week; Week options and Plan settings are the owner's. */}
           {isPartner && sharedWeek.ownerName ? (
             <PartnerBanner
               testID="plan-partner-banner"

@@ -347,7 +347,7 @@ describe('Side dishes (FB7-04)', () => {
       dayOfWeek: expect.any(Number) as number,
       mealType: 'lunch',
       slotIndex: 2,
-      // ADR 0002: the recipe this removal expects in the slot (a stale view gets CONFLICT).
+      // ADR 0003: the recipe this removal expects in the slot (a stale view gets CONFLICT).
       expectedRecipeId: 'r2',
     });
     expect(await screen.findByText('Removed Green Salad')).toBeOnTheScreen();

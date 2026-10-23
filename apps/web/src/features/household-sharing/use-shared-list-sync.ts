@@ -6,7 +6,7 @@ import { trpc } from '@/lib/trpc';
 import { HOUSEHOLD_SHARING_LIMITS, type ListPersonDto } from '@chefer/types';
 import { mergeSyncedChecks } from '@chefer/utils';
 
-// ─── Live shared list (ADR 0002) ──────────────────────────────────────────────
+// ─── Live shared list (ADR 0003) ──────────────────────────────────────────────
 // While the Shop page is open and the household is shared, ask
 // `shoppingList.sync` every 4 s (React Query pauses the interval while the tab
 // is hidden). Its ticks merge into the cached list — a key with a local toggle

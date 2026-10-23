@@ -41,13 +41,13 @@ export const KV_KEYS = {
    */
   coachingPendingJoin: 'coaching.pending-join',
   /**
-   * Household sharing (ADR 0002) — device-local, not `gym.`-prefixed for the same reason as
+   * Household sharing (ADR 0003) — device-local, not `gym.`-prefixed for the same reason as
    * `coachingPendingJoin`: the household invite code a signed-out visitor opened, kept across sign-in
    * or registration (a cold start included) so the join screen comes back.
    */
   householdPendingJoin: 'household.pending-join',
   /**
-   * ADR 0002 `KV_KEYS.shopOutbox`: shopping-list ticks not yet accepted by the server, replayed in order
+   * ADR 0003 `KV_KEYS.shopOutbox`: shopping-list ticks not yet accepted by the server, replayed in order
    * with their original device time. Belongs to the account: wiped by every sign-out (session expiry
    * included — the server keeps the newest change per item, so a lost replay only loses that tick).
    */

@@ -19,7 +19,7 @@ import { useHouseholdSharing } from '../src/features/household/sharing/use-house
 // plan; a free, empty table sees the ghost for the chip tapped, F-PM-12);
 // scaling servings and the list to the table is premium. Reached from
 // Profile → Household and More → Household.
-// ADR 0002 (behind `householdSharing`): notices at the top, "Invite to Chefer"
+// ADR 0003 (behind `householdSharing`): notices at the top, "Invite to Chefer"
 // on adult members, and for a partner the owner's table (read-only except
 // their own profile) with "Leave household" at the bottom.
 

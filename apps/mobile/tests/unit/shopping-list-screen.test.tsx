@@ -47,7 +47,7 @@ jest.mock('../../src/lib/trpc', () => ({
     },
     mealPlan: { getForWeek: { useQuery: () => mockPlan() } },
     preferences: { get: { useQuery: () => ({ data: undefined }) } },
-    // ADR 0002: a solo household — no live sync.
+    // ADR 0003: a solo household — no live sync.
     household: { sharing: { useQuery: () => ({ data: undefined }) } },
   },
 }));

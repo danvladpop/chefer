@@ -4,7 +4,7 @@ import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
 import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 
-// Join / leave / removal / owner-gone notices (ADR 0002) as dismissible inline
+// Join / leave / removal / owner-gone notices (ADR 0003) as dismissible inline
 // cards at the top of the Household section. There is no server push, so this
 // is where the other side learns about it.
 

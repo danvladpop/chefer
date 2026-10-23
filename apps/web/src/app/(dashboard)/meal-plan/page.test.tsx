@@ -15,7 +15,7 @@ const m = vi.hoisted(() => ({
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
   search: 'week=0&day=2',
   replace: vi.fn<[string], undefined>(),
-  // ADR 0002: the household sharing role (SOLO unless a test says otherwise).
+  // ADR 0003: the household sharing role (SOLO unless a test says otherwise).
   partnerOf: null as string | null,
 }));
 vi.mock('@/features/household-sharing/use-household-sharing', () => ({
@@ -340,7 +340,7 @@ describe('Plan page — portions refit notice (day rebalance, board PlanRefit)',
   });
 });
 
-describe('Plan page — a partner in a shared household (ADR 0002)', () => {
+describe('Plan page — a partner in a shared household (ADR 0003)', () => {
   it('shows whose week it is and leaves the week-level actions to the owner', () => {
     m.partnerOf = 'Dan';
     render(<MealPlanPage />);

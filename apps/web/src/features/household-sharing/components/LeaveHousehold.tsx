@@ -7,7 +7,7 @@ import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
-// A partner leaves the owner's household (ADR 0002). The profile stays with the
+// A partner leaves the owner's household (ADR 0003). The profile stays with the
 // owner; the partner's own plans come back — so every plan and list cache goes.
 
 export function LeaveHousehold({ ownerName }: { ownerName: string }) {

@@ -4,7 +4,7 @@ import { useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
 import { useHouseholdSharing, type HouseholdSharing } from './use-household-sharing';
 
-// ─── The shared week on Meals (ADR 0002) ──────────────────────────────────────
+// ─── The shared week on Meals (ADR 0003) ──────────────────────────────────────
 // Both Meals screens (the new shell's and the old (food) Plan tab) read this: how often to refetch the
 // week while it is on screen (only when the household is shared), whether the reader is a partner (the
 // owner-only planning actions go, `ownerOnly` says why), and the one handler for a slot edit that lost

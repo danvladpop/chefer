@@ -7,7 +7,7 @@ import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
 import { useInvalidateHousehold, type HouseholdSharing } from './use-household-sharing';
 
-// ─── A member row's sharing line (ADR 0002) ───────────────────────────────────
+// ─── A member row's sharing line (ADR 0003) ───────────────────────────────────
 // Under each member on the Household screen, while sharing is on:
 //   owner, profile with an account → "Has Chefer", "Maria manages their own allergies and diet.",
 //                                    "Remove from household" (confirmed)

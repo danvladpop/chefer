@@ -2,7 +2,7 @@ import { isNetworkError, isServerError } from '@chefer/utils';
 import { KV_KEYS } from '../gym/offline/keys';
 import { kv } from '../gym/offline/kv';
 
-// ─── Shopping-list outbox (ADR 0002 "Offline check-offs reconcile by last write per item") ───
+// ─── Shopping-list outbox (ADR 0003 "Offline check-offs reconcile by last write per item") ───
 // Every tick on Shop is enqueued here first (the UI flips at once, as before) and sent from here, in
 // order, with the device time it was made (`at`). An entry leaves the outbox only when the server
 // accepted it, or answered with a 4xx that no retry can fix (the plan is gone). A network error or a

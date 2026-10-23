@@ -86,7 +86,7 @@ function StatRow({ label, used, limit }: { label: string; used: number; limit: n
 function HouseholdRow() {
   const colors = useThemeColors();
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
-  // ADR 0002: the newest household notice ("Maria joined your household") under the summary.
+  // ADR 0003: the newest household notice ("Maria joined your household") under the summary.
   const latestNotice = useHouseholdNotices()[0];
   const summary =
     members.length === 0

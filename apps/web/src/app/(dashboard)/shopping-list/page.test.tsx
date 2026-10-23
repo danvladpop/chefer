@@ -16,7 +16,7 @@ const m = vi.hoisted(() => ({
   extraItems: [] as Record<string, unknown>[],
   total: 0,
   fromDay: undefined as number | undefined,
-  // ADR 0002: a shared household's live list.
+  // ADR 0003: a shared household's live list.
   shared: false,
   checkedBy: {},
   checkedKeys: new Array<string>(),
@@ -311,7 +311,7 @@ describe('Shop: thumbnails are never blank (FB7-10)', () => {
   });
 });
 
-describe('Shop: a shared household’s live list (ADR 0002)', () => {
+describe('Shop: a shared household’s live list (ADR 0003)', () => {
   const butter = {
     key: 'butter|g',
     ingredientName: 'Butter',

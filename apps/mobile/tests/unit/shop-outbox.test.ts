@@ -8,7 +8,7 @@ import {
 } from '../../src/features/shopping-list/shop-outbox';
 import { trpcError } from './friends-core-harness';
 
-// ADR 0002 "Offline check-offs reconcile by last write per item": the Shop ticks' durable outbox.
+// ADR 0003 "Offline check-offs reconcile by last write per item": the Shop ticks' durable outbox.
 // Enqueued ticks are on disk at once, sent in order, dropped once accepted or refused for good, and
 // kept (in order) when the network or the server is down.
 

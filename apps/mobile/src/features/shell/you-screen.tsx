@@ -118,7 +118,7 @@ export function YouScreen() {
   const household = householdSummary(members.map((m) => m.name));
   // Kitchen progress (gamification flag + revamp shell + availability): extra rows, the Chef card.
   const progressOn = useProgressEnabled();
-  // ADR 0002: "Maria joined your household" waits on the Household row (no server push).
+  // ADR 0003: "Maria joined your household" waits on the Household row (no server push).
   const householdNotices = useHouseholdNotices();
   const latestNotice = householdNotices[0];
 

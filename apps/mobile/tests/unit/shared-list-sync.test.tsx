@@ -9,7 +9,7 @@ import { useSharedListSync } from '../../src/features/shopping-list/use-shared-l
 import { trpc } from '../../src/lib/trpc';
 import { makeQueryClient, renderWithTrpc, trpcError } from './friends-core-harness';
 
-// ADR 0002 live list: `shoppingList.sync` answers are merged into the cached list (a key still in the
+// ADR 0003 live list: `shoppingList.sync` answers are merged into the cached list (a key still in the
 // outbox keeps its local state), a new revision refetches the list, and "who ticked" comes back.
 
 jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));

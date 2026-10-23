@@ -76,7 +76,7 @@ jest.mock('../../src/lib/trpc', () => ({
     profile: { getAiUsage: { useQuery: () => ({ data: mockUsage, isLoading: false }) } },
     household: {
       list: { useQuery: () => ({ data: mockMembers }) },
-      // ADR 0002: household sharing off (a solo household), no notices.
+      // ADR 0003: household sharing off (a solo household), no notices.
       sharing: { useQuery: () => ({ data: undefined }) },
       notices: { useQuery: () => ({ data: undefined }) },
     },

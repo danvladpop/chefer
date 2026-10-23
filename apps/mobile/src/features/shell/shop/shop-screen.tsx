@@ -80,7 +80,7 @@ import { shopGroups, shopGroupStatus, type ShopGroup } from './shop-groups';
 // share sheet and the household lock. Owner-approved removals: thumbnails,
 // per-item prices, recipe names, the "checked for your table" line, the
 // portions chip.
-// ADR 0002 (household sharing): ticks go through the durable outbox
+// ADR 0003 (household sharing): ticks go through the durable outbox
 // (use-shop-toggle.ts); a shared list polls `shoppingList.sync` while this tab
 // is focused and says who ticked or added an item; a partner sees whose list it is.
 
@@ -134,10 +134,10 @@ export function ShopScreen() {
     track('list_opened', { itemCount: weekList.items.length });
   }, [weekList]);
 
-  // Optimistic per-key tick (P1-5): flip now, the server merges devices. ADR 0002:
+  // Optimistic per-key tick (P1-5): flip now, the server merges devices. ADR 0003:
   // through the durable outbox, so a tick made offline survives the app being killed.
   const toggleItems = useShopToggle(weekOffset);
-  // ADR 0002: a shared household's list is live while this tab is on screen.
+  // ADR 0003: a shared household's list is live while this tab is on screen.
   const sharing = useHouseholdSharing();
   const isFocused = useIsFocused();
   const checkedBy = useSharedListSync({
@@ -283,7 +283,7 @@ export function ShopScreen() {
       ? units.qty(Number(item.quantity), item.unit)
       : `${item.quantity} ${item.unit}`;
 
-  // ADR 0002: the live sync's "who" is fresher than the list's own.
+  // ADR 0003: the live sync's "who" is fresher than the list's own.
   const whoLine = (item: ShopListItem, checked: boolean): string | null => {
     if (checked) {
       const by: ListPersonDto | undefined = checkedBy[item.key] ?? item.checkedBy;
@@ -385,7 +385,7 @@ export function ShopScreen() {
                           />
                         ) : null}
                       </View>
-                      {/* ADR 0002: "Ticked by Maria" / "Added by you" on a shared list. */}
+                      {/* ADR 0003: "Ticked by Maria" / "Added by you" on a shared list. */}
                       {who ? (
                         <Text
                           testID={`shop-item-${item.key}-who`}

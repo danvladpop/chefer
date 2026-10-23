@@ -6,7 +6,7 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
 import { trpc } from '../../../lib/trpc';
 
-// ─── Invite to Chefer (ADR 0002) ──────────────────────────────────────────────
+// ─── Invite to Chefer (ADR 0003) ──────────────────────────────────────────────
 // The owner's sheet for one adult member profile: what the partner gets, the
 // single-use link, the OS share sheet (RN core `Share`, no native module — the
 // app has no clipboard module, so there is no separate Copy button; "Copy" is

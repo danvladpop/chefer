@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { HOUSEHOLD_SHARING_COPY as COPY, findSafetyTaxonomyEntry } from '@chefer/types';
 import { Button } from '@chefer/ui';
 
-// The join screen's "check your allergies and diet" (ADR 0002): the three
+// The join screen's "check your allergies and diet" (ADR 0003): the three
 // lists the owner entered for the profile, as removable chips plus a small
 // labelled add box each. Terms are taxonomy ids or free text; ids show their
 // label.

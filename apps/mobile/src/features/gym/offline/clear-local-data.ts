@@ -79,7 +79,7 @@ export async function clearLocalUserData(opts: { keepGymData: boolean }): Promis
   resetTrainerModeAvailableCache();
   setHealthConsentDeclined(false);
   clearPendingRebalance();
-  // ADR 0002: the Shop outbox's key was just wiped (it is the account's, not `gym.`).
+  // ADR 0003: the Shop outbox's key was just wiped (it is the account's, not `gym.`).
   shopOutbox.reload();
   if (!opts.keepGymData) {
     activeSessionStore.clear();

@@ -5,7 +5,7 @@ import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { appHouseholdJoinUrl } from '../lib/open-in-app';
 
-// ─── /household/join/<code>, signed out on a phone (ADR 0002) ─────────────────
+// ─── /household/join/<code>, signed out on a phone (ADR 0003) ─────────────────
 // The coaching-invite pattern: the middleware rewrites here (the address bar
 // keeps the invite link) so the app is one tap away before any sign-in.
 // Nothing about the invite is shown — household.previewInvite needs an

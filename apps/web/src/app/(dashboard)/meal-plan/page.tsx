@@ -216,7 +216,7 @@ export default function MealPlanPage() {
   );
   const todaySlots = usePlanDaySlots(isCurrent ? dayDate(todayIndex) : null, showToastAction);
 
-  // ADR 0002: a shared week. Both people edit it, so it refreshes while open;
+  // ADR 0003: a shared week. Both people edit it, so it refreshes while open;
   // a partner sees the owner's week and leaves the week-level actions to them.
   const sharing = useHouseholdSharing();
   const isPartner = sharing.isPartner;
@@ -235,7 +235,7 @@ export default function MealPlanPage() {
     {
       retry: false,
       // Live tailoring (premium instant week): poll while the chef is still
-      // working. A shared week (ADR 0002) also polls, more slowly, so the
+      // working. A shared week (ADR 0003) also polls, more slowly, so the
       // other person's swaps show up. React Query pauses the interval while
       // the tab is hidden (refetchIntervalInBackground defaults to false).
       refetchInterval: (query) =>
@@ -540,7 +540,7 @@ export default function MealPlanPage() {
       usesAi: true,
     });
   };
-  // ADR 0002: the other person changed this slot first — say so and show the latest week.
+  // ADR 0003: the other person changed this slot first — say so and show the latest week.
   const handleConflict = () => {
     capture('shared_plan_conflict', {});
     setToast({ message: HOUSEHOLD_SHARING_COPY.conflictSomeone });
@@ -741,7 +741,7 @@ export default function MealPlanPage() {
     if (!wantsAutoGenerate || autoGenerateFired.current || isLoading) return;
     autoGenerateFired.current = true;
     router.replace('/meal-plan', { scroll: false });
-    // Generating is the owner's (ADR 0002).
+    // Generating is the owner's (ADR 0003).
     if (!plan && !isGenerating && !isPartner) generateWithConsent({ weekOffset });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once trigger keyed on load completion
   }, [wantsAutoGenerate, isLoading]);
@@ -789,7 +789,7 @@ export default function MealPlanPage() {
           recipeId: firstPlannedMeal.recipe.id,
         }
       : null;
-  // The miss sheet scales the day: the owner's (ADR 0002).
+  // The miss sheet scales the day: the owner's (ADR 0003).
   const openMiss = isPast || isPartner ? undefined : (dayOfWeek: number) => setMissDay(dayOfWeek);
   // Day rebalance (board DayFitSuggest): the one change that closes a day.
   const daySuggestionFor = (dayOfWeek: number, compact: boolean) => {
@@ -1482,7 +1482,7 @@ export default function MealPlanPage() {
       )}
 
       {/* My weeks (P2-8): saved weeks + past weeks live on their own page.
-          Following / saving weeks is the owner's (ADR 0002). */}
+          Following / saving weeks is the owner's (ADR 0003). */}
       {!isPast && !isPartner && (
         <div className="mx-4 mb-6 sm:mx-6">
           <Link

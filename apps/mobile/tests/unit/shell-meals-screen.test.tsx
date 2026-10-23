@@ -231,7 +231,7 @@ describe('Meals tab (new shell)', () => {
         slotIndex: 0,
         recipeId: 'r9',
         localDate: '2026-10-07',
-        // ADR 0002: the recipe the swap expects to replace.
+        // ADR 0003: the recipe the swap expects to replace.
         expectedRecipeId: 'b1',
       }),
     );
@@ -565,7 +565,7 @@ describe('Change week sheet', () => {
   });
 });
 
-describe('Meals tab: a shared week (ADR 0002)', () => {
+describe('Meals tab: a shared week (ADR 0003)', () => {
   const partner = {
     enabled: true,
     role: 'PARTNER' as const,

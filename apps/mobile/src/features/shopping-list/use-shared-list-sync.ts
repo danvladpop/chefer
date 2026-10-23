@@ -5,7 +5,7 @@ import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { shopOutbox } from './shop-outbox';
 
-// ─── Live shared list (ADR 0002) ──────────────────────────────────────────────
+// ─── Live shared list (ADR 0003) ──────────────────────────────────────────────
 // While Shop is on screen and the household is shared, ask `shoppingList.sync` every 4 s: its ticks are
 // merged into the cached list (a key with a tick still in the outbox keeps the local state), and a new
 // `revision` (a meal swap, a custom item) refetches the whole list. Returns who ticked what.

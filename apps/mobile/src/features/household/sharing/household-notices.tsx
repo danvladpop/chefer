@@ -5,7 +5,7 @@ import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useHouseholdSharing } from './use-household-sharing';
 
-// ─── Household notices (ADR 0002) ─────────────────────────────────────────────
+// ─── Household notices (ADR 0003) ─────────────────────────────────────────────
 // "Maria joined your household", "Dan removed you…": written by the server on
 // join / leave / removal / account deletion (there is no push). Shown as
 // dismissible cards on the Household screen and summed up on the You row.

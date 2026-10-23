@@ -9,7 +9,7 @@ import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { InviteSheet } from './InviteSheet';
 
-// ─── The sharing line under a member row (ADR 0002) ───────────────────────────
+// ─── The sharing line under a member row (ADR 0003) ───────────────────────────
 // Owner / solo: an adult profile without an account gets "Invite to Chefer"
 // (and "Invite sent" while a link is open); a claimed profile shows "Has
 // Chefer", who manages its terms, and "Remove from household".

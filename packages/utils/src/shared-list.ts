@@ -1,4 +1,4 @@
-// ─── Shared shopping list: reconcile a sync answer (ADR 0002) ─────────────────
+// ─── Shared shopping list: reconcile a sync answer (ADR 0003) ─────────────────
 // A shared list polls `shoppingList.sync` and merges its ticks into the list a
 // client already shows. A key the user toggled locally and whose toggle has not
 // been answered yet (pending) keeps its local state: the server has not seen

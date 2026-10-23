@@ -1,7 +1,7 @@
 import { KV_KEYS } from '../../gym/offline/keys';
 import { kv } from '../../gym/offline/kv';
 
-// ─── Pending household join (ADR 0002) ────────────────────────────────────────
+// ─── Pending household join (ADR 0003) ────────────────────────────────────────
 // The household invite a signed-out visitor opened. Kept on this device (never sent anywhere) so the
 // PendingJoinHost can reopen the join screen after sign-in or registration, even across a cold start.
 // Cleared once the invite is answered (joined, "Not now", or a state that ends it) or reopened.

@@ -3,7 +3,7 @@
 import { trpc } from '@/lib/trpc';
 import type { HouseholdRole, HouseholdSharingStatus } from '@chefer/types';
 
-// ─── Household sharing state (ADR 0002) ───────────────────────────────────────
+// ─── Household sharing state (ADR 0003) ───────────────────────────────────────
 // One query for every screen that changes when a household is shared. With the
 // `householdSharing` flag off (`enabled: false`) everything reads as SOLO, so
 // no entry point shows.

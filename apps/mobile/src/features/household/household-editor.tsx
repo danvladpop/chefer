@@ -88,9 +88,9 @@ type Member = {
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
-  /** ADR 0002: a partner's account claimed this profile. */
+  /** ADR 0003: a partner's account claimed this profile. */
   hasAccount?: boolean;
-  /** ADR 0002: the profile the signed-in partner claimed (the one they may edit). */
+  /** ADR 0003: the profile the signed-in partner claimed (the one they may edit). */
   isYou?: boolean;
 };
 
@@ -268,7 +268,7 @@ export function HouseholdEditor({
 }: {
   variant?: 'screen' | 'onboarding';
   handleRef?: Ref<HouseholdEditorHandle>;
-  /** ADR 0002: the Household screen's `household.sharing` (onboarding is always solo). */
+  /** ADR 0003: the Household screen's `household.sharing` (onboarding is always solo). */
   sharing?: HouseholdSharing;
 }) {
   const colors = useThemeColors();
@@ -299,7 +299,7 @@ export function HouseholdEditor({
   // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [safetyDeclined, setSafetyDeclined] = useState(false);
-  // ADR 0002: sharing (invite, joined badges, a partner's read-only view of the owner's table).
+  // ADR 0003: sharing (invite, joined badges, a partner's read-only view of the owner's table).
   const partnerView = sharing.isPartner;
   const showSharing = variant === 'screen' && sharing.enabled;
   const [inviting, setInviting] = useState<SharingMember | null>(null);
@@ -702,7 +702,7 @@ export function HouseholdEditor({
                       {memberCardSummary(m)}
                     </Text>
                   </View>
-                  {/* ADR 0002: a partner edits only the profile they claimed, and removes none. */}
+                  {/* ADR 0003: a partner edits only the profile they claimed, and removes none. */}
                   {!partnerView || m.isYou ? (
                     <IconButton
                       testID={`household-edit-${m.id}`}

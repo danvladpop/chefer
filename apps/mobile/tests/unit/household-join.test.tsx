@@ -19,7 +19,7 @@ import { readPendingHouseholdJoin } from '../../src/features/household/sharing/p
 import { renderWithTrpc, trpcError } from './friends-core-harness';
 import { settle } from './trainer-fixtures';
 
-// ADR 0002 / business_flow §17.1: the household invite's join screen — the shared consent copy, the
+// ADR 0003 / business_flow §17.1: the household invite's join screen — the shared consent copy, the
 // claimed profile's safety terms to confirm or fix, joining, every other invite state, and signed-out
 // visitors coming back after sign-in (the generalised PendingJoinHost).
 

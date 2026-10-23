@@ -8,7 +8,7 @@ import { HOUSEHOLD_SHARING_COPY as COPY, type HouseholdOpenInviteDto } from '@ch
 import { Button, Sheet } from '@chefer/ui';
 import { firstNameOf, userFacingErrorMessage } from '@chefer/utils';
 
-// ─── "Invite Maria" (ADR 0002) ────────────────────────────────────────────────
+// ─── "Invite Maria" (ADR 0003) ────────────────────────────────────────────────
 // Shows the profile's open invite, or makes one when there is none (a new one
 // replaces the old server-side, so an open invite is reused, never re-made).
 // Copy link / Share link / Cancel invite. The event fires when the link

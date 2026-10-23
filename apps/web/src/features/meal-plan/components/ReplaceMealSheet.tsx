@@ -94,7 +94,7 @@ export function ReplaceMealSheet({
   /** FB7-04: fired after a side dish was added — lets the caller offer Undo. */
   onSideAdded?: (result: SideAddedResult) => void;
   /**
-   * ADR 0002: the slot changed under this sheet (the other person in a shared
+   * ADR 0003: the slot changed under this sheet (the other person in a shared
    * household got there first). The sheet closes; the caller says so and refetches.
    */
   onConflict?: () => void;

@@ -7,7 +7,7 @@ import { TrainButton } from '../../shell/train/train-button';
 import { useInvalidateHousehold } from './use-household-sharing';
 
 /**
- * A partner's "Leave household" (ADR 0002), confirmed first. The claimed profile and its allergies stay
+ * A partner's "Leave household" (ADR 0003), confirmed first. The claimed profile and its allergies stay
  * with the owner; the partner's own plans come back, so every plan and list read is refetched.
  */
 export function LeaveHouseholdButton({ ownerName }: { ownerName: string }) {

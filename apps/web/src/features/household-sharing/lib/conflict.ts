@@ -1,4 +1,4 @@
-// ADR 0002: a swap / replace / pin / remove aimed at a slot the other person
+// ADR 0003: a swap / replace / pin / remove aimed at a slot the other person
 // changed first answers CONFLICT with `data.conflict.kind === 'mealSlot'`.
 
 type MaybeConflictError = { data?: { conflict?: { kind?: string } | null } | null } | null;

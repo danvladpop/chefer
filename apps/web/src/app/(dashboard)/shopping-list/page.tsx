@@ -61,7 +61,7 @@ const PRINT_STYLES = `
 .shopping-list-print-header { display: none; }
 `;
 
-/** "Added by Maria · Ticked by you" under an item of a shared list (ADR 0002). */
+/** "Added by Maria · Ticked by you" under an item of a shared list (ADR 0003). */
 function listPeopleLine(
   addedBy: ListPersonDto | undefined,
   checkedBy: ListPersonDto | undefined,
@@ -148,7 +148,7 @@ export default function ShoppingListPage() {
 
   const utils = trpc.useUtils();
 
-  // ADR 0002: a shared household's list is live — the partner's ticks arrive
+  // ADR 0003: a shared household's list is live — the partner's ticks arrive
   // within seconds, and rows say who ticked or added them.
   const { isShared } = useHouseholdSharing();
   const listSync = useSharedListSync({ weekOffset, enabled: isShared });
@@ -229,7 +229,7 @@ export default function ShoppingListPage() {
       planId: weekList.planId,
       keys: [key],
       checked: !checkedItems.includes(key),
-      // ADR 0002: last write per item wins by the device's time.
+      // ADR 0003: last write per item wins by the device's time.
       at: new Date().toISOString(),
     });
   };

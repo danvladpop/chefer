@@ -1,4 +1,4 @@
-// "Sign in, then come back to the invite" (spec §2.3, ADR 0002). Only an invite
+// "Sign in, then come back to the invite" (spec §2.3, ADR 0003). Only an invite
 // join page (coaching or household) may be returned to, so `?next=` can never
 // become an open redirect.
 

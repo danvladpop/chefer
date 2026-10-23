@@ -20,7 +20,7 @@ import {
 import { useInvalidateHousehold } from '../sharing/use-household-sharing';
 import { HouseholdConsent, safetyEdited, type SafetyLists } from './household-consent';
 
-// ─── household/join/<code> (ADR 0002, business_flow §17.1) ────────────────────
+// ─── household/join/<code> (ADR 0003, business_flow §17.1) ────────────────────
 // The coaching invite pattern for households: previewInvite → the consent screen (what is shared, what
 // stays private, the claimed profile's allergies / diet / dislikes to confirm or fix) → join. Every
 // invite state has one shared sentence (`HOUSEHOLD_SHARING_COPY.inviteState`). A signed-out visitor

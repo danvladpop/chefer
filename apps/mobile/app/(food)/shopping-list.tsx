@@ -126,10 +126,10 @@ export default function ShoppingListScreen() {
   }, [weekList]);
 
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
-  // immediately, per-key server semantics merge concurrent devices. ADR 0002:
+  // immediately, per-key server semantics merge concurrent devices. ADR 0003:
   // sent through the durable outbox, so an offline tick survives a killed app.
   const toggleItems = useShopToggle(weekOffset);
-  // ADR 0002: a shared household's list is live while this tab is on screen.
+  // ADR 0003: a shared household's list is live while this tab is on screen.
   const sharing = useHouseholdSharing();
   const isFocused = useIsFocused();
   const checkedBy = useSharedListSync({
@@ -200,7 +200,7 @@ export default function ShoppingListScreen() {
   };
   const items = weekList?.items ?? [];
   const checkedItems = useCheckedWithPending(weekList?.checkedKeys, weekList?.planId);
-  // ADR 0002: "Ticked by Maria" / "Added by you" (the live sync's "who" is the freshest).
+  // ADR 0003: "Ticked by Maria" / "Added by you" (the live sync's "who" is the freshest).
   const whoLine = (
     item: { key: string; checkedBy?: ListPersonDto; addedBy?: ListPersonDto },
     checked: boolean,

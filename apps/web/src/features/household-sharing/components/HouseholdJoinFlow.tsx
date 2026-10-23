@@ -15,7 +15,7 @@ import { isHealthConsentRequired } from '../lib/conflict';
 import { appHouseholdJoinUrl } from '../lib/open-in-app';
 import { safetyEdited, SafetyTermsEditor, type SafetyLists } from './SafetyTermsEditor';
 
-// ─── /household/join/<code> (ADR 0002, business_flow §17.1) ──────────────────
+// ─── /household/join/<code> (ADR 0003, business_flow §17.1) ──────────────────
 // The coaching invite pattern: previewInvite → the join screen → join. Every
 // invite state has one sentence. On a phone the page first offers the app
 // (`chefer://household/join/<code>`); a signed-out phone gets

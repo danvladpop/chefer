@@ -18,11 +18,11 @@ const m = vi.hoisted(() => {
     listState: noState,
     prefsState: noState,
     table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
-    // ADR 0002: the sharing status (null = flag off / SOLO without the flag).
+    // ADR 0003: the sharing status (null = flag off / SOLO without the flag).
     sharingStatus: null as Record<string, unknown> | null,
   };
 });
-// Household sharing (ADR 0002): the section's own wiring is tested here; the
+// Household sharing (ADR 0003): the section's own wiring is tested here; the
 // sharing pieces (they call tRPC themselves) have their own tests.
 vi.mock('@/features/household-sharing/use-household-sharing', () => ({
   useHouseholdSharing: () => ({
@@ -314,7 +314,7 @@ describe('HouseholdSection', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  describe('household sharing (ADR 0002)', () => {
+  describe('household sharing (ADR 0003)', () => {
     const maria = {
       ...sam,
       id: 'm2',

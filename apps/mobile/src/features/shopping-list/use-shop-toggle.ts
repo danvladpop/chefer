@@ -3,7 +3,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { trpc } from '../../lib/trpc';
 import { shopOutbox, withPendingToggles, type ShopOutboxEntry } from './shop-outbox';
 
-// ─── Shop ticks through the durable outbox (ADR 0002) ─────────────────────────
+// ─── Shop ticks through the durable outbox (ADR 0003) ─────────────────────────
 // Both Shop screens (the new shell's and the old (food) tab) tick through `useShopToggle`: the list's
 // cache flips at once (optimistic, as before), the tick is written to the outbox, and the outbox is
 // flushed. `ShopOutboxHost` (root layout) flushes whatever a killed app left behind at launch and on

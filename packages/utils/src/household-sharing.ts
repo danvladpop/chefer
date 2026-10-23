@@ -1,4 +1,4 @@
-// ─── Household sharing helpers (ADR 0002) ─────────────────────────────────────
+// ─── Household sharing helpers (ADR 0003) ─────────────────────────────────────
 // Pure pieces the web and mobile join screens share.
 
 const SMALL_PORTIONS: Record<number, string> = {

@@ -673,7 +673,7 @@ export function HouseholdSection({
   const [editing, setEditing] = useState<HouseholdMemberDto | null>(null);
   const [preset, setPreset] = useState<Partial<MemberFormState> | undefined>(undefined);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  // ADR 0002: sharing shows only on the Preferences section, with the flag on.
+  // ADR 0003: sharing shows only on the Preferences section, with the flag on.
   const sharing = useHouseholdSharing();
   const sharingStatus = variant === 'onboarding' ? null : sharing.status;
   // A partner sees the owner's table: only their own profile is theirs to edit.

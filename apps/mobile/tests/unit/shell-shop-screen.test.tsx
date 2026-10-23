@@ -62,7 +62,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   resetSnackbarForTests();
   kv.remove('shop.aisles-expanded.v1');
-  // ADR 0002: every test starts with an empty Shop outbox.
+  // ADR 0003: every test starts with an empty Shop outbox.
   kv.remove(KV_KEYS.shopOutbox);
   shopOutbox.reload();
   onlineManager.setOnline(true);
@@ -117,7 +117,7 @@ describe('Shop tab (new shell)', () => {
         planId: 'p1',
         keys: ['spinach'],
         checked: true,
-        // ADR 0002: the device time of the tick (last write per item wins on the server).
+        // ADR 0003: the device time of the tick (last write per item wins on the server).
         at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as unknown,
       }),
     );
@@ -216,7 +216,7 @@ describe('Shop tab (new shell)', () => {
     expect(shopOutbox.entries()).toEqual([]);
   });
 
-  it('ADR 0002: a tick that cannot reach the server stays ticked and waits in the outbox', async () => {
+  it('ADR 0003: a tick that cannot reach the server stays ticked and waits in the outbox', async () => {
     const user = userEvent.setup();
     await renderWithTrpc(
       <ShopScreen />,
@@ -290,7 +290,7 @@ describe('Shop tab (new shell)', () => {
   });
 });
 
-describe('Shop tab: a shared household list (ADR 0002)', () => {
+describe('Shop tab: a shared household list (ADR 0003)', () => {
   const sharing = (role: 'OWNER' | 'PARTNER') => ({
     enabled: true,
     role,

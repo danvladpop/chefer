@@ -2,7 +2,7 @@ import { Users } from 'lucide-react';
 import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
-// "You're sharing Dan's week and shopping list." (ADR 0002), with an optional
+// "You're sharing Dan's week and shopping list." (ADR 0003), with an optional
 // second line — the Meals screen says which week actions stay with the owner.
 
 export function PartnerBanner({

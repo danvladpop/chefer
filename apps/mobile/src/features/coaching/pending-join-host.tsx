@@ -17,7 +17,7 @@ import {
  * Renders nothing. A visitor who opened an invite link while signed out signs in (or registers and goes
  * through onboarding) and is brought back to the invite (spec §2.3 step 1). Mounted once in the root
  * layout; inert while signed out and while onboarding is up. Handles both invite kinds: a coaching
- * invite (WP-18) and a household invite (ADR 0002 — whose code is also kept on disk, so a cold start
+ * invite (WP-18) and a household invite (ADR 0003 — whose code is also kept on disk, so a cold start
  * between opening the link and signing in still comes back).
  */
 export function PendingJoinHost({ signedIn }: { signedIn: boolean }) {
