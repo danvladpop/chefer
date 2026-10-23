@@ -43,6 +43,9 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     // useSignOut unregisters this device's push token first (M4); none is registered here.
     useUtils: () => ({}),
+    // Kitchen progress is off in these tests (flags answer nothing).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over imports
+    ...(require('./progress-trpc-mock') as typeof import('./progress-trpc-mock')).progressTrpcOff(),
     auth: {
       me: { useQuery: () => ({ data: mockMe }) },
       logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) },

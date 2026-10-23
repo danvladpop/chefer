@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>04 Level up — new chef rank</title>
+    <link rel="stylesheet" href="phone.css" />
+  </head>
+  <body>
+    <div
+      class="phone"
+      data-tab="none"
+      style="background: radial-gradient(circle at 50% 28%, #fbe3c4 0%, #f6eadb 38%, #faf7f2 70%)"
+    >
+      <div class="confetti" data-n="30" data-top="10" data-h="270"></div>
+      <div
+        class="scroll"
+        style="
+          position: relative;
+          z-index: 2;
+          align-items: center;
+          text-align: center;
+          gap: 12px;
+          padding-top: 30px;
+        "
+      >
+        <span class="eyebrow" style="color: var(--brand)">Level up</span>
+        <div style="position: relative; width: 168px; height: 168px">
+          <svg viewBox="0 0 168 168" width="168" height="168">
+            <circle cx="84" cy="84" r="76" fill="#fff" stroke="#944a00" stroke-width="10" />
+            <circle cx="84" cy="84" r="60" fill="#F6EADB" />
+          </svg>
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+            "
+          >
+            <span style="font-size: 46px; line-height: 50px; display: block">🧑‍🍳</span>
+            <b
+              style="
+                font-size: 30px;
+                color: var(--brand);
+                line-height: 32px;
+                display: block;
+                margin-top: 4px;
+              "
+              >8</b
+            >
+          </div>
+        </div>
+        <h1 style="font-size: 30px; line-height: 36px">Chef de Partie</h1>
+        <p class="sub" style="font-size: 15px; max-width: 290px">
+          Five weeks of showing up. The kitchen runs smoother when you're in it.
+        </p>
+
+        <section
+          class="card"
+          style="align-self: stretch; text-align: left; gap: 12px; margin-top: 6px"
+        >
+          <h3>Unlocked at Chef de Partie</h3>
+          <div class="row">
+            <span style="font-size: 22px">🎨</span>
+            <div class="grow">
+              <b>Copper theme</b>
+              <div class="sub">A new accent colour for your app icon ring and profile</div>
+            </div>
+          </div>
+          <div class="row">
+            <span style="font-size: 22px">🐶</span>
+            <div class="grow">
+              <b>Biscuit's chef hat</b>
+              <div class="sub">He wears it on every celebration from now on</div>
+            </div>
+          </div>
+          <div class="row">
+            <span style="font-size: 22px">🫙</span>
+            <div class="grow">
+              <b>+1 pilot light</b>
+              <div class="sub">One extra streak-saver in the jar (max 3)</div>
+            </div>
+          </div>
+        </section>
+
+        <div class="small">Next: <b>Sous Chef</b> at level 12 · 2,600 XP to go</div>
+        <div
+          style="
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: auto;
+          "
+        >
+          <button class="btn full">Keep cooking</button>
+          <button class="btn ghost full">Share</button>
+        </div>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>

@@ -8,6 +8,7 @@ import { clearFoodNudges } from '../features/notifications/food-nudges';
 import { resetPushRegistrationForSignOut } from '../features/notifications/push/push-registration';
 import { resetPushStoreForSignOut } from '../features/notifications/push/push-store';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
+import { clearGentleReminder } from '../features/progress/gentle-reminder';
 import { clearToken, getSessionQueryClient } from './auth-store';
 
 // UX-ACC-02 / UX-ACC-12: THE way an account leaves this phone. More, Settings,
@@ -59,6 +60,8 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
     await stage(() => cancelAllGymReminders());
     // UX-PO-08: the dinner / plan-Sunday nudges belong to the account too.
     await stage(() => clearFoodNudges());
+    // Kitchen progress: the gentle reminder belongs to the account too.
+    await stage(() => clearGentleReminder());
     // Trainer mode §7.3: the booking reminders name this account's sessions.
     await stage(() => clearBookingReminders());
     // M4 push: the token was unregistered before the server logout

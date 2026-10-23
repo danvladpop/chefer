@@ -1,0 +1,63 @@
+# Personal tab bar (app/(main)) switch sweep — MO-09.
+# Switches Shop · Meals · Today · Train · You in a few orders and asserts each
+# revisited tab draws its screen. The bottom tabs' `fade` left a revisited tab
+# blank on iOS now and then (whole scene invisible until another tab press);
+# this flow caught it in the trainer shell (Clients → Today).
+# Precondition: the revamp shell is on (`mobileShellV2` flag or the preview).
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'tab-home'
+    timeout: 30000
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: 'tab-shop'
+      - assertVisible:
+          id: 'shop-week'
+      - tapOn:
+          id: 'tab-plan'
+      - assertVisible:
+          id: 'meals-week'
+      - tapOn:
+          id: 'tab-home'
+      - assertVisible:
+          id: 'today-scroll'
+      - tapOn:
+          id: 'tab-train'
+      # Data state or the loading/offline card, both are the drawn screen.
+      - assertVisible:
+          id: 'train(-scroll)?'
+      - tapOn:
+          id: 'tab-you'
+      - assertVisible:
+          id: 'you-scroll'
+      # Back the other way, so each tab is also entered from its other side.
+      - tapOn:
+          id: 'tab-train'
+      - assertVisible:
+          id: 'train(-scroll)?'
+      - tapOn:
+          id: 'tab-home'
+      - assertVisible:
+          id: 'today-scroll'
+      - tapOn:
+          id: 'tab-plan'
+      - assertVisible:
+          id: 'meals-week'
+      - tapOn:
+          id: 'tab-shop'
+      - assertVisible:
+          id: 'shop-week'
+      # Jumps across the bar.
+      - tapOn:
+          id: 'tab-you'
+      - assertVisible:
+          id: 'you-scroll'
+      - tapOn:
+          id: 'tab-home'
+      - assertVisible:
+          id: 'today-scroll'

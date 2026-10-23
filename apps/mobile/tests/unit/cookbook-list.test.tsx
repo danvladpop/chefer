@@ -20,6 +20,9 @@ jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
+// Always in the current year, so the row shows the short date (no year) whenever this runs.
+const ADDED = new Date(new Date().getFullYear(), 8, 3);
+
 function row(id: string, more: Record<string, unknown> = {}) {
   return {
     id,
@@ -30,7 +33,7 @@ function row(id: string, more: Record<string, unknown> = {}) {
     cookTimeMins: 20,
     nutritionInfo: { calories: 400, protein: 20, carbs: 40, fat: 10 },
     isFavourite: false,
-    createdAt: new Date(2026, 8, 3),
+    createdAt: ADDED,
     sourceUrl: null,
     ...more,
   };
@@ -108,7 +111,7 @@ describe('cookbook rows (UX-REC-13, UX-REC-10)', () => {
     await screen.findByText('Recipe a');
     expect(screen.getByTestId('recipe-card-a-meta')).toHaveTextContent(/^From example\.com/);
     expect(screen.getByTestId('recipe-card-b-meta')).toHaveTextContent(
-      `Added ${formatDate(new Date(2026, 8, 3), 'short')}`,
+      `Added ${formatDate(ADDED, 'short')}`,
     );
   });
 

@@ -180,6 +180,14 @@ export interface EventMap {
       | 'SOCIAL_FOLLOW';
   };
 
+  // ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §8) ───────────
+  // Pressure signals, enums and counts only (README §8 "Measure").
+  progress_level_up: { level: number; rankChanged: boolean };
+  progress_celebrations_changed: { to: 'FULL' | 'SUBTLE' | 'OFF' };
+  progress_hidden: { setting: 'showXp' | 'showFlameOnToday' | 'biscuit'; on: boolean };
+  progress_reminder_toggled: { on: boolean };
+  kitchen_recap_opened: { source: 'banner' | 'link' };
+
   // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
   // Never another user's id, a name or a search query.
   friends_opened: { source: 'more' | 'settings' | 'link' };

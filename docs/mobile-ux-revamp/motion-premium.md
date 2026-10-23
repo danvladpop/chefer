@@ -42,7 +42,7 @@ The original motion-system catalogue (MO-01…MO-15) predates this file; these e
 | 11  | Workout sets added/removed glide                                                                                        | `gym/workout/exercise-card.tsx`                              |
 | 12  | Shop aisle chevron turns; rows fade in/out                                                                              | `Rotate`, `shell/shop/shop-screen.tsx`                       |
 | 14  | Photos fade in (and again on a swap); Meals loads as skeleton cards                                                     | `MediaFrame`, `shell/meals/meals-screen.tsx`                 |
-| 9   | Tab bar pop, haptic, crossfade                                                                                          | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`               |
+| 9   | Tab bar pop and haptic; switches are instant (MO-09; the crossfade blanked revisited tabs on iOS)                       | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`               |
 | 15  | Suggested kcal counts up                                                                                                | `preferences/targets-card.tsx`                               |
 | 16  | Charts draw in (lines left → right, bars bottom → top)                                                                  | `charts/chart-reveal.tsx`, `line-chart.tsx`, `bar-chart.tsx` |
 | 17  | Onboarding: progress fill glides, steps slide in from their side                                                        | `onboarding/onboarding-wizard.tsx`                           |
