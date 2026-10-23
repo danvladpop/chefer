@@ -2824,6 +2824,68 @@ pantry, chat-locked, training-day); a successful Upgrade there opens the sheet.
 'household'}`, `teaser_engaged {feature: 'household'}`, `onboarding_intent
 {intent}` (see docs/analytics-funnel.md).
 
+### 17.1 Partners: a shared week and a live list (ADR 0002)
+
+Dark behind the `householdSharing` flag. A **partner** is a person with their own Chefer account who joins the
+**household owner**'s household by claiming one **member profile**. Both see and edit the same week and one live
+shopping list; food logs, weight and targets stay each person's own.
+
+```
+Invite (owner, web or mobile Household screen)
+  member row → "Invite to Chefer" → household.invites.create { memberId }
+    → link APP_URL/household/join/<code> (single use, 14 days; a new one replaces the old)
+    → OS share sheet / Copy link                                  (household_invite_created)
+
+Open the link
+  ├─ web, signed out on a phone → the app-or-web page (Open in the app = chefer://household/join/<code>,
+  │    store badges, Continue on web → /login?next=…) — the coaching-invite pattern
+  ├─ web, signed out on desktop → /login?next=/household/join/<code> (register keeps `next`)
+  └─ app → household/join/[code] (signed out: remembered, then sign in / register and back)
+  household.previewInvite → state (household_invite_opened { state, signedIn })
+    OK → the join screen: "Join Dan's household", what is shared, what stays private,
+         the profile's allergies / diet / dislikes to CONFIRM or fix, "Your own plans are kept"
+    else → one sentence per state (used, expired, cancelled, already in a household, …)
+
+Join → household.join { code, allergies, dietaryRestrictions, dislikedIngredients }
+  one transaction: claim the invite · checks (not already a partner, no partners of your own,
+  profile unclaimed, owner under PLAN_FEATURES.householdPartners) · the profile's terms = the confirmed
+  ones · union them into the partner's own preferences · the link
+  → owner gets "Maria joined your household" (in-app notice; there is no server push)  (household_joined)
+
+Shared week (Meals)
+  partner reads the OWNER's plan: every slot at the partner's portion (the profile's portionFactor),
+  their own calorie/protein targets, no refit notice; "You're sharing Dan's week and shopping list."
+  partner may: swap · replace · pin · remove a side · add a recipe (runs as the owner: owner's tier,
+    safety union, quota; an AI swap also needs the partner's AI consent)
+  owner only: generate / regenerate · plan a day · My weeks · restore · rebalance · scale a day
+    (a partner gets "Only Dan can do this, because the week is planned on their goals…")
+  conflicts: edits send the recipe they expect in the slot; if the other person changed it first →
+    CONFLICT → "This meal changed a moment ago. Here's the latest week." + refetch (shared_plan_conflict)
+  freshness: Meals refetches every 15 s while focused, when the household has a partner
+
+Live list (Shop)
+  while focused and shared: shoppingList.sync every 4 s → ticks + "who"; a new `revision`
+    (a swap, a custom item) refetches the whole list (shared_list_synced { remoteChanges })
+  hints: "Ticked by Maria" / "Added by you" under items
+  offline (mobile): ticks go to a durable outbox and replay in order with their original time;
+    the server keeps the newest change per item, so an old offline tick never undoes a newer untick
+
+Leaving / removing (household.leave · household.removePartner)
+  the profile stays (with a snapshot of the safety terms), the plan and its history stay with the owner,
+  the partner's own plans come back (carry-forward from their own last week); notices to the other side
+  (household_left { by })
+  owner deletes a claimed profile → that partner is removed first
+
+Portions and targets
+  slots store the OWNER's eater portion (day fit / refit run only on the owner's targets);
+  a partner eats and logs their profile's portionFactor; the list = owner portion + Σ members
+  (the partner is a member), premium scaling rules unchanged. Fitting a partner's portion to
+  their own targets is a follow-up.
+```
+
+**Events:** `household_invite_created`, `household_invite_opened`, `household_joined`, `household_left`,
+`shared_list_synced`, `shared_plan_conflict`.
+
 ---
 
 ## 18. Zero-Waste Pantry Flow (F3)
@@ -4309,8 +4371,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
 ```
 
 **Households:** `HouseholdMember` rows are the account's own extra eaters (name,
-portion, allergies) — no other account is linked to them, so they are simply
-deleted with the owner. There is no ownership to transfer.
+portion, allergies), deleted with the owner. There is no ownership to transfer.
+**Household sharing (ADR 0002):** before the transaction `householdAccess.beforeAccountDeleted`
+ends every link. As the owner: each partner keeps a "Dan stopped using Chefer — your plan is your
+own again" notice (actor = the partner, so it survives the cascade) and goes back to their own plans.
+As a partner: the owner gets "Maria left your household"; the claimed profile stays with the owner
+(with a snapshot of its safety terms); the link rows cascade.
 
 **Following (F1.5, PRD FR-22.2):** needs no explicit step in `deleteAccount` — every Following table cascades from
 the `users` row: the social profile, follows both ways, blocks both ways, suggestion dismissals, reports **filed and received**,
