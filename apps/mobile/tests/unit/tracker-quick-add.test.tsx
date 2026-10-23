@@ -20,8 +20,8 @@ let mockIngredients: unknown[] = [];
 let mockProducts: unknown[] = [];
 const mockLookupBarcode = jest.fn();
 const mockLogProduct = jest.fn();
-const mockCreateProduct = jest.fn();
-const mockTrack = jest.fn();
+const mockCreateProduct = jest.fn<undefined, [unknown]>();
+const mockTrack = jest.fn<undefined, unknown[]>();
 const mockOpenPremium = jest.fn();
 let mockCanScanLabel = false;
 const mockSearchState = { isFetching: false, isError: false };
@@ -74,7 +74,9 @@ const OAT_DRINK = {
 const GLUTEN_WARNING = { allergenId: 'gluten', label: 'Gluten', kind: 'contains', who: ['you'] };
 
 jest.mock('../../src/lib/analytics', () => ({
-  track: (...args: unknown[]) => mockTrack(...args),
+  track: (...args: unknown[]) => {
+    mockTrack(...args);
+  },
 }));
 jest.mock('../../src/hooks/use-entitlement', () => ({
   useEntitlement: () => ({ enabled: mockCanScanLabel, limit: 0, isPremium: mockCanScanLabel }),
@@ -83,7 +85,9 @@ jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
 }));
 jest.mock('../../src/features/premium/open-premium', () => ({
-  openPremium: (source: string) => mockOpenPremium(source),
+  openPremium: (source: string) => {
+    mockOpenPremium(source);
+  },
 }));
 
 /** A tRPC mutation stub whose mutate(vars, { onSuccess }) answers with `respond(vars)`. */
@@ -504,15 +508,13 @@ describe('QuickAddSheet — packaged products (ADR 0002)', () => {
     await user.type(screen.getByTestId('product-form-kcal'), '380');
     await user.press(screen.getByTestId('product-form-allergen-gluten'));
     await user.press(screen.getByTestId('product-form-save'));
-    expect(mockCreateProduct).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: 'USER',
-        barcode: '96385074',
-        name: 'Rye crackers',
-        per100g: expect.objectContaining({ kcal: 380, protein: null }),
-        allergens: { known: true, contains: ['gluten'] },
-      }),
-    );
+    expect(mockCreateProduct.mock.calls[0]?.[0]).toMatchObject({
+      source: 'USER',
+      barcode: '96385074',
+      name: 'Rye crackers',
+      per100g: { kcal: 380, protein: null },
+      allergens: { known: true, contains: ['gluten'] },
+    });
     expect(mockTrack).toHaveBeenCalledWith('packaged_product_created', { source: 'manual' });
     // The saved product opens on its card, ready to log — with no OFF attribution.
     expect(await screen.findByTestId('product-name')).toHaveTextContent(/Rye crackers/);

@@ -146,9 +146,7 @@ export function ProductCard({
                 key={value}
                 testID={`product-amount-${value}`}
                 label={
-                  unit === 'g'
-                    ? `${value} g`
-                    : `${formatNumber(value, { maximumFractionDigits: 1 })}`
+                  unit === 'g' ? `${value} g` : formatNumber(value, { maximumFractionDigits: 1 })
                 }
                 selected={amountValue === value}
                 onPress={() => setAmountText(String(value))}
