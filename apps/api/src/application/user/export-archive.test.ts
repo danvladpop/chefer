@@ -465,7 +465,7 @@ describe('buildArchive', () => {
 });
 
 describe('archiveFilename', () => {
-  it('is dated, like the JSON export', () => {
-    expect(archiveFilename(new Date('2026-10-22T23:00:00Z'))).toBe('chefer-export-2026-10-22.zip');
+  it('is dated with the user’s own day, like the JSON export', () => {
+    expect(archiveFilename('2026-10-22')).toBe('chefer-export-2026-10-22.zip');
   });
 });

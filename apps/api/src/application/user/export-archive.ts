@@ -428,8 +428,9 @@ function readme(exportedAt: string): string {
   ].join('\r\n');
 }
 
-export function archiveFilename(now = new Date()): string {
-  return `chefer-export-${now.toISOString().slice(0, 10)}.zip`;
+/** Named for the user's own day (`YYYY-MM-DD`), not the server's UTC one. */
+export function archiveFilename(localDate: string): string {
+  return `chefer-export-${localDate}.zip`;
 }
 
 /** The whole archive as ZIP bytes. */

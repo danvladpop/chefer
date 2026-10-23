@@ -1,4 +1,5 @@
 import { prisma } from '@chefer/database';
+import { isValidTimeZone, todayIn } from '@chefer/utils';
 import { gymExportService } from '../gym/gym-export.service.js';
 import { collectAccountData } from './account-data.service.js';
 import { archiveFilename, buildArchive } from './export-archive.js';
@@ -17,6 +18,9 @@ export type ExportArchiveResult = {
   bytes: number;
 };
 
+const zoneOf = (zone: string | null | undefined): string =>
+  zone && isValidTimeZone(zone) ? zone : 'UTC';
+
 /** Every recipe id that plans and logs point at (they store ids only). */
 function referencedRecipeIds(data: Awaited<ReturnType<typeof collectAccountData>>): string[] {
   const ids = new Set<string>();
@@ -33,7 +37,14 @@ function referencedRecipeIds(data: Awaited<ReturnType<typeof collectAccountData>
   return [...ids];
 }
 
-export async function buildExportArchive(userId: string): Promise<ExportArchiveResult> {
+/**
+ * `localDate`: the device's `YYYY-MM-DD`, for the filename. Older callers
+ * omit it; then the user's saved time zone decides the day (UTC without one).
+ */
+export async function buildExportArchive(
+  userId: string,
+  localDate?: string,
+): Promise<ExportArchiveResult> {
   const [data, workouts] = await Promise.all([
     collectAccountData(userId),
     gymExportService.exportCsv(userId),
@@ -47,7 +58,7 @@ export async function buildExportArchive(userId: string): Promise<ExportArchiveR
     workoutsCsv: workouts.csv,
   });
   return {
-    filename: archiveFilename(),
+    filename: archiveFilename(localDate ?? todayIn(zoneOf(data.food.chefProfile?.timeZone))),
     base64: Buffer.from(zip).toString('base64'),
     bytes: zip.byteLength,
   };

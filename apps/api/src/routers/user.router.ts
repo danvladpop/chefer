@@ -1,6 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { SOCIAL_AUTH_MESSAGES, socialCredentialSchema, UserRole } from '@chefer/types';
+import {
+  localDateSchema,
+  SOCIAL_AUTH_MESSAGES,
+  socialCredentialSchema,
+  UserRole,
+} from '@chefer/types';
 import { aiCostService } from '../application/ai-cost/ai-cost.instance.js';
 import { authService } from '../application/auth/auth.service.js';
 import { socialAuthService } from '../application/auth/social-auth.service.js';
@@ -182,12 +187,15 @@ export const userRouter = router({
    * Additive — shipped binaries keep calling `exportData`. A mutation: each
    * call builds a fresh archive and counts against the caller's limit.
    */
-  exportArchive: protectedProcedure.mutation(async ({ ctx }) => {
-    // A deliberate, occasional action; the bucket allows retries after a
-    // dropped download without letting a loop rebuild the archive all day.
-    assertWithinRateLimit('user.exportArchive', ctx.user.id, 5, 15 * 60 * 1000);
-    return buildExportArchive(ctx.user.id);
-  }),
+  exportArchive: protectedProcedure
+    // The device's day, so the file is named for the user's date, not the server's UTC one.
+    .input(z.object({ localDate: localDateSchema.optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      // A deliberate, occasional action; the bucket allows retries after a
+      // dropped download without letting a loop rebuild the archive all day.
+      assertWithinRateLimit('user.exportArchive', ctx.user.id, 5, 15 * 60 * 1000);
+      return buildExportArchive(ctx.user.id, input?.localDate);
+    }),
 
   /**
    * Deletes the caller's account and all their data, after typing DELETE and

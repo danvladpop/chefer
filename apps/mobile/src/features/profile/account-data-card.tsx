@@ -9,9 +9,11 @@ import {
 } from '@chefer/types';
 import { Button, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
+  deviceTimeZone,
   DATA_EXPORT_COPY as EXPORT_COPY,
   exportErrorMessage,
   exportSizeBucket,
+  todayIn,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
@@ -37,7 +39,7 @@ import { TrainButton } from '../shell/train/train-button';
 // delete sheet keeps the kit's Sheet buttons).
 
 function jsonFilename(): string {
-  return `chefer-export-${new Date().toISOString().slice(0, 10)}.json`;
+  return `chefer-export-${todayIn(deviceTimeZone())}.json`;
 }
 
 export function AccountDataCard() {
@@ -56,7 +58,7 @@ export function AccountDataCard() {
     try {
       let shared: boolean;
       if (canShareBinaryFiles()) {
-        const archive = await exportArchive.mutateAsync();
+        const archive = await exportArchive.mutateAsync({ localDate: todayIn(deviceTimeZone()) });
         shared = await shareExportFile(archive.filename, archive.base64, ZIP_MIME, 'base64');
         if (shared) {
           track('data_export_downloaded', {

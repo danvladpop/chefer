@@ -16,9 +16,11 @@ import { Download, LogOut, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet, Toast } from '@chefer/ui';
 import {
+  deviceTimeZone,
   DATA_EXPORT_COPY as EXPORT_COPY,
   exportErrorMessage,
   exportSizeBucket,
+  todayIn,
   userFacingErrorMessage,
 } from '@chefer/utils';
 
@@ -55,7 +57,7 @@ export function AccountDataCard() {
   async function downloadData() {
     setExportError(null);
     try {
-      const archive = await exportArchive.mutateAsync();
+      const archive = await exportArchive.mutateAsync({ localDate: todayIn(deviceTimeZone()) });
       saveZip(archive.filename, archive.base64);
       capture('data_export_downloaded', {
         format: 'zip',
