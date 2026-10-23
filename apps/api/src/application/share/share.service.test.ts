@@ -60,7 +60,7 @@ function makeService() {
   return { service, repo };
 }
 
-const stored = (repo: { create: ReturnType<typeof vi.fn> }) =>
+const stored = (repo: { create: { mock: { calls: unknown[][] } } }) =>
   (repo.create.mock.calls[0] as [{ payload: unknown }])[0].payload;
 
 describe('ShareService.create', () => {
