@@ -211,4 +211,11 @@ export interface EventMap {
   // ─── Data portability (G1/G2, market review 2026-10) — enums and buckets only ─
   /** "Download my data" produced a file the user kept (a cancelled share is not counted). */
   data_export_downloaded: { format: 'zip' | 'json'; sizeBucket: '<100kb' | '100kb-1mb' | '1mb+' };
+  /** Workouts came in from another app's CSV (G2). Counts are bucketed; never names or weights. */
+  workout_import_completed: {
+    source: 'strong' | 'hevy';
+    workoutsBucket: '0' | '1-10' | '11-50' | '51-200' | '201+';
+    createdExercises: number;
+    reimport: boolean;
+  };
 }
