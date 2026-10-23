@@ -912,7 +912,9 @@ describe('QuickAddSheet — type what you ate (lane A4)', () => {
       items: [{ name: 'Egg, 150 g', estimatedBy: 'manual', kcal: 215 }],
     });
     expect(capture).toHaveBeenCalledWith('food_text_logged', { itemCount: 1, edited: true });
-    expect(onLoggedEntries).toHaveBeenCalledWith({ entryIds: ['t1', 't2'], name: '1 item' });
+    expect(onLoggedEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ entryIds: ['t1', 't2'], name: '1 item' }),
+    );
   });
 
   it('is not offered when the sheet replaces a plan slot', () => {

@@ -1152,6 +1152,7 @@ export function QuickAddSheet({
                 onLoggedEntries?.({
                   entryIds: data.entryIds,
                   name: `${count} ${count === 1 ? 'item' : 'items'}`,
+                  dayFit: data.dayFit,
                 });
               }}
             />
