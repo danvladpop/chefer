@@ -20,6 +20,8 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RecipeTranslationDraft,
+  RecipeTranslationInput,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -245,6 +247,11 @@ export class ChainAIService implements IAIService {
 
   generateReviewText(input: CoachReviewInput): Promise<string> {
     return this.run('generateReviewText', 'review', (s) => s.generateReviewText(input), input);
+  }
+
+  translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft> {
+    // Lane J phase 3: recipe rewriting, so the cheferize route (quality first).
+    return this.run('translateRecipe', 'cheferize', (s) => s.translateRecipe(input), input);
   }
 }
 

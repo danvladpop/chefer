@@ -187,6 +187,29 @@ export interface RecipeChange {
   description: string;
 }
 
+/**
+ * Lane J phase 3 (ADR 0004): one curated recipe's English text, to be written
+ * in `locale`. The output keeps the same number of steps and ingredient names,
+ * in the same order — the service rejects anything else.
+ */
+export interface RecipeTranslationInput {
+  /** A shipped language other than English ('ro'). */
+  locale: 'ro';
+  recipe: {
+    name: string;
+    description: string;
+    instructions: string[];
+    ingredientNames: string[];
+  };
+}
+
+export interface RecipeTranslationDraft {
+  name: string;
+  description: string;
+  instructions: string[];
+  ingredientNames: string[];
+}
+
 export interface CheferizeInput {
   recipe: ExtractedRecipe;
   /** The user's preferred serving count — quantities rescale to it. */
@@ -397,6 +420,12 @@ export interface IAIService {
    * directly, outside the interface and the provider chain).
    */
   generateReviewText(input: CoachReviewInput): Promise<string>;
+  /**
+   * Lane J phase 3 (ADR 0004): a curated recipe's display text in another
+   * language, for `pnpm recipes:translate` only (never on a user request).
+   * Routed with the `cheferize` workload (recipe rewriting, quality first).
+   */
+  translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft>;
 }
 
 /** Inputs for the weekly coach review prose. */

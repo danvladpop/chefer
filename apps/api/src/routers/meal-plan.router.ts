@@ -3,11 +3,13 @@ import { planSettingsInputSchema, planShapeSchema, removeSlotInputSchema } from 
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
+import { recipeTranslationService } from '../application/recipe/recipe-translation.service.js';
 import { checkUserAiBudget } from '../lib/ai/budget-gate.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
+import { userLocale } from '../lib/user-locale.js';
 
 // A one-off override on `generate`: every field optional, merged over the
 // user's stored shape for this call only (never persisted) — e.g.
@@ -220,7 +222,11 @@ export const mealPlanRouter = router({
    * Returns the user's current active meal plan with all recipes, or null.
    */
   getActive: protectedProcedure.query(async ({ ctx }) => {
-    return mealPlanService.getActive(ctx.user.id, planView(ctx.user));
+    // ADR 0004: curated recipes in the reader's language (English fallback).
+    return recipeTranslationService.localizeWeekPlan(
+      await mealPlanService.getActive(ctx.user.id, planView(ctx.user)),
+      userLocale(ctx.user),
+    );
   }),
 
   /**
@@ -233,7 +239,10 @@ export const mealPlanRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getForWeek(ctx.user.id, input.weekOffset, planView(ctx.user));
+      return recipeTranslationService.localizeWeekPlan(
+        await mealPlanService.getForWeek(ctx.user.id, input.weekOffset, planView(ctx.user)),
+        userLocale(ctx.user),
+      );
     }),
 
   /**
@@ -242,7 +251,10 @@ export const mealPlanRouter = router({
   getRecipe: protectedProcedure
     .input(z.object({ recipeId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getRecipe(ctx.user.id, input.recipeId);
+      return recipeTranslationService.localizeOne(
+        await mealPlanService.getRecipe(ctx.user.id, input.recipeId),
+        userLocale(ctx.user),
+      );
     }),
 
   /**

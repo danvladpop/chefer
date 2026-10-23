@@ -142,3 +142,8 @@ _Avoid_: automatic, system default, auto-detect
 **Machine draft**:
 Romanian copy an agent wrote that a native speaker has not reviewed yet (`roReviewStatus`).
 _Avoid_: auto-translation, temporary copy
+
+**Recipe translation**:
+A curated recipe's name, description, steps and ingredient names in another language, drafted by the AI and then
+reviewed. Readers whose recipe has none, or whose recipe changed since it was translated, see the English.
+_Avoid_: localized recipe, Romanian recipe (that is a dish, e.g. the Romanian pool)

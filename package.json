@@ -40,7 +40,8 @@
     "ingredients:catalog": "apps/api/node_modules/.bin/tsx scripts/ingredients/build-catalog.ts --catalog",
     "ingredients:review": "apps/api/node_modules/.bin/tsx scripts/ingredients/review-page.ts",
     "ingredients:sync": "pnpm --filter @chefer/database ingredients:sync",
-    "ai:eval": "pnpm --filter @chefer/api ai:eval"
+    "ai:eval": "pnpm --filter @chefer/api ai:eval",
+    "recipes:translate": "apps/api/node_modules/.bin/tsx --env-file=apps/api/.env apps/api/src/scripts/translate-recipes.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.3.0",

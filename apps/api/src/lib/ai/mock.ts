@@ -19,6 +19,8 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RecipeTranslationDraft,
+  RecipeTranslationInput,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -584,6 +586,22 @@ export class MockAIService implements IAIService {
         ? `I've adjusted next week's budget by ${input.adjustmentKcal} kcal.`
         : "I'm keeping next week's budget as it is.",
     ].join('\n');
+  }
+
+  /**
+   * Lane J phase 3: a deterministic stand-in — the English with a "[ro] "
+   * marker, same step and ingredient counts — so the pipeline and the read
+   * path can be exercised without a provider (AI_MOCK_ENABLED).
+   */
+  async translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft> {
+    await delay(50);
+    const mark = (text: string) => `[${input.locale}] ${text}`;
+    return {
+      name: mark(input.recipe.name),
+      description: input.recipe.description ? mark(input.recipe.description) : '',
+      instructions: input.recipe.instructions.map(mark),
+      ingredientNames: input.recipe.ingredientNames.map(mark),
+    };
   }
 }
 

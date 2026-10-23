@@ -160,6 +160,12 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  // Lane J phase 3 (ADR 0004): recipe text in other languages
+  RecipeTranslationRepository,
+  recipeTranslationRepository,
+  type IRecipeTranslationRepository,
+  type TranslatableRecipe,
+  type UpsertRecipeTranslationData,
   RecipeImageRepository,
   recipeImageRepository,
   POLLINATIONS_IMAGE_HOST,
@@ -435,6 +441,8 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  // Lane J phase 3 (ADR 0004)
+  RecipeTranslation,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -444,6 +452,7 @@ export {
   IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
+  TranslationStatus,
   UserRole,
   PostStatus,
   Prisma,
