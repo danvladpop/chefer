@@ -17,9 +17,13 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 function recipeStats(payload: Extract<ShareCardPayload, { kind: 'recipe' | 'cook' }>) {
   const stats: ShareCardLines['stats'] = [];
-  if (payload.totalMinutes) stats.push({ value: `${payload.totalMinutes} min`, label: 'start to finish' });
+  if (payload.totalMinutes)
+    stats.push({ value: `${payload.totalMinutes} min`, label: 'start to finish' });
   if (payload.servings) {
-    stats.push({ value: String(payload.servings), label: plural(payload.servings, 'serving', 'servings') });
+    stats.push({
+      value: String(payload.servings),
+      label: plural(payload.servings, 'serving', 'servings'),
+    });
   }
   if (payload.nutrition) {
     stats.push({ value: `${payload.nutrition.kcal} kcal`, label: 'per serving' });
@@ -31,17 +35,31 @@ function recipeStats(payload: Extract<ShareCardPayload, { kind: 'recipe' | 'cook
 export function shareCardLines(payload: ShareCardPayload): ShareCardLines {
   switch (payload.kind) {
     case 'recipe':
-      return { eyebrow: 'From my Chefer kitchen', title: payload.title, stats: recipeStats(payload) };
+      return {
+        eyebrow: 'From my Chefer kitchen',
+        title: payload.title,
+        stats: recipeStats(payload),
+      };
     case 'cook':
-      return { eyebrow: 'Cooked it with Chefer', title: payload.title, stats: recipeStats(payload) };
+      return {
+        eyebrow: 'Cooked it with Chefer',
+        title: payload.title,
+        stats: recipeStats(payload),
+      };
     case 'workout': {
       const stats: ShareCardLines['stats'] = [];
-      for (const pr of payload.prs ?? []) stats.push({ value: pr.label, label: `New best: ${pr.exerciseName}` });
+      for (const pr of payload.prs ?? [])
+        stats.push({ value: pr.label, label: `New best: ${pr.exerciseName}` });
       if (payload.exercises > 0) {
-        stats.push({ value: String(payload.exercises), label: plural(payload.exercises, 'exercise', 'exercises') });
+        stats.push({
+          value: String(payload.exercises),
+          label: plural(payload.exercises, 'exercise', 'exercises'),
+        });
       }
-      if (payload.sets > 0) stats.push({ value: String(payload.sets), label: plural(payload.sets, 'set', 'sets') });
-      if (payload.durationMin) stats.push({ value: `${payload.durationMin} min`, label: 'of training' });
+      if (payload.sets > 0)
+        stats.push({ value: String(payload.sets), label: plural(payload.sets, 'set', 'sets') });
+      if (payload.durationMin)
+        stats.push({ value: `${payload.durationMin} min`, label: 'of training' });
       return { eyebrow: 'Workout done', title: payload.title, stats: stats.slice(0, 6) };
     }
     case 'recap': {
@@ -50,7 +68,11 @@ export function shareCardLines(payload: ShareCardPayload): ShareCardLines {
       if (cooking && cooking.cookedFromPlan > 0) {
         stats.push({
           value: String(cooking.cookedFromPlan),
-          label: plural(cooking.cookedFromPlan, 'meal cooked from my plan', 'meals cooked from my plan'),
+          label: plural(
+            cooking.cookedFromPlan,
+            'meal cooked from my plan',
+            'meals cooked from my plan',
+          ),
         });
       }
       if (cooking && cooking.newRecipesTried > 0) {
@@ -60,10 +82,16 @@ export function shareCardLines(payload: ShareCardPayload): ShareCardLines {
         });
       }
       if (protein && protein.hit > 0) {
-        stats.push({ value: `${protein.hit} of ${protein.logged}`, label: 'days at my protein goal' });
+        stats.push({
+          value: `${protein.hit} of ${protein.logged}`,
+          label: 'days at my protein goal',
+        });
       }
       if (training && training.sessions > 0) {
-        stats.push({ value: String(training.sessions), label: plural(training.sessions, 'workout', 'workouts') });
+        stats.push({
+          value: String(training.sessions),
+          label: plural(training.sessions, 'workout', 'workouts'),
+        });
       }
       if (training && training.prCount > 0) {
         stats.push({

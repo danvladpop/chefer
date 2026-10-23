@@ -11,17 +11,17 @@ import {
 import type {
   BodyweightPointDto,
   E1rmPointDto,
-  PersonalRecord,
-  WeightUnit,
   E1rmSeriesDto,
   MonthlyRecapDto,
   MuscleVolumeWeekDto,
+  PersonalRecord,
   PrDto,
   RepPrRowDto,
   SessionSummaryDto,
   StatsRange,
   StreakInfo,
   WeekSummary,
+  WeightUnit,
 } from '@chefer/types';
 import {
   addDaysLocal,
@@ -30,8 +30,8 @@ import {
   completedSetsByWeek,
   formatLoad,
   toSessionSummary,
-  type ExerciseLookup,
   weekStartOf,
+  type ExerciseLookup,
 } from '@chefer/utils';
 import { gymContextLoader, summarizeUserWeeks, type GymContextLoader } from './gym-context.js';
 import { lookupFromRows, serverToday, toSessionDoc } from './mappers.js';

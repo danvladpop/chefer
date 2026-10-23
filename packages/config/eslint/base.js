@@ -93,6 +93,7 @@ export const base = tseslint.config(
       '**/safety-copy.ts',
       '**/wellness-copy.ts',
       '**/engagement-copy.ts',
+      '**/share-card-lines.ts',
       '**/premium-pitch.ts',
       '**/features/safety/**/*.{ts,tsx}',
       '**/features/*/copy.ts',

@@ -63,7 +63,10 @@ export class ShareService {
     this.deps = { ...defaultDeps, ...deps };
   }
 
-  private async payloadFor(userId: string, input: CreateShareCardParsed): Promise<ShareCardPayload> {
+  private async payloadFor(
+    userId: string,
+    input: CreateShareCardParsed,
+  ): Promise<ShareCardPayload> {
     switch (input.kind) {
       case 'recipe':
       case 'cook': {
@@ -125,7 +128,11 @@ export class ShareService {
   async get(id: string): Promise<ShareCardDto> {
     const row = await this.deps.repo.findById(id);
     if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: NOT_FOUND });
-    return { id: row.id, payload: row.payload as unknown as ShareCardPayload, createdAt: row.createdAt };
+    return {
+      id: row.id,
+      payload: row.payload as unknown as ShareCardPayload,
+      createdAt: row.createdAt,
+    };
   }
 }
 

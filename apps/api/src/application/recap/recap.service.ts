@@ -10,10 +10,10 @@ import type { WeeklyRecapDto } from '@chefer/types';
 import {
   addDaysLocal,
   recapFoodCounts,
+  weekLabel,
   weekStartForDate,
   type LoggedMealRef,
   type PlannedMealSlot,
-  weekLabel,
 } from '@chefer/utils';
 import { gymStatsService, type GymStatsService } from '../gym/gym-stats.service.js';
 import { serverToday } from '../gym/mappers.js';
@@ -75,7 +75,8 @@ export class RecapService {
     ]);
 
     const targets = profile ? resolveTargets(profile) : null;
-    const hasProteinTarget = targets !== null && (targets.source === 'own' || targets.inputs.goal !== null);
+    const hasProteinTarget =
+      targets !== null && (targets.source === 'own' || targets.inputs.goal !== null);
 
     const counts = recapFoodCounts({
       logs: logs.map((log) => ({

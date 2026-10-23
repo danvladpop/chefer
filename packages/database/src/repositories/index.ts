@@ -460,3 +460,11 @@ export {
   type IUploadReferenceRepository,
   type PurgeResult,
 } from './upload-reference.repository';
+
+// Lane E2 (market review 2026-10): share-card snapshots
+export {
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
+} from './share-card.repository';
