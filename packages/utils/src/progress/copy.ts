@@ -1,4 +1,5 @@
 import type {
+  AchievementGroup,
   AchievementId,
   PlanSlotMealType,
   QuestKind,
@@ -73,7 +74,146 @@ export const PROGRESS_COPY = {
     'Food rewards are taking a short break. If eating feels hard right now, talking to your GP or someone you trust can help.',
   cookYouMadeIt: 'You made it!',
   reminderOff: 'Off',
+  // ── Added by the mobile lane (Kitchen progress P1) ──
+  livePrBanner: 'New best',
+  stripFlameHint: 'Opens your flame',
+  flameSubtitle: 'Your cooking flame.',
+  flameThisWeek: 'This week',
+  flameMilestoneNext: 'next',
+  flameDayActive: 'active day',
+  flameDayRest: 'rest day',
+  flameDayToday: 'today',
+  flameDayLater: 'later this week',
+  flameSheetClose: 'Close your flame',
+  goalSheetTitle: 'Weekly active-day goal',
+  pauseLengthTitle: 'How long?',
+  pauseConfirm: 'Pause my flame',
+  unlockedBadge: 'New badge',
+  seeAll: 'See all',
+  achievementsAll: 'All',
+  achievementsAllEarned: 'All tiers earned',
+  achievementsLocked: 'Not earned yet',
+  achievementsNew: 'New',
+  achievementsLoadError: 'Couldn’t load your achievements',
+  recapEyebrow: 'Your week',
+  recapHeadline: 'Your week in the kitchen',
+  recapCooked: 'meals cooked at home',
+  recapWorkouts: 'workouts',
+  recapWorkoutsGoalMet: 'workouts · goal met',
+  recapPrs: 'new PRs',
+  recapNewRecipes: 'new recipes tried',
+  recapDish: 'Dish of the week',
+  recapRated: 'You rated it',
+  recapFlame: 'Flame',
+  recapXp: 'XP earned',
+  recapBiscuit: 'Biscuit’s take',
+  recapClose: 'Close recap',
+  recapNext: 'Next card',
+  recapPrevious: 'Previous card',
+  recapLoadError: 'Couldn’t load this recap',
+  recapEmpty: 'Nothing to show for this week yet.',
+  reminderTimeTitle: 'Reminder time',
+  reminderTimeOn: 'Gentle reminder, on',
+  settingsLoadError: 'Couldn’t load your settings',
+  introBadgesAndXp: 'earned from what you’ve already done',
+  receiptOpenAchievements: 'See your badges',
+  loadError: 'Couldn’t load this just now',
+  unavailable: 'Kitchen progress isn’t available right now.',
+  achievementTierLabel: 'Tier',
+  biscuitName: 'Biscuit',
+  recapUnavailable: 'This recap isn’t available.',
+  retry: 'Try again',
 } as const;
+
+export const PROGRESS_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+export const PROGRESS_WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
+
+/** "6 wk" — the Today strip's short flame count. */
+export function flameWeeksShort(weeks: number): string {
+  return `${weeks} wk`;
+}
+
+/** "3 days" / "1 day" — the weekly goal value. */
+export function goalDaysLabel(days: number): string {
+  return days === 1 ? '1 day' : `${days} days`;
+}
+
+/** "+40 XP bonus". */
+export function bonusLabel(xp: number): string {
+  return `+${xp} XP bonus`;
+}
+
+/** "Next: Sous Chef at level 12". */
+export function nextRankLine(title: string, minLevel: number): string {
+  return `Next: ${title} at level ${minLevel}`;
+}
+
+/** "Pilot lights: 2". */
+export function pilotLightsLabel(count: number): string {
+  return `Pilot lights: ${count}`;
+}
+
+/** "Change weekly goal (3 days)". */
+export function changeGoalLabel(goal: number): string {
+  return `${PROGRESS_COPY.changeGoal} (${goalDaysLabel(goal)})`;
+}
+
+/** "6-week flame". */
+export function chefCardFlameLabel(weeks: number): string {
+  return `${weeks}-week flame`;
+}
+
+/** "23 of 64". */
+export function badgesOfTotal(earned: number, total: number): string {
+  return `${earned} of ${total}`;
+}
+
+/** "Home-cooked meal #37". */
+export function cookCountLine(count: number): string {
+  return `Home-cooked meal #${count}`;
+}
+
+/** "cooked once" / "cooked twice" / "cooked 3 times". */
+export function dishCookedLabel(times: number): string {
+  if (times <= 1) return 'cooked once';
+  if (times === 2) return 'cooked twice';
+  return `cooked ${times} times`;
+}
+
+/** "340 / 500 XP to Chef de Partie", or the top-rank line. */
+export function xpToRankLine(xpIntoLevel: number, xpForLevel: number, nextRank: string | null) {
+  if (nextRank === null) return PROGRESS_COPY.maxRank;
+  return `${xpIntoLevel} / ${xpForLevel} ${PROGRESS_COPY.xpToRank} ${nextRank}`;
+}
+
+/** "Welcome to the kitchen" intro body: "1,240 XP and 6 badges earned from…". */
+export function introBackdatedLine(xp: number, badges: number): string {
+  const badgeText = badges === 1 ? '1 badge' : `${badges} badges`;
+  return `${xp.toLocaleString('en-US')} XP and ${badgeText} ${PROGRESS_COPY.introBadgesAndXp}`;
+}
+
+/** "New badge: Home Chef II". */
+export function unlockLine(title: string, tier: number): string {
+  return `${PROGRESS_COPY.unlockedBadge}: ${title}${tier > 1 ? ` ${tierNumeral(tier)}` : ''}`;
+}
+
+/** "Level 8 · Chef de Partie" (the subtle level-up snackbar). */
+export function levelUpLine(level: number, rank: string): string {
+  return `${PROGRESS_COPY.levelUpTitle} Level ${level} · ${rank}`;
+}
+
+/** "Bench press 80 kg × 5" (the live PR banner's detail). */
+export function livePrLine(exercise: string, load: string, reps: number): string {
+  return `${PROGRESS_COPY.livePrBanner} · ${exercise} ${load} × ${reps}`;
+}
+
+export const ACHIEVEMENT_GROUP_COPY: Record<AchievementGroup, { title: string; icon: string }> = {
+  KITCHEN: { title: 'Kitchen', icon: '🍳' },
+  TABLE: { title: 'Table', icon: '🥗' },
+  GYM: { title: 'Gym', icon: '🏋️' },
+  FLAME: { title: 'Flame', icon: '🔥' },
+  PLAN: { title: 'Plan', icon: '🗓️' },
+};
 
 const RANK_TITLES: Record<RankId, string> = {
   KITCHEN_PORTER: 'Kitchen Porter',
@@ -256,5 +396,27 @@ export function allProgressCopyStrings(): string[] {
   for (const c of Object.values(ACHIEVEMENT_COPY)) out.push(c.title, c.describe(10));
   for (const lines of Object.values(BISCUIT_LINES)) out.push(...lines);
   for (const r of REMINDER_LINES) out.push(r.title, r.body);
+  out.push(
+    flameWeeksShort(6),
+    goalDaysLabel(1),
+    goalDaysLabel(3),
+    bonusLabel(40),
+    nextRankLine('Sous Chef', 12),
+    pilotLightsLabel(2),
+    changeGoalLabel(3),
+    chefCardFlameLabel(6),
+    badgesOfTotal(23, 64),
+    cookCountLine(37),
+    dishCookedLabel(1),
+    dishCookedLabel(2),
+    dishCookedLabel(5),
+    xpToRankLine(340, 500, 'Chef de Partie'),
+    introBackdatedLine(1240, 6),
+    unlockLine('Home Chef', 2),
+    levelUpLine(8, 'Chef de Partie'),
+    livePrLine('Bench press', '80 kg', 5),
+    ...PROGRESS_WEEKDAYS,
+  );
+  for (const g of Object.values(ACHIEVEMENT_GROUP_COPY)) out.push(g.title);
   return out;
 }
