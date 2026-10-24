@@ -8,7 +8,7 @@ import {
   type SessionExerciseWithSets,
 } from '@chefer/database';
 import type { WeightUnit } from '@chefer/types';
-import { formatLoadNumber, unitLabel } from '@chefer/utils';
+import { escapeCsvField, formatLoadNumber, unitLabel } from '@chefer/utils';
 
 // ─── gym.export.csv (gym_plan.md §4.2, research §5.2 #5) ─────────────────────
 // "Offer CSV export of the full history from day one" — a blocking-modal /
@@ -130,20 +130,6 @@ function formatRir(rir: number | null): string {
 
 function exportFilename(): string {
   return `chefer-gym-history-${new Date().toISOString().slice(0, 10)}.csv`;
-}
-
-/**
- * RFC 4180 escaping (quote a field containing a comma, quote or newline),
- * plus formula neutralising: a text field starting with = + - @ is prefixed
- * with ' so spreadsheets don't execute it (audit F-GYM-11-4). Plain numbers
- * are left alone.
- */
-function escapeCsvField(raw: string): string {
-  const value = /^[=+\-@]/.test(raw) && !/^-?\d+(\.\d+)?$/.test(raw) ? `'${raw}` : raw;
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }
 
 export const gymExportService = new GymExportService();

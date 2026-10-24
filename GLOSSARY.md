@@ -129,6 +129,18 @@ _Avoid_: Trainer session
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
 
+## Your data
+
+**Data export**:
+The ZIP a user downloads from Privacy & data → "Download my data": `chefer-data.json` (everything), a README,
+and spreadsheet CSVs. Free for every account.
+_Avoid_: backup (we don't restore from it), GDPR request, data dump
+
+**Workout import**:
+Bringing past workouts from another app (Strong, Hevy) into Chefer's gym history from that app's CSV export.
+Imported workouts count like logged ones: PRs, e1RM charts and progression.
+_Avoid_: sync (nothing stays connected), migration
+
 ## Curated recipes
 
 **Curated pool**:

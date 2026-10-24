@@ -222,6 +222,9 @@ export interface EventMap {
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
 
+  // ─── Data portability (G1/G2, market review 2026-10) — enums and buckets only ─
+  /** "Download my data" produced a file the user kept (a cancelled share is not counted). */
+  data_export_downloaded: { format: 'zip' | 'json'; sizeBucket: '<100kb' | '100kb-1mb' | '1mb+' };
   // ─── Health sync (C2, Apple Health / Health Connect) ─────────────────────────
   /** A data type switched on or off on the "Connect health" screen. */
   health_sync_toggled: { platform: HealthPlatform; type: HealthSyncType; on: boolean };
