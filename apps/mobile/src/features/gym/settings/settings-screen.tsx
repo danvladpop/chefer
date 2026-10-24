@@ -26,6 +26,7 @@ import {
   pauseEndDate,
   pauseStartDate,
   pauseSummaryLine,
+  profileDistanceUnit,
   SESSION_LENGTH_OPTIONS,
   unitLabel,
   unitToKg,
@@ -362,7 +363,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
   const { profile } = bootstrap;
   const unit = profile.unit;
   // T-42.3 (S21, Δ2.2): null/absent derives from `unit` — MI when LB, else KM.
-  const distanceUnit = profile.distanceUnit ?? (unit === 'LB' ? 'MI' : 'KM');
+  const distanceUnit = profileDistanceUnit({ unit, distanceUnit: profile.distanceUnit });
   const today = localDate();
   const isPausedThisWeek = bootstrap.weeks.some(
     (w) => w.weekStart === weekStartOf(today) && w.status === 'paused',

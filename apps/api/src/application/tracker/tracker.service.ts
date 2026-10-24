@@ -9,6 +9,7 @@ import {
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import { parseStoredNumbersMode } from '@chefer/types';
 import type {
+  HealthPlatform,
   NumbersMode,
   NutritionTargets,
   ProteinGuide,
@@ -181,7 +182,7 @@ export interface DayTrackerData {
     fatG: number;
   };
   /**
-   * GAIN_MUSCLE lifters only: this day's training-day adjustment — the same
+   * GAIN_MUSCLE and MAINTAIN lifters only: this day's training-day adjustment — the same
    * payload `dashboard.summary.nutrition.trainingDay` carries (audit P2-4
    * follow-up). Additive; `targets` above keeps meaning the BASE targets.
    */
@@ -1023,6 +1024,29 @@ export const trackerService = {
   async logWeight(userId: string, weightKg: number, dateStr?: string) {
     const recordedAt = dateStr ? new Date(dateStr) : new Date();
     return weightEntryRepository.create({ userId, weightKg, recordedAt });
+  },
+
+  /**
+   * C2: weigh-ins read from Apple Health / Health Connect. Stored like a typed
+   * weigh-in (the LOCAL day at UTC midnight, so trend weight and history treat
+   * them the same) with their source and sample id; a sample already imported
+   * is skipped, so the phone can re-send overlapping windows safely.
+   */
+  async importWeights(
+    userId: string,
+    source: HealthPlatform,
+    entries: { externalId: string; weightKg: number; date: string }[],
+  ): Promise<{ imported: number; skipped: number }> {
+    const imported = await weightEntryRepository.importMany(
+      userId,
+      source,
+      entries.map((e) => ({
+        externalId: e.externalId,
+        weightKg: e.weightKg,
+        recordedAt: new Date(e.date),
+      })),
+    );
+    return { imported, skipped: entries.length - imported };
   },
 
   async updateWeight(userId: string, id: string, weightKg: number, dateStr?: string) {
