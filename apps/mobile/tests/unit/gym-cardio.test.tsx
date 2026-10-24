@@ -124,7 +124,14 @@ describe('CardioEntry (T-42.3)', () => {
     expect(screen.getByText('mi')).toBeTruthy();
     // No setting saved yet: the unit that goes with kilograms.
     await view.rerender(
-      <CardioEntry se={cardioSe()} meta={bikeMeta} unit="KG" prior={[]} onLogIt={jest.fn()} testID="cardio" />,
+      <CardioEntry
+        se={cardioSe()}
+        meta={bikeMeta}
+        unit="KG"
+        prior={[]}
+        onLogIt={jest.fn()}
+        testID="cardio"
+      />,
     );
     expect(screen.getByText('km')).toBeTruthy();
   });
