@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import Animated, { useAnimatedProps } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import {
   dashOffset,
   isOverTarget,
@@ -11,7 +12,7 @@ import {
   progressColor,
 } from '../motion/progress';
 import { useProgressValue } from '../motion/use-progress-value';
-import { colors } from './theme';
+import { useChartColors } from './theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -29,7 +30,7 @@ export interface ProgressRingProps {
   color?: string;
   trackColor?: string;
   /**
-   * Over-target colour (MO-06), e.g. `colors.warning` for calories. Omit for
+   * Over-target colour (MO-06), e.g. the `attention` role for calories. Omit for
    * rings where "more than planned" is not a warning (gym week ring).
    */
   overColor?: string;
@@ -52,15 +53,20 @@ export function ProgressRing({
   progress,
   size = 64,
   strokeWidth = 6,
-  color = colors.primary,
-  trackColor = colors.neutralSoft,
+  color: colorProp,
+  trackColor: trackColorProp,
   overColor,
-  overflowColor = colors.warningStrong,
+  overflowColor: overflowColorProp,
   children,
   className,
   testID,
   accessibilityLabel,
 }: ProgressRingProps) {
+  const roles = useThemeColors();
+  const chart = useChartColors();
+  const color = colorProp ?? roles.brand;
+  const trackColor = trackColorProp ?? roles.surfaceSunken;
+  const overflowColor = overflowColorProp ?? chart.overflow;
   const target = normaliseProgress(progress);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;

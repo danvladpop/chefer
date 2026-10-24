@@ -4,8 +4,9 @@
 import { View } from 'react-native';
 import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../../hooks/use-theme-colors';
 import { Text } from '../text';
-import { chartPalette, colors } from '../theme';
+import { useChartColors } from '../theme';
 import { RevealClip, useChartReveal, useClipId } from './chart-reveal';
 import {
   clampLabelCentre,
@@ -61,6 +62,8 @@ export function BarChart({
   testID,
   accessibilityLabel,
 }: BarChartProps) {
+  const roles = useThemeColors();
+  const chartPalette = useChartColors().series;
   const { width, onLayout } = useChartWidth(widthProp);
   // Draw-in: the bars rise from the baseline on mount and on a new series.
   const clipId = useClipId();
@@ -84,7 +87,7 @@ export function BarChart({
   for (const bar of data) {
     for (const segment of bar.segments) {
       if (!palette.has(segment.key)) {
-        const next = chartPalette[palette.size % chartPalette.length] ?? colors.primary;
+        const next = chartPalette[palette.size % chartPalette.length] ?? roles.brand;
         palette.set(segment.key, next);
       }
     }
@@ -121,7 +124,7 @@ export function BarChart({
               y={y(band.max)}
               width={plotRight - plotLeft}
               height={Math.max(0, y(band.min) - y(band.max))}
-              fill={colors.success}
+              fill={roles.positive}
               fillOpacity={0.12}
             />
           ) : null}
@@ -133,14 +136,14 @@ export function BarChart({
                 x2={plotRight}
                 y1={y(value)}
                 y2={y(value)}
-                stroke={colors.border}
+                stroke={roles.separator}
                 strokeWidth={1}
               />
               <SvgText
                 x={plotLeft - 4}
                 y={y(value) + 3}
                 fontSize={10}
-                fill={colors.mutedForeground}
+                fill={roles.labelTertiary}
                 textAnchor="end"
               >
                 {formatY(value)}
@@ -173,7 +176,7 @@ export function BarChart({
                         y={y1}
                         width={barWidth}
                         height={Math.max(0, y0 - y1)}
-                        fill={palette.get(segment.key) ?? colors.primary}
+                        fill={palette.get(segment.key) ?? roles.brand}
                       />
                     ) : null;
                   })}
@@ -190,7 +193,7 @@ export function BarChart({
                 x={clampLabelCentre(left + barWidth / 2, bar.label, width)}
                 y={height - 4}
                 fontSize={10}
-                fill={colors.mutedForeground}
+                fill={roles.labelTertiary}
                 textAnchor="middle"
               >
                 {bar.label}

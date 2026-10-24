@@ -10,6 +10,7 @@ import {
   Text,
   timing,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
 import { friendsErrorData } from '../api/friends-errors';
@@ -67,6 +68,7 @@ export type SearchResultsProps = {
 };
 
 export function SearchResults({ query, pending, online }: SearchResultsProps) {
+  const colors = useThemeColors();
   const reduced = useReducedMotion();
   const { active, query: search, results } = useSearchResults(query);
   const trimmed = query.trim();
@@ -129,7 +131,7 @@ export function SearchResults({ query, pending, online }: SearchResultsProps) {
     return (
       <EmptyState
         testID="friends-search-empty"
-        icon={<Ionicons name="search-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="search-outline" size={40} color={colors.labelTertiary} />}
         title={FRIENDS_COPY.search.noResults.title(trimmed)}
         description={FRIENDS_COPY.search.noResults.body}
         action={{

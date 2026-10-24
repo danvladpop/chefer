@@ -38,7 +38,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
             </View>
             <MealTypeBadge mealType={meal.mealType} />
           </View>
-          <Text className="text-base font-bold leading-snug text-gray-900">{meal.recipe.name}</Text>
+          <Text className="text-base font-bold leading-snug text-label">{meal.recipe.name}</Text>
         </View>
       </Pressable>
       <View className="p-4 pt-2">
