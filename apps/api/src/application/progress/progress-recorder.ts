@@ -314,10 +314,9 @@ export class ProgressRecorder implements IProgressRecorder {
     const d = this.deps;
     const rows = await d.sessions.findCompleted(userId, {});
     const wanted = new Set(sessionIds);
-    // TODO(lane-G importSource): a phone edit of an imported Strong/Hevy session
-    // syncs through upsertMany too; once danvladpop/chefer#193 lands, also require
-    // `r.importSource === null` here (imports never score, like back-dating).
-    const targets = rows.filter((r) => wanted.has(r.id));
+    // A phone edit of an imported Strong/Hevy session syncs through upsertMany
+    // too: imports never score (G2 `importSource`, like back-dating).
+    const targets = rows.filter((r) => wanted.has(r.id) && r.importSource === null);
     if (targets.length === 0) return;
 
     // PRs exactly as gym-stats counts them: one chronological pass over the

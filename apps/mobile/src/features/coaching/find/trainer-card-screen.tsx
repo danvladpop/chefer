@@ -14,6 +14,7 @@ import {
 } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { track } from '../../../lib/analytics';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { askNotificationPermissionAt } from '../../notifications/push/push-permission';
@@ -119,6 +120,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
   const send = trpc.coaching.requestCoaching.useMutation({
     meta: { silent: true },
     onSuccess: () => {
+      track('coaching_requested', {});
       setAsking(false);
       snackbar.show({ message: COACHING_COPY.request.sent(card.data?.name ?? '') });
       // §7.2 (M4): the answer arrives as a push — the moment the permission has value.
