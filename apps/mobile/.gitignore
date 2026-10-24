@@ -43,3 +43,8 @@ yarn-error.*
 
 # local release binaries + their runtime fingerprints (scripts/release-*.sh)
 /release-builds/
+
+# FCM config (trainer mode M4 push) — never committed: EAS builds read the
+# GOOGLE_SERVICES_JSON file env var, local builds a copy placed here by hand.
+google-services.json
+GoogleService-Info.plist

@@ -371,6 +371,20 @@ const envSchema = z.object({
   // and any account that never linked, never need this).
   POSTHOG_PERSONAL_API_KEY: z.preprocess(emptyAsUnset, z.string().optional()),
   POSTHOG_PROJECT_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+
+  // Push notifications (trainer-mode.md §7.2, M4; workers/push-delivery.worker.ts).
+  // Only 'true' calls the Expo push API; anything else (dev, CI) uses a no-op
+  // client, so outbox rows are marked sent and nothing leaves the server.
+  // EXPO_ACCESS_TOKEN (optional): needed only when the Expo project has
+  // "enhanced push security" turned on.
+  EXPO_PUSH_ENABLED: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .default('false')
+      .transform((val) => val === 'true'),
+  ),
+  EXPO_ACCESS_TOKEN: z.preprocess(emptyAsUnset, z.string().optional()),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

@@ -10,12 +10,18 @@ import { cn } from '@chefer/utils';
 export interface NotificationsOffRowProps {
   /** What stays off, e.g. "Weekly updates". Defaults to the plain line. */
   message?: string;
+  /** The explanation under it; `null` when `message` already says it all. */
+  detail?: string | null;
+  /** The Settings button's label. */
+  actionLabel?: string;
   className?: string;
   testID?: string;
 }
 
 export function NotificationsOffRow({
   message = 'Off for Chefer',
+  detail = "Notifications are turned off for Chefer in your phone's Settings.",
+  actionLabel = 'Open Settings',
   className,
   testID = 'notifications-off-row',
 }: NotificationsOffRowProps) {
@@ -28,18 +34,16 @@ export function NotificationsOffRow({
         <Text testID={`${testID}-message`} className="text-subhead font-semibold text-attention">
           {message}
         </Text>
-        <Text className="text-caption text-label-secondary">
-          Notifications are turned off for Chefer in your phone&apos;s Settings.
-        </Text>
+        {detail ? <Text className="text-caption text-label-secondary">{detail}</Text> : null}
       </View>
       <Button
         testID={`${testID}-open-settings`}
         variant="outline"
         size="sm"
-        accessibilityLabel="Open Settings"
+        accessibilityLabel={actionLabel}
         onPress={() => void Linking.openSettings()}
       >
-        Open Settings
+        {actionLabel}
       </Button>
     </View>
   );

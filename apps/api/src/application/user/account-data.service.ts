@@ -14,6 +14,7 @@ import { socialAuthService } from '../auth/social-auth.service.js';
 import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { gymStatsService } from '../gym/gym-stats.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
+import { pushService } from '../notifications/push.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
 // Users had no way to get their data or delete their account; the privacy
@@ -433,6 +434,8 @@ export async function collectAccountData(userId: string) {
   const shoppingLists = await prisma.shoppingList.findMany({
     where: { planId: { in: mealPlans.map((p) => p.id) } },
   });
+  // Trainer mode M4: registered devices (never the token) and the push switches.
+  const push = await pushService.exportData(userId);
   // G1: routines and PRs store exercise ids — name every one (curated and
   // the user's own custom), so the export reads without Chefer's library.
   const exerciseIds = new Set([
@@ -493,6 +496,7 @@ export async function collectAccountData(userId: string) {
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,
+      push,
       aiCallLog,
     },
   };

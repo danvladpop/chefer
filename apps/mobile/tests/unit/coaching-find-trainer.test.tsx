@@ -22,6 +22,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+// Trainer mode M4 (§7.2): a sent request is push's `coaching_request` permission moment.
+const mockAskPush = jest.fn((_moment: string) => Promise.resolve(false));
+jest.mock('../../src/features/notifications/push/push-permission', () => ({
+  askNotificationPermissionAt: (moment: string) => mockAskPush(moment),
+}));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 
@@ -150,9 +155,11 @@ describe('A trainer’s card', () => {
     );
     expect(screen.queryByTestId('coaching-switch-line')).toBeNull();
     expect(r.paths()).not.toContain('coaching.requestCoaching');
+    expect(mockAskPush).not.toHaveBeenCalled();
 
     await user.press(screen.getByTestId('coaching-consent-allow'));
     await settle();
+    expect(mockAskPush).toHaveBeenCalledWith('coaching_request');
     const input = r.calls.find((c) => c.path === 'coaching.requestCoaching')?.input as {
       trainerId: string;
       localDate: string;
