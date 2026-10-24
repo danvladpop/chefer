@@ -24,8 +24,10 @@ export interface TransportEvent {
 }
 
 const enabled = Boolean(env.EXPO_PUBLIC_POSTHOG_KEY && env.EXPO_PUBLIC_POSTHOG_HOST);
+// From the origin, so a trailing slash in the configured host can't produce
+// `//batch/` (`origin` behaves the same in React Native's partial URL).
 const endpoint = env.EXPO_PUBLIC_POSTHOG_HOST
-  ? `${env.EXPO_PUBLIC_POSTHOG_HOST}${BATCH_ENDPOINT_SUFFIX}`
+  ? `${new URL(env.EXPO_PUBLIC_POSTHOG_HOST).origin}${BATCH_ENDPOINT_SUFFIX}`
   : null;
 
 let queue: TransportEvent[] = [];

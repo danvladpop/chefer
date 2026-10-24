@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { HEALTH_CONSENT_VERSION, HEALTH_WITHDRAW_CONFIRM } from '@chefer/types';
+import {
+  HEALTH_CONSENT_VERSION,
+  HEALTH_WITHDRAW_CONFIRM,
+  recordHealthSyncInputSchema,
+} from '@chefer/types';
 import { privacyService } from '../application/privacy/privacy.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
@@ -68,6 +72,17 @@ export const privacyRouter = router({
     .input(z.object({ confirm: z.literal(HEALTH_WITHDRAW_CONFIRM) }))
     .mutation(({ ctx }) =>
       privacyService.withdrawHealthData({ userId: ctx.user.id, source: sourceOf(ctx) }),
+    ),
+
+  /**
+   * C2 "Connect health": logs which Apple Health / Health Connect data types
+   * are now on, after every change (HEALTH_SYNC). Logging only — the switches
+   * themselves live on the device, behind the OS permissions.
+   */
+  recordHealthSync: protectedProcedure
+    .input(recordHealthSyncInputSchema)
+    .mutation(({ ctx, input }) =>
+      privacyService.recordHealthSync({ userId: ctx.user.id, source: sourceOf(ctx), ...input }),
     ),
 
   /** Re-accept sheet after a Terms/Privacy document version bump. */
