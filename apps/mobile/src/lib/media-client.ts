@@ -89,7 +89,7 @@ export function uploadErrorFrom(status: number | null, body: unknown, bytes: num
   return new Error(SOMETHING_WRONG_MESSAGE);
 }
 
-/** Encodes bytes as base64 — photos sent through tRPC (packaged products, ADR 0005). */
+/** Encodes bytes as base64 — photos sent through tRPC (packaged products, ADR 0006). */
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const CHUNK = 0x8000;

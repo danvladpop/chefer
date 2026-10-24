@@ -111,7 +111,6 @@ function LegacyTrackerScreen() {
     loggedFat,
   } = useTrackerDay();
   const [mealActionsOpen, setMealActionsOpen] = useState(false);
-  const colors = useThemeColors();
 
   return (
     <NumbersModeProvider mode={data?.numbersMode}>

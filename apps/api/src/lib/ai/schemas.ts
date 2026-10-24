@@ -153,7 +153,7 @@ export function parseMealPhotoResponse(raw: string): MealPhotoEstimate {
   };
 }
 
-// ─── Nutrition label reading (packaged products, ADR 0005) ───────────────────
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
 
 const labelNumber = (max: number) => z.number().finite().min(0).max(max).nullable();
 

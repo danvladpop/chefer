@@ -796,7 +796,7 @@ export class GeminiAIService implements IAIService {
     return parseFoodTextResponse(raw);
   }
 
-  /** Packaged products (ADR 0005): copies a nutrition label into a reviewable draft. */
+  /** Packaged products (ADR 0006): copies a nutrition label into a reviewable draft. */
   async readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {
     const response = await this.generateWithRetry(
       {

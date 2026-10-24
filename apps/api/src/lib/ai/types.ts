@@ -148,7 +148,7 @@ export interface MealPhotoEstimate {
   portionNote: string;
 }
 
-// ─── Nutrition label reading (packaged products, ADR 0005) ───────────────────
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
 
 /**
  * The numbers printed on a packaged food's nutrition table, copied, not
@@ -422,7 +422,7 @@ export interface IAIService {
   /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
   analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;
   /**
-   * Packaged products (ADR 0005): copies a nutrition label's numbers into a
+   * Packaged products (ADR 0006): copies a nutrition label's numbers into a
    * draft the user reviews. Same `vision` workload and Snap-to-Log quota as
    * analyzeMealPhoto. Additive.
    */

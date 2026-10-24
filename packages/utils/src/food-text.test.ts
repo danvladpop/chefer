@@ -25,7 +25,6 @@ const stew: ParsedFoodItem = {
   text: 'stew',
   name: 'Stew',
   source: 'estimate',
-  productId: undefined,
   unit: 'g',
   grams: 300,
   per100g: { kcal: 120, protein: null, carbs: 10, fat: 5 },

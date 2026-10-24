@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { prepareZXingModule, readBarcodes } from 'zxing-wasm/reader';
 import { isValidGtin } from '@chefer/types';
 
-// ─── Barcode photo → GTIN (ADR 0005, stage 1) ─────────────────────────────────
+// ─── Barcode photo → GTIN (ADR 0006, stage 1) ─────────────────────────────────
 // The app photographs the barcode with the image picker it already ships and
 // this decodes it server-side, so packaged-food logging needed no native
 // module. ZXing-C++ compiled to WebAssembly (zxing-wasm): no network, no

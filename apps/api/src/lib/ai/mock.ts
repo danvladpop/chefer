@@ -261,7 +261,7 @@ export class MockAIService implements IAIService {
   }
 
   /**
-   * Packaged products (ADR 0005): a fixed oat-biscuit label read per serving,
+   * Packaged products (ADR 0006): a fixed oat-biscuit label read per serving,
    * so the per-100 g conversion and the review step are drivable in mock mode.
    */
   async readNutritionLabel(

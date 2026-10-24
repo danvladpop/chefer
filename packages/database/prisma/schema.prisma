@@ -276,7 +276,7 @@ model User {
   // Phase 1 guardrails: the ledger of photos this user uploaded
   uploadedFiles UploadedFile[]
 
-  // Packaged foods (ADR 0005): products this user read off a label or typed in
+  // Packaged foods (ADR 0006): products this user read off a label or typed in
   packagedProducts PackagedProduct[]
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2): the ledger, cook log, totals, badges and quest sets
   progressEvents    ProgressEvent[]
@@ -1088,7 +1088,7 @@ enum NutritionSource {
   ADMIN
 }
 
-// ─── Packaged products (docs/adr/0005-packaged-products.md) ───────────────────
+// ─── Packaged products (docs/adr/0006-packaged-products.md) ───────────────────
 // Branded, barcoded foods, kept apart from the reviewed ingredient catalog:
 // their numbers come from Open Food Facts or from a label, never from Chefer's
 // review. OFF rows are a shared cache (ownerId null, one per barcode, the
