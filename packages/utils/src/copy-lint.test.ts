@@ -5,6 +5,7 @@
 // forbidden phrase can't sneak in through string concatenation either.
 import { describe, expect, it } from 'vitest';
 import { containsForbiddenPhrase } from '@chefer/eslint-config/rules/no-forbidden-copy';
+import { ENGAGEMENT_COPY, MEAL_REMINDER_NOTIFICATION } from './engagement-copy';
 import { PLAN_TAILORING_COPY } from './plan-tailoring';
 import { PREMIUM_PITCH_COPY } from './premium-pitch';
 import { allProgressCopyStrings } from './progress/copy';
@@ -16,6 +17,13 @@ const COPY_MODULES: Record<string, Record<string, string>> = {
   'wellness-copy': WELLNESS_COPY,
   'premium-pitch': PREMIUM_PITCH_COPY,
   'plan-tailoring': PLAN_TAILORING_COPY,
+  'engagement-copy': ENGAGEMENT_COPY,
+  ...Object.fromEntries(
+    Object.entries(MEAL_REMINDER_NOTIFICATION).map(([slot, copy]) => [
+      `meal-reminder.${slot}`,
+      copy,
+    ]),
+  ),
   'progress/copy': Object.fromEntries(allProgressCopyStrings().map((v, i) => [String(i), v])),
 };
 

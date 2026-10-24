@@ -5,6 +5,7 @@ import { clearLocalUserData } from '../features/gym/offline/clear-local-data';
 import { cancelAllGymReminders } from '../features/gym/reminders/cancel-reminders';
 import { clearBookingReminders } from '../features/notifications/booking-reminders';
 import { clearFoodNudges } from '../features/notifications/food-nudges';
+import { cancelAllMealReminders } from '../features/notifications/meal-reminders';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
 import { clearGentleReminder } from '../features/progress/gentle-reminder';
 import { clearToken, getSessionQueryClient } from './auth-store';
@@ -58,6 +59,8 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
     await stage(() => cancelAllGymReminders());
     // UX-PO-08: the dinner / plan-Sunday nudges belong to the account too.
     await stage(() => clearFoodNudges());
+    // Lane E1: so are the meal-time reminders (the choice itself stays on the server).
+    await stage(() => cancelAllMealReminders());
     // Kitchen progress: the gentle reminder belongs to the account too.
     await stage(() => clearGentleReminder());
     // Trainer mode §7.3: the booking reminders name this account's sessions.

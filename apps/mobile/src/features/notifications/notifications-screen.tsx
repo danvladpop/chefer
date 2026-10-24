@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
+import { ENGAGEMENT_COPY } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
 import {
@@ -14,9 +15,10 @@ import { WeeklyUpdatesCard } from '../preferences/weekly-updates-card';
 import { TrainButton } from '../shell/train/train-button';
 import { BookingReminderSwitch } from './booking-reminder-switch';
 import { FoodNudgeSwitches } from './food-nudge-switches';
+import { MealReminderSettings } from './meal-reminder-settings';
 
 // Settings → Notifications (UX-PO-08, WP-13): every reminder Chefer can send, in
-// one place. Weekly updates (phone + email) are the same card Preferences
+// one place. Mealtime reminders (lane E1) sit above the food nudges. Weekly updates (phone + email) are the same card Preferences
 // shows; the training reminder time lives in gym settings, so that row only
 // reports and opens it; the dinner / plan-Sunday nudges and the rest-timer
 // alert are controlled here. Class reminders arrive with classes (WP-05) and
@@ -150,6 +152,12 @@ export function NotificationsScreen() {
         <WeeklyUpdatesCard />
         <TrainingRemindersRow />
         <BookingRemindersCard />
+        <View testID="notifications-meal-reminders" className={CARD}>
+          <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+            {ENGAGEMENT_COPY.remindersCardTitle}
+          </Text>
+          <MealReminderSettings testIDPrefix="notifications-meals" />
+        </View>
         <View testID="notifications-food-nudges" className={CARD}>
           <Text accessibilityRole="header" className="text-headline font-semibold text-label">
             Food nudges

@@ -907,3 +907,20 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+
+// ─── Meal-time reminders + engagement copy (market review 2026-10, lane E1) ──
+export {
+  MEAL_REMINDER_DAYS,
+  activeReminderSlots,
+  defaultMealReminders,
+  loggedMealSlots,
+  mealReminderMoments,
+  parseStoredMealReminders,
+  type MealReminderMoment,
+} from './meal-reminders';
+export {
+  ENGAGEMENT_COPY,
+  MEAL_REMINDER_NOTIFICATION,
+  mealReminderLabel,
+  type EngagementCopyKey,
+} from './engagement-copy';

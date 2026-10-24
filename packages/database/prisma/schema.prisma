@@ -370,6 +370,10 @@ model ChefProfile {
   // WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (numbersModeSchema, @chefer/types).
   // Null = FULL. A string + Zod enum, so a new mode is never a migration.
   numbersMode            String?
+  // Lane E1 (market review 2026-10): meal-time reminders, { enabled, times }
+  // (mealRemindersSchema, @chefer/types). Null = never chosen. Only the phone
+  // schedules them (local notifications); web shows and edits the choice.
+  mealReminders          Json?
   // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
   // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
   // others are set by training.setDayKinds (wave 1).
