@@ -2186,7 +2186,7 @@ Migration `20261024120900_coaching_check_ins`.
 
 ### Coaching data: "client went quiet" (lane K4, 2026-10-23, additive)
 
-Migration `20261023180000_coaching_quiet_alert`: `TrainerProfile` + `quietAfterDays` (default 3, 1–14),
+Migration `20261024121000_coaching_quiet_alert`: `TrainerProfile` + `quietAfterDays` (default 3, 1–14),
 `quietDigestEmail` (false), `quietSeenAt?`. "Quiet" = nothing logged for `quietAfterDays` days: the later of the last
 completed workout and, ONLY while the client shares their food log, the last day with a logged entry
 (`dailyLogRepository.lastLoggedDates`, 60-day window); with neither, counted from the coaching's start day
