@@ -130,6 +130,8 @@ export interface EventMap {
     trigger: 'food_log' | 'shopping_tick' | 'gym_pr' | 'gym_third_workout';
   };
   analytics_consent_changed: { anonymous: boolean; linked: boolean };
+  /** Mobile You › Appearance: Automatic (`system`), Day (`light`) or Night (`dark`). */
+  appearance_changed: { mode: 'system' | 'light' | 'dark' };
   // ─── L-CONSENT (T-26.2/T-26.4) — counts only ─────────────────────────────────
   health_consent_answered: { allowed: boolean };
   health_consent_withdrawn: Record<string, never>;

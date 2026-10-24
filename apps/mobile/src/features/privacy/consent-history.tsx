@@ -1,6 +1,6 @@
 import { ActivityIndicator, View } from 'react-native';
 import { COACHING_CONSENT_LABELS, FRIENDS_COPY, healthSyncConsentLabel } from '@chefer/types';
-import { Card, ErrorState, Text, useQueryState } from '@chefer/ui-mobile';
+import { Card, ErrorState, Text, useQueryState, useThemeColors } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
 // ─── Consent history (UX-39, T-39.2) ───────────────────────────────────────────
@@ -86,6 +86,7 @@ function formatDate(at: Date | string): string {
 }
 
 export function ConsentHistory() {
+  const colors = useThemeColors();
   const historyQuery = trpc.privacy.getConsentHistory.useQuery();
   // UX-X-12: a failed load is not "Nothing recorded yet" — that would tell a
   // user their consent history is empty when we simply could not read it.
@@ -95,7 +96,7 @@ export function ConsentHistory() {
     <Card testID="profile-consent-history" className="gap-2">
       <Text variant="heading">Consent history</Text>
       {state === 'loading' ? (
-        <ActivityIndicator color="#944a00" />
+        <ActivityIndicator color={colors.brand} />
       ) : state === 'error' ? (
         <ErrorState
           testID="consent-history-error"
@@ -111,7 +112,7 @@ export function ConsentHistory() {
         <View className="gap-1.5">
           {data.map((event) => (
             <View key={event.id} className="flex-row justify-between gap-3">
-              <Text className="min-w-0 flex-1 text-sm text-gray-800">
+              <Text className="min-w-0 flex-1 text-sm text-label">
                 {describe(event as ConsentEventRow)}
               </Text>
               <Text variant="muted" className="shrink-0 text-xs">

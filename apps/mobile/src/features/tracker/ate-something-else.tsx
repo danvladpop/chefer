@@ -88,7 +88,7 @@ export function AteSomethingElseBody({
   const header = (label: string) => (
     <Text
       accessibilityRole="header"
-      className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+      className="text-xs font-semibold uppercase tracking-widest text-label-tertiary"
     >
       {label}
     </Text>
@@ -118,14 +118,14 @@ export function AteSomethingElseBody({
           testID="ate-else-size"
         />
         {cuisine && (
-          <Text testID="ate-else-size-hint" className="text-xs text-gray-500">
+          <Text testID="ate-else-size-hint" className="text-xs text-label-tertiary">
             {EAT_OUT_SIZE_HINTS[cuisine][size]}
           </Text>
         )}
         <Text
           testID="ate-else-estimate"
           accessibilityLiveRegion="polite"
-          className="text-sm font-semibold text-gray-800"
+          className="text-sm font-semibold text-label"
         >
           {estimate
             ? proteinOnly
@@ -165,10 +165,10 @@ export function AteSomethingElseBody({
               }
               className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
             >
-              <Text numberOfLines={1} className="min-w-0 flex-1 text-sm font-medium text-gray-800">
+              <Text numberOfLines={1} className="min-w-0 flex-1 text-sm font-medium text-label">
                 {r.name}
               </Text>
-              <Text className="text-xs text-gray-500">
+              <Text className="text-xs text-label-tertiary">
                 {proteinOnly ? `≈ ${proteinLabel(r.protein)}` : `≈ ${formatKcal(r.kcal)} kcal`}
               </Text>
             </Pressable>

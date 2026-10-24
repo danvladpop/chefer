@@ -3,7 +3,12 @@ import { Animated, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import type { ExerciseEquipment } from '@chefer/types';
-import { heroMaxWidth, useReadableLayout, useReducedMotion } from '@chefer/ui-mobile';
+import {
+  heroMaxWidth,
+  useReadableLayout,
+  useReducedMotion,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 
 // UX-05 amendment A6 (T-05.11, O-26, ⚖ D-22 a): one shared exercise-image
 // surface. 3:2 everywhere (never a square crop), a designed placeholder
@@ -75,6 +80,7 @@ export function Placeholder({
   size: 'thumb' | 'hero';
   testID?: string;
 }) {
+  const colors = useThemeColors();
   const iconSize = size === 'hero' ? 40 : 18;
   return (
     <View
@@ -83,7 +89,7 @@ export function Placeholder({
       accessibilityLabel={size === 'hero' ? 'No photo yet' : undefined}
       className="h-full w-full items-center justify-center bg-accent"
     >
-      <Ionicons name={EQUIPMENT_ICON[equipment]} size={iconSize} color="rgba(0,0,0,0.6)" />
+      <Ionicons name={EQUIPMENT_ICON[equipment]} size={iconSize} color={colors.labelSecondary} />
       {size === 'hero' && primaryMuscleLabel ? (
         <Text className="mt-1 text-xs text-muted-foreground">{primaryMuscleLabel}</Text>
       ) : null}

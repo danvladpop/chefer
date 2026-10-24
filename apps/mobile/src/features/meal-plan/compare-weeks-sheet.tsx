@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { Sheet, Text } from '@chefer/ui-mobile';
+import { Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatKcal, sumPlanDay, weekdayLongName } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
@@ -50,6 +50,7 @@ export function CompareWeeksSheet({
   previousPlanId: string | undefined;
   current: WeekLike;
 }) {
+  const colors = useThemeColors();
   const { proteinOnly } = useNumbersMode();
   const { data, isLoading, isError } = trpc.mealPlan.getById.useQuery(
     { planId: previousPlanId ?? '' },
@@ -70,16 +71,16 @@ export function CompareWeeksSheet({
         </Text>
       ) : isLoading ? (
         <View className="items-center py-8">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : (
         <View className="gap-2 pb-2">
           <View className="flex-row gap-2">
-            <Text className="w-20 text-xs font-semibold uppercase text-gray-500">Day</Text>
-            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-gray-500">
+            <Text className="w-20 text-xs font-semibold uppercase text-label-tertiary">Day</Text>
+            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-label-tertiary">
               Free week
             </Text>
-            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-gray-500">
+            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-label-tertiary">
               This week
             </Text>
           </View>
@@ -89,13 +90,13 @@ export function CompareWeeksSheet({
               testID={`compare-weeks-row-${r.dayOfWeek}`}
               className="min-h-11 flex-row items-center gap-2 border-t border-border py-1.5"
             >
-              <Text className="w-20 text-sm font-medium text-gray-700">
+              <Text className="w-20 text-sm font-medium text-label-secondary">
                 {weekdayLongName(r.dayOfWeek).slice(0, 3)}
               </Text>
-              <Text className="min-w-0 flex-1 text-xs text-gray-600">
+              <Text className="min-w-0 flex-1 text-xs text-label-secondary">
                 {cell(r.before, proteinOnly)}
               </Text>
-              <Text className="min-w-0 flex-1 text-xs text-gray-900">
+              <Text className="min-w-0 flex-1 text-xs text-label">
                 {cell(r.after, proteinOnly)}
               </Text>
             </View>

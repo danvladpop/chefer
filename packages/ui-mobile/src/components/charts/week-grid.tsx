@@ -1,7 +1,8 @@
 import { Pressable, View } from 'react-native';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../../hooks/use-theme-colors';
 import { Text } from '../text';
-import { colors } from '../theme';
+import { useChartColors } from '../theme';
 
 /** Mirrors WeekStatus in @chefer/types (ui-mobile stays free of domain deps). */
 export type WeekGridStatus = 'met' | 'flex' | 'paused' | 'under' | 'empty' | 'current';
@@ -15,14 +16,19 @@ export interface WeekGridCell {
 }
 
 // Neutral for misses — never red (gym_plan.md §1.2 principle 3).
-export const WEEK_STATUS_COLORS: Record<WeekGridStatus, string> = {
-  met: colors.primary,
-  flex: '#e0a060',
-  paused: '#bfdbfe',
-  under: colors.neutral,
-  empty: colors.neutralSoft,
-  current: colors.card,
-};
+/** Each status's fill in the active scheme (Day / Night). */
+export function useWeekStatusColors(): Record<WeekGridStatus, string> {
+  const roles = useThemeColors();
+  const chart = useChartColors();
+  return {
+    met: roles.brand,
+    flex: chart.flex,
+    paused: chart.paused,
+    under: roles.separator,
+    empty: roles.surfaceSunken,
+    current: roles.surface,
+  };
+}
 
 export const WEEK_STATUS_LABELS: Record<WeekGridStatus, string> = {
   met: 'Goal met',
@@ -57,6 +63,8 @@ export function WeekGrid({
   className,
   testID,
 }: WeekGridProps) {
+  const statusColors = useWeekStatusColors();
+  const colors = useThemeColors();
   const rows: WeekGridCell[][] = [];
   for (let i = 0; i < weeks.length; i += columns) {
     rows.push(weeks.slice(i, i + columns));
@@ -72,9 +80,9 @@ export function WeekGrid({
               const style = {
                 width: cellSize,
                 height: cellSize,
-                backgroundColor: WEEK_STATUS_COLORS[week.status],
+                backgroundColor: statusColors[week.status],
                 borderWidth: week.status === 'current' ? 2 : 0,
-                borderColor: colors.primary,
+                borderColor: colors.brand,
               };
               const a11y = week.label ?? `${week.weekStart}: ${WEEK_STATUS_LABELS[week.status]}`;
               return onPressWeek ? (
@@ -107,7 +115,7 @@ export function WeekGrid({
             <View key={status} className="flex-row items-center gap-1.5">
               <View
                 className="h-2.5 w-2.5 rounded-sm"
-                style={{ backgroundColor: WEEK_STATUS_COLORS[status] }}
+                style={{ backgroundColor: statusColors[status] }}
               />
               <Text className="text-xs text-muted-foreground">{WEEK_STATUS_LABELS[status]}</Text>
             </View>
