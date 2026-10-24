@@ -46,6 +46,12 @@ const HEADER = (unit: WeightUnit): string[] => [
   'Distance (m)',
   'Effort (RPE)',
   'Notes',
+  // G3: the rest of what a cardio entry stores — machine level, treadmill
+  // incline and the calorie estimate. Appended, so every existing column
+  // keeps its position for spreadsheets built on the old layout.
+  'Level',
+  'Incline (%)',
+  'Calories (kcal)',
 ];
 
 export class GymExportService {
@@ -120,6 +126,9 @@ function exerciseRows(
     set.distanceM !== null ? String(set.distanceM) : '',
     set.intensityRpe !== null ? String(set.intensityRpe) : '',
     index === 0 ? (exercise.notes ?? '') : '',
+    set.resistanceLevel !== null ? String(set.resistanceLevel) : '',
+    set.inclinePct !== null ? String(set.inclinePct) : '',
+    set.caloriesKcal !== null ? String(Math.round(set.caloriesKcal)) : '',
   ]);
 }
 

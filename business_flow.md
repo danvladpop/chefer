@@ -4124,7 +4124,7 @@ from a 3-week streak to 2" before the delete is even sent.
 
 ### 22.2 Cardio delivery (UX-42 minimal slice, T-42.1/T-42.2)
 
-12 catalogue entries (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
+12 catalogue entries — 20 since WP-20's `DURATION` activities (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
 `exercise-catalog.ts`) ship through the same sync/bootstrap machinery as strength exercises — a
 cardio `SessionSet` is one row (`weightKg: 0, reps: 0, isWarmup: false`) carrying `durationSec` /
 `distanceM` / `intensityRpe` instead. The only new behaviour is what a client is SENT: `gym
@@ -4146,10 +4146,54 @@ gained an optional `CardioSetFields` intersection for this). History (`session-d
 renders time/distance/effort for a cardio exercise instead of `0 kg × 0`. The custom exercise
 form's "How do you track it?" chips (`trackingType`, replacing the old `isTimed`-only checkbox) and
 a `Cardio` filter chip (exercise picker + Exercises tab) are also behind the flag. The mobile bundle
-sends `x-chefer-api-level: 3` as of this change (Δ2.1) — bumped in the same commit as this UI, per
+sends `x-chefer-api-level: 3` as of this change (Δ2.1; it sends 8 today) — bumped in the same commit as this UI, per
 the rule that a level is only ever sent by a bundle that implements it. **Not done this wave:** web
 rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
 mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
+
+#### Turning `cardioLogging` on (G3 readiness, 2026-10-23)
+
+> The flag is **off** in prod. Flipping it is an **owner action**; nothing in code changes.
+
+**What changes when it is on.** `effectiveLevel()` stops capping the client's level at 2. Mobile
+bundles send level 8, so they receive the 12 W2 cardio rows and render them as cardio entries. They
+also get the "Cardio" filter chips, the "How do you track it?" choice on custom exercises and the
+distance-unit setting. The 8 WP-20 `DURATION` activities (yoga, Pilates…) and the two `DURATION` W2
+rows (spin class, stair climber) are visible at every level already, by design. Older bundles
+(level ≤ 2, App Store 1.0.0 (5)) still receive nothing cardio-typed. Web (level 6) renders cardio in
+history and summaries but cannot log it yet (`mobile_parity_backlog.md`, "web cardio entry").
+
+**Checked for readiness (G3):**
+
+- `gym-cardio.contract.test.ts` passes against an API running `FEATURE_FLAGS=cardioLogging`
+  (CI only runs it with the flag off): levels 0–2 see no cardio row, level 3+ sees the catalogue,
+  a mixed bench + bike session round-trips its cardio fields, progression skips cardio.
+- **One distance-unit rule.** `profileDistanceUnit()` (`@chefer/utils` gym/cardio.ts) — the
+  Training settings choice, else miles for lb and km for kg. The mobile cardio entry and session
+  history used to read only the weight unit, so a kg-and-miles user logged and saw kilometres.
+  Past workouts defaulted to km for lb users. All mobile sites and web now share the helper.
+- **CSV export** (`gym.export.csv`, and `workouts.csv` in the data export) appends `Level`,
+  `Incline (%)` and `Calories (kcal)` after `Notes`, so existing columns keep their positions.
+- Curated timed holds (plank, wall sit…) are stored as `WEIGHT_REPS` with `isTimed`, so they keep
+  the seconds set rows. Only the bundled-catalogue fallback would read them as `DURATION`, and the
+  workout screens always use the server library.
+
+**Known gaps, not blockers (follow-ups):** web cardio logging; incline/pace are never captured
+or shown; the mobile workout summary has no cardio row; no cardio Stats/PRs; the mixed-session
+`{done}/{planned}` header; `gym-cardio-row.flow.yaml` (Maestro) uses the old shell ids and is not
+in `run-suite.sh`. The flag is global — there is no per-user allowlist, so it reaches every user
+on the next `profile.flags` read.
+
+**Owner action — turn it on in prod** (from the Mac):
+
+```
+ssh chefer 'cd ~/chefer && grep ^FEATURE_FLAGS= .env.production'
+ssh chefer 'cd ~/chefer && ./infrastructure/scripts/env.sh set FEATURE_FLAGS "<the list above>,cardioLogging" && ./infrastructure/scripts/env.sh apply'
+```
+
+Keep every flag already in the list (e.g. `mobileShellV2,onboardingV4,trainerMode`); `set`
+replaces the whole value. To turn it off again, set the list without `cardioLogging` and `apply`.
+Clients cache `profile.flags`, so phones pick it up on their next app start.
 
 ### 22.3 Workout import from Strong / Hevy (G2, market review 2026-10)
 

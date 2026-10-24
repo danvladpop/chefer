@@ -109,6 +109,26 @@ describe('CardioEntry (T-42.3)', () => {
     expect(screen.queryByText(/kg/)).toBeNull();
   });
 
+  it('G3: distance follows the Training settings choice, not only the weight unit', async () => {
+    const view = await render(
+      <CardioEntry
+        se={cardioSe()}
+        meta={bikeMeta}
+        unit="KG"
+        distanceUnit="MI"
+        prior={[]}
+        onLogIt={jest.fn()}
+        testID="cardio"
+      />,
+    );
+    expect(screen.getByText('mi')).toBeTruthy();
+    // No setting saved yet: the unit that goes with kilograms.
+    await view.rerender(
+      <CardioEntry se={cardioSe()} meta={bikeMeta} unit="KG" prior={[]} onLogIt={jest.fn()} testID="cardio" />,
+    );
+    expect(screen.getByText('km')).toBeTruthy();
+  });
+
   it('Log it starts disabled with nothing entered', async () => {
     await render(
       <CardioEntry
