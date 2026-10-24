@@ -44,8 +44,10 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
+41. [Curated Recipe Ingest & Pool Coverage (admin)](#41-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
 
 ---
 
@@ -92,6 +94,24 @@ the web-install measurement. The App Store badge, its trademark notice and
 Safari's Smart App Banner (on every public page) stay hidden until
 `APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
 `SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
+
+**Switch page: `/switch/mealime` (market review 2026-10, lane L, 2026-10-22).**
+Mealime closed on 2026-10-21, and its closing notice says personal data is
+deleted with no export. This public page, linked from the shared public footer
+(`PublicFooter`, also on `/`), is for people looking for a replacement. It is an
+honest comparison. "What carries over" covers weekly plans, the aisle-sorted
+list, cook mode and diet filters. "What Chefer adds" covers household-wide
+allergy safety, EUR/RON prices, link/video import, the free gym log and free
+data export. A four-step guide shows how to bring recipes over with the
+existing import (Cookbook → Import → Link / Paste / Photo / Video). Rules for
+the copy: claims are about Chefer only, or are quoted from Mealime's own notice
+(with a link); the title says "A Mealime alternative"; and a line in the hero
+says Chefer is not affiliated with Mealime or Albertsons Companies. The page
+carries store badges (campaign `switch-mealime`) and a `WebPage` +
+`SoftwareApplication` + `FAQPage` JSON-LD graph. On view it sends
+`switch_page_viewed { source: 'mealime' }`. It is static, with no session
+check, so signed-in readers see it too. Web only by nature: the native app
+has no marketing pages.
 
 ```
 1. User fills in RegisterForm at /(auth)/register
@@ -1793,13 +1813,15 @@ reads live in `trainingNutritionService` (API).
 **Who is a lifter:** a set-up gym profile (`GymProfile.setupCompletedAt`),
 a goal, and a known bodyweight (latest `WeightEntry`, else
 `ChefProfile.weightKg`). Every goal has a g/kg protein base (follow-up,
-2026-09-26); only `GAIN_MUSCLE` lifters get the training-day rules.
+2026-09-26); only `GAIN_MUSCLE` and `MAINTAIN` lifters get the training-day rules
+(`MAINTAIN` added by owner decision 2026-10-22; weight-loss goals stay flat —
+no "eat back exercise" — and so does every other goal).
 
 | Rule              | Value                                                                                                                                                                                                                          | Tier                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged                 | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
 | Training day      | a workout of **any workout type** **completed** that day (a logged yoga class counts like a lifting session — F-1, 2026-10-17, both training styles), else a routine day **planned** for that weekday outside a training pause | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
+| Training-day bump | GAIN_MUSCLE and MAINTAIN only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                   | **every tier** applies it (free since WP-07: no AI)                                                                                         |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                                               | premium                                                                                                                                     |
 | Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                                   | free                                                                                                                                        |
@@ -1811,7 +1833,7 @@ dashboard.summary / tracker.getDay (lifter)
   ├─ resolveDailyTargets(profile, bw) → base targets (protein g/kg by goal)
   │    — the existing nutrition fields keep carrying the BASE targets,
   │      so shipped clients see no change in meaning
-  ├─ GAIN_MUSCLE only: trainingDayFor(localDate, weekday)
+  ├─ GAIN_MUSCLE / MAINTAIN only: trainingDayFor(localDate, weekday)
   │    → COMPLETED | SCHEDULED | rest
   └─ trainingDay { isTrainingDay, reason, workoutName,
        kcalBonus, proteinBonus, applied, basis }            (optional)
@@ -1860,7 +1882,7 @@ stored kind. `TrainingNutritionService.trainingWeek` resolves them for the
 plan week.
 
 **Bumps by kind (deterministic, no AI).** `lift` keeps the protein-led bump
-(§10.1) for GAIN_MUSCLE lifters only. `run` and `long_run` are **markers only**:
+(§10.1) for GAIN_MUSCLE and MAINTAIN lifters only. `run` and `long_run` are **markers only**:
 they show a glyph, a header and the Explain sheet but never change calorie or
 protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
 no run-day numbers). A long run still adds an evening-before carb snack idea
@@ -1872,7 +1894,7 @@ targets is **free for every tier** (`trainingDayTargets` and `trainingNutrition`
 are `free: true`; the old `trainingBumpFree` flag is redundant and kept only
 until it is removed). What stays premium is the AI-built week: "Fit meals to my
 training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
-through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
+through `aiMealPlans`. A free GAIN_MUSCLE or MAINTAIN lifter with a training day today sees
 the applied targets, not a locked preview.
 
 **"Fit meals to training days" is a saved choice (2026-10-10).** It used to be a
@@ -3518,7 +3540,7 @@ gets "Track my progress" (`isSimpleTraining(profile, flags)` is the one gate). S
   Cardio machines, Running, Walking, Swimming, Cycling; Classes — Yoga, Pilates, Spin, HIIT, Dance, Other class;
   Other. One list for live workouts, logged workouts and My week. **Every type counts** toward the weekly goal and
   streak, as **done today**, and as a **nutrition training day** — in both styles (F-1). The training-day bump is
-  unchanged (fixed +10%, GAIN_MUSCLE only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
+  unchanged (fixed +10%, GAIN_MUSCLE and MAINTAIN only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
 - **Log a workout** (replaces "Log an activity" in both styles): workout type (strength focuses only shown with the
   flag), duration, day, optional "calories from your watch" and effort. Stored the WP-20 way — a finished session
   with ONE `DURATION` entry (the type's catalogue row, `other-activity` for strength/other types) **plus**
@@ -4513,15 +4535,28 @@ T-12.2), not the PostHog SDK: no native module, no runtime-fingerprint change.
 
 ```
 app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + background flush
-                     track('app_opened', {})
+  │                 (a no-op unless EXPO_PUBLIC_POSTHOG_KEY + _HOST were set at
+  │                  bundle time — the OTA job's repo variables, §13)
+  │
+SessionUserHost (src/components/session-user-host.tsx, mounted once the token is read)
+  ├─ signed out ─────────────────► setCurrentUserId(null)
+  ├─ signed in, user.me resolves ► setCurrentUserId(me.id)   (also Sentry's user)
+  ├─ sign-out (signOut())  ──────► resetAnalyticsOnSignOut(): id null, "linked" OFF
+  ├─ another account's id arrives without a sign-out ► "linked" OFF
+  └─ identity settled (signed out / me answered / me failed / 5 s offline cap)
+        └─► app_opened { from: 'launch' }   once per cold start
+     AppState: back to the foreground after 30+ min in the background
+        └─► app_opened { from: 'resume' }   (D1/D7/D30 retention)
   │
   distinct_id = a random session id, generated once per cold start,
-                NEVER written to storage (AC1)
+                NEVER written to storage (AC1); such events carry
+                $process_person_profile: false → no PostHog person
   │
   consent (device-local, default { anonymous: true, linked: false } — Q-8):
     anonymous off  → track() queues nothing, fetch is never called (AC3)
     linked on + signed in → distinct_id becomes the account id on the very
-                             next event (AC2); off → sign-out resets it to off
+                             next event (AC2), with a PostHog person;
+                             sign-out or an account switch resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   rendered only when the transport is enabled (PostHog key + host set at
@@ -4530,6 +4565,13 @@ Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
+
+**What this means for the numbers (2026-10-22, Q18 reversed).** Event counts and
+same-launch funnels cover everyone who leaves anonymous counts on. Per-person
+retention and multi-day funnels cover only users who turned linking on, because
+an unlinked id lasts one cold start. `docs/beta-dashboard.sql` gives everyone's
+retention from our own tables. The events and the PostHog dashboard spec are in
+`docs/analytics-funnel.md`.
 
 The choice is stored per account/device only (another browser, another phone,
 or a new device starts at the Q-8 defaults). The card links to
@@ -6234,6 +6276,8 @@ success moment ──► maybeRequestReview(trigger)
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
 
+---
+
 ## 39. Kitchen progress (gamification P1, `docs/gamification-2026-10/`)
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
@@ -6322,3 +6366,48 @@ Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_back
    not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
    overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
 5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).
+
+---
+
+## 41. Curated Recipe Ingest & Pool Coverage (admin, market review F1/F2)
+
+Web admin only (`/admin/recipes`, every procedure `adminProcedure`). Free users never see a draft:
+only approval creates the CURATED recipe the free pool serves. Code: `CuratedIngestService`
+(infrastructure.md §7).
+
+```
+Admin pastes a link (/admin/recipes) ──► curatedAdmin.ingest
+  │   normalise URL · already in the queue/pool? → CONFLICT
+  │   today's links ≥ CURATED_INGEST_DAILY_CAP? → TOO_MANY_REQUESTS ("cap used up, resets at midnight UTC")
+  └─► draft row EXTRACTING ──► background extraction (queue polls every 4 s)
+        │ video link → captions → subtitles → Whisper (VideoRecipeService)
+        │ web link   → page text (SSRF-guarded) → annotated extraction (no invented method)
+        │ → rewriteRecipeProse (Chefer's voice, facts kept)   fail → prose stays ORIGINAL + checklist line
+        │ → match lines to GLOBAL catalog slugs · guess meal type from the name
+        ├─ provider quota / 429 → FAILED "The AI provider's quota is used up…" (Try again later)
+        ├─ other failure / duplicate canonical link → FAILED with the reason
+        └─ DRAFT ("Needs review")
+
+Admin reviews (/admin/recipes/[id]) ──► curatedAdmin.get (live review)
+  │   edit name, description, times, servings, meal slots, tags, lines (catalog match / candidates), steps
+  │   "Rewrite in Chefer's voice" → curatedAdmin.rewriteProse   · Save → curatedAdmin.update
+  │   hand-edited prose → EDITED
+  ├─ Reject (+ reason) → REJECTED (the link may be pasted again later)
+  └─ Approve → curatedAdmin.approve
+        gates: complete · prose not ORIGINAL · every line on a global catalog row · amounts convert to grams
+               · no line name hiding an allergen its catalog row reveals
+        fail → BAD_REQUEST listing every blocker
+        pass → diet tags derived from the ingredients (claimed diet tags replaced)
+             → ONE transaction: CURATED recipe (sourceUrl, no creator, no creator image, PENDING image)
+               + catalog lines + computed nutrition, draft → APPROVED
+             → image worker generates the picture · pool slice reloads
+             → the recipe is now drawn for free plans, swaps, Discover — safety-filtered like any curated recipe
+
+In the pool ──► "Take out of the pool" → curatedAdmin.unpublish → UNPUBLISHED
+                (no new plans draw it; plans that already hold it keep it)
+
+Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAdmin.coverage
+    counts by meal type × diet (as served) / allergen-free / prep+cook band / cuisine,
+    the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
+    red = that household repeats a recipe within 2 weeks, amber = within 4
+```

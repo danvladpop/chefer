@@ -13,6 +13,7 @@ export * from './account-deletion';
 export * from './support';
 export * from './app-stores';
 export * from './video-import';
+export * from './curated-ingest';
 export * from './safety-taxonomy';
 export * from './safety';
 export * from './recipe-form';

@@ -124,7 +124,13 @@ export interface EventMap {
   };
 
   // ─── L-DATA's own events (T-12.4) ────────────────────────────────────────────
-  app_opened: Record<string, never>;
+  /**
+   * `launch`: a cold start, once the signed-in account is known, so a linked
+   * user's launch carries their account id. `resume`: back in the foreground
+   * after 30+ minutes away. D1/D7/D30 retention needs both, because iOS keeps a
+   * daily user's app alive for days without a cold start.
+   */
+  app_opened: { from: 'launch' | 'resume' };
   /** Mobile asked the OS for its native store rating sheet (ASO §5.1); the OS may still show nothing. */
   review_prompt_requested: {
     trigger: 'food_log' | 'shopping_tick' | 'gym_pr' | 'gym_third_workout';
@@ -145,6 +151,13 @@ export interface EventMap {
   meal_logged: {
     source: 'today' | 'plan' | 'log' | 'planned' | 'replaced' | 'quick' | 'snap';
     mealType?: PlanSlot;
+    /**
+     * How the food was entered, for the "off-plan log by method" breakdown (mobile):
+     * `search` (a recipe or ingredient row found by searching), `photo` (photo scan),
+     * `quick_add` (typed name and numbers), `recent` (Recent list), `cook` (cook
+     * mode). Omitted when a planned meal is ticked.
+     */
+    method?: 'search' | 'photo' | 'quick_add' | 'recent' | 'cook';
   };
 
   // ─── Beta funnel (WP-13, mobile) — counts and enum values only ──────────────
@@ -214,4 +227,17 @@ export interface EventMap {
   health_sync_toggled: { platform: HealthPlatform; type: HealthSyncType; on: boolean };
   /** One import run: counts only, never weights. */
   health_weights_imported: { platform: HealthPlatform; imported: number; skipped: number };
+  // ─── Funnel (market review 2026-10, lane B) — counts and enums only ──────────
+  /** Shopping items ticked as bought (`items` > 1 when a whole group is ticked); never on un-tick. */
+  list_item_checked: { items: number };
+  /** A recipe import was saved (link, pasted text or a cooking video). */
+  recipe_imported: { via: 'link' | 'text' | 'video' };
+  /** The client joined a trainer through an invite link. */
+  coaching_joined: Record<string, never>;
+  /** The client asked a trainer from the directory to coach them (the trainer accepts on their side). */
+  coaching_requested: Record<string, never>;
+
+  // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
+  /** A public "switching from X" page was opened; `source` is the app it addresses. */
+  switch_page_viewed: { source: 'mealime' };
 }

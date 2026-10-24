@@ -129,6 +129,30 @@ _Avoid_: Trainer session
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
 
+## Curated recipes
+
+**Curated pool**:
+The shared, non-personalised recipes free plans are drawn from (`source=CURATED`): the authored fixtures plus
+approved ingested recipes.
+_Avoid_: free recipes, default recipes, seed recipes
+
+**Ingest**:
+An admin pasting a recipe-video or web link so its facts become a draft for the curated pool.
+_Avoid_: import (that is a user saving a recipe to their own collection), scrape
+
+**Curated draft**:
+An ingested recipe waiting for review; it is never served. Approval turns it into a curated recipe, rejection closes it.
+_Avoid_: pending recipe, candidate
+
+**Unpublish**:
+Taking an approved ingested recipe out of the curated pool; plans that already hold it keep it.
+_Avoid_: delete, retire
+
+**Pool coverage**:
+How many curated recipes a household with given restrictions can actually be served per meal type, and so how
+soon it repeats (a pool of N daily meals repeats within N ÷ 7 weeks).
+_Avoid_: recipe count, catalog size
+
 ## Kitchen progress
 
 **Kitchen progress**:
