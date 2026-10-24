@@ -210,7 +210,7 @@ export default function RecipesScreen() {
               onPress={() => router.push('/recipe-form')}
               className="min-h-11 flex-row items-center gap-1.5 rounded-xl bg-primary px-3"
             >
-              <Ionicons name="add" size={16} color="white" />
+              <Ionicons name="add" size={16} color={colors.onBrand} />
               <Text className="text-sm font-semibold text-primary-foreground">
                 {t('recipes.list.newShort')}
               </Text>
@@ -511,7 +511,7 @@ function EmptyState({
         testID="recipes-empty"
         className="mx-4 items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-sunken px-4 py-12"
       >
-        <Ionicons name="compass-outline" size={40} color="#d1d5db" />
+        <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
         <Text className="font-medium text-label-secondary">
           {t('recipes.list.empty.dietHidesTitle')}
         </Text>
@@ -538,7 +538,7 @@ function EmptyState({
         testID="recipes-empty"
         className="mx-4 items-center rounded-2xl border border-dashed border-border bg-surface-sunken py-16"
       >
-        <Ionicons name="search-outline" size={40} color="#d1d5db" />
+        <Ionicons name="search-outline" size={40} color={colors.labelTertiary} />
         <Text className="mt-3 font-medium text-label-secondary">
           {t('recipes.cookbook.noMatches')}
         </Text>
@@ -558,7 +558,7 @@ function EmptyState({
     >
       {tab === 'discover' ? (
         <>
-          <Ionicons name="compass-outline" size={40} color="#d1d5db" />
+          <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
           <Text className="mt-3 font-medium text-label-secondary">
             {t('recipes.list.empty.discoverTitle')}
           </Text>
@@ -570,7 +570,7 @@ function EmptyState({
         </>
       ) : tab === 'saved' ? (
         <>
-          <Ionicons name="heart-outline" size={40} color="#d1d5db" />
+          <Ionicons name="heart-outline" size={40} color={colors.labelTertiary} />
           <Text className="mt-3 font-medium text-label-secondary">
             {t('recipes.list.empty.savedTitle')}
           </Text>
