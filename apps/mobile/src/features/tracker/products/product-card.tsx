@@ -27,7 +27,7 @@ import {
 } from '@chefer/utils';
 import { RecipeImage } from '../../recipes/recipe-image';
 
-// A packaged product, ready to log (ADR 0002): allergen warnings first (they
+// A packaged product, ready to log (ADR 0005): allergen warnings first (they
 // never block — the user may be logging it for someone else), the honest
 // allergen line, an amount in grams or servings with a live preview computed
 // by the same `scaleProduct` the server logs with, and the Open Food Facts

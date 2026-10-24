@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, colors, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import { joinDayNames, weekdayShortName, withoutKcalLines } from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
@@ -50,6 +50,7 @@ export function PremiumChangesCard({
   onCompare: () => void;
   onDismiss: () => void;
 }) {
+  const colors = useThemeColors();
   // WP-08: protein-only mode drops the server's calorie lines and the calorie-miss line (and its Fix it).
   const { proteinOnly } = useNumbersMode();
   const misses = proteinOnly ? [] : (changes.misses ?? []);
@@ -71,20 +72,23 @@ export function PremiumChangesCard({
           onPress={onDismiss}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="close" size={18} color={colors.mutedForeground} />
+          <Ionicons name="close" size={18} color={colors.labelTertiary} />
         </Pressable>
       </View>
       <View className="gap-1">
         {lines.map((line) => (
           <View key={line} className="flex-row items-start gap-2">
             <Text className="text-sm text-primary">•</Text>
-            <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>
+            <Text className="min-w-0 flex-1 text-sm text-label-secondary">{line}</Text>
           </View>
         ))}
         {miss !== null && (
           <View className="flex-row items-start gap-2">
             <Text className="text-sm text-primary">•</Text>
-            <Text testID="premium-changes-miss" className="min-w-0 flex-1 text-sm text-gray-700">
+            <Text
+              testID="premium-changes-miss"
+              className="min-w-0 flex-1 text-sm text-label-secondary"
+            >
               {miss}
             </Text>
           </View>

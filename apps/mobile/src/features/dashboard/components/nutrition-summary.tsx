@@ -2,13 +2,13 @@ import { View } from 'react-native';
 import type { ProteinGuide } from '@chefer/types';
 import {
   Card,
-  colors,
   CountUp,
   isOverTarget,
   ProgressBar,
   progressOf,
   ProgressRing,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   cn,
@@ -49,13 +49,16 @@ function MacroBar({
   target: number;
   planned: number;
 }) {
+  const colors = useThemeColors();
   const progress = progressOf(value, target);
   const over = isOverTarget(progress);
   return (
     <View>
       <View className="mb-1 flex-row items-baseline justify-between gap-2">
-        <Text className="text-xs font-medium text-gray-700">{label}</Text>
-        <Text className={cn('text-xs', over ? 'font-semibold text-amber-700' : 'text-gray-500')}>
+        <Text className="text-xs font-medium text-label-secondary">{label}</Text>
+        <Text
+          className={cn('text-xs', over ? 'font-semibold text-attention' : 'text-label-tertiary')}
+        >
           {value}g / {target}g
         </Text>
       </View>
@@ -63,7 +66,7 @@ function MacroBar({
         testID={`macro-${label.toLowerCase()}`}
         accessibilityLabel={`${label}: ${value} of ${target} grams eaten, ${planned} planned`}
         progress={progress}
-        overColor={colors.warning}
+        overColor={colors.attention}
       />
     </View>
   );
@@ -91,15 +94,17 @@ function ProteinSummary({
   // Neutral palette: reaching the goal is green, otherwise just what is left.
   const reached = targetG > 0 && eatenG >= targetG;
   const chip = reached
-    ? { text: 'Protein goal reached', bg: 'bg-emerald-100', fg: 'text-emerald-700' }
+    ? { text: 'Protein goal reached', bg: 'bg-positive/15', fg: 'text-positive' }
     : eatenG === 0
-      ? { text: 'Nothing logged yet', bg: 'bg-gray-100', fg: 'text-gray-500' }
-      : { text: `${leftG} g to go`, bg: 'bg-gray-100', fg: 'text-gray-600' };
+      ? { text: 'Nothing logged yet', bg: 'bg-surface-sunken', fg: 'text-label-tertiary' }
+      : { text: `${leftG} g to go`, bg: 'bg-surface-sunken', fg: 'text-label-secondary' };
 
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</Text>
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
+          Today
+        </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', chip.bg)}>
           <Text testID="nutrition-status" className={cn('text-xs font-bold uppercase', chip.fg)}>
             {chip.text}
@@ -117,11 +122,7 @@ function ProteinSummary({
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
         >
-          <CountUp
-            testID="protein-count"
-            value={eatenG}
-            className="text-xl font-bold text-gray-900"
-          />
+          <CountUp testID="protein-count" value={eatenG} className="text-xl font-bold text-label" />
           <Text
             testID="protein-ring-caption"
             numberOfLines={2}
@@ -133,7 +134,7 @@ function ProteinSummary({
           </Text>
         </ProgressRing>
         {proteinGuide && (
-          <Text testID="protein-guide" className="text-center text-xs text-gray-600">
+          <Text testID="protein-guide" className="text-center text-xs text-label-secondary">
             {proteinGuide.label}
           </Text>
         )}
@@ -161,6 +162,7 @@ export function NutritionSummary({
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
+  const colors = useThemeColors();
   const { proteinOnly } = useNumbersMode();
   if (proteinOnly) {
     return <ProteinSummary nutrition={n} targetMode={targetMode} proteinGuide={proteinGuide} />;
@@ -184,17 +186,19 @@ export function NutritionSummary({
   // Neutral palette: amber for "past the target" (never red), grey when
   // there is nothing to judge or room is left.
   const statusStyle = {
-    over: { bg: 'bg-amber-100', text: 'text-amber-800' },
-    heading_over: { bg: 'bg-amber-50', text: 'text-amber-800' },
-    under: { bg: 'bg-gray-100', text: 'text-gray-600' },
-    on: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-    none: { bg: 'bg-gray-100', text: 'text-gray-500' },
+    over: { bg: 'bg-attention/15', text: 'text-attention' },
+    heading_over: { bg: 'bg-attention/10', text: 'text-attention' },
+    under: { bg: 'bg-surface-sunken', text: 'text-label-secondary' },
+    on: { bg: 'bg-positive/15', text: 'text-positive' },
+    none: { bg: 'bg-surface-sunken', text: 'text-label-tertiary' },
   }[status];
 
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</Text>
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
+          Today
+        </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', statusStyle.bg)}>
           <Text
             testID="nutrition-status"
@@ -222,12 +226,12 @@ export function NutritionSummary({
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
-          overColor={colors.warning}
+          overColor={colors.attention}
         >
           <CountUp
             testID="calorie-count"
             value={n.eatenKcal}
-            className="text-xl font-bold text-gray-900"
+            className="text-xl font-bold text-label"
           />
           {/* UX-FOOD-24: "of 1,701 kcal eaten" ran into the stroke at 390 pt and
               larger text. Short caption ("eaten" lives in the ring's accessible
@@ -243,7 +247,7 @@ export function NutritionSummary({
             of {formatKcal(target.dailyCalorieTarget)} kcal
           </Text>
         </ProgressRing>
-        <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
+        <Text testID="calorie-remaining" className="text-center text-xs text-label-tertiary">
           {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
         {targetMode && (

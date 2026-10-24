@@ -337,7 +337,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     expect(screen.getByTestId('log-sheet-api-error').textContent).toMatch(/Recipe not found/);
   });
 
-  it('ADR 0002 (replaces B-29): offers "Scan barcode" next to the other ways to log', () => {
+  it('ADR 0005 (replaces B-29): offers "Scan barcode" next to the other ways to log', () => {
     renderSheet();
     expect(screen.getByTestId('log-sheet-scan-barcode').textContent).toMatch(/Scan barcode/);
   });
@@ -668,7 +668,7 @@ describe('QuickAddSheet — neutral copy (WP-06, Food 2)', () => {
   });
 });
 
-describe('QuickAddSheet — packaged products (ADR 0002)', () => {
+describe('QuickAddSheet — packaged products (ADR 0005)', () => {
   it('typed barcode → product card with the allergen warning and OFF attribution → logs servings', async () => {
     m.lookupBarcode.mockResolvedValue({
       status: 'found',

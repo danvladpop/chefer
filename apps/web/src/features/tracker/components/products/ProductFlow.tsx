@@ -27,7 +27,7 @@ import { productPhotoFromFile } from './product-photo';
 import { ProductCard } from './ProductCard';
 import { ProductForm } from './ProductForm';
 
-// Web counterpart of mobile's products/product-flow.tsx (ADR 0002): a barcode
+// Web counterpart of mobile's products/product-flow.tsx (ADR 0005): a barcode
 // photo (upload or the phone camera via `capture`) or the typed number →
 // products.lookupBarcode → a product card → tracker.logProduct. Not found:
 // photograph the label (premium, AI consent) or enter it yourself (free).

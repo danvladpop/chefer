@@ -8,7 +8,7 @@ import {
   ProductsService,
 } from './products.service.js';
 
-// ADR 0002: own product > fresh cache > Open Food Facts; OFF down falls back
+// ADR 0005: own product > fresh cache > Open Food Facts; OFF down falls back
 // to the cache; allergen clashes warn for everyone at the table.
 
 const quota = vi.hoisted(() => ({ release: vi.fn() }));

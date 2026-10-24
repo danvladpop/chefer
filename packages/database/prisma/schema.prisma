@@ -273,8 +273,14 @@ model User {
   // Phase 1 guardrails: the ledger of photos this user uploaded
   uploadedFiles UploadedFile[]
 
-  // Packaged foods (ADR 0002): products this user read off a label or typed in
+  // Packaged foods (ADR 0005): products this user read off a label or typed in
   packagedProducts PackagedProduct[]
+  // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2): the ledger, cook log, totals, badges and quest sets
+  progressEvents    ProgressEvent[]
+  cookLogs          CookLog[]
+  progressState     ProgressState?
+  progressUnlocks   ProgressUnlock[]
+  progressQuestDays ProgressQuestDay[]
 
   @@index([email])
   @@map("users")
@@ -459,6 +465,7 @@ model Recipe {
   creator     User?             @relation("CreatedRecipes", fields: [creatorId], references: [id])
   favourites  FavouriteRecipe[]
   mealRatings MealRating[]
+  cookLogs    CookLog[]
 
   // Following (docs/friends/implementation-plan.md §2.3)
   /// Set on a viewer's private copy of another user's recipe (made by "Add to my week", PRD §13).
@@ -1058,7 +1065,7 @@ enum NutritionSource {
   ADMIN
 }
 
-// ─── Packaged products (docs/adr/0002-packaged-products.md) ───────────────────
+// ─── Packaged products (docs/adr/0005-packaged-products.md) ───────────────────
 // Branded, barcoded foods, kept apart from the reviewed ingredient catalog:
 // their numbers come from Open Food Facts or from a label, never from Chefer's
 // review. OFF rows are a shared cache (ownerId null, one per barcode, the
@@ -2137,4 +2144,114 @@ model BookingClient {
   @@id([bookingId, clientId])
   @@index([clientId, bookingId])
   @@map("booking_clients")
+}
+
+// ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───
+
+/// Kitchen progress ledger. Append-only: rows are never updated or deleted
+/// (except by the user cascade). XP is stored as awarded, so later tuning of
+/// the XP table never rewrites history.
+model ProgressEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  /// Idempotency key "<KIND>:<sourceId>", unique per user.
+  key          String
+  /// ProgressEventKind (Zod in @chefer/types; a string so P2 kinds need no schema change).
+  kind         String
+  sourceId     String
+  /// "YYYY-MM-DD": the device-local day the action counts for.
+  localDate    String
+  /// After the daily soft cap.
+  xp           Int
+  /// ReceiptLine[]: [{ code, xp, detail? }] before the cap ("capped" = xp < the lines' sum).
+  lines        Json
+  /// { recipeId, mealType, prCount, weekStart, … }
+  meta         Json     @default("{}")
+  /// LIVE | BACKFILL
+  origin       String
+  rulesVersion Int
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, localDate])
+  @@index([userId, createdAt])
+  @@map("progress_events")
+}
+
+/// A finished cook-mode session (the server record that was missing).
+model CookLog {
+  /// Client UUID: retries and the offline queue are idempotent.
+  id         String    @id
+  userId     String
+  recipeId   String?
+  localDate  String
+  startedAt  DateTime?
+  finishedAt DateTime
+  createdAt  DateTime  @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe? @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, localDate])
+  @@index([userId, recipeId])
+  @@map("cook_logs")
+}
+
+/// One row per user: cached totals, settings and "seen" cursors.
+model ProgressState {
+  userId          String    @id
+  /// = SUM(progress_events.xp), updated in the same transaction as the event.
+  totalXp         Int       @default(0)
+  /// ProgressSettings (Zod, defaults applied on read).
+  settings        Json      @default("{}")
+  /// Active-day goal [{ fromWeek, goal }], same shape as GymProfile.goalHistory.
+  goalHistory     Json      @default("[]")
+  /// Flame pauses: PauseRange[].
+  pauses          Json      @default("[]")
+  /// null = history not back-dated yet.
+  backfillVersion Int?
+  /// The "Welcome to the kitchen" card was shown.
+  introducedAt    DateTime?
+  /// Events created after this still need a moment.
+  seenCursor      DateTime?
+  lastSeenLevel   Int       @default(1)
+  /// Monday of the last weekly recap opened.
+  recapSeenWeek   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("progress_states")
+}
+
+model ProgressUnlock {
+  id            String    @id @default(cuid())
+  userId        String
+  achievementId String
+  /// 1..n
+  tier          Int
+  /// When the threshold was crossed (back-dated for history).
+  unlockedAt    DateTime
+  seenAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId, tier])
+  @@map("progress_unlocks")
+}
+
+/// The day's three quests, fixed when first shown so they don't change under the user.
+model ProgressQuestDay {
+  userId    String
+  localDate String
+  /// TodaysThreeQuest[]
+  quests    Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, localDate])
+  @@map("progress_quest_days")
 }

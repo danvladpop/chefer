@@ -61,7 +61,7 @@ export function ComputedNutritionCard({
           testID={`${testID}-status`}
           className={cn(
             'text-xs font-semibold uppercase tracking-wide',
-            partial ? 'text-amber-700' : 'text-primary',
+            partial ? 'text-attention' : 'text-primary',
           )}
         >
           {partial
@@ -90,7 +90,7 @@ export function ComputedNutritionCard({
       </View>
       <Text
         testID={`${testID}-coverage`}
-        className={cn('text-xs', partial ? 'text-amber-800' : 'text-muted-foreground')}
+        className={cn('text-xs', partial ? 'text-attention' : 'text-muted-foreground')}
       >
         {coverage}
       </Text>

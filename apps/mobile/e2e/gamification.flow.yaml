@@ -1,0 +1,85 @@
+# Kitchen progress (docs/gamification-2026-10, lane C): Today's strip → the
+# Flame sheet → back → Achievements (from You).
+# Run:  cd apps/mobile && maestro test e2e/gamification.flow.yaml
+# Preconditions: the revamp shell is on (`mobileShellV2` or the Settings
+# preview) and Kitchen progress is on for the signed-in account: FEATURE_FLAGS
+# includes `gamification`, or GAMIFICATION_ALLOWLIST has its email. The
+# orchestrator runs this on devices; the API must serve the `progress.*`
+# procedures (lane B).
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'tab-home'
+    timeout: 30000
+- tapOn:
+    id: 'tab-home'
+
+# Today: the strip leads the screen (level ring, rank, flame, this week's dots).
+- extendedWaitUntil:
+    visible:
+      id: 'progress-strip'
+    timeout: 20000
+- assertVisible:
+    id: 'progress-strip-level'
+- assertVisible:
+    id: 'progress-strip-days'
+
+# Tap it: the Flame sheet.
+- tapOn:
+    id: 'progress-strip'
+- extendedWaitUntil:
+    visible:
+      id: 'flame-count'
+    timeout: 10000
+- assertVisible:
+    id: 'flame-week'
+- assertVisible:
+    id: 'flame-pilot-lights'
+- assertVisible:
+    id: 'flame-change-goal'
+
+# Back out of the sheet: iOS taps its close button, Android uses BACK.
+- tapOn:
+    id: 'flame-sheet-close'
+    optional: true
+- runFlow:
+    when:
+      platform: Android
+      visible:
+        id: 'flame-count'
+    commands:
+      - back
+- extendedWaitUntil:
+    notVisible:
+      id: 'flame-count'
+    timeout: 10000
+- assertVisible:
+    id: 'progress-strip'
+
+# You → Achievements.
+- tapOn:
+    id: 'tab-you'
+- extendedWaitUntil:
+    visible:
+      id: 'you-scroll'
+    timeout: 15000
+- assertVisible:
+    id: 'chef-card'
+- tapOn:
+    id: 'you-achievements'
+- extendedWaitUntil:
+    visible:
+      id: 'achievements-count'
+    timeout: 15000
+- assertVisible:
+    id: 'achievements-filter-all'
+- assertVisible:
+    id: 'achievements-scroll'
+
+# Back to You.
+- tapOn:
+    id: 'shell-back'
+- assertVisible:
+    id: 'you-scroll'

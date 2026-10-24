@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   getAnalyticsConsent,
   isTransportEnabled,
@@ -24,14 +24,14 @@ import { openLegal } from '../legal/open-legal';
 // switch that says "on" would contradict the App Privacy label ("no usage
 // data"). The production App Store build ships without a key.
 
-const TRACK = { true: '#944a00', false: '#d1d5db' };
-
 export function AnalyticsConsentCard() {
   if (!isTransportEnabled()) return null;
   return <AnalyticsConsentSwitches />;
 }
 
 function AnalyticsConsentSwitches() {
+  const colors = useThemeColors();
+  const switchTrack = { true: colors.brand, false: colors.separator };
   const [consent, setConsent] = useState(getAnalyticsConsent);
   const recordConsent = trpc.privacy.recordAnalyticsConsent.useMutation();
 
@@ -55,7 +55,7 @@ function AnalyticsConsentSwitches() {
 
       <View className="min-h-11 flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-medium text-gray-900">Send anonymous usage counts</Text>
+          <Text className="text-sm font-medium text-label">Send anonymous usage counts</Text>
           <Text variant="muted" className="text-xs">
             Which screens and buttons get used, with no name, email or health information, and
             nothing that identifies you.
@@ -66,13 +66,13 @@ function AnalyticsConsentSwitches() {
           accessibilityLabel="Send anonymous usage counts"
           value={consent.anonymous}
           onValueChange={onAnonymousChange}
-          trackColor={TRACK}
+          trackColor={switchTrack}
         />
       </View>
 
       <View className="min-h-11 flex-row items-center justify-between gap-3 border-t border-border pt-3">
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-medium text-gray-900">Link usage to my account</Text>
+          <Text className="text-sm font-medium text-label">Link usage to my account</Text>
           <Text variant="muted" className="text-xs">
             {consent.linked
               ? 'On: we see which features you use, tied to your account ID (never your name or email), to improve Chefer.'
@@ -85,7 +85,7 @@ function AnalyticsConsentSwitches() {
           value={consent.linked}
           disabled={!consent.anonymous}
           onValueChange={onLinkedChange}
-          trackColor={TRACK}
+          trackColor={switchTrack}
         />
       </View>
 

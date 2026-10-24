@@ -10,6 +10,7 @@ import {
   Input,
   Text,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
@@ -33,6 +34,7 @@ export default function ForgotPasswordScreen() {
 }
 
 function ForgotPasswordForm() {
+  const colors = useThemeColors();
   const emailRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const [sent, setSent] = useState(false);
@@ -74,7 +76,7 @@ function ForgotPasswordForm() {
       {sent ? (
         <Card className="gap-2" testID="forgot-password-sent">
           <View className="items-center" accessibilityElementsHidden>
-            <Ionicons name="mail-unread-outline" size={32} color="#944a00" />
+            <Ionicons name="mail-unread-outline" size={32} color={colors.brand} />
           </View>
           <Text className="text-center">
             If an account exists for that address, a reset link is on its way. It expires in one
