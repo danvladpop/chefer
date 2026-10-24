@@ -6295,7 +6295,7 @@ silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructur
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
 web on the same release. Design and rules: [`tech-plan.md`](docs/gamification-2026-10/tech-plan.md); the decision
-record: [ADR 0003](docs/adr/0002-progress-ledger.md).
+record: [ADR 0002](docs/adr/0002-progress-ledger.md).
 
 ### 39.1 Earning (server-side, for every user)
 

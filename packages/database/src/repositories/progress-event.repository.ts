@@ -5,7 +5,7 @@ import { prisma } from '../client';
 // The append-only Kitchen progress ledger. Every write goes through `append`:
 // one SERIALIZABLE transaction that skips keys already paid, applies the
 // daily soft cap to what is left and keeps `ProgressState.totalXp` equal to
-// the sum of the rows. Rows are never updated or deleted (ADR 0003).
+// the sum of the rows. Rows are never updated or deleted (ADR 0002).
 
 export type ProgressOrigin = 'LIVE' | 'BACKFILL';
 

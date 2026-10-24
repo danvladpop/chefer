@@ -2109,7 +2109,7 @@ model BookingClient {
   @@map("booking_clients")
 }
 
-// ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0003) ───
+// ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───
 
 /// Kitchen progress ledger. Append-only: rows are never updated or deleted
 /// (except by the user cascade). XP is stored as awarded, so later tuning of
@@ -2217,6 +2217,8 @@ model ProgressQuestDay {
 
   @@id([userId, localDate])
   @@map("progress_quest_days")
+}
+
 // ─── Household sharing (ADR 0003, market review MUST 5) ──────────────────────
 // Additive only. A partner with their own account joins the OWNER's household by
 // claiming one of the owner's member profiles. The owner's plans and lists are the
