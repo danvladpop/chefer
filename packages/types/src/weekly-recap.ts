@@ -8,7 +8,7 @@ import { z } from 'zod';
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
 /** `recap.week` input. Omitted `weekStart` = the last COMPLETED week before `localDate`. */
-export const weeklyRecapInputSchema = z
+export const recapWeekInputSchema = z
   .object({
     /** The Monday of the week to recap. */
     weekStart: isoDate.optional(),
@@ -16,7 +16,7 @@ export const weeklyRecapInputSchema = z
     localDate: isoDate.optional(),
   })
   .optional();
-export type WeeklyRecapInput = z.infer<typeof weeklyRecapInputSchema>;
+export type RecapWeekInput = z.infer<typeof recapWeekInputSchema>;
 
 export interface WeeklyRecapRecipe {
   id: string;
