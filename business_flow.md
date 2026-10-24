@@ -3843,8 +3843,16 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
     card, the Food Today resume line (mobile) and the web Resume banner, so
     minimising the workout never hides it. A screen reader hears the rest at start,
     at 10 s and at the end (`nextRestAnnouncement` + `announceForAccessibility`);
-    the ticking text is no longer a live region. Exact Android alarms
-    (`USE_EXACT_ALARM`) are native and still open.
+    the ticking text is no longer a live region.
+  - _Lock screen (C1, binaries built after 1.0.2):_ when a working set is ticked and
+    the rest starts, the countdown also runs outside the app — a Live Activity on the
+    iOS lock screen and in the Dynamic Island, an ongoing countdown notification on
+    Android (status-bar chip on Android 16) — with **+30 s** and **Skip**. Those
+    change the same rest the app shows (adopted on the next foreground if the app
+    was suspended). The "Rest is over" alert now fires on time on Android (an exact
+    alarm that needs no special permission; UX-GYM-10). It is not shown while the
+    app is open — the timer bar buzzes instead. Older binaries keep the previous
+    alert. Native details: `infrastructure.md` §4 (mobile).
   - _Gym Today:_ planned days dated before `profile.setupCompletedAt` are never
     "missed" (`missedPlannedDays`/`todayStatus` take `since`), the first week's goal
     is pro-rated to the days left (`proRatedWeekGoal`, display only), "Still time

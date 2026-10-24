@@ -7,6 +7,7 @@ import { coachedOutboxes } from '../../trainer-coach/coached-outbox';
 import { coachedSessionStore } from '../../trainer-coach/coached-session-store';
 import { resetTrainerModeAvailableCache, SHELL_MODE_KEY } from '../../trainer-mode/mode-store';
 import { resetModeForTests as resetModeStore } from '../mode-store';
+import { getNativeRestTimer } from '../rest-native';
 import { resetRestTimerForTests as resetRestTimerStore } from '../rest-timer';
 import { resetCardioTimerForTests as resetCardioTimerStore } from '../workout/cardio-timer';
 import { activeSessionStore } from './active-session-store';
@@ -45,6 +46,13 @@ function isKeptGymKey(key: string): boolean {
 }
 
 async function cancelRestTimerNotification(): Promise<void> {
+  // C1: the lock-screen countdown (Live Activity / ongoing notification) and
+  // its alert, on binaries with the native rest timer.
+  try {
+    await getNativeRestTimer()?.sync(null);
+  } catch {
+    // Nothing running.
+  }
   const id = kv.getString(`${KV_KEYS.restTimer}.notification`);
   if (!id) return;
   try {

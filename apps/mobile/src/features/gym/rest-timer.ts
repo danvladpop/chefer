@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { createExternalStore } from './offline/external-store';
 import { KV_KEYS } from './offline/keys';
 import { kv } from './offline/kv';
+import { getNativeRestTimer, type NativeRestState, type NativeRestTimer } from './rest-native';
 
 // Rest timer (gym_plan.md §5.3). Stores an ABSOLUTE `endsAt`, so it survives
 // backgrounding and even a kill. It lives in its own store: only the timer
@@ -20,6 +21,8 @@ export interface RestTimerState {
 
 export const REST_ADJUST_STEP_SEC = 15;
 const NOTIFICATION_KEY = `${KV_KEYS.restTimer}.notification`;
+/** The last lock-screen +30 s / Skip (native `lastActionAt`) already applied here. */
+const ADOPTED_ACTION_KEY = `${KV_KEYS.restTimer}.adopted-action-at`;
 const ANDROID_CHANNEL_ID = 'rest-timer';
 
 const isState = (value: unknown): value is RestTimerState =>
@@ -246,6 +249,11 @@ async function cancelScheduled(): Promise<void> {
 }
 
 async function reconcileNotification(): Promise<void> {
+  const native = getNativeRestTimer();
+  if (native) {
+    await reconcileNative(native);
+    return;
+  }
   try {
     const state = restStore.get();
     if (!state || state.endsAt - Date.now() < 1000) {
@@ -286,6 +294,53 @@ async function reconcileNotification(): Promise<void> {
   }
 }
 
+// C1 (new binaries): the native module owns the lock-screen countdown AND the
+// alert, so +30 s / Skip on the lock screen can move both without JS. Its
+// `sync` is idempotent, so re-sending the same rest is harmless.
+async function reconcileNative(native: NativeRestTimer): Promise<void> {
+  try {
+    // An alert an earlier build of this install scheduled through expo-notifications.
+    await cancelScheduled();
+    const state = restStore.get();
+    await native.sync(
+      state && state.endsAt - Date.now() >= 1000
+        ? { endsAt: state.endsAt, durationSec: state.durationSec, label: null }
+        : null,
+    );
+  } catch {
+    // The lock-screen countdown is a convenience; the timer itself is unaffected.
+  }
+}
+
+/**
+ * Applies a +30 s / Skip tapped on the lock screen. Each action is taken once
+ * (by its `lastActionAt`), whether it arrives as a live event or is read on
+ * the next foreground after JS was suspended.
+ */
+function adoptLockScreenAction(state: NativeRestState): void {
+  const at = state.lastActionAt;
+  if (at === null || at <= Number(kv.getString(ADOPTED_ACTION_KEY) ?? 0)) return;
+  kv.setString(ADOPTED_ACTION_KEY, String(at));
+  const rest = state.rest;
+  if (!rest || rest.endsAt - Date.now() < 1000) {
+    write(null);
+    return;
+  }
+  write({
+    endsAt: rest.endsAt,
+    durationSec: rest.durationSec,
+    seId: restStore.get()?.seId ?? null,
+  });
+}
+
+function readNativeState(native: NativeRestTimer): NativeRestState | null {
+  try {
+    return native.getState();
+  } catch {
+    return null;
+  }
+}
+
 // Reconciles run one at a time, each reading the CURRENT rest when it runs, so a
 // quick start → +15 s → skip never leaves a stray or duplicate notification.
 let reconcileChain: Promise<void> = Promise.resolve();
@@ -303,11 +358,23 @@ export function syncNotification(): Promise<void> {
  * after the rest began). Returns a stop fn.
  */
 export function startRestNotifications(): () => void {
+  const native = getNativeRestTimer();
+  const adoptFromNative = () => {
+    const state = native ? readNativeState(native) : null;
+    if (state) adoptLockScreenAction(state);
+  };
+  adoptFromNative();
   void syncNotification();
   const subscription = AppState.addEventListener('change', (status: AppStateStatus) => {
     if (status === 'background') void syncNotification();
+    // A lock-screen action taken while JS was suspended.
+    if (status === 'active') adoptFromNative();
   });
-  return () => subscription.remove();
+  const nativeSubscription = native?.addListener('onChange', adoptLockScreenAction);
+  return () => {
+    subscription.remove();
+    nativeSubscription?.remove();
+  };
 }
 
 /** Test seam. */
