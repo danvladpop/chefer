@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Card, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   migrationMappingText,
   migrationMappingUncheckedText,
@@ -30,6 +30,7 @@ function mappingLine(term: string): string {
 }
 
 export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: string }) {
+  const colors = useThemeColors();
   const { data: table } = trpc.safety.getTable.useQuery();
   const { data: prefsData } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
@@ -82,15 +83,15 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
 
   return (
     <>
-      <Card testID={testID} className="gap-3 border-amber-200 bg-amber-50">
+      <Card testID={testID} className="gap-3 border-attention/30 bg-attention/10">
         <View className="flex-row items-center gap-2">
-          <Ionicons name="shield-outline" size={18} color="#92400e" />
-          <Text className="text-sm font-semibold text-amber-900">{SAFETY_COPY.migrationTitle}</Text>
+          <Ionicons name="shield-outline" size={18} color={colors.attention} />
+          <Text className="text-sm font-semibold text-attention">{SAFETY_COPY.migrationTitle}</Text>
         </View>
-        <Text className="text-sm text-amber-800">{SAFETY_COPY.migrationBody}</Text>
+        <Text className="text-sm text-attention">{SAFETY_COPY.migrationBody}</Text>
         <View className="gap-1">
           {terms.map((term) => (
-            <Text key={term} className="text-xs text-amber-900">
+            <Text key={term} className="text-xs text-attention">
               {mappingLine(term)}
             </Text>
           ))}

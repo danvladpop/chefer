@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, colors, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { PREMIUM_PITCH_COPY, type PremiumPitch } from '@chefer/utils';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 
@@ -52,6 +52,7 @@ export function PremiumSheet({
   onExited,
   testID = 'premium-sheet',
 }: PremiumSheetProps) {
+  const colors = useThemeColors();
   // Folded by default; the tier row's overview opens with every benefit shown (F7).
   const [alsoIncludedToggled, setAlsoIncludedToggled] = useState<boolean | null>(null);
   // The host keeps the sheet mounted between opens, so each open starts from the
@@ -113,12 +114,12 @@ export function PremiumSheet({
           </Text>
           {pitch.bullets.map((bullet) => (
             <View key={bullet} className="flex-row items-start gap-2">
-              <Ionicons name="checkmark" size={16} color={colors.primary} />
+              <Ionicons name="checkmark" size={16} color={colors.brand} />
               <Text className="min-w-0 flex-1 text-sm">{bullet}</Text>
             </View>
           ))}
           {actionError ? (
-            <Text testID={`${testID}-action-error`} className="text-sm text-red-600">
+            <Text testID={`${testID}-action-error`} className="text-sm text-danger">
               {actionError}
             </Text>
           ) : null}
@@ -129,7 +130,7 @@ export function PremiumSheet({
             {pitch.lede}
           </Text>
           {phase === 'error' ? (
-            <Text testID={`${testID}-error`} className="text-sm text-red-600">
+            <Text testID={`${testID}-error`} className="text-sm text-danger">
               {PREMIUM_PITCH_COPY.errorBody}
             </Text>
           ) : null}
@@ -139,7 +140,7 @@ export function PremiumSheet({
                 <Ionicons
                   name="checkmark"
                   size={16}
-                  color={colors.primary}
+                  color={colors.brand}
                   style={{ marginTop: 2 }}
                 />
                 <Text className="min-w-0 flex-1 text-sm">{bullet}</Text>
@@ -160,7 +161,7 @@ export function PremiumSheet({
                 <Ionicons
                   name={alsoIncludedOpen ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color={colors.mutedForeground}
+                  color={colors.labelTertiary}
                 />
               </Pressable>
               {alsoIncludedOpen ? (

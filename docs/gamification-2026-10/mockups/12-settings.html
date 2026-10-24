@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>12 Settings — rewards &amp; motivation</title>
+    <link rel="stylesheet" href="phone.css" />
+    <style>
+      .tog {
+        width: 51px;
+        height: 31px;
+        border-radius: 999px;
+        background: #d1d5db;
+        position: relative;
+        flex: none;
+      }
+      .tog::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 27px;
+        height: 27px;
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      .tog.on {
+        background: var(--success);
+      }
+      .tog.on::after {
+        left: 22px;
+      }
+      .seg {
+        display: flex;
+        background: var(--muted);
+        border-radius: 9px;
+        padding: 3px;
+      }
+      .seg span {
+        flex: 1;
+        text-align: center;
+        padding: 7px 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--gray);
+        border-radius: 7px;
+      }
+      .seg span.on {
+        background: #fff;
+        color: var(--fg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      .item {
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="phone" data-tab="you">
+      <div class="scroll">
+        <div class="topbar">
+          <div class="row">
+            <span style="font-size: 20px; color: var(--brand)">‹</span>
+            <h1>Rewards & motivation</h1>
+          </div>
+        </div>
+
+        <section class="card" style="gap: 10px">
+          <h3>Celebrations</h3>
+          <div class="seg">
+            <span class="on">Full party 🎉</span><span>Subtle</span><span>Off</span>
+          </div>
+          <span class="small">Off still saves your XP and badges — just quietly.</span>
+        </section>
+
+        <section class="card" style="gap: 0; padding: 4px 14px">
+          <div class="item">
+            <div class="grow">
+              <b>Show XP & levels</b>
+              <div class="sub">On Today and You</div>
+            </div>
+            <span class="tog on"></span>
+          </div>
+          <div class="divider"></div>
+          <div class="item">
+            <div class="grow">
+              <b>Weekly active-day goal</b>
+              <div class="sub">What keeps your flame growing</div>
+            </div>
+            <span class="pill soft" style="font-size: 15px; padding: 5px 12px">3 days ›</span>
+          </div>
+          <div class="divider"></div>
+          <div class="item">
+            <div class="grow">
+              <b>Biscuit companion</b>
+              <div class="sub">Reactions on wins and recaps</div>
+            </div>
+            <span class="tog on"></span>
+          </div>
+          <div class="divider"></div>
+          <div class="item">
+            <div class="grow">
+              <b>Show my flame on Today</b>
+              <div class="sub">Off hides the strip; progress still counts</div>
+            </div>
+            <span class="tog on"></span>
+          </div>
+        </section>
+
+        <section class="card" style="gap: 10px">
+          <div class="row">
+            <span style="font-size: 26px">🏖️</span>
+            <div class="grow">
+              <b>Pause my flame</b>
+              <div class="sub">
+                Holiday, illness, life. Your streak freezes until you're back — up to 4 weeks.
+              </div>
+            </div>
+          </div>
+          <button class="btn outline full">Pause from today</button>
+        </section>
+
+        <section class="card" style="gap: 0; padding: 4px 14px">
+          <div class="item">
+            <div class="grow">
+              <b>Gentle reminder</b>
+              <div class="sub">Max one a day, only if you haven't opened Chefer</div>
+            </div>
+            <span class="pill soft" style="font-size: 15px; padding: 5px 12px">19:30 ›</span>
+          </div>
+        </section>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>

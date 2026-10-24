@@ -9,6 +9,7 @@ import {
   userFacingErrorMessage,
   type MutationMetaShape,
 } from '@chefer/utils';
+import { progressOnMutationSuccess } from '../features/progress/progress-signals';
 import { reviewOnMutationSuccess, reviewOnQuerySuccess } from '../features/review/review-signals';
 import { noteReviewBlockingError } from '../features/review/review-store';
 import { bindSessionQueryClient, clearToken, getToken } from './auth-store';
@@ -75,8 +76,11 @@ export function makeQueryClient(options: QueryClientOptions = {}): QueryClient {
     }),
     mutationCache: new MutationCache({
       // Store rating prompt: a meal log or a shopping tick is a food success moment.
-      onSuccess: (data, variables, _context, mutation) =>
-        reviewOnMutationSuccess(mutation.options.mutationKey, variables, data),
+      onSuccess: (data, variables, _context, mutation) => {
+        reviewOnMutationSuccess(mutation.options.mutationKey, variables, data);
+        // Kitchen progress: a log, a shopping tick or a finished cook may have earned something.
+        progressOnMutationSuccess(client, mutation.options.mutationKey);
+      },
       onError: (error, _variables, _context, mutation) => {
         // Any failed write (its error snackbar, inline or default) means no
         // rating prompt this session.

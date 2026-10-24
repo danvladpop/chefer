@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Sheet, Text } from '@chefer/ui-mobile';
+import { Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { PLAN_MEAL_MENU_COPY, type SlotRef } from '@chefer/utils';
 import { useAfterSheetExit } from '../meal-plan/after-sheet-exit';
 import { AteSomethingElseBody } from './ate-something-else';
@@ -57,6 +57,7 @@ export function useSlotFlow(date: string): {
   actions: ReturnType<typeof useSlotActions>;
   host: ReactElement;
 } {
+  const colors = useThemeColors();
   const actions = useSlotActions(date);
   const [target, setTarget] = useState<SlotTarget | null>(null);
   const [step, setStep] = useState<Step>(null);
@@ -147,7 +148,7 @@ export function useSlotFlow(date: string): {
                   <MenuRow
                     testID="slot-action-skip"
                     icon="remove-circle-outline"
-                    iconColor="#6b7280"
+                    iconColor={colors.labelTertiary}
                     label={SLOT_COPY.skipIt}
                     hint={SLOT_COPY.skipItHint}
                     onPress={() => {
@@ -174,7 +175,7 @@ export function useSlotFlow(date: string): {
                 <MenuRow
                   testID="slot-action-remove"
                   icon="trash-outline"
-                  iconColor="#b91c1c"
+                  iconColor={colors.danger}
                   label={PLAN_MEAL_MENU_COPY.removeSide}
                   hint={PLAN_MEAL_MENU_COPY.removeSideHint}
                   onPress={() => {
@@ -215,7 +216,7 @@ export function useSlotFlow(date: string): {
 function MenuRow({
   testID,
   icon,
-  iconColor = '#944a00',
+  iconColor,
   label,
   hint,
   chevron = false,
@@ -229,6 +230,7 @@ function MenuRow({
   chevron?: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -237,9 +239,9 @@ function MenuRow({
       onPress={onPress}
       className="min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
     >
-      <Ionicons name={icon} size={20} color={iconColor} />
-      <Text className="min-w-0 flex-1 text-base font-medium text-gray-900">{label}</Text>
-      {chevron && <Ionicons name="chevron-forward" size={16} color="#9ca3af" />}
+      <Ionicons name={icon} size={20} color={iconColor ?? colors.brand} />
+      <Text className="min-w-0 flex-1 text-base font-medium text-label">{label}</Text>
+      {chevron && <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />}
     </Pressable>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, MAX_SUPERSET_SIZE } from '@chefer/utils';
 
 // "Superset" pick sheet (plan-library-supersets S2): shared by the routine day
@@ -50,6 +50,7 @@ function CheckboxRow({
   disabled?: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -67,10 +68,10 @@ function CheckboxRow({
       <View
         className={cn(
           'h-6 w-6 items-center justify-center rounded-md border-2',
-          checked ? 'border-violet-600 bg-violet-600' : 'border-input bg-background',
+          checked ? 'border-info bg-info' : 'border-input bg-background',
         )}
       >
-        {checked ? <Ionicons name="checkmark" size={16} color="#ffffff" /> : null}
+        {checked ? <Ionicons name="checkmark" size={16} color={colors.onBrand} /> : null}
       </View>
       <View className="min-w-0 flex-1">
         <Text className="text-base font-medium">{label}</Text>
