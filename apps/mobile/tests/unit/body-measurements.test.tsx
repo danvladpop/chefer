@@ -77,9 +77,7 @@ describe('BodyMeasurements', () => {
     await user.type(screen.getByTestId('measure-input-bodyFat'), '21,5');
     await user.press(screen.getByTestId('measurement-save'));
     await waitFor(() =>
-      expect(calls).toEqual([
-        { date: localDateStr(), waistCm: 86.4, bodyFatPct: 21.5 },
-      ]),
+      expect(calls).toEqual([{ date: localDateStr(), waistCm: 86.4, bodyFatPct: 21.5 }]),
     );
     expect(track).toHaveBeenCalledWith('body_measurement_logged', {
       measures: ['waist', 'bodyFat'],

@@ -1,4 +1,5 @@
 import {
+  bodyMeasurementRepository,
   chefProfileRepository,
   consentEventRepository,
   dietaryPreferencesRepository,
@@ -6,7 +7,6 @@ import {
   prisma,
   userRepository,
   weightEntryRepository,
-  bodyMeasurementRepository,
   type ConsentEvent,
 } from '@chefer/database';
 import { COACHING_API_LEVEL, HEALTH_CONSENT_VERSION } from '@chefer/types';
