@@ -260,7 +260,7 @@ const envSchema = z.object({
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
 
-  // Open Food Facts barcode lookup (ADR 0005). No key needed; OFF asks every
+  // Open Food Facts barcode lookup (ADR 0006). No key needed; OFF asks every
   // client to name itself in the User-Agent. The base URL is overridable for a
   // staging mirror (https://world.openfoodfacts.net) or a test double.
   OFF_BASE_URL: z.preprocess(
