@@ -4,7 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { Translator } from '@chefer/i18n';
 import type { FriendWeekDto } from '@chefer/types';
-import { DENSE_MAX_FONT_SCALE, EmptyState, ErrorState, Skeleton, Text } from '@chefer/ui-mobile';
+import {
+  DENSE_MAX_FONT_SCALE,
+  EmptyState,
+  ErrorState,
+  Skeleton,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { useT } from '../../../../lib/i18n';
 import { trpc } from '../../../../lib/trpc';

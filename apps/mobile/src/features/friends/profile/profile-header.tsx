@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import type { FriendProfileDto, FriendsMeDto } from '@chefer/types';
 import { type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
 import { Avatar, Badge, Button, Sheet, Skeleton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';

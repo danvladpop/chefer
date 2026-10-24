@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Translator } from '@chefer/i18n';
-import type { ActivityItemDto } from '@chefer/types';
 import { type ActivityItemDto } from '@chefer/types';
 import { EmptyState, ErrorState, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';

@@ -343,7 +343,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           className="min-h-11 flex-row items-center gap-1 self-start"
         >
           <Text className="text-sm font-medium text-primary">{t('friends.intro.policy')}</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          <Ionicons name="chevron-forward" size={14} color={colors.brand} />
         </PressableScale>
       </View>
 

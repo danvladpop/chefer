@@ -2,7 +2,6 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import type { Translator } from '@chefer/i18n';
-import type { FriendUserSummary } from '@chefer/types';
 import { type FriendUserSummary } from '@chefer/types';
 import { duration, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';

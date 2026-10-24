@@ -3,7 +3,6 @@ import { Pressable, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import type { FriendRoutineDto } from '@chefer/types';
 import { type FriendRoutineDto } from '@chefer/types';
 import { EmptyState, Text, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../../lib/i18n';

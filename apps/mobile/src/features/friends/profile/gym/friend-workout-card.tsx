@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import type { FriendWorkoutDto } from '@chefer/types';
 import { type FriendWorkoutDto } from '@chefer/types';
 import { Card, duration, Text, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../../lib/i18n';
