@@ -5,6 +5,7 @@ import {
   type IBodyMeasurementRepository,
 } from '@chefer/database';
 import { hasAnyMeasure, type BodyMeasurementDto, type BodyMeasurementValues } from '@chefer/types';
+import { dateOnlyKey } from '@chefer/utils';
 
 // ─── Body measurements (market review 2026-10, lane D3) ──────────────────────
 // Free for everyone: waist, hips, chest, upper arm, thigh (cm) and body fat
@@ -17,7 +18,7 @@ const DAY_MS = 86_400_000;
 export function toBodyMeasurementDto(row: BodyMeasurement): BodyMeasurementDto {
   return {
     id: row.id,
-    measuredOn: row.measuredOn.toISOString().slice(0, 10),
+    measuredOn: dateOnlyKey(row.measuredOn),
     waistCm: row.waistCm,
     hipsCm: row.hipsCm,
     chestCm: row.chestCm,
