@@ -89,6 +89,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
       trainerProfile: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       coachingLink: { findMany: emptyFindMany() },
       coachingInvite: { findMany: emptyFindMany() },
+      householdLink: { findMany: emptyFindMany() },
+      householdInvite: { findMany: emptyFindMany() },
       coachingNote: { findMany: emptyFindMany() },
       authIdentity: { findMany: emptyFindMany() },
       // Kitchen progress: the export reads these; deleteAccount must NOT touch them (cascade).

@@ -94,6 +94,22 @@ export {
   type UpdateHouseholdMemberData,
 } from './household-member.repository';
 
+// Household sharing (ADR 0003)
+export {
+  HouseholdSharingRepository,
+  householdSharingRepository,
+  householdDisplayName,
+  unionSafetyTerms,
+  type IHouseholdSharingRepository,
+  type ActiveHouseholdLink,
+  type ConfirmedSafety,
+  type CreateHouseholdInviteData,
+  type EndedBy as HouseholdEndedByValue,
+  type HouseholdInviteWithMember,
+  type JoinHouseholdData,
+  type JoinHouseholdResult,
+} from './household-sharing.repository';
+
 export {
   PantryItemRepository,
   pantryItemRepository,
@@ -289,6 +305,10 @@ export {
   type CoachingNotificationKindDb,
   SOCIAL_NOTIFICATION_KINDS,
   COACHING_NOTIFICATION_KINDS,
+  HOUSEHOLD_NOTIFICATION_KINDS,
+  HouseholdNoticeRepository,
+  householdNoticeRepository,
+  type HouseholdNotificationKindDb,
 } from './notification.repository';
 
 export {
