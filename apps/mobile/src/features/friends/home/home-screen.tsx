@@ -12,7 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FRIENDS_LIMITS, type FriendsMeDto, type FriendUserSummary } from '@chefer/types';
 import {
-  colors,
   duration,
   EmptyState,
   ErrorState,
@@ -22,6 +21,7 @@ import {
   SegmentedControl,
   Text,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
@@ -103,6 +103,7 @@ export type FriendsHomeProps = {
 };
 
 export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
+  const colors = useThemeColors();
   const { t } = useT();
   const reduced = useReducedMotion();
   const online = useIsOnline();
@@ -235,7 +236,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
             <Text className="text-sm font-medium text-primary">
               {t('friends.home.seeAllRequests', { n: row.count })}
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={14} color={colors.brand} />
           </Pressable>
         );
       case 'requestsError':
@@ -287,14 +288,14 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
         return segment === 'following' ? (
           <EmptyState
             testID="friends-empty-following"
-            icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
             title={t('friends.empty.youFollow.title')}
             description={t('friends.empty.youFollow.body')}
           />
         ) : (
           <EmptyState
             testID="friends-empty-followers"
-            icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
             title={t('friends.empty.followers.title')}
             description={t('friends.empty.followers.body')}
             action={{
@@ -341,7 +342,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
                     }
                     className="h-11 w-11 items-center justify-center"
                   >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#6b7280" />
+                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.labelTertiary} />
                   </Pressable>
                 ) : null}
               </View>

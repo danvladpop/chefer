@@ -3,7 +3,15 @@ import { ActivityIndicator, Linking, Pressable, View } from 'react-native';
 import WebView from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, colors, EmptyState, Screen, Text } from '@chefer/ui-mobile';
+import type { ColorRole } from '@chefer/tokens';
+import {
+  Button,
+  EmptyState,
+  Screen,
+  Text,
+  useResolvedScheme,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   LEGAL_TITLE_KEYS,
   legalAnchorFor,
@@ -30,7 +38,24 @@ import { shouldLoadLegalUrl } from '../../src/lib/webview-guard';
 // "page not found" (it used to show Terms). `?anchor=analytics` opens a
 // `#section` of the page — the guard stays pinned to the page itself.
 
+// The legal pages are the website's own (light-only) Terms/Privacy pages. At
+// night the WebView gets a stylesheet in the role colours before the page
+// paints, so it is not a white sheet inside a dark app. By day nothing is
+// injected and the page is untouched.
+function nightStyleScript(colors: Record<ColorRole, string>): string {
+  const css = [
+    `html,body{background:${colors.canvas} !important;color:${colors.labelSecondary} !important;color-scheme:dark}`,
+    `h1,h2,h3,strong,.text-gray-900{color:${colors.label} !important}`, // drift-ok: selector for the website's own light-only class names
+    `p,li,div,span,.text-gray-700,.text-gray-600,.text-gray-500{color:${colors.labelSecondary} !important}`, // drift-ok: selector for the website's own light-only class names
+    `a{color:${colors.brand} !important}`,
+    `table,th,td,hr{border-color:${colors.separator} !important}`,
+  ].join('');
+  return `(function(){var s=document.createElement('style');s.textContent=${JSON.stringify(css)};(document.head||document.documentElement).appendChild(s);})();true;`;
+}
+
 export default function LegalDocScreen() {
+  const colors = useThemeColors();
+  const scheme = useResolvedScheme();
   const { t } = useT();
   const params = useLocalSearchParams<{ doc: string; anchor?: string }>();
   const doc = legalDocFor(params.doc);
@@ -46,7 +71,7 @@ export default function LegalDocScreen() {
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+      <View className="flex-row items-center gap-3 border-b border-separator px-4 py-3">
         <Pressable
           testID="legal-back"
           accessibilityRole="button"
@@ -54,7 +79,7 @@ export default function LegalDocScreen() {
           onPress={() => router.back()}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color={colors.foreground} />
+          <Ionicons name="arrow-back" size={20} color={colors.label} />
         </Pressable>
         <Text testID="legal-title" variant="title">
           {title}
@@ -103,9 +128,13 @@ export default function LegalDocScreen() {
       ) : (
         <View className="flex-1">
           <WebView
-            key={attempt}
+            key={`${attempt}-${scheme}`}
             testID="legal-webview"
             source={{ uri: sourceUrl }}
+            style={{ backgroundColor: colors.canvas }}
+            injectedJavaScriptBeforeContentLoaded={
+              scheme === 'dark' ? nightStyleScript(colors) : undefined
+            }
             setSupportMultipleWindows={false}
             onShouldStartLoadWithRequest={(req) => {
               const allowed = shouldLoadLegalUrl(req.url, pageUrl);
@@ -121,9 +150,9 @@ export default function LegalDocScreen() {
             <View
               testID="legal-loading"
               pointerEvents="none"
-              className="absolute inset-0 items-center justify-center bg-background"
+              className="absolute inset-0 items-center justify-center bg-canvas"
             >
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={colors.brand} />
             </View>
           ) : null}
         </View>

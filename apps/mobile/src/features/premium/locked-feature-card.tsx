@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, colors, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, PREMIUM_PITCH_COPY, premiumPitchFor } from '@chefer/utils';
 import { openPremium } from './open-premium';
 
@@ -36,11 +36,12 @@ export function LockedFeatureCard({
   onSeeWhatPremiumAdds = openPremium,
   testID,
 }: LockedFeatureCardProps) {
+  const colors = useThemeColors();
   const pitch = premiumPitchFor(source);
   return (
     <Card testID={testID} className={cn('gap-2', compact && 'gap-1.5 p-3')}>
       <View className="flex-row items-center gap-1">
-        <Ionicons name="lock-closed-outline" size={14} color={colors.mutedForeground} />
+        <Ionicons name="lock-closed-outline" size={14} color={colors.labelTertiary} />
         <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {PREMIUM_PITCH_COPY.eyebrow}
         </Text>

@@ -147,3 +147,73 @@ _Avoid_: auto-translation, temporary copy
 A curated recipe's name, description, steps and ingredient names in another language, drafted by the AI and then
 reviewed. Readers whose recipe has none, or whose recipe changed since it was translated, see the English.
 _Avoid_: localized recipe, Romanian recipe (that is a dish, e.g. the Romanian pool)
+
+## Kitchen progress
+
+**Kitchen progress**:
+The whole reward system: Chef XP, Chef ranks, the Flame, Today's three, achievements and the weekly recap. It rewards what people do, never body numbers.
+_Avoid_: gamification (in user copy), points, game
+
+**Chef XP**:
+Progress points earned for real actions (logging, cooking, training, planning, shopping). XP shows progress; it is never spent, sold or taken back.
+_Avoid_: points, coins, credits, score
+
+**Chef rank**:
+The kitchen-brigade title a level carries, from Kitchen Porter to Three-Star.
+_Avoid_: tier (that is Free/Premium), badge, league
+
+**Kitchen receipt**:
+The itemised list of why a reward was earned ("+25 Cooked at home, +10 First time making this recipe").
+_Avoid_: summary, reward screen
+
+**Active day**:
+A day with at least one logged meal, finished cook or completed workout.
+_Avoid_: streak day, check-in
+
+**Active-day goal**:
+How many active days a week the user aims for (default 3 of 7, user-adjustable).
+_Avoid_: daily goal, target (targets are nutrition)
+
+**Flame**:
+The main streak: the number of weeks in a row the active-day goal was met. Rest days never break it.
+_Avoid_: daily streak, fire, chain
+
+**Pilot light**:
+A free, earned freeze that keeps the Flame lit through a short week; one every 4 good weeks, used automatically.
+_Avoid_: streak freeze, flex token (that is the gym streak's)
+
+**Today's three**:
+Three small, personalised quests a day taken from the user's plan, with a bonus for finishing all three.
+_Avoid_: daily challenges, missions, tasks
+
+**Achievement**:
+A named goal (Home Chef, Flame…) with one or more tiers (I, II, III); each earned tier is a badge.
+_Avoid_: trophy, medal
+
+**Weekly recap**:
+The Sunday "unwrap your week" story cards: meals cooked, workouts, PRs, dish of the week, the Flame and XP.
+_Avoid_: report, weekly review (that is the coach's ChefReview)
+
+**Celebration level**:
+How loudly progress is celebrated: Full party, Subtle or Off. Off still records everything.
+_Avoid_: notifications setting
+
+**Cook (finished)**:
+A cook-mode session the user finished, stored on the server as a CookLog.
+_Avoid_: made it (the button), cooking session
+
+## Appearance
+
+**Appearance**:
+The phone setting that picks the app's colours: Automatic, Day or Night. It lives on the phone, not the account.
+_Avoid_: theme (there is one theme, Ember), display settings
+
+**Night mode**:
+The app in its dark colours — what Night pins, and what Automatic shows while the phone is in dark mode.
+In code it is the `dark` scheme; in user copy it is always "Night" / "night mode".
+_Avoid_: dark mode (in user copy), dark theme
+
+**Colour role**:
+A colour named for what it does (`canvas`, `label-secondary`, `brand`, `attention`…) with a Day and a Night
+value, from `@chefer/tokens`. Every colour on mobile is one.
+_Avoid_: palette colour, hex

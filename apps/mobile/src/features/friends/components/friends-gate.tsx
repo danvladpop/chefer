@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { EmptyState, ErrorState, Screen } from '@chefer/ui-mobile';
+import { EmptyState, ErrorState, Screen, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { useFriendsAvailability } from '../api/use-friends-availability';
 
@@ -14,12 +14,13 @@ import { useFriendsAvailability } from '../api/use-friends-availability';
 // the server said yes.
 
 export function FriendsUnavailableScreen({ testID = 'friends-unavailable' }: { testID?: string }) {
+  const colors = useThemeColors();
   const { t } = useT();
   return (
     <Screen className="justify-center">
       <EmptyState
         testID={testID}
-        icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
         title={t('friends.unavailable')}
         action={{
           label: t('friends.common.goBack'),

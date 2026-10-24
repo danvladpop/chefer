@@ -141,18 +141,18 @@ function LoginForm() {
         <View
           testID="login-account-deleted"
           accessibilityRole="alert"
-          className="rounded-md bg-green-50 px-3 py-2"
+          className="rounded-md bg-positive/10 px-3 py-2"
         >
-          <Text className="text-sm text-green-800">{t('auth.login.accountDeleted')}</Text>
+          <Text className="text-sm text-positive">{t('auth.login.accountDeleted')}</Text>
         </View>
       )}
       {sessionExpired && (
         <View
           testID="login-session-expired"
           accessibilityRole="alert"
-          className="rounded-md bg-amber-50 px-3 py-2"
+          className="rounded-md bg-attention/10 px-3 py-2"
         >
-          <Text className="text-sm text-amber-800">{t('auth.login.sessionExpired')}</Text>
+          <Text className="text-sm text-attention">{t('auth.login.sessionExpired')}</Text>
         </View>
       )}
       <Text variant="title" testID="login-title">

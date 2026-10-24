@@ -13,6 +13,7 @@ import {
   Text,
   useFieldChain,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { isTimedFor } from '@chefer/utils';
 import { EQUIPMENT_FILTERS } from './exercise-filters';
@@ -42,6 +43,7 @@ export function ExerciseFormScreen({
   /** UX-GYM-21: a name carried over from an empty search ("Create 'T-bar'"). */
   initialName?: string;
 }) {
+  const colors = useThemeColors();
   const { existing, missing, waiting, failed, retry } = useExerciseFormGate(exerciseId);
 
   if (missing) {
@@ -55,7 +57,7 @@ export function ExerciseFormScreen({
         </View>
         <View className="flex-1 items-center justify-center px-6">
           {waiting ? (
-            <ActivityIndicator testID="exercise-form-loading" size="large" color="#944a00" />
+            <ActivityIndicator testID="exercise-form-loading" size="large" color={colors.brand} />
           ) : failed ? (
             <ErrorState
               testID="exercise-form-load-error"
@@ -365,15 +367,15 @@ function ExerciseForm({
 
         {errors.form ? (
           <View testID="exercise-form-errors">
-            <Text accessibilityRole="alert" className="text-sm text-red-600">
+            <Text accessibilityRole="alert" className="text-sm text-danger">
               {errors.form}
             </Text>
           </View>
         ) : null}
 
         {!online ? (
-          <View testID="exercise-form-offline" className="rounded-lg bg-amber-50 px-3 py-2">
-            <Text className="text-sm text-amber-900">
+          <View testID="exercise-form-offline" className="rounded-lg bg-attention/10 px-3 py-2">
+            <Text className="text-sm text-attention">
               Saving a custom exercise needs a connection. Reconnect to save.
             </Text>
           </View>
@@ -400,7 +402,7 @@ function FieldError({ testID, message }: { testID: string; message: string | und
       testID={testID}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
-      className="mt-1 text-sm text-red-600"
+      className="mt-1 text-sm text-danger"
     >
       {message}
     </Text>

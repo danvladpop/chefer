@@ -96,7 +96,7 @@ export function ReportSafetySheet({
         />
       </View>
       {reportMutation.isError ? (
-        <Text className="text-xs text-red-600">{userFacingErrorMessage(reportMutation.error)}</Text>
+        <Text className="text-xs text-danger">{userFacingErrorMessage(reportMutation.error)}</Text>
       ) : null}
     </Sheet>
   );

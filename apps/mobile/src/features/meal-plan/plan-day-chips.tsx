@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PlanTrainingDay } from '@chefer/types';
-import { colors, DENSE_MAX_FONT_SCALE, Text } from '@chefer/ui-mobile';
+import { DENSE_MAX_FONT_SCALE, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   tailoringDayLabel,
@@ -35,6 +35,7 @@ export function PlanDayChips({
   todayIndex: number | null;
   onSelect: (dayIndex: number) => void;
 }) {
+  const colors = useThemeColors();
   // The two markers explain themselves once a week carries both (walkthrough
   // 2026-10-10: "↔ and • with no legend").
   const legendGlyph = plan.trainingDays?.[0]?.kind;
@@ -62,7 +63,7 @@ export function PlanDayChips({
               onPress={() => onSelect(i)}
               className={cn(
                 'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
-                isSelected ? 'bg-primary' : isToday ? 'bg-accent' : 'bg-gray-50',
+                isSelected ? 'bg-primary' : isToday ? 'bg-accent' : 'bg-surface-sunken',
               )}
             >
               <Text
@@ -71,7 +72,7 @@ export function PlanDayChips({
                 maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                 className={cn(
                   'text-xs font-semibold uppercase',
-                  isSelected ? 'text-primary-foreground' : 'text-gray-600',
+                  isSelected ? 'text-primary-foreground' : 'text-label-secondary',
                 )}
               >
                 {label}
@@ -86,13 +87,13 @@ export function PlanDayChips({
                     testID={`plan-day-${i}-training`}
                     name={trainingGlyph(training.kind)}
                     size={10}
-                    color={isSelected ? colors.primaryForeground : colors.primary}
+                    color={isSelected ? colors.onBrand : colors.brand}
                   />
                 ) : (
                   <View
                     className={cn(
                       'h-1.5 w-1.5 rounded-full',
-                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
+                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-brand-on/70' : 'bg-primary',
                     )}
                   />
                 )}
@@ -108,7 +109,7 @@ export function PlanDayChips({
             <Text className="text-xs text-label-secondary">Meals planned</Text>
           </View>
           <View className="flex-row items-center gap-1">
-            <Ionicons name={trainingGlyph(legendGlyph)} size={10} color={colors.primary} />
+            <Ionicons name={trainingGlyph(legendGlyph)} size={10} color={colors.brand} />
             <Text className="text-xs text-label-secondary">
               {trainingGlyph(legendGlyph) === 'walk-outline' ? 'Run day' : 'Training day'}
             </Text>

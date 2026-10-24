@@ -7,12 +7,12 @@ import type { ExerciseDto, GymBootstrap, ProgressionDto } from '@chefer/types';
 import {
   Button,
   Card,
-  colors,
   EmptyState,
   ProgressRing,
   Screen,
   Sheet,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
 import { getTranslator, useT } from '../../../lib/i18n';
@@ -163,7 +163,7 @@ export function SummaryScreen({ id }: { id: string }) {
                 <View
                   key={`${pr.exerciseId}-${pr.kind}`}
                   testID={`summary-pr-${pr.exerciseId}`}
-                  className="flex-row items-center gap-3 rounded-xl bg-amber-50 px-3 py-2"
+                  className="flex-row items-center gap-3 rounded-xl bg-brand-tint px-3 py-2"
                 >
                   <Text className="text-lg">🏆</Text>
                   <View className="min-w-0 flex-1">
@@ -211,9 +211,9 @@ export function SummaryScreen({ id }: { id: string }) {
                     className={cn(
                       'h-8 w-8 items-center justify-center rounded-full',
                       row.direction === 'up'
-                        ? 'bg-emerald-100'
+                        ? 'bg-positive/10'
                         : row.direction === 'down'
-                          ? 'bg-amber-100'
+                          ? 'bg-attention/10'
                           : 'bg-muted',
                     )}
                   >
@@ -297,6 +297,7 @@ export function SummaryScreen({ id }: { id: string }) {
  * when the food plan loads — offline or without a plan, quick add instead.
  */
 function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
+  const colors = useThemeColors();
   const { t } = useT();
   const grams = postWorkoutProteinG(bodyweightKg);
   const { data } = trpc.dashboard.summary.useQuery(
@@ -307,7 +308,7 @@ function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
   return (
     <Card testID="summary-refuel" className="gap-1">
       <View className="flex-row items-center gap-2">
-        <Ionicons name="restaurant-outline" size={18} color={colors.primary} />
+        <Ionicons name="restaurant-outline" size={18} color={colors.brand} />
         <Text testID="summary-refuel-grams" className="min-w-0 flex-1 text-base font-semibold">
           {t('gym.summary.refuelAim', { grams })}
         </Text>

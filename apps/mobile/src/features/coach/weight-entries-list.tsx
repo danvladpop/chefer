@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmSheet, NumericReturnBar, Text } from '@chefer/ui-mobile';
+import { ConfirmSheet, NumericReturnBar, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
   formatBodyWeight,
@@ -29,6 +29,7 @@ function EntryRow({
   system: UnitSystem;
   requestHealthConsent: RequestHealthConsent;
 }) {
+  const colors = useThemeColors();
   const [editing, setEditing] = useState(false);
   // R-21: iOS's decimal-pad has no Done key — the shared accessory bar gives it
   // one (unique per row so the native ids never collide).
@@ -90,7 +91,7 @@ function EntryRow({
         <Text
           testID={`weight-entry-${entry.id}-date`}
           numberOfLines={1}
-          className="min-w-24 shrink-0 text-sm text-gray-500"
+          className="min-w-24 shrink-0 text-sm text-label-tertiary"
         >
           {dateLabel}
         </Text>
@@ -108,7 +109,7 @@ function EntryRow({
             className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         ) : (
-          <Text className="min-w-0 flex-1 text-sm font-semibold text-gray-900">{weightLabel}</Text>
+          <Text className="min-w-0 flex-1 text-sm font-semibold text-label">{weightLabel}</Text>
         )}
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'save' : 'edit'}`}
@@ -118,7 +119,11 @@ function EntryRow({
           onPress={editing ? save : () => setEditing(true)}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name={editing ? 'checkmark' : 'pencil-outline'} size={18} color="#4b5563" />
+          <Ionicons
+            name={editing ? 'checkmark' : 'pencil-outline'}
+            size={18}
+            color={colors.labelSecondary}
+          />
         </Pressable>
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'cancel' : 'delete'}`}
@@ -136,7 +141,11 @@ function EntryRow({
           }
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name={editing ? 'close' : 'trash-outline'} size={18} color="#4b5563" />
+          <Ionicons
+            name={editing ? 'close' : 'trash-outline'}
+            size={18}
+            color={colors.labelSecondary}
+          />
         </Pressable>
       </View>
       {editing && (
@@ -147,7 +156,7 @@ function EntryRow({
           onPress={() => Keyboard.dismiss()}
         />
       )}
-      {error && <Text className="text-xs text-red-600">{error}</Text>}
+      {error && <Text className="text-xs text-danger">{error}</Text>}
       <ConfirmSheet
         testID={`weight-entry-${entry.id}-delete-confirm`}
         visible={confirmingDelete}

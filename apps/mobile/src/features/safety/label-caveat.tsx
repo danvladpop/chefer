@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 // PAT-2 — safety states, "Label caveat" (technical-plan.md / synthesis
@@ -18,24 +18,27 @@ export interface LabelCaveatProps {
 }
 
 export function LabelCaveat({ text, compact = false, testID }: LabelCaveatProps) {
+  const colors = useThemeColors();
   return (
     <View
       testID={testID}
       accessibilityLabel={text}
       className={cn(
         'flex-row items-center gap-1',
-        compact ? 'self-start' : 'w-full items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2',
+        compact
+          ? 'self-start'
+          : 'w-full items-start gap-1.5 rounded-lg bg-attention/10 px-2.5 py-2',
       )}
     >
       <Ionicons
         name="alert-circle-outline"
         size={compact ? 12 : 14}
-        color="#92400e"
+        color={colors.attention}
         style={compact ? undefined : { marginTop: 1 }}
       />
       <Text
         numberOfLines={compact ? 1 : undefined}
-        className={cn('min-w-0 flex-1 text-amber-800', compact ? 'text-xs font-medium' : 'text-xs')}
+        className={cn('min-w-0 flex-1 text-attention', compact ? 'text-xs font-medium' : 'text-xs')}
       >
         {text}
       </Text>

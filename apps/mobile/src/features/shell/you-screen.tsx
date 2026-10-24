@@ -9,12 +9,16 @@ import {
   useFirstEntrance,
   useThemeColors,
 } from '@chefer/ui-mobile';
+import { PROGRESS_COPY } from '@chefer/utils';
 import { Icon, type IconName } from '../../components/icon';
 import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
+import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
+import { ChefCard } from '../progress/chef-card';
+import { useProgressEnabled } from '../progress/use-progress';
 import { ModeSwitchSection } from '../trainer-mode/mode-switch-row';
 import { useTrainerBadges, useTrainerModeAvailability } from '../trainer-mode/use-trainer-mode';
 import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
@@ -38,6 +42,21 @@ import { YouHelpSection, YouSignOutFooter } from './you/you-footer';
 // it leads to the turn-on screen.
 
 type Row = { title: string; subtitle?: string; href: Href; icon: IconName; testID: string };
+
+// Kitchen progress rows (shown only when it is on): Achievements leads "Your
+// progress", Rewards & motivation leads "Settings".
+const ACHIEVEMENTS_ROW: Row = {
+  title: PROGRESS_COPY.achievementsTitle,
+  href: '/achievements',
+  icon: 'trophy',
+  testID: 'you-achievements',
+};
+const REWARDS_ROW: Row = {
+  title: PROGRESS_COPY.settingsTitle,
+  href: '/settings/rewards',
+  icon: 'trophy',
+  testID: 'you-rewards',
+};
 
 const PROGRESS_ROWS: readonly Row[] = [
   { title: 'Stats', href: '/progress', icon: 'progress', testID: 'you-progress' },
@@ -96,6 +115,8 @@ export function YouScreen() {
   // Same cached query (and staleTime) as Profile's household row.
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
   const household = householdSummary(members.map((m) => m.name));
+  // Kitchen progress (gamification flag + revamp shell + availability): extra rows, the Chef card.
+  const progressOn = useProgressEnabled();
 
   const row = (item: Row) => (
     <ListRow
@@ -122,11 +143,22 @@ export function YouScreen() {
             />
           ) : null}
 
+          <ChefCard />
+
           <TierRow />
 
-          <ListSection title="Your progress">{PROGRESS_ROWS.map(row)}</ListSection>
+          <ListSection title="Your progress">
+            {(progressOn ? [ACHIEVEMENTS_ROW, ...PROGRESS_ROWS] : PROGRESS_ROWS).map(row)}
+          </ListSection>
 
-          <ListSection title="Settings">{SETTINGS_ROWS.map(row)}</ListSection>
+          <ListSection title="Settings">
+            {(progressOn ? [REWARDS_ROW, ...SETTINGS_ROWS] : SETTINGS_ROWS)
+              .filter((r) => r.testID !== 'you-account')
+              .map(row)}
+            {/* Night mode: Automatic · Day · Night, just above Account. */}
+            <AppearanceRow />
+            {SETTINGS_ROWS.filter((r) => r.testID === 'you-account').map(row)}
+          </ListSection>
 
           <ListSection title="People">
             <ListRow

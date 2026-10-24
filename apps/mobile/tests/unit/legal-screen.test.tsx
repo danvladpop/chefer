@@ -1,6 +1,7 @@
 import { Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { colorsFor } from '@chefer/tokens';
 import LegalDocScreen from '../../app/legal/[doc]';
 
 // App Review R-01: the in-app legal view shows ONE page; every other link on
@@ -9,6 +10,17 @@ import LegalDocScreen from '../../app/legal/[doc]';
 let mockDoc = 'privacy';
 let mockAnchor: string | undefined;
 let mockWebViewProps: Record<string, unknown> = {};
+let mockScheme: 'light' | 'dark' = 'light';
+
+jest.mock('@chefer/ui-mobile', () => {
+  const actual = jest.requireActual<typeof import('@chefer/ui-mobile')>('@chefer/ui-mobile');
+  const tokens = jest.requireActual<typeof import('@chefer/tokens')>('@chefer/tokens');
+  return {
+    ...actual,
+    useResolvedScheme: () => mockScheme,
+    useThemeColors: () => tokens.colorsFor(mockScheme),
+  };
+});
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('expo-router', () => ({
@@ -35,6 +47,7 @@ beforeEach(() => {
   mockDoc = 'privacy';
   mockAnchor = undefined;
   mockWebViewProps = {};
+  mockScheme = 'light';
   openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
 });
 afterEach(() => jest.restoreAllMocks());
@@ -62,6 +75,21 @@ describe('LegalDocScreen web view', () => {
     expect(shouldLoad({ url: 'https://chefer.test/privacy' })).toBe(true);
     expect(shouldLoad({ url: 'https://chefer.test/privacy#analytics' })).toBe(true);
     expect(openURLSpy).not.toHaveBeenCalled();
+  });
+
+  it('leaves the page alone by day', async () => {
+    await renderLegal();
+    expect(mockWebViewProps.injectedJavaScriptBeforeContentLoaded).toBeUndefined();
+  });
+
+  it('paints the page in the night colours before it shows, so it is not a white sheet', async () => {
+    mockScheme = 'dark';
+    await renderLegal();
+    const night = colorsFor('dark');
+    const script = mockWebViewProps.injectedJavaScriptBeforeContentLoaded as string;
+    expect(script).toContain(night.canvas);
+    expect(script).toContain(night.label);
+    expect(mockWebViewProps.style).toEqual({ backgroundColor: night.canvas });
   });
 
   it.each([

@@ -1,7 +1,7 @@
 import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import { colorsFor } from '@chefer/tokens';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { haptics } from '../motion/haptics';
 import { Text } from './text';
 
@@ -67,8 +67,6 @@ export interface ListRowProps {
   accessibilityHint?: string;
 }
 
-const PRESSED = colorsFor('light').surfaceSunken;
-
 function Chevron() {
   // A text chevron keeps ui-mobile free of an icon font dependency and
   // scales with Dynamic Type like the row it sits in.
@@ -97,6 +95,7 @@ export function ListRow({
   testID,
   accessibilityHint,
 }: ListRowProps) {
+  const pressedFill = useThemeColors().surfaceSunken;
   const trailing = accessory ?? (onPress && !destructive ? 'chevron' : 'none');
 
   const body = (
@@ -149,7 +148,7 @@ export function ListRow({
         haptics.selection();
         onPress();
       }}
-      style={({ pressed }) => (pressed ? { backgroundColor: PRESSED } : undefined)}
+      style={({ pressed }) => (pressed ? { backgroundColor: pressedFill } : undefined)}
     >
       {body}
     </Pressable>
