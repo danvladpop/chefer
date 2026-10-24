@@ -96,6 +96,8 @@ const TRAINING_GROUP: SettingsGroup = {
 const ACCOUNT_ROWS: SettingsRow[] = [
   { label: 'Plan & Premium', testID: 'settings-plan-premium', href: '/profile?section=plan' },
   { label: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
+  // ADR 0004. The label names both languages so it can be found in either.
+  { label: 'Language / Limbă', testID: 'settings-language', href: '/settings/language' },
   {
     label: 'Notifications',
     testID: 'settings-notifications',

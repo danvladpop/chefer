@@ -1,6 +1,12 @@
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
-import type { PlanTier, UserRole } from '@chefer/types';
+import {
+  supportedLocaleSchema,
+  type PlanTier,
+  type SetLocaleInput,
+  type SupportedLocale,
+  type UserRole,
+} from '@chefer/types';
 import {
   domainErrorToTRPCCode,
   UserEmailConflictError,
@@ -9,6 +15,12 @@ import {
 import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
 import type { EmailPreferencesService } from '../notifications/email-preferences.service.js';
 import { consentService } from '../privacy/consent.service.js';
+
+/** A stored language column → a supported locale; anything else reads as unset. */
+function parseLocale(value: string | null | undefined): SupportedLocale | null {
+  const parsed = supportedLocaleSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 /** 'web' | 'mobile' | 'migration' — see ConsentService.record. */
 export type ConsentSource = 'web' | 'mobile' | 'migration';
@@ -59,6 +71,10 @@ export interface UserDto {
   healthDataConsentAt: Date | null;
   /** T-39.3: when the one-time "emails changed" notice was shown (null = not yet). */
   emailDefaultsNoticeAt: Date | null;
+  /** ADR 0004: the UI language chosen in Settings; null = follow the device. */
+  locale: SupportedLocale | null;
+  /** ADR 0004: the supported language a client last resolved from the device. */
+  deviceLocale: SupportedLocale | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -294,6 +310,30 @@ export class UserService {
   }
 
   /**
+   * ADR 0004: the UI language. `locale` is the Settings choice (null =
+   * follow the device again); `deviceLocale` is what the client resolved from
+   * the device, kept so emails follow someone who never opened the setting.
+   * Nothing is written when both already match (clients report on launch).
+   */
+  async setLocale(
+    id: string,
+    input: SetLocaleInput,
+  ): Promise<{ locale: SupportedLocale | null; deviceLocale: SupportedLocale | null }> {
+    const existing = await this.userRepository.findById(id);
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
+    }
+    const data: { locale?: SupportedLocale | null; deviceLocale?: SupportedLocale } = {};
+    if (input.locale !== undefined && input.locale !== existing.locale) data.locale = input.locale;
+    if (input.deviceLocale !== undefined && input.deviceLocale !== existing.deviceLocale) {
+      data.deviceLocale = input.deviceLocale;
+    }
+    const user =
+      Object.keys(data).length > 0 ? await this.userRepository.setLocale(id, data) : existing;
+    return { locale: parseLocale(user.locale), deviceLocale: parseLocale(user.deviceLocale) };
+  }
+
+  /**
    * Deletes a user by ID.
    */
   async delete(id: string): Promise<void> {
@@ -324,6 +364,8 @@ export class UserService {
     aiDataConsentAt?: Date | null;
     healthDataConsentAt?: Date | null;
     emailDefaultsNoticeAt?: Date | null;
+    locale?: string | null;
+    deviceLocale?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserDto {
@@ -340,6 +382,8 @@ export class UserService {
       aiDataConsentAt: user.aiDataConsentAt ?? null,
       healthDataConsentAt: user.healthDataConsentAt ?? null,
       emailDefaultsNoticeAt: user.emailDefaultsNoticeAt ?? null,
+      locale: parseLocale(user.locale),
+      deviceLocale: parseLocale(user.deviceLocale),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

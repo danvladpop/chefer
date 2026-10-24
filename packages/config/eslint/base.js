@@ -4,11 +4,13 @@ import prettierConfig from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
 import tseslint from 'typescript-eslint';
 import { noForbiddenCopy } from './rules/no-forbidden-copy.js';
+import { noHardcodedUiString } from './rules/no-hardcoded-ui-string.js';
 
 /** @type {import('eslint').ESLint.Plugin} */
 const cheferPlugin = {
   rules: {
     'no-forbidden-copy': noForbiddenCopy,
+    'no-hardcoded-ui-string': noHardcodedUiString,
   },
 };
 
@@ -101,6 +103,20 @@ export const base = tseslint.config(
     },
     rules: {
       'chefer/no-forbidden-copy': 'error',
+    },
+  },
+  {
+    // i18n (ADR 0004): text people read goes through t() from @chefer/i18n.
+    // WARN while Lane J converts the app screen by screen; it flips to
+    // 'error' in phase 4, once every screen is converted. Write new UI with
+    // keys from day one so the flip finds nothing new.
+    files: ['**/*.tsx'],
+    ignores: ['**/*.test.tsx', '**/tests/**', '**/e2e/**', '**/__tests__/**'],
+    plugins: {
+      chefer: cheferPlugin,
+    },
+    rules: {
+      'chefer/no-hardcoded-ui-string': 'warn',
     },
   },
   prettierConfig,

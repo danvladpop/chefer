@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { env } from '@/lib/env';
+import { I18nProvider } from '@/lib/i18n/i18n-provider';
+import { getRequestI18n } from '@/lib/i18n/server';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '@/lib/seo/brand';
 import { TRPCProvider } from '@/lib/trpc-provider';
+import { createTranslator } from '@chefer/i18n';
 import './globals.css';
 
 const geistSans = Geist({
@@ -81,9 +84,12 @@ interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  // ADR 0004: the first paint is already in the reader's language.
+  const { locale, choice, deviceTags } = await getRequestI18n();
+  const { t } = createTranslator(locale, deviceTags);
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-dvh bg-background font-sans antialiased`}
       >
@@ -93,10 +99,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-white focus:px-4 focus:text-sm focus:font-semibold focus:text-gray-900 focus:shadow-lg focus:outline focus:outline-2 focus:outline-[#944a00]"
         >
-          Skip to content
+          {t('common.skipToContent')}
         </a>
         <TRPCProvider>
-          <div className="relative flex min-h-dvh flex-col">{children}</div>
+          <I18nProvider initialChoice={choice} deviceTags={deviceTags}>
+            <div className="relative flex min-h-dvh flex-col">{children}</div>
+          </I18nProvider>
         </TRPCProvider>
       </body>
     </html>

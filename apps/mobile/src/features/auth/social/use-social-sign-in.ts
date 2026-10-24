@@ -3,6 +3,7 @@ import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
 import { setToken } from '../../../lib/auth-store';
+import { getTranslator } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { clearAccountDeletedNotice } from '../account-deleted-notice';
 import { AUTH_COPY } from '../copy';
@@ -100,6 +101,7 @@ export function useSocialSignIn(providers: SocialProviders) {
         acceptLegal: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         ...(region ? { region } : {}),
+        deviceLocale: getTranslator().locale,
       });
     },
     [providers, active, signIn],

@@ -3,6 +3,7 @@ import { router, type Href } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
 import { ListRow, ListSection, Screen, Text } from '@chefer/ui-mobile';
 import { useIsPremium } from '../../../hooks/use-is-premium';
+import { useLocaleChoice, useT } from '../../../lib/i18n';
 import { useFriendsAvailability } from '../../friends/api/use-friends-availability';
 import { legalHref } from '../../legal/legal-docs';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
@@ -45,7 +46,11 @@ const LEGAL_ROWS: readonly AccountRow[] = [
 export const ACCOUNT_DISCLAIMER =
   "Chefer suggests meals and workouts as general guidance only. It isn't a medical device. Suggestions, including AI ones, can be wrong, even about allergens.";
 
-function accountRows(isPremium: boolean | undefined, friendsAvailable: boolean): AccountRow[] {
+function accountRows(
+  isPremium: boolean | undefined,
+  friendsAvailable: boolean,
+  language: { title: string; value: string },
+): AccountRow[] {
   return [
     {
       title: 'Plan & Premium',
@@ -55,6 +60,8 @@ function accountRows(isPremium: boolean | undefined, friendsAvailable: boolean):
       value: isPremium === undefined ? undefined : isPremium ? 'Premium' : 'Free',
     },
     { title: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
+    // ADR 0004: shows the language in itself ("Română"), so it is findable in any language.
+    { ...language, testID: 'settings-language', href: '/settings/language' },
     { title: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
     {
       title: 'Download or delete my data',
@@ -77,6 +84,12 @@ function accountRows(isPremium: boolean | undefined, friendsAvailable: boolean):
 export function AccountScreen() {
   const isPremium = useIsPremium();
   const { enabled: friendsAvailable } = useFriendsAvailability();
+  const { t, locale } = useT();
+  const choice = useLocaleChoice();
+  const language = {
+    title: t('settings.language.title'),
+    value: choice ? t(`settings.language.names.${locale}`) : t('settings.language.automatic'),
+  };
 
   const row = (item: AccountRow) => (
     <ListRow
@@ -97,7 +110,7 @@ export function AccountScreen() {
         <ScrollView testID="account-scroll" contentContainerClassName="gap-6 px-4 pb-8 pt-2">
           <ListSection title="You">{YOU_ROWS.map(row)}</ListSection>
           <ListSection title="Account">
-            {accountRows(isPremium, friendsAvailable).map(row)}
+            {accountRows(isPremium, friendsAvailable, language).map(row)}
           </ListSection>
           <ListSection title="Legal">{LEGAL_ROWS.map(row)}</ListSection>
           {/* T-22.3: the medical/legal disclaimer stays visible on this screen. */}

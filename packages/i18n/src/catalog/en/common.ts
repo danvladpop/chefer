@@ -1,0 +1,72 @@
+// Shared words every screen uses. Feature copy goes in its own namespace.
+export const common = {
+  appName: 'Chefer',
+  skipToContent: 'Skip to content',
+  actions: {
+    save: 'Save',
+    cancel: 'Cancel',
+    done: 'Done',
+    back: 'Back',
+    close: 'Close',
+    continue: 'Continue',
+    delete: 'Delete',
+    edit: 'Edit',
+    retry: 'Try again',
+    next: 'Next',
+    skip: 'Skip',
+  },
+  states: {
+    loading: 'Loading…',
+    saving: 'Saving…',
+    saved: 'Saved',
+  },
+  errors: {
+    generic: 'Something went wrong. Please try again.',
+    network: 'No connection. Check your internet and try again.',
+  },
+  counts: {
+    recipes: { one: '{count} recipe', other: '{count} recipes' },
+    dinners: { one: '{count} dinner', other: '{count} dinners' },
+    meals: { one: '{count} meal', other: '{count} meals' },
+    days: { one: '{count} day', other: '{count} days' },
+    workouts: { one: '{count} workout', other: '{count} workouts' },
+    dishes: { one: '{count} dish', other: '{count} dishes' },
+    servings: { one: '{count} serving', other: '{count} servings' },
+    minutes: { one: '{count} min', other: '{count} min' },
+  },
+  // Fixed tables for copy that must not depend on the runtime's ICU data
+  // (ICU versions disagree on "Sep" vs "Sept"). Screens otherwise format
+  // dates through the translator's `date()`.
+  weekdays: {
+    mon: 'Monday',
+    tue: 'Tuesday',
+    wed: 'Wednesday',
+    thu: 'Thursday',
+    fri: 'Friday',
+    sat: 'Saturday',
+    sun: 'Sunday',
+  },
+  weekdaysShort: {
+    mon: 'Mon',
+    tue: 'Tue',
+    wed: 'Wed',
+    thu: 'Thu',
+    fri: 'Fri',
+    sat: 'Sat',
+    sun: 'Sun',
+  },
+  monthsShort: {
+    jan: 'Jan',
+    feb: 'Feb',
+    mar: 'Mar',
+    apr: 'Apr',
+    may: 'May',
+    jun: 'Jun',
+    jul: 'Jul',
+    aug: 'Aug',
+    sep: 'Sep',
+    oct: 'Oct',
+    nov: 'Nov',
+    dec: 'Dec',
+  },
+} as const;

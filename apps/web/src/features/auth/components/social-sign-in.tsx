@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
+import { deviceSupportedLocale } from '@chefer/i18n';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { useWebSocialProviders } from '../hooks/use-web-social-providers';
@@ -55,11 +56,13 @@ export function SocialSignIn({
       setError(null);
       // Location defaults, as on the register form.
       const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
+      const deviceLocale = deviceSupportedLocale();
       signIn.mutate({
         ...payload,
         acceptLegal: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         ...(region && { region }),
+        ...(deviceLocale && { deviceLocale }),
       });
     },
     [signIn],

@@ -46,6 +46,7 @@
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
+41. [Language Flow (i18n, ADR 0004)](#42-language-flow-i18n-adr-0004)
 
 ---
 
@@ -6225,6 +6226,8 @@ success moment ──► maybeRequestReview(trigger)
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
 
+---
+
 ## 39. Kitchen progress (gamification P1, `docs/gamification-2026-10/`)
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
@@ -6313,3 +6316,45 @@ Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_back
    not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
    overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
 5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).
+
+---
+
+## 42. Language Flow (i18n, ADR 0004)
+
+Chefer speaks English and Romanian. Which one a person sees is decided the same way on every surface:
+
+```
+explicit choice (User.locale, Settings › Language)
+  └─ none ("Same as my phone / browser") ──► device or browser languages, best first
+                                              └─ none we ship ──► English
+```
+
+**Where the choice lives.** On the account (`User.locale`) and, as a copy, on the device: mobile keeps it in
+`expo-sqlite/kv-store`, web in the `chefer_locale` cookie (so the server renders the first paint, and `<html lang>`, in
+it). Signed in, the account copy wins: a choice made on the phone reaches the browser on its next page, and the reverse
+(`LocaleSync` / `LocaleSyncHost`).
+
+**Changing it.**
+
+- Mobile: You › Account › Language (`/settings/language`; the legacy Settings hub row "Language / Limbă"). Tapping a
+  language switches every screen at once, then saves with `user.setLocale({ locale })`; "Same as my phone" saves
+  `null`.
+- Web: Preferences › Language (a select; saves on change, outside the form's Save) → `user.setLocale`, the cookie, and
+  a server re-render (`router.refresh()`).
+- Each language is written in itself ("English", "Română"), so a wrong pick can always be undone.
+
+**The device language** is what the client resolves from the OS (iOS `AppleLanguages` / Android `I18nManager` through
+React Native core, then `Intl` — no new native module, so it ships over the air) or the browser (`navigator.languages`, `Accept-Language`). Clients report it as `deviceLocale`:
+
+- at sign-up (`auth.register` / `auth.socialSignIn`), so the address-confirmation email is already in it;
+- whenever it differs from the account's copy (`user.setLocale({ deviceLocale })`, at most once per change).
+
+**Emails** (weekly "your week is ready", the Sunday recap, address confirmation, password reset) go out in
+`locale ?? deviceLocale ?? 'en'`: subject, body, day and month names, numbers and `<html lang>`.
+
+**Numbers, dates and money** on the clients follow the UI language, not the phone's region: a Romanian phone set to
+English reads "22 Oct", an English phone set to Romanian reads "22 oct.". When the phone already speaks the chosen
+language, its own regional style is kept (en-US stays "Oct 22").
+
+**Not translated yet** (phases 2–4 of Lane J): most screens, server error messages, AI chat replies and recipe text.
+Until a screen is converted it shows English in both languages.

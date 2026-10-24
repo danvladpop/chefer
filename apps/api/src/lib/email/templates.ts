@@ -6,6 +6,12 @@
 //
 // Tone (docs/gym/programming-research.md §4.3, applied to food too): never
 // guilt copy. A quiet week gets an encouraging line, not a scolding one.
+//
+// Copy lives in @chefer/i18n (`email.*`): every renderer takes the
+// recipient's Translator (ADR 0004), so the subject, body and <html lang>
+// follow User.locale ?? User.deviceLocale ?? 'en'.
+
+import type { Translator } from '@chefer/i18n';
 
 export interface RenderedEmail {
   subject: string;
@@ -87,17 +93,22 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-function greeting(firstName: string | null): string {
+function greeting(tr: Translator, firstName: string | null): string {
   const name = firstName?.trim();
-  return name ? `Hi ${name},` : 'Hi,';
+  return name ? tr.t('email.greeting', { name }) : tr.t('email.greetingNoName');
 }
 
 function button(label: string, href: string): string {
   return `<a href="${escapeHtml(href)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;line-height:20px;padding:12px 20px;border-radius:10px;">${escapeHtml(label)}</a>`;
+}
+
+// A translated sentence with one value in bold: the message is rendered with
+// a marker in place of the value, escaped, then the marker becomes <strong>.
+// Keeps the bold word where each language puts it.
+const VALUE_MARK = '\u0000';
+
+function strongPlaceholder(message: string, value: string): string {
+  return escapeHtml(message).replace(VALUE_MARK, `<strong>${escapeHtml(value)}</strong>`);
 }
 
 function paragraph(html: string, extra = ''): string {
@@ -105,9 +116,14 @@ function paragraph(html: string, extra = ''): string {
 }
 
 /** The shared shell: brand header, white card, footer with the opt-out. */
-function layout(opts: { preheader: string; bodyHtml: string; footerHtml: string }): string {
+function layout(opts: {
+  lang: string;
+  preheader: string;
+  bodyHtml: string;
+  footerHtml: string;
+}): string {
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(opts.lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -130,67 +146,69 @@ function layout(opts: { preheader: string; bodyHtml: string; footerHtml: string 
 }
 
 function weeklyFooter(
+  tr: Translator,
   preferencesUrl: string,
   unsubscribeUrl: string,
-  what: string,
+  which: 'monday' | 'sunday',
 ): {
   html: string;
   text: string;
 } {
+  const reason = tr.t(
+    which === 'monday' ? 'email.weeklyFooter.reasonMonday' : 'email.weeklyFooter.reasonSunday',
+  );
+  const unsubscribe = tr.t('email.weeklyFooter.unsubscribe');
+  const preferences = tr.t('email.weeklyFooter.preferences');
   return {
-    html: `You get this ${escapeHtml(what)} because weekly emails are on for your Chefer account. <a href="${escapeHtml(unsubscribeUrl)}" style="color:${MUTED};">Unsubscribe</a> · <a href="${escapeHtml(preferencesUrl)}" style="color:${MUTED};">Email preferences</a>`,
-    text: [
-      `You get this ${what} because weekly emails are on for your Chefer account.`,
-      `Unsubscribe: ${unsubscribeUrl}`,
-      `Email preferences: ${preferencesUrl}`,
-    ].join('\n'),
+    html: `${escapeHtml(reason)} <a href="${escapeHtml(unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(unsubscribe)}</a> · <a href="${escapeHtml(preferencesUrl)}" style="color:${MUTED};">${escapeHtml(preferences)}</a>`,
+    text: [reason, `${unsubscribe}: ${unsubscribeUrl}`, `${preferences}: ${preferencesUrl}`].join(
+      '\n',
+    ),
   };
 }
 
 // ─── Monday: "your week is ready" ────────────────────────────────────────────
 
-function sourceLine(data: WeekReadyEmailData): string {
+function sourceLine(tr: Translator, data: WeekReadyEmailData): string {
   switch (data.source) {
     case 'chef':
       return data.ratedCount > 0
-        ? `Your chef planned it on Sunday, around your targets and the ${plural(data.ratedCount, 'dish', 'dishes')} you rated.`
-        : 'Your chef planned it on Sunday, around your targets and preferences.';
+        ? tr.t('email.weekReady.sourceChefRated', { count: data.ratedCount })
+        : tr.t('email.weekReady.sourceChef');
     case 'curated':
-      return 'We picked a fresh week of recipes on Sunday that fit your allergies and daily targets.';
+      return tr.t('email.weekReady.sourceCurated');
     case 'template':
-      return 'The saved week you follow in My weeks repeats this week.';
+      return tr.t('email.weekReady.sourceTemplate');
     case 'yours':
-      return "Here's the week you planned.";
+      return tr.t('email.weekReady.sourceYours');
   }
 }
 
-export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
-  const count = data.dinners.length;
+export function renderWeekReadyEmail(tr: Translator, data: WeekReadyEmailData): RenderedEmail {
+  const dinners = tr.t('common.counts.dinners', { count: data.dinners.length });
   const subject = data.listTotal
-    ? `Your week is ready: ${plural(count, 'dinner')}, ${data.listTotal} shopping list`
-    : `Your week is ready: ${plural(count, 'dinner')} planned`;
-  const intro = sourceLine(data);
-  const upsell =
-    data.tier === 'FREE'
-      ? 'Premium weeks learn from the dishes you rate and what is already in your pantry.'
-      : null;
+    ? tr.t('email.weekReady.subjectWithTotal', { dinners, total: data.listTotal })
+    : tr.t('email.weekReady.subject', { dinners });
+  const intro = sourceLine(tr, data);
+  const upsell = data.tier === 'FREE' ? tr.t('email.weekReady.upsell') : null;
   const listLine = data.listTotal
-    ? `Estimated shopping list: ${data.listTotal}.`
-    : 'Your shopping list is ready too.';
-  const footer = weeklyFooter(data.preferencesUrl, data.unsubscribeUrl, 'Monday email');
+    ? tr.t('email.weekReady.listTotal', { total: data.listTotal })
+    : tr.t('email.weekReady.listReady');
+  const footer = weeklyFooter(tr, data.preferencesUrl, data.unsubscribeUrl, 'monday');
+  const seeWeek = tr.t('email.weekReady.seeWeek');
 
   const text = [
-    greeting(data.firstName),
+    greeting(tr, data.firstName),
     '',
-    `Your week of ${data.weekLabel} is ready. ${intro}`,
+    `${tr.t('email.weekReady.intro', { week: data.weekLabel })} ${intro}`,
     '',
-    'Dinners this week:',
+    tr.t('email.weekReady.dinnersHeading'),
     ...data.dinners.map((d) => `- ${d.day}: ${d.name}`),
     '',
     listLine,
     '',
-    `See your week: ${data.planUrl}`,
-    `Shopping list: ${data.listUrl}`,
+    `${seeWeek}: ${data.planUrl}`,
+    `${tr.t('email.weekReady.shoppingList')}: ${data.listUrl}`,
     ...(upsell ? ['', upsell] : []),
     '',
     '—',
@@ -205,19 +223,22 @@ export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
     .join('');
 
   const bodyHtml = [
-    paragraph(escapeHtml(greeting(data.firstName))),
+    paragraph(escapeHtml(greeting(tr, data.firstName))),
     paragraph(
-      `Your week of <strong>${escapeHtml(data.weekLabel)}</strong> is ready. ${escapeHtml(intro)}`,
+      `${strongPlaceholder(tr.t('email.weekReady.intro', { week: VALUE_MARK }), data.weekLabel)} ${escapeHtml(intro)}`,
     ),
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #f1e4d6;border-bottom:1px solid #f1e4d6;">${rows}</table>`,
     paragraph(
       data.listTotal
-        ? `Estimated shopping list: <strong>${escapeHtml(data.listTotal)}</strong>.`
+        ? strongPlaceholder(
+            tr.t('email.weekReady.listTotal', { total: VALUE_MARK }),
+            data.listTotal,
+          )
         : escapeHtml(listLine),
     ),
-    `<p style="margin:0 0 16px;">${button('See your week', data.planUrl)}</p>`,
+    `<p style="margin:0 0 16px;">${button(seeWeek, data.planUrl)}</p>`,
     paragraph(
-      `<a href="${escapeHtml(data.listUrl)}" style="color:${BRAND};">Open the shopping list</a>`,
+      `<a href="${escapeHtml(data.listUrl)}" style="color:${BRAND};">${escapeHtml(tr.t('email.weekReady.openList'))}</a>`,
     ),
     ...(upsell ? [paragraph(escapeHtml(upsell), `color:${MUTED};font-size:13px;`)] : []),
   ].join('');
@@ -226,7 +247,8 @@ export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
     subject,
     text,
     html: layout({
-      preheader: `${plural(count, 'dinner')} planned for ${data.weekLabel}.`,
+      lang: tr.locale,
+      preheader: tr.t('email.weekReady.preheader', { dinners, week: data.weekLabel }),
       bodyHtml,
       footerHtml: footer.html,
     }),
@@ -235,56 +257,59 @@ export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
 
 // ─── Sunday: "your week in review" ───────────────────────────────────────────
 
-function recapLines(data: WeeklyRecapEmailData): string[] {
+function recapLines(tr: Translator, data: WeeklyRecapEmailData): string[] {
   const lines: string[] = [];
   if (data.mealsLogged > 0) {
     lines.push(
-      `${plural(data.mealsLogged, 'meal')} logged across ${plural(data.daysLogged, 'day')}`,
+      tr.t('email.recap.mealsAcrossDays', {
+        meals: tr.t('common.counts.meals', { count: data.mealsLogged }),
+        days: tr.t('common.counts.days', { count: data.daysLogged }),
+      }),
     );
-    lines.push(`${plural(data.daysOnTarget, 'day')} on your calorie target`);
+    lines.push(tr.t('email.recap.daysOnTarget', { count: data.daysOnTarget }));
   }
-  if (data.weightChange) lines.push(`Weight: ${data.weightChange}`);
+  if (data.weightChange) lines.push(tr.t('email.recap.weight', { change: data.weightChange }));
   if (data.gymSessions !== null && data.gymSessions > 0) {
-    lines.push(`${plural(data.gymSessions, 'workout')} finished`);
+    lines.push(tr.t('email.recap.workouts', { count: data.gymSessions }));
   }
   return lines;
 }
 
-export function renderWeeklyRecapEmail(data: WeeklyRecapEmailData): RenderedEmail {
-  const lines = recapLines(data);
+export function renderWeeklyRecapEmail(tr: Translator, data: WeeklyRecapEmailData): RenderedEmail {
+  const lines = recapLines(tr, data);
   const subject =
     data.mealsLogged > 0
-      ? `Your week in review: ${plural(data.mealsLogged, 'meal')} logged, ${plural(data.daysOnTarget, 'day')} on target`
-      : 'Your week in review';
-  const quiet =
-    data.mealsLogged === 0
-      ? 'No meals logged this week, and that is fine. Logging even a few days next week makes this recap (and your targets) much more useful.'
-      : null;
+      ? tr.t('email.recap.subjectLogged', {
+          meals: tr.t('common.counts.meals', { count: data.mealsLogged }),
+          days: tr.t('common.counts.days', { count: data.daysOnTarget }),
+        })
+      : tr.t('email.recap.subject');
+  const quiet = data.mealsLogged === 0 ? tr.t('email.recap.quiet') : null;
   const review =
-    data.tier === 'PREMIUM' && data.hasChefReview
-      ? "Your chef's weekly review is waiting on Progress."
-      : null;
-  const upsell =
-    data.tier === 'FREE' && data.daysLogged >= 3
-      ? 'Premium adds a weekly chef review that adjusts your targets from these numbers.'
-      : null;
+    data.tier === 'PREMIUM' && data.hasChefReview ? tr.t('email.recap.chefReview') : null;
+  const upsell = data.tier === 'FREE' && data.daysLogged >= 3 ? tr.t('email.recap.upsell') : null;
   const nextWeek =
     data.nextWeekDinners !== null && data.nextWeekDinners > 0
-      ? `Next week is already planned: ${plural(data.nextWeekDinners, 'dinner')}.`
+      ? tr.t('email.recap.nextWeekPlanned', {
+          dinners: tr.t('common.counts.dinners', { count: data.nextWeekDinners }),
+        })
       : null;
-  const footer = weeklyFooter(data.preferencesUrl, data.unsubscribeUrl, 'Sunday recap');
+  const footer = weeklyFooter(tr, data.preferencesUrl, data.unsubscribeUrl, 'sunday');
+  const seeProgress = tr.t('email.recap.seeProgress');
+  const seeNextWeek = tr.t('email.recap.seeNextWeek');
+  const intro = tr.t('email.recap.intro', { week: data.weekLabel });
 
   const text = [
-    greeting(data.firstName),
+    greeting(tr, data.firstName),
     '',
-    `Here's your week of ${data.weekLabel}.`,
+    intro,
     '',
     ...lines.map((l) => `- ${l}`),
     ...(quiet ? [quiet] : []),
     '',
     ...(review ? [review] : []),
-    `See your progress: ${data.progressUrl}`,
-    ...(nextWeek ? ['', nextWeek, `See next week: ${data.planUrl}`] : []),
+    `${seeProgress}: ${data.progressUrl}`,
+    ...(nextWeek ? ['', nextWeek, `${seeNextWeek}: ${data.planUrl}`] : []),
     ...(upsell ? ['', upsell] : []),
     '',
     '—',
@@ -299,8 +324,8 @@ export function renderWeeklyRecapEmail(data: WeeklyRecapEmailData): RenderedEmai
     .join('');
 
   const bodyHtml = [
-    paragraph(escapeHtml(greeting(data.firstName))),
-    paragraph(`Here's your week of <strong>${escapeHtml(data.weekLabel)}</strong>.`),
+    paragraph(escapeHtml(greeting(tr, data.firstName))),
+    paragraph(strongPlaceholder(tr.t('email.recap.intro', { week: VALUE_MARK }), data.weekLabel)),
     ...(statRows
       ? [
           `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">${statRows}</table>`,
@@ -308,11 +333,11 @@ export function renderWeeklyRecapEmail(data: WeeklyRecapEmailData): RenderedEmai
       : []),
     ...(quiet ? [paragraph(escapeHtml(quiet))] : []),
     ...(review ? [paragraph(escapeHtml(review))] : []),
-    `<p style="margin:0 0 16px;">${button('See your progress', data.progressUrl)}</p>`,
+    `<p style="margin:0 0 16px;">${button(seeProgress, data.progressUrl)}</p>`,
     ...(nextWeek
       ? [
           paragraph(
-            `${escapeHtml(nextWeek)} <a href="${escapeHtml(data.planUrl)}" style="color:${BRAND};">See next week</a>`,
+            `${escapeHtml(nextWeek)} <a href="${escapeHtml(data.planUrl)}" style="color:${BRAND};">${escapeHtml(seeNextWeek)}</a>`,
           ),
         ]
       : []),
@@ -323,7 +348,8 @@ export function renderWeeklyRecapEmail(data: WeeklyRecapEmailData): RenderedEmai
     subject,
     text,
     html: layout({
-      preheader: lines[0] ?? `Your week of ${data.weekLabel}.`,
+      lang: tr.locale,
+      preheader: lines[0] ?? intro,
       bodyHtml,
       footerHtml: footer.html,
     }),
@@ -332,31 +358,52 @@ export function renderWeeklyRecapEmail(data: WeeklyRecapEmailData): RenderedEmai
 
 // ─── Confirm your email ──────────────────────────────────────────────────────
 
-export function renderVerifyEmail(data: VerifyEmailData): RenderedEmail {
-  const intro =
-    'Confirm this address to get your Monday "your week is ready" email and the Sunday recap.';
+export function renderVerifyEmail(tr: Translator, data: VerifyEmailData): RenderedEmail {
+  const intro = tr.t('email.verify.intro');
+  const notYou = tr.t('email.verify.notYou');
   const text = [
-    greeting(data.firstName),
+    greeting(tr, data.firstName),
     '',
     intro,
     '',
-    `Confirm your email (link valid for 7 days): ${data.verifyUrl}`,
+    `${tr.t('email.verify.linkText')} ${data.verifyUrl}`,
     '',
-    "If you didn't create a Chefer account, ignore this email.",
+    notYou,
   ].join('\n');
   const bodyHtml = [
-    paragraph(escapeHtml(greeting(data.firstName))),
+    paragraph(escapeHtml(greeting(tr, data.firstName))),
     paragraph(escapeHtml(intro)),
-    `<p style="margin:0 0 16px;">${button('Confirm my email', data.verifyUrl)}</p>`,
-    paragraph('This link is valid for 7 days.', `color:${MUTED};font-size:13px;`),
+    `<p style="margin:0 0 16px;">${button(tr.t('email.verify.button'), data.verifyUrl)}</p>`,
+    paragraph(escapeHtml(tr.t('email.verify.validity')), `color:${MUTED};font-size:13px;`),
   ].join('');
   return {
-    subject: 'Confirm your email for Chefer',
+    subject: tr.t('email.verify.subject'),
     text,
     html: layout({
-      preheader: 'One tap to get your weekly plan by email.',
+      lang: tr.locale,
+      preheader: tr.t('email.verify.preheader'),
       bodyHtml,
-      footerHtml: "If you didn't create a Chefer account, ignore this email.",
+      footerHtml: escapeHtml(notYou),
     }),
+  };
+}
+
+// ─── Password reset ──────────────────────────────────────────────────────────
+
+/** Plain text only, as before: the link is the whole message. */
+export function renderPasswordResetEmail(
+  tr: Translator,
+  data: { resetUrl: string },
+): { subject: string; text: string } {
+  return {
+    subject: tr.t('email.passwordReset.subject'),
+    text: [
+      tr.t('email.passwordReset.intro'),
+      '',
+      tr.t('email.passwordReset.linkText'),
+      data.resetUrl,
+      '',
+      tr.t('email.passwordReset.notYou'),
+    ].join('\n'),
   };
 }

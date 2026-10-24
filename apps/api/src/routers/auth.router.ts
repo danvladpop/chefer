@@ -4,6 +4,7 @@ import {
   linkIdentityInputSchema,
   regionCodeSchema,
   socialSignInInputSchema,
+  supportedLocaleSchema,
   unlinkIdentityInputSchema,
 } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
@@ -29,6 +30,11 @@ const registerSchema = z.object({
    * currency (backlog P2-6). Optional: older apps don't send it.
    */
   region: regionCodeSchema.optional(),
+  /**
+   * The device's UI language (ADR 0004), so the confirmation email sent
+   * right after sign-up is already in it. Optional: older apps don't send it.
+   */
+  deviceLocale: supportedLocaleSchema.optional(),
   /**
    * Explicit sign-up consent (T-39.1, T-26.5). All optional here — a client
    * below `clientApiLevel` 2 (a wave-0 client already out on OTA, which

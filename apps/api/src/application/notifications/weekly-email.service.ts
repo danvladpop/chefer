@@ -16,8 +16,9 @@ import {
   type WeeklyEmailKind,
   type WeeklyEmailRecipient,
 } from '@chefer/database';
+import type { Translator } from '@chefer/i18n';
 import type { UserProfile } from '@chefer/types';
-import { formatBodyWeight, formatMoney, toDisplayCurrency } from '@chefer/utils';
+import { bodyWeightInUnit, bodyWeightUnit, formatMoney, toDisplayCurrency } from '@chefer/utils';
 import { bulkDailyAllowance } from '../../lib/email/config.js';
 import {
   EmailQuotaError,
@@ -26,6 +27,7 @@ import {
   type EmailMessage,
   type IEmailService,
 } from '../../lib/email/index.js';
+import { emailTranslator } from '../../lib/email/language.js';
 import {
   renderWeeklyRecapEmail,
   renderWeekReadyEmail,
@@ -62,7 +64,7 @@ import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 // `deferred` — the worker keeps retrying the sweep hourly (weekly-email.worker).
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 /** A logged day counts as "on target" within ±10% of the calorie target. */
 const ON_TARGET_TOLERANCE = 0.1;
 /** How far back the recap looks for the "before" weigh-in. */
@@ -86,15 +88,35 @@ export function mondayLocal(now: Date, offsetWeeks = 0): Date {
   return monday;
 }
 
-// A fixed table, not Intl: ICU versions disagree on "Sep" vs "Sept".
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthOf = (date: Date): string => MONTHS[date.getUTCMonth()] ?? '';
+// A fixed table (common.monthsShort), not Intl: ICU versions disagree on
+// "Sep" vs "Sept".
+const MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+] as const;
+const monthOf = (tr: Translator, date: Date): string => {
+  const key = MONTH_KEYS[date.getUTCMonth()];
+  return key ? tr.t(`common.monthsShort.${key}`) : '';
+};
 
-/** "22–28 Sep", or "29 Sep – 5 Oct" across a month boundary. `monday` is UTC midnight. */
-export function weekLabel(monday: Date): string {
+/**
+ * "22–28 Sep" ("22–28 sept."), or "29 Sep – 5 Oct" across a month boundary.
+ * `monday` is UTC midnight.
+ */
+export function weekLabel(tr: Translator, monday: Date): string {
   const sunday = new Date(monday.getTime() + 6 * DAY_MS);
-  const startMonth = monthOf(monday);
-  const endMonth = monthOf(sunday);
+  const startMonth = monthOf(tr, monday);
+  const endMonth = monthOf(tr, sunday);
   return startMonth === endMonth
     ? `${monday.getUTCDate()}–${sunday.getUTCDate()} ${endMonth}`
     : `${monday.getUTCDate()} ${startMonth} – ${sunday.getUTCDate()} ${endMonth}`;
@@ -112,6 +134,7 @@ type Slot = { type: string; recipeId: string };
  * when the day has no dinner. Days without meals are left out.
  */
 export function planDinners(
+  tr: Translator,
   days: { dayOfWeek: number; meals: unknown }[],
   recipeNames: Map<string, string>,
 ): { day: string; name: string }[] {
@@ -121,8 +144,8 @@ export function planDinners(
       const meals = Array.isArray(d.meals) ? (d.meals as Slot[]) : [];
       const slot = meals.find((m) => m.type === 'dinner') ?? meals[meals.length - 1];
       const name = slot ? recipeNames.get(slot.recipeId) : undefined;
-      const day = DAY_NAMES[d.dayOfWeek];
-      return name && day ? [{ day, name }] : [];
+      const key = DAY_KEYS[d.dayOfWeek];
+      return name && key ? [{ day: tr.t(`common.weekdaysShort.${key}`), name }] : [];
     });
 }
 
@@ -152,6 +175,7 @@ export function recapCounts(
  * "steady" under 0.05 kg.
  */
 export function weightChangeLabel(
+  tr: Translator,
   entries: { recordedAt: Date; weightKg: number }[],
   weekStart: Date,
   units: 'METRIC' | 'IMPERIAL',
@@ -161,9 +185,11 @@ export function weightChangeLabel(
   const during = sorted.filter((e) => e.recordedAt >= weekStart).at(-1);
   if (!before || !during) return null;
   const delta = during.weightKg - before.weightKg;
-  if (Math.abs(delta) < 0.05) return 'steady since your previous weigh-in';
-  const signed = formatBodyWeight(delta, units, { signed: true }).replace('-', '−');
-  return `${signed} since your previous weigh-in`;
+  if (Math.abs(delta) < 0.05) return tr.t('email.recap.weightSteady');
+  // One decimal in the recipient's number style: "−0.4 kg", "−0,4 kg".
+  const value = bodyWeightInUnit(delta, units);
+  const change = `${value > 0 ? '+' : '−'}${tr.number(Math.abs(value), 1)} ${bodyWeightUnit(units)}`;
+  return tr.t('email.recap.weightChangeSince', { change });
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -367,7 +393,8 @@ export class WeeklyEmailService {
     const recipes = await this.deps.mealPlans.findRecipesByIds([
       ...new Set(slots.map((s) => s.recipeId)),
     ]);
-    const dinners = planDinners(plan.days, new Map(recipes.map((r) => [r.id, r.name])));
+    const tr = emailTranslator(user);
+    const dinners = planDinners(tr, plan.days, new Map(recipes.map((r) => [r.id, r.name])));
     if (dinners.length === 0) return null;
 
     const premium = isPremiumUser(user);
@@ -380,14 +407,22 @@ export class WeeklyEmailService {
     const currency = toDisplayCurrency(profile?.deliveryCurrency);
     const urls = this.urls(user.id, 'WEEK_READY');
 
-    return renderWeekReadyEmail({
+    return renderWeekReadyEmail(tr, {
       firstName: user.firstName,
       tier: premium ? 'PREMIUM' : 'FREE',
       source,
       ratedCount: ratings.length,
-      weekLabel: weekLabel(weekStartUtc(now)),
+      weekLabel: weekLabel(tr, weekStartUtc(now)),
       dinners,
-      listTotal: totalEur != null ? `~${formatMoney(totalEur, currency, { decimals: 0 })}` : null,
+      // English keeps each currency's own convention ("$74", "€74"), as
+      // before; other languages write amounts their way ("74 RON").
+      listTotal:
+        totalEur != null
+          ? `~${formatMoney(totalEur, currency, {
+              decimals: 0,
+              ...(tr.locale !== 'en' && { locale: tr.intlTag }),
+            })}`
+          : null,
       planUrl: urls.planUrl,
       listUrl: urls.listUrl,
       preferencesUrl: urls.preferencesUrl,
@@ -419,7 +454,8 @@ export class WeeklyEmailService {
     const targets = resolveDailyTargets(profile ?? null);
     const counts = recapCounts(logs, targets.dailyCalorieTarget);
     const units = profile?.preferredUnits ?? 'METRIC';
-    const weightChange = weightChangeLabel(weights, weekStart, units);
+    const tr = emailTranslator(user);
+    const weightChange = weightChangeLabel(tr, weights, weekStart, units);
     if (counts.mealsLogged === 0 && !weightChange && !gymSessions) return null;
 
     const nextWeekDinners = nextPlan
@@ -427,10 +463,10 @@ export class WeeklyEmailService {
       : null;
     const urls = this.urls(user.id, 'WEEKLY_RECAP');
 
-    return renderWeeklyRecapEmail({
+    return renderWeeklyRecapEmail(tr, {
       firstName: user.firstName,
       tier: isPremiumUser(user) ? 'PREMIUM' : 'FREE',
-      weekLabel: weekLabel(weekStart),
+      weekLabel: weekLabel(tr, weekStart),
       ...counts,
       weightChange,
       gymSessions,

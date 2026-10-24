@@ -24,6 +24,7 @@ import {
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
 import { setToken } from '../../lib/auth-store';
+import { getTranslator } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { setEmailHint } from '../auth/email-hint';
 import { isAccountExistsError } from '../auth/errors';
@@ -103,6 +104,8 @@ export function AccountV4() {
       ageConfirmed: true,
       acceptedTermsVersion: CURRENT_TERMS_VERSION,
       ...(region ? { region } : {}),
+      // ADR 0004: the confirmation email goes out in the app's language.
+      deviceLocale: getTranslator().locale,
     });
   }
 
