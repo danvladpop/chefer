@@ -10,6 +10,7 @@ import {
 import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
+  buildFoodTextPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanDayChunkPrompt,
   buildMealPlanUserPrompt,
@@ -20,6 +21,7 @@ import {
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  FOOD_TEXT_SYSTEM_PROMPT,
   INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
@@ -40,6 +42,7 @@ import {
   extractedRecipeSchema,
   generatedRecipeSchema,
   ingredientPricesResponseSchema,
+  parseFoodTextResponse,
   parseMealPhotoResponse,
   parseNutritionLabelResponse,
   recipeLineRepairResponseSchema,
@@ -55,6 +58,7 @@ import type {
   DayPlan,
   EstimateIngredientPricesOptions,
   ExtractedRecipe,
+  FoodTextParseItem,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
@@ -288,6 +292,10 @@ const NUTRITION_LABEL_SHAPE =
   '{"productName":string|null,"brand":string|null,"basis":"per100g"|"perServing"|"none","servingSizeG":number|null,' +
   '"kcal":number|null,"protein":number|null,"carbs":number|null,"fat":number|null,"fiber":number|null,' +
   '"sugar":number|null,"saturatedFat":number|null,"salt":number|null,"allergens":string[],"confidence":"low"|"med"|"high"}';
+
+const FOOD_TEXT_SHAPE =
+  '{"items":[{"text":string,"food":string,"grams":number,"count":number|null,' +
+  '"kcalPer100g":number,"proteinPer100g":number,"carbsPer100g":number,"fatPer100g":number}]}';
 
 const DAY_PLAN_SHAPE =
   `{"dayOfWeek":number (0=Monday…6=Sunday),` +
@@ -936,6 +944,18 @@ export class OpenAICompatibleAIService implements IAIService {
     });
     // Same bounds + rounding gate as the Gemini client.
     return parseMealPhotoResponse(raw);
+  }
+
+  async parseFoodText(text: string): Promise<FoodTextParseItem[]> {
+    const raw = await this.completeRaw({
+      label: 'parseFoodText',
+      system: FOOD_TEXT_SYSTEM_PROMPT,
+      user: buildFoodTextPrompt(text),
+      shape: FOOD_TEXT_SHAPE,
+      temperature: 0.1,
+      maxTokens: MAX_TOKENS_PHOTO,
+    });
+    return parseFoodTextResponse(raw);
   }
 
   async readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {

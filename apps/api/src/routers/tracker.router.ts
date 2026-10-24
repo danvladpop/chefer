@@ -1,8 +1,18 @@
 import { z } from 'zod';
-import { productAmountSchema } from '@chefer/types';
+import {
+  FOOD_TEXT_LIMITS,
+  foodTextLogItemSchema,
+  foodTextSchema,
+  productAmountSchema,
+} from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN, QUICK_ADD_MEAL_TYPES } from '@chefer/utils';
 import { trackerService } from '../application/tracker/tracker.service.js';
-import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
+import {
+  aiConsentProcedure,
+  protectedProcedure,
+  requireHealthConsent,
+  router,
+} from '../lib/trpc.js';
 
 // Planned recipes carry recipeId; custom entries (photo scans, quick-adds —
 // F4) carry `custom` instead. Exactly one of the two must be present.
@@ -327,6 +337,33 @@ export const trackerRouter = router({
         input.toDate,
         input.rebalanceMode ?? 'auto',
       );
+    }),
+
+  // Lane A4: a typed "I ate…" sentence → items to review (nothing logged).
+  // AI-consent gated; free 10 a day, premium unlimited (reserveFoodText).
+  parseFoodText: aiConsentProcedure
+    .input(z.object({ text: foodTextSchema }))
+    .mutation(async ({ ctx, input }) => {
+      // Loaded on first use: keeps the AI client (and its provider env) out of
+      // every other tracker procedure's import graph.
+      const { foodTextService } = await import('../application/food-text/food-text.service.js');
+      return foodTextService.parse(ctx.user, input.text);
+    }),
+
+  // Lane A4: log the reviewed items in one go. FREE (no AI). Returns `entryIds`
+  // for the snackbar's Undo (deleteEntries).
+  logItems: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        mealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        items: z.array(foodTextLogItemSchema).min(1).max(FOOD_TEXT_LIMITS.maxItems),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logItems(ctx.user, date, entry, rebalanceMode ?? 'auto');
     }),
 
   // Lane A2: log a saved meal in one tap (its items as fresh entries). FREE,

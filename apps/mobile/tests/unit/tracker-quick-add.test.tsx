@@ -19,6 +19,9 @@ let mockRecipes: unknown[] = [];
 let mockIngredients: unknown[] = [];
 let mockProducts: unknown[] = [];
 let mockSavedMeals: unknown[] = [];
+const mockParseFoodText = jest.fn<undefined, [unknown]>();
+const mockLogItems = jest.fn<undefined, [unknown]>();
+let mockParsedItems: unknown[] = [];
 const mockLogSaved = jest.fn();
 const mockUndoEntries = jest.fn();
 const mockLookupBarcode = jest.fn();
@@ -162,6 +165,18 @@ jest.mock('../../src/lib/trpc', () => ({
     },
     savedMeals: { list: { useQuery: () => ({ data: mockSavedMeals }) } },
     tracker: {
+      parseFoodText: mockMutation(
+        (v) => {
+          mockParseFoodText(v);
+        },
+        () => ({ items: mockParsedItems }),
+      ),
+      logItems: mockMutation(
+        (v) => {
+          mockLogItems(v);
+        },
+        () => ({ log: {}, entryIds: ['t1', 't2'], rebalance }),
+      ),
       logSavedMeal: {
         useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
           isPending: false,
@@ -878,5 +893,93 @@ describe('QuickAddSheet — saved meals (lane A2)', () => {
     mockSavedMeals = [MEAL];
     await renderSheet({ targetSlot: { mealType: 'lunch', slotIndex: 1 } });
     expect(screen.queryByTestId('log-sheet-saved-add-s1')).not.toBeOnTheScreen();
+  });
+});
+
+describe('QuickAddSheet — type what you ate (lane A4)', () => {
+  jest.setTimeout(30_000);
+
+  it('parses the sentence, lets the user fix amounts and drop items, then logs them all with Undo', async () => {
+    const user = userEvent.setup();
+    mockParsedItems = [
+      {
+        key: '0',
+        text: '2 eggs',
+        name: 'Egg',
+        source: 'ingredient',
+        unit: 'g',
+        grams: 100,
+        per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+      },
+      {
+        key: '1',
+        text: 'mystery stew',
+        name: 'Mystery stew',
+        source: 'estimate',
+        unit: 'g',
+        grams: 300,
+        per100g: { kcal: 120, protein: null, carbs: 10, fat: 5 },
+      },
+      {
+        key: '2',
+        text: 'coffee',
+        name: 'Coffee',
+        source: 'estimate',
+        unit: 'g',
+        grams: 240,
+        per100g: { kcal: 1, protein: 0.1, carbs: 0, fat: 0 },
+      },
+    ];
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-type-it'));
+    await user.type(screen.getByTestId('food-text-input'), '2 eggs, mystery stew, coffee');
+    await user.press(screen.getByTestId('food-text-read'));
+    expect(mockParseFoodText).toHaveBeenCalledWith({ text: '2 eggs, mystery stew, coffee' });
+    expect(mockTrack).toHaveBeenCalledWith('food_text_parsed', { itemCount: 3, estimated: 2 });
+    expect(screen.getByTestId('food-text-item-1')).toHaveTextContent(/Estimate/);
+
+    await user.press(screen.getByTestId('food-text-remove-2'));
+    await user.clear(screen.getByTestId('food-text-amount-0'));
+    await user.type(screen.getByTestId('food-text-amount-0'), '150');
+    expect(screen.getByTestId('food-text-log')).toHaveTextContent('Log 2 items · 575 kcal');
+    await user.press(screen.getByTestId('food-text-log'));
+
+    expect(mockLogItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-09-26',
+        rebalanceMode: 'preview',
+        items: [
+          expect.objectContaining({ name: 'Egg, 150 g', estimatedBy: 'manual', kcal: 215 }),
+          expect.objectContaining({
+            name: 'Mystery stew, 300 g',
+            estimatedBy: 'vision',
+            unknownMacros: ['protein'],
+          }),
+        ],
+      }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith('food_text_logged', { itemCount: 2, edited: true });
+    const snack = mockSnackbarShow.mock.calls.at(-1)?.[0] as {
+      message: string;
+      onAction: () => void;
+    };
+    expect(snack.message).toBe('Logged 2 items');
+    snack.onAction();
+    expect(mockUndoEntries).toHaveBeenCalledWith({ date: '2026-09-26', entryIds: ['t1', 't2'] });
+  });
+
+  it('says so when nothing in the sentence is food', async () => {
+    const user = userEvent.setup();
+    mockParsedItems = [];
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-type-it'));
+    await user.type(screen.getByTestId('food-text-input'), 'hello there');
+    await user.press(screen.getByTestId('food-text-read'));
+    expect(screen.getByTestId('food-text-error')).toHaveTextContent(/couldn’t find any food/);
+  });
+
+  it('is not offered when the sheet replaces a plan slot', async () => {
+    await renderSheet({ targetSlot: { mealType: 'lunch', slotIndex: 1 } });
+    expect(screen.queryByTestId('log-sheet-type-it')).not.toBeOnTheScreen();
   });
 });
