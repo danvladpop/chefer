@@ -63,6 +63,7 @@ const GLYPHS = {
   link: 'link-outline',
   shield: 'shield-checkmark-outline',
   notifications: 'notifications-outline',
+  appearance: 'contrast-outline',
   account: 'person-circle-outline',
   meals: 'restaurant-outline',
   trophy: 'trophy-outline',

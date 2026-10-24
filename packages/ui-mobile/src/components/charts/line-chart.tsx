@@ -4,8 +4,8 @@
 import { View } from 'react-native';
 import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../../hooks/use-theme-colors';
 import { Text } from '../text';
-import { colors } from '../theme';
 import { RevealClip, useChartReveal, useClipId } from './chart-reveal';
 import {
   clampLabelCentre,
@@ -93,7 +93,7 @@ export function LineChart({
   niceTicks: useNiceTicks = false,
   width: widthProp,
   height = 180,
-  color = colors.primary,
+  color: colorProp,
   trendColor,
   formatY = defaultFormat,
   emptyLabel = 'No data yet',
@@ -101,6 +101,8 @@ export function LineChart({
   testID,
   accessibilityLabel,
 }: LineChartProps) {
+  const colors = useThemeColors();
+  const color = colorProp ?? colors.brand;
   const { width, onLayout } = useChartWidth(widthProp);
   const secondaryData = secondary?.data ?? [];
   // Draw-in: the line uncovers left → right on mount and on a new series.
@@ -187,14 +189,14 @@ export function LineChart({
                 x2={plotRight}
                 y1={y(value)}
                 y2={y(value)}
-                stroke={colors.border}
+                stroke={colors.separator}
                 strokeWidth={1}
               />
               <SvgText
                 x={plotLeft - 4}
                 y={y(value) + 3}
                 fontSize={10}
-                fill={colors.mutedForeground}
+                fill={colors.labelTertiary}
                 textAnchor="end"
               >
                 {formatY(value)}
@@ -224,7 +226,7 @@ export function LineChart({
                 x2={plotRight}
                 y1={y(reference.y)}
                 y2={y(reference.y)}
-                stroke={colors.mutedForeground}
+                stroke={colors.labelTertiary}
                 strokeWidth={1}
                 strokeDasharray="4 4"
               />
@@ -233,7 +235,7 @@ export function LineChart({
                   x={plotRight}
                   y={y(reference.y) - 4}
                   fontSize={10}
-                  fill={colors.mutedForeground}
+                  fill={colors.labelTertiary}
                   textAnchor="end"
                 >
                   {reference.label}
@@ -285,8 +287,8 @@ export function LineChart({
                   cx={x(point.x)}
                   cy={y(point.y)}
                   r={5.5}
-                  fill={colors.warning}
-                  stroke={colors.card}
+                  fill={colors.attention}
+                  stroke={colors.surface}
                   strokeWidth={2}
                 />
               ) : (
@@ -301,7 +303,7 @@ export function LineChart({
               x={clampLabelCentre(x(label.x), label.label, width)}
               y={height - 4}
               fontSize={10}
-              fill={colors.mutedForeground}
+              fill={colors.labelTertiary}
               textAnchor="middle"
             >
               {label.label}
