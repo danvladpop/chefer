@@ -61,8 +61,8 @@ describe('useFinishCook', () => {
     expect(progressMock.mutate.finishCook).toHaveBeenCalledTimes(1);
   });
 
-  it('records the cook for everyone: with the flag off the call still happens, the receipt does not show', () => {
-    progressMock.flags = { gamification: false };
+  it('records the cook for everyone: with the gate off the call still happens, the receipt does not show', () => {
+    progressMock.availability = { enabled: false };
     render(<Harness initialFinished />);
     expect(progressMock.mutate.finishCook).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('cook-progress')).toBeNull();

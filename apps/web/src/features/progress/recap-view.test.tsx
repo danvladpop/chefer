@@ -105,7 +105,7 @@ describe('RecapView', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     unmount();
 
-    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: false };
     render(<RecapView week="2026-10-12" />);
     expect(screen.getByTestId('progress-not-available')).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);

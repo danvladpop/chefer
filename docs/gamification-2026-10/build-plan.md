@@ -217,7 +217,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 
 **Read-only:** everything else, including the API (it is a stub until lane B lands, so test against mocked tRPC).
 
-**Gate:** `useProgressEnabled()` = `useFlags().gamification && useShellV2() && trpc.progress.availability` → `enabled`. With the gate off, nothing renders and no `progress.*` call is made (except `finishCook`, see 3). Copy only from `@chefer/utils` (`PROGRESS_COPY`, `questLabel`, …), never inline strings. Motion only from `@chefer/ui-mobile` primitives, with MO-xx ids in comments (CLAUDE.md "Motion"). 44 pt targets, accessibility labels, `min-w-0`.
+**Gate:** `useProgressEnabled()` = signed in `&& useShellV2() && trpc.progress.availability` → `enabled` (corrected 2026-10-24: the first version also required `useFlags().gamification`, which hid it from allowlisted dogfooders). With the gate off, nothing renders and no `progress.*` call is made (except `finishCook`, see 3). Copy only from `@chefer/utils` (`PROGRESS_COPY`, `questLabel`, …), never inline strings. Motion only from `@chefer/ui-mobile` primitives, with MO-xx ids in comments (CLAUDE.md "Motion"). 44 pt targets, accessibility labels, `min-w-0`.
 
 1. **`ProgressStrip`** (mockup 01). Placed above `NutritionCard` in the shell's `today-screen.tsx`:
    - a level `ProgressRing` with the number, the rank title, "340 / 500 XP to Chef de Partie" with a `ProgressBar`, and 🔥 "6 wk";
@@ -279,7 +279,7 @@ Write the tests first for every function (Vitest, co-located `*.test.ts`). Then 
 
 **Read-only:** everything else (the API is a stub until lane B lands, so test against mocks).
 
-**Gate:** `useFlags().gamification && trpc.progress.availability` → `enabled`. Copy from `@chefer/utils`. UI from `@chefer/ui` (`ProgressRing`, `ProgressBar`, `CountUp`/`useCountUp`, `Sheet`, `Toast`, `Biscuit`, `usePresence`, `useReducedMotion`, `pressControl`/`pressCard`). Tailwind tokens only (`duration-*`, `ease-*`, `shadow-e*`, `rounded-*`), with no `transition-all`, no width transitions and no `h-screen`. Mobile-first at 320–430 px, 44 px targets, `min-w-0`. Every page has `<main id="main">` and exactly one `<h1>`, plus a `layout.tsx` with `metadata.title`. Every input is labelled.
+**Gate:** `trpc.progress.availability` → `enabled` (corrected 2026-10-24: no `useFlags().gamification`, which hid it from allowlisted dogfooders). Copy from `@chefer/utils`. UI from `@chefer/ui` (`ProgressRing`, `ProgressBar`, `CountUp`/`useCountUp`, `Sheet`, `Toast`, `Biscuit`, `usePresence`, `useReducedMotion`, `pressControl`/`pressCard`). Tailwind tokens only (`duration-*`, `ease-*`, `shadow-e*`, `rounded-*`), with no `transition-all`, no width transitions and no `h-screen`. Mobile-first at 320–430 px, 44 px targets, `min-w-0`. Every page has `<main id="main">` and exactly one `<h1>`, plus a `layout.tsx` with `metadata.title`. Every input is labelled.
 
 1. Dashboard: `ProgressStrip` + `TodaysThreeCard` at the top of `/dashboard`, with the same rules as mobile C1/C2, the intro card, the quiet card and the recap banner. Tapping the strip opens `FlameSheet` (a `Sheet`, same content as C6).
 2. Cook mode: in the finished state, call `progress.finishCook` once (a ref guard; `crypto.randomUUID()` for the id) for everyone, and render `KitchenReceipt` + the Biscuit line when gated and not null.

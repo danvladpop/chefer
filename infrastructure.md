@@ -791,7 +791,7 @@ enforced by the drift guard) built on the shared data hooks:
 | `/achievements`, `/kitchen-recap/[week]`, `/settings/rewards`                                                                   | `src/features/progress/*`              | **new routes (Kitchen progress, flag `gamification`, revamp shell only)**: the achievements shelf, the weekly recap story, Rewards & motivation (celebrations, show XP, show flame, Biscuit, goal, pause, gentle reminder)                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 **Kitchen progress on mobile (`src/features/progress/`, flag `gamification` + the revamp shell; `docs/gamification-2026-10/`).**
-`useProgressEnabled()` = flag && `useShellV2()` && `progress.availability`. With the gate off nothing renders and
+`useProgressEnabled()` = signed in && `useShellV2()` && `progress.availability` (the server's flag-or-`GAMIFICATION_ALLOWLIST` answer; `profile.flags` is global and is not consulted, so an allowlisted dogfooder sees it while the flag is off). With the gate off nothing renders and
 no `progress.*` query runs. The one exception is `progress.finishCook`: it records every cook (ADR 0002), and a failed
 call is retried from a small queue in the gym KV store on the next foreground.
 
