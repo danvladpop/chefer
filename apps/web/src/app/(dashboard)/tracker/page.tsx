@@ -9,6 +9,7 @@ import { TargetExplainSheet } from '@/features/nutrition/components/TargetExplai
 import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { EditEntrySheet } from '@/features/tracker/components/EditEntrySheet';
 import { EditRecipeEntrySheet } from '@/features/tracker/components/EditRecipeEntrySheet';
+import { MealActionsSheet } from '@/features/tracker/components/MealActionsSheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
@@ -30,7 +31,7 @@ import { useTrackerWrites } from '@/features/tracker/lib/use-tracker-writes';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   copyDayMessage,
@@ -106,6 +107,7 @@ export default function TrackerPage() {
     action?: { label: string; onClick: () => void };
   } | null>(null);
   const [copyDayOpen, setCopyDayOpen] = useState(false);
+  const [mealActionsOpen, setMealActionsOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
   const [editingRecipeEntryId, setEditingRecipeEntryId] = useState<string | null>(null);
 
@@ -363,15 +365,26 @@ export default function TrackerPage() {
             </p>
             <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
           </div>
-          <button
-            type="button"
-            data-testid="tracker-copy-day"
-            aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
-            onClick={() => setCopyDayOpen(true)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
-          >
-            <Copy className="h-5 w-5" />
-          </button>
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              data-testid="tracker-meal-actions"
+              aria-label="Save or copy a meal"
+              onClick={() => setMealActionsOpen(true)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+            >
+              <Bookmark className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              data-testid="tracker-copy-day"
+              aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+              onClick={() => setCopyDayOpen(true)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+            >
+              <Copy className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Date selector */}
@@ -449,6 +462,12 @@ export default function TrackerPage() {
               <QuickAddSheet
                 date={dateStr}
                 onLogged={() => void refetch()}
+                onLoggedEntries={({ entryIds, name, dayFit }) =>
+                  showToast(withDayFitLine(`Logged ${name}`, { dayFit }), {
+                    label: 'Undo',
+                    onClick: () => deleteEntriesMutation.mutate({ date: dateStr, entryIds }),
+                  })
+                }
                 plannedMeals={data.plannedMeals.map((m, i) => ({
                   recipeId: m.recipeId,
                   recipeName: m.recipeName,
@@ -882,6 +901,14 @@ export default function TrackerPage() {
             setEditingRecipeEntryId(null);
           }}
           onDelete={() => editingRecipeEntry && deleteOffPlanEntry(editingRecipeEntry)}
+        />
+
+        <MealActionsSheet
+          open={mealActionsOpen}
+          onClose={() => setMealActionsOpen(false)}
+          date={dateStr}
+          loggedMealTypes={(data?.log?.loggedMeals ?? []).map((m) => m.mealType)}
+          onToast={showToast}
         />
 
         <Sheet

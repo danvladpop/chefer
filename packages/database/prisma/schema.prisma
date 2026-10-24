@@ -213,6 +213,7 @@ model User {
   favouriteRecipes     FavouriteRecipe[]
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
+  savedMeals           SavedMeal[]
   weightEntries        WeightEntry[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
   aiCallLogs           AiCallLog[]
@@ -659,6 +660,26 @@ model DailyLog {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("daily_logs")
+}
+
+// Saved meals (lane A2): a named snapshot of one logged meal's entries (their
+// names and numbers), re-logged in one tap from the Log sheet. A snapshot, not
+// a live link: editing or deleting the original entries never changes it.
+model SavedMeal {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  /// SavedMealItem[] (apps/api tracker/saved-meals.ts): recipeId?, name, portionMultiplier, numbers, product?
+  items        Json
+  lastLoggedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("saved_meals")
 }
 
 // The Adaptive Chef (F1): one row per user-week, written idempotently by the

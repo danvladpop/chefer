@@ -9,6 +9,8 @@ import { QuickAddSheet } from './QuickAddSheet';
 // carries a rough kcal estimated from the protein (about 16 kcal per gram).
 
 const m = vi.hoisted(() => ({
+  savedMeals: [] as unknown[],
+  logSaved: vi.fn(),
   logRecipe: vi.fn(),
   logCustom: vi.fn(),
   recents: [] as unknown[],
@@ -40,7 +42,18 @@ vi.mock('@/lib/trpc', () => ({
         useQuery: () => ({ data: m.ingredients, isFetching: false, isError: false }),
       },
     },
+    savedMeals: { list: { useQuery: () => ({ data: m.savedMeals }) } },
     tracker: {
+      logSavedMeal: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          isPending: false,
+          isError: false,
+          mutate: (vars: unknown) => {
+            m.logSaved(vars);
+            opts.onSuccess?.({ log: {}, entryIds: ['n1', 'n2'], rebalance: null }, vars);
+          },
+        }),
+      },
       recents: { useQuery: () => ({ data: m.recents }) },
       logRecipe: {
         useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({

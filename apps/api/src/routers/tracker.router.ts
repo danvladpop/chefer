@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { productAmountSchema } from '@chefer/types';
-import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
+import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN, QUICK_ADD_MEAL_TYPES } from '@chefer/utils';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
 
@@ -327,6 +327,39 @@ export const trackerRouter = router({
         input.toDate,
         input.rebalanceMode ?? 'auto',
       );
+    }),
+
+  // Lane A2: log a saved meal in one tap (its items as fresh entries). FREE,
+  // additive. Returns `entryIds` for the snackbar's Undo (deleteEntries).
+  logSavedMeal: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        savedMealId: z.string().min(1).max(40),
+        mealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logSavedMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
+  // Lane A2: copy one meal of a day to another day and/or meal (copyDay,
+  // narrowed). FREE, additive. Returns `copiedEntryIds` for Undo.
+  copyMeal: protectedProcedure
+    .input(
+      z.object({
+        fromDate: calendarDateSchema,
+        fromMealType: z.string().min(1).max(20),
+        toDate: logDateSchema,
+        toMealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { rebalanceMode, ...copy } = input;
+      return trackerService.copyMeal(ctx.user, copy, rebalanceMode ?? 'auto');
     }),
 
   // Search-first Log sheet (T-19.1): the last 15 distinct things logged,

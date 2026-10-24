@@ -218,4 +218,9 @@ export interface EventMap {
   label_scan_saved: { edited: boolean };
   packaged_product_created: { source: 'label' | 'manual' };
   packaged_product_logged: { unit: 'g' | 'serving'; allergenWarning: boolean };
+
+  // ─── Saved meals + copy meal (lane A2) — counts and booleans only ───────────
+  saved_meal_created: { itemCount: number };
+  saved_meal_logged: { itemCount: number };
+  meal_copied: { itemCount: number; sameDay: boolean };
 }

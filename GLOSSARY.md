@@ -76,6 +76,16 @@ _Avoid_: Custom product, private product (in user copy)
 The open product database the barcode lookup reads; its data is shown with "Data from Open Food Facts" (ODbL).
 _Avoid_: OFF in user copy
 
+**Saved meal**:
+A named snapshot of one logged meal's entries (their names and numbers), logged again in one tap from the Log sheet.
+Editing the original entries never changes it.
+_Avoid_: Template, favourite meal, combo
+
+**Copy meal**:
+Copying the entries of one meal of a day to another day and/or meal, with an Undo of exactly the copies. Copy day
+does the same for a whole day.
+_Avoid_: Duplicate, repeat meal
+
 **Allergens unknown**:
 What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
 _Avoid_: No allergens, allergen-free

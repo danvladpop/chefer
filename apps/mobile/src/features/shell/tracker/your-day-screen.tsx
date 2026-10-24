@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -29,6 +30,7 @@ import { DayFitNote } from '../../tracker/day-fit-note';
 import { EditEntrySheet } from '../../tracker/edit-entry-sheet';
 import { EditRecipeEntrySheet } from '../../tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../../tracker/invalidate';
+import { MealActionsSheet } from '../../tracker/meal-actions-sheet';
 import { QuickAddSheet } from '../../tracker/quick-add-sheet';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
 import { RebalanceOffer } from '../../tracker/rebalance-offer';
@@ -120,17 +122,27 @@ export function YourDayScreen() {
     ? `Today, ${formatDate(selectedDate, 'weekday-short').replace(',', '')}`
     : formatDate(selectedDate, 'weekday-short').replace(',', '');
 
+  const [mealActionsOpen, setMealActionsOpen] = useState(false);
   const copyAction = (
-    <IconButton
-      testID="tracker-copy-day"
-      accessibilityLabel={`Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`}
-      variant="tinted"
-      icon={<Icon name="copy" color={colors.brand} size={20} />}
-      onPress={() => {
-        t.copyDayMutation.reset();
-        t.setCopyDayOpen(true);
-      }}
-    />
+    <View className="flex-row gap-2">
+      <IconButton
+        testID="tracker-meal-actions"
+        accessibilityLabel="Save or copy a meal"
+        variant="tinted"
+        icon={<Icon name="meals" color={colors.brand} size={20} />}
+        onPress={() => setMealActionsOpen(true)}
+      />
+      <IconButton
+        testID="tracker-copy-day"
+        accessibilityLabel={`Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`}
+        variant="tinted"
+        icon={<Icon name="copy" color={colors.brand} size={20} />}
+        onPress={() => {
+          t.copyDayMutation.reset();
+          t.setCopyDayOpen(true);
+        }}
+      />
+    </View>
   );
 
   // The also-eaten list, flat: meal type and "estimated" move into each row's meta line.
@@ -569,6 +581,12 @@ export function YourDayScreen() {
             view={t.targetsView}
           />
 
+          <MealActionsSheet
+            visible={mealActionsOpen}
+            onClose={() => setMealActionsOpen(false)}
+            date={dateStr}
+            loggedMealTypes={(data?.log?.loggedMeals ?? []).map((m) => m.mealType)}
+          />
           <ConfirmSheet
             visible={t.copyDayOpen}
             onClose={() => t.setCopyDayOpen(false)}
