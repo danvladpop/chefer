@@ -141,6 +141,10 @@ enum ConsentKind {
   // (granted) and on leave / remove / trainer tools off (withdrawn), with the
   // CoachingLink id in `contextId`. Filtered out for clients below API level 6.
   COACHING_SHARING
+  // Apple Health / Health Connect sync (C2): every change to the data types the
+  // user turned on, as `providers` (e.g. ["HEALTH_CONNECT", "weight", "steps"]);
+  // granted = at least one type on. Only binaries with health sync write it.
+  HEALTH_SYNC
 }
 
 enum AiCallType {
@@ -668,7 +672,7 @@ model ChefReview {
   weekStart              DateTime // UTC midnight of the reviewed week's Monday
   adherencePct           Int
   avgDailyKcal           Int
-  weightTrendKg          Float? // EWMA delta over the window; null until enough data
+  weightTrendKg          Float? // trend-weight rate, kg/week (lane D1); null until enough data
   adjustmentKcal         Int
   savedEur               Float? // pantry savings surfaced in the review (F3 seam)
   reviewText             String
@@ -790,14 +794,27 @@ model PantryItem {
   @@map("pantry_items")
 }
 
+/// Where a weigh-in came from (C2 health sync). Typed in Chefer = MANUAL.
+enum WeightSource {
+  MANUAL
+  APPLE_HEALTH
+  HEALTH_CONNECT
+}
+
 model WeightEntry {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   userId     String
   weightKg   Float
-  recordedAt DateTime @default(now())
+  recordedAt DateTime     @default(now())
+  /// C2: imported weigh-ins carry their source and the sample's id there
+  /// (HealthKit UUID / Health Connect record id), so a re-sync never imports
+  /// the same sample twice. Null for MANUAL.
+  source     WeightSource @default(MANUAL)
+  externalId String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, externalId])
   @@index([userId, recordedAt])
   @@map("weight_entries")
 }
@@ -1537,6 +1554,10 @@ model WorkoutSession {
   loggedById        String?
   /// The booking it was coached in, if any (no FK: bookings are pruned with the coaching link).
   bookingId         String?
+  /// G2 workout import: the app the session came from (Strong / Hevy CSV);
+  /// null for everything logged in Chefer. Rewards (Chef XP, the Flame) skip
+  /// imported sessions; history, PRs and progression treat them as any other.
+  importSource      WorkoutImportSource?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -1547,6 +1568,12 @@ model WorkoutSession {
   @@index([userId, localDate])
   @@index([userId, status])
   @@map("workout_sessions")
+}
+
+/// G2: where an imported WorkoutSession came from.
+enum WorkoutImportSource {
+  STRONG
+  HEVY
 }
 
 model SessionExercise {

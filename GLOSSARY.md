@@ -129,6 +129,18 @@ _Avoid_: Trainer session
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
 
+## Your data
+
+**Data export**:
+The ZIP a user downloads from Privacy & data → "Download my data": `chefer-data.json` (everything), a README,
+and spreadsheet CSVs. Free for every account.
+_Avoid_: backup (we don't restore from it), GDPR request, data dump
+
+**Workout import**:
+Bringing past workouts from another app (Strong, Hevy) into Chefer's gym history from that app's CSV export.
+Imported workouts count like logged ones: PRs, e1RM charts and progression.
+_Avoid_: sync (nothing stays connected), migration
+
 ## Curated recipes
 
 **Curated pool**:
@@ -207,6 +219,20 @@ _Avoid_: notifications setting
 A cook-mode session the user finished, stored on the server as a CookLog.
 _Avoid_: made it (the button), cooking session
 
+## Health sync
+
+**Health sync**:
+Chefer exchanging data with the phone's health store — Apple Health on iOS, Health Connect on Android — one data type at a time, each switched on by the user.
+_Avoid_: Health integration, HealthKit sync, Google Fit
+
+**Health store**:
+The phone's shared health database: Apple Health (HealthKit) or Health Connect.
+_Avoid_: Health app, health provider
+
+**Imported weigh-in**:
+A weigh-in read from the health store (a smart scale, another app). It is an ordinary weigh-in in Chefer, marked with its source; the same sample is never imported twice.
+_Avoid_: Synced weight, external weight
+
 ## Appearance
 
 **Appearance**:
@@ -222,3 +248,14 @@ _Avoid_: dark mode (in user copy), dark theme
 A colour named for what it does (`canvas`, `label-secondary`, `brand`, `attention`…) with a Day and a Night
 value, from `@chefer/tokens`. Every colour on mobile is one.
 _Avoid_: palette colour, hex
+
+## Progress
+
+**Weigh-in**:
+One body-weight reading the user logged, with its date. Raw and noisy: water, salt and timing move it a kilo or more.
+_Avoid_: weight entry (in user copy), measurement
+
+**Trend weight**:
+The smoothed line through the weigh-ins (an exponentially weighted average, α = 0.1 a day, gaps handled in time); what
+charts draw bold and what the Adaptive Chef reads. "Trend" for short in copy.
+_Avoid_: average weight, moving average (in user copy), real weight

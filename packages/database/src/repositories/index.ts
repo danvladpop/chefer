@@ -77,6 +77,7 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  type ImportedWeightEntryData,
 } from './weight-entry.repository';
 
 export {

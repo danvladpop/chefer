@@ -355,6 +355,18 @@ export {
   type WeightParseResult,
 } from './weight';
 export {
+  TREND_DAILY_ALPHA,
+  TREND_WEIGHT_EXPLAINER,
+  summarizeWeightTrend,
+  trendChangeText,
+  weightTrendSeries,
+  type TrendPoint,
+  type WeighIn,
+  type WeightTrendOptions,
+  type WeightTrendSummary,
+  type WeightTrendSummaryOptions,
+} from './weight-trend';
+export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
@@ -431,6 +443,7 @@ export {
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
   goalWording,
+  goalGetsTrainingBump,
   hasTrainingDayBump,
   isLifter,
   isRunKind,
@@ -907,3 +920,10 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+export { escapeCsvField, parseCsv, sniffCsvDelimiter, toCsv, type CsvCell } from './csv';
+export {
+  DATA_EXPORT_COPY,
+  exportErrorMessage,
+  exportSizeBucket,
+  type ExportSizeBucket,
+} from './data-export';
