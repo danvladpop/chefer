@@ -23,7 +23,8 @@
     "ingredients:verify": "tsx src/scripts/ingredients-verify.ts",
     "ingredients:regenerate": "tsx src/scripts/ingredients-regenerate.ts",
     "ingredients:review-report": "tsx src/scripts/ingredients-review-report.ts",
-    "ingredients:review-apply": "tsx src/scripts/ingredients-review-apply.ts"
+    "ingredients:review-apply": "tsx src/scripts/ingredients-review-apply.ts",
+    "recipes:coverage": "tsx --env-file-if-exists=.env src/scripts/curated-coverage.ts"
   },
   "dependencies": {
     "@chefer/database": "workspace:*",

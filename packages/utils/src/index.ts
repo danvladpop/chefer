@@ -431,6 +431,7 @@ export {
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
   goalWording,
+  goalGetsTrainingBump,
   hasTrainingDayBump,
   isLifter,
   isRunKind,
