@@ -16,7 +16,7 @@ import {
 } from '@chefer/utils';
 
 // "Enter it yourself" (free) and the label-scan review (premium) share this
-// form (ADR 0005). Everything is per 100 g, calories are the one required
+// form (ADR 0006). Everything is per 100 g, calories are the one required
 // number, a blank field means "not on the pack" (stored as unknown, never 0),
 // and allergens stay "unknown" until the user ticks some or says none are
 // listed. Parsing is shared with web (`parseProductForm`).

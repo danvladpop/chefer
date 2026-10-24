@@ -3,7 +3,7 @@ import { barcodeSchema, packagedProductDraftSchema } from '@chefer/types';
 import { productsService } from '../application/products/products.service.js';
 import { aiConsentProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
-// ─── Packaged products (ADR 0005) ─────────────────────────────────────────────
+// ─── Packaged products (ADR 0006) ─────────────────────────────────────────────
 // Barcode lookup, barcode-photo decode, product search and saving your own
 // product are FREE. scanLabel is the premium photo-AI path: AI-consent gated
 // here (R-10), Snap-to-Log quota inside the service. Logging a product is

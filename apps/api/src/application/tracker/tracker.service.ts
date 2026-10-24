@@ -230,7 +230,7 @@ export interface RecentTrackerEntry {
   /** UX-FOOD-11: macros the entry left blank (stored as 0 g). */
   unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   estimatedBy?: 'vision' | 'manual';
-  /** Logged from a packaged product (ADR 0005). Additive. */
+  /** Logged from a packaged product (ADR 0006). Additive. */
   productId?: string;
   portionMultiplier?: number;
   count: number;
@@ -578,7 +578,7 @@ export const trackerService = {
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
       replacesSlot?: SlotRefJson | undefined;
-      /** Set by logProduct only (ADR 0005). */
+      /** Set by logProduct only (ADR 0006). */
       product?: { id: string; grams: number } | undefined;
     },
     rebalanceMode: RebalanceMode = 'auto',
@@ -620,7 +620,7 @@ export const trackerService = {
   },
 
   /**
-   * Packaged products (ADR 0005): logs an amount of a product the user can
+   * Packaged products (ADR 0006): logs an amount of a product the user can
    * see. The numbers are computed here from the product's per-100 g values
    * (the client's preview uses the same `scaleProduct`), and the entry is an
    * ordinary custom entry plus `product: { id, grams }` — so every shipped

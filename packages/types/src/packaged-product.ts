@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { safetyTaxonomyEntriesByGroup } from './safety-taxonomy';
 
-// ─── Packaged products (docs/adr/0005-packaged-products.md) ───────────────────
+// ─── Packaged products (docs/adr/0006-packaged-products.md) ───────────────────
 // A branded, barcoded food: looked up on Open Food Facts, read off a label
 // photo (premium), or typed in. Kept apart from the reviewed ingredient
 // catalog. These are the wire shapes and limits every platform shares; the

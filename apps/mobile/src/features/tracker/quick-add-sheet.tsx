@@ -57,7 +57,7 @@ type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 // fallback (`view === 'manual'`). Recent → This week's plan → Your recipes →
 // Ingredients (per 100 g), in that order, so the fastest path (log a repeat
 // food) is one tap into the sheet. The ingredient group is Chefer's own catalogue
-// (`ingredients.search`) only — packaged products (ADR 0005, which replaced
+// (`ingredients.search`) only — packaged products (ADR 0006, which replaced
 // B-29) are a separate group and the "Scan barcode" view (`view === 'product'`).
 
 export type PlannedLogMeal = {
@@ -645,7 +645,7 @@ export function QuickAddSheet({
             onSubmitEditing={() => Keyboard.dismiss()}
           />
 
-          {/* ADR 0005: next to the search, not under every group — the sheet
+          {/* ADR 0006: next to the search, not under every group — the sheet
             opens with the keyboard up, which hides anything at the bottom. */}
           <View className="flex-row flex-wrap gap-2">
             <Pressable

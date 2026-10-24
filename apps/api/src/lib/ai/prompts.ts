@@ -407,7 +407,7 @@ HONESTY RULES (mandatory — a wrong confident number is worse than a cautious o
 export const MEAL_PHOTO_USER_PROMPT =
   'Identify this meal and estimate its nutrition for the visible portion.';
 
-// ─── Nutrition label reading (packaged products, ADR 0005) ───────────────────
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
 
 export const NUTRITION_LABEL_SYSTEM_PROMPT = `\
 You read the nutrition label of a packaged food from a photo. You COPY the

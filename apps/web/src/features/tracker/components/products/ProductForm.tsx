@@ -16,7 +16,7 @@ import {
 } from '@chefer/utils';
 import { chipClass } from './ProductCard';
 
-// Web counterpart of mobile's products/product-form.tsx (ADR 0005): manual
+// Web counterpart of mobile's products/product-form.tsx (ADR 0006): manual
 // entry and the label-scan review, per 100 g, blank = not on the pack,
 // allergens "unknown" until ticked or "None listed". Parsing is shared.
 

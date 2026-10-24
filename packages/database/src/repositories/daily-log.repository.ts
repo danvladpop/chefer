@@ -48,7 +48,7 @@ export interface LoggedMealEntry {
    */
   replacesSlot?: SlotRefJson | undefined;
   /**
-   * A CUSTOM entry logged from a packaged product (ADR 0005): which product
+   * A CUSTOM entry logged from a packaged product (ADR 0006): which product
    * and how many grams. The numbers above are already scaled; older clients
    * see an ordinary custom entry and total it.
    */

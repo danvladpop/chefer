@@ -1,6 +1,6 @@
 import { resizeImageForUpload } from '@/lib/resize-image';
 
-// Packaged products (ADR 0005): a barcode or nutrition-label photo is shrunk
+// Packaged products (ADR 0006): a barcode or nutrition-label photo is shrunk
 // in the browser (1080 px JPEG, like the app) and sent through tRPC as base64.
 
 export type ProductPhoto = {
