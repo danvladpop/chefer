@@ -100,12 +100,12 @@ export function TrainingDaysStep({
 
       {sorted.length > 0 && (
         <View className="gap-3 border-t border-border pt-3">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             {ONBOARDING_COPY.trainingDaysRunQuestion}
           </Text>
           {sorted.map((weekday) => (
             <View key={weekday} className="gap-1.5">
-              <Text className="text-sm text-gray-700">{WEEKDAY_FULL[weekday]}</Text>
+              <Text className="text-sm text-label-secondary">{WEEKDAY_FULL[weekday]}</Text>
               <ChipGroup
                 testID={`training-days-kind-${weekday}`}
                 options={KIND_OPTIONS}

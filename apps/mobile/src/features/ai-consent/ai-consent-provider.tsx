@@ -254,17 +254,17 @@ function AiConsentSheet({ state }: { state: ConsentState }) {
         </View>
       }
     >
-      <Text className="text-base text-gray-800">{aiConsentIntro(t, feature, providers)}</Text>
+      <Text className="text-base text-label">{aiConsentIntro(t, feature, providers)}</Text>
       <View className="gap-1">
-        <Text className="text-sm font-semibold text-gray-900">{t('consent.ai.sentHeading')}</Text>
+        <Text className="text-sm font-semibold text-label">{t('consent.ai.sentHeading')}</Text>
         {aiConsentFeatureLines(t, feature).map((line) => (
           <View key={line} className="flex-row gap-2">
-            <Text className="text-sm text-gray-700">•</Text>
-            <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>
+            <Text className="text-sm text-label-secondary">•</Text>
+            <Text className="min-w-0 flex-1 text-sm text-label-secondary">{line}</Text>
           </View>
         ))}
       </View>
-      <Text className="text-sm font-medium text-gray-900">{t('consent.ai.noTraining')}</Text>
+      <Text className="text-sm font-medium text-label">{t('consent.ai.noTraining')}</Text>
       {backupLine && (
         <Text variant="muted" className="text-sm">
           {backupLine}
@@ -276,9 +276,7 @@ function AiConsentSheet({ state }: { state: ConsentState }) {
       <Button testID="ai-consent-privacy" variant="ghost" onPress={state.openPrivacy}>
         {t('consent.ai.privacyLabel')}
       </Button>
-      {state.saveFailed && (
-        <Text className="text-sm text-red-700">{t('consent.ai.saveError')}</Text>
-      )}
+      {state.saveFailed && <Text className="text-sm text-danger">{t('consent.ai.saveError')}</Text>}
     </Sheet>
   );
 }

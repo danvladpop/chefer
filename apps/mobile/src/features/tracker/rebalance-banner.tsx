@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Text } from '@chefer/ui-mobile';
+import { Button, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, isPendingFresh, rebalanceBannerCopy, undoOperations } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { clearPendingRebalance, isMealType, usePendingRebalance } from './rebalance-store';
@@ -22,6 +22,7 @@ export interface RebalanceBannerProps {
 }
 
 export function RebalanceBanner({ planId, onUndone, className }: RebalanceBannerProps) {
+  const colors = useThemeColors();
   const pending = usePendingRebalance();
   const [undoing, setUndoing] = useState(false);
   const [undoError, setUndoError] = useState(false);
@@ -70,13 +71,18 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
         className,
       )}
     >
-      <Ionicons name="color-wand-outline" size={18} color="#944a00" style={{ marginTop: 12 }} />
+      <Ionicons
+        name="color-wand-outline"
+        size={18}
+        color={colors.brand}
+        style={{ marginTop: 12 }}
+      />
       <View className="min-w-0 flex-1 py-2">
-        <Text testID="rebalance-banner-text" className="text-sm text-gray-800">
+        <Text testID="rebalance-banner-text" className="text-sm text-label">
           {rebalanceBannerCopy(pending.swaps)}
         </Text>
         {undoError && (
-          <Text testID="rebalance-undo-error" className="text-xs text-red-600">
+          <Text testID="rebalance-undo-error" className="text-xs text-danger">
             Undo failed — please try again.
           </Text>
         )}
@@ -89,7 +95,7 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
           disabled={undoing}
           onPress={() => void undo()}
         >
-          <Ionicons name="arrow-undo-outline" size={16} color="#944a00" />
+          <Ionicons name="arrow-undo-outline" size={16} color={colors.brand} />
           <Text className="text-sm font-semibold text-primary">
             {undoing ? 'Undoing…' : 'Undo'}
           </Text>
@@ -102,7 +108,7 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
         onPress={clearPendingRebalance}
         className="h-11 w-11 items-center justify-center rounded-xl"
       >
-        <Ionicons name="close" size={18} color="#9ca3af" />
+        <Ionicons name="close" size={18} color={colors.labelTertiary} />
       </Pressable>
     </View>
   );

@@ -12,7 +12,6 @@ import {
 } from '@chefer/types';
 import {
   Button,
-  colors,
   ConfirmSheet,
   enterFromSide,
   ErrorState,
@@ -20,6 +19,7 @@ import {
   Screen,
   Text,
   useProgressValue,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -181,6 +181,7 @@ function ProgressFill({ fraction }: { fraction: number }) {
 }
 
 export function OnboardingWizard() {
+  const colors = useThemeColors();
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
   const requestAiConsent = useAiConsent();
@@ -469,7 +470,7 @@ export function OnboardingWizard() {
         <ErrorState
           title="Couldn't load your setup"
           description="Nothing has been changed. Check your connection and try again."
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void savedPrefs.refetch()}
         />
       </Screen>
@@ -479,7 +480,7 @@ export function OnboardingWizard() {
   if (isPremium === undefined || savedPrefs.isLoading) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.brand} />
       </Screen>
     );
   }
@@ -986,7 +987,7 @@ export function OnboardingWizard() {
           onPress={handleBack}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color={colors.foreground} />
+          <Ionicons name="arrow-back" size={20} color={colors.label} />
         </Pressable>
         <View className="flex-1">
           <Text variant="muted" className="text-xs">
@@ -1009,7 +1010,7 @@ export function OnboardingWizard() {
             ? { text: progress.label }
             : { min: 0, max: progress.total, now: step + 1 }
         }
-        className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
+        className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken"
       >
         <ProgressFill fraction={progressPct / 100} />
       </View>
@@ -1057,8 +1058,8 @@ export function OnboardingWizard() {
           {content}
         </Animated.View>
         {error && (
-          <View className="rounded-md bg-red-50 px-4 py-3">
-            <Text className="text-sm text-red-600">{error}</Text>
+          <View className="rounded-md bg-danger/10 px-4 py-3">
+            <Text className="text-sm text-danger">{error}</Text>
           </View>
         )}
       </KeyboardAwareScrollView>

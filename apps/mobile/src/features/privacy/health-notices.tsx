@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Text } from '@chefer/ui-mobile';
+import { Button, Text, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../lib/i18n';
 import { HEALTH_DECLINED_BODY_NOTICE } from './copy';
 
@@ -17,6 +17,7 @@ export function HealthDeclinedNotice({
   message?: string;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   const { t } = useT();
   // The body notice is still passed in as an English constant by the screens
   // that show it; it is recognised here and shown from the catalog.
@@ -30,10 +31,10 @@ export function HealthDeclinedNotice({
     <View
       testID={testID}
       accessibilityRole="alert"
-      className="flex-row items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3"
+      className="flex-row items-start gap-2 rounded-lg border border-attention/30 bg-attention/10 p-3"
     >
-      <Ionicons name="alert-circle-outline" size={18} color="#b45309" />
-      <Text className="min-w-0 flex-1 text-sm text-amber-900">{text}</Text>
+      <Ionicons name="alert-circle-outline" size={18} color={colors.attention} />
+      <Text className="min-w-0 flex-1 text-sm text-attention">{text}</Text>
     </View>
   );
 }
@@ -49,9 +50,9 @@ export function HealthConsentNoticeCard({
   return (
     <View
       testID="health-consent-notice-card"
-      className="gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4"
+      className="gap-2 rounded-xl border border-attention/30 bg-attention/10 p-4"
     >
-      <Text className="text-sm font-semibold text-amber-900">
+      <Text className="text-sm font-semibold text-attention">
         {t('consent.health.todayCardTitle')}
       </Text>
       <View className="flex-row gap-2">

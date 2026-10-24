@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LivePrBanner } from '@/features/progress/workout-progress';
 import { capture } from '@/lib/analytics';
 import {
   ArrowDown,
@@ -421,6 +422,14 @@ export function WorkoutView() {
 
   return (
     <Frame>
+      {/* Kitchen progress: a non-blocking "New best" banner when a tick sets a PR (renders nothing when off). */}
+      <LivePrBanner
+        prs={prs}
+        doc={session}
+        lookup={lookup}
+        unit={displayUnit}
+        ready={data !== undefined}
+      />
       <WorkoutHeader
         session={session}
         done={progress.done}

@@ -38,7 +38,10 @@ function ReportThis({ error }: { error: Error }) {
 
   if (status === 'sent') {
     return (
-      <Text testID="root-error-report-sent" className="mt-4 text-center text-sm text-gray-700">
+      <Text
+        testID="root-error-report-sent"
+        className="mt-4 text-center text-sm text-label-secondary"
+      >
         {t('legal.appErrors.reportSent')}
       </Text>
     );
@@ -85,7 +88,7 @@ function ReportThis({ error }: { error: Error }) {
       />
       {done.bar}
       {status === 'failed' ? (
-        <Text testID="root-error-report-failed" className="text-sm text-red-600">
+        <Text testID="root-error-report-failed" className="text-sm text-danger">
           {t('legal.appErrors.reportFailed')}
         </Text>
       ) : null}
@@ -122,7 +125,7 @@ export function RootErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   // No store rating prompt for the rest of this session (ASO §5.1).
   useEffect(() => noteReviewBlockingError(), []);
   return (
-    <Screen className="flex-1 bg-white px-6">
+    <Screen className="flex-1 bg-canvas px-6">
       {/* Scrolls, so the report field and Send stay clear of the keyboard. */}
       <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"

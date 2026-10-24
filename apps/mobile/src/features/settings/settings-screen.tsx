@@ -2,10 +2,11 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
-import { Button, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ListSection, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
 import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
+import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { legalHref } from '../legal/legal-docs';
@@ -171,7 +172,7 @@ function groupsFor(
 
 function GroupTitle({ children }: { children: string }) {
   return (
-    <Text className="px-4 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+    <Text className="px-4 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-label-tertiary">
       {children}
     </Text>
   );
@@ -190,6 +191,7 @@ function SettingsRowItem({
   destructive?: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -204,13 +206,13 @@ function SettingsRowItem({
       <Text
         className={
           destructive
-            ? 'flex-1 text-sm font-medium text-red-600'
-            : 'flex-1 text-sm font-medium text-gray-800'
+            ? 'flex-1 text-sm font-medium text-danger'
+            : 'flex-1 text-sm font-medium text-label'
         }
       >
         {label}
       </Text>
-      {!destructive && <Ionicons name="chevron-forward" size={16} color="#9ca3af" />}
+      {!destructive && <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />}
     </Pressable>
   );
 }
@@ -218,7 +220,7 @@ function SettingsRowItem({
 function TrainingSetupCta() {
   return (
     <View testID="settings-training-setup" className="gap-2 p-4">
-      <Text className="text-sm font-medium text-gray-800">Training isn’t set up yet</Text>
+      <Text className="text-sm font-medium text-label">Training isn’t set up yet</Text>
       <Text variant="muted" className="text-sm">
         Choose your training days, units and equipment to start logging workouts. Everything else in
         Chefer works without it.
@@ -236,6 +238,7 @@ export function SettingsScreen() {
 }
 
 function LegacySettingsScreen() {
+  const colors = useThemeColors();
   const { enabled: friendsAvailable } = useFriendsAvailability();
   const coachingAvailability = useCoachingAvailability();
   // Only a *loaded* "no gym profile" swaps the Training rows for the CTA — a
@@ -259,7 +262,7 @@ function LegacySettingsScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+          <Ionicons name="arrow-back" size={20} color={colors.label} />
         </Pressable>
         <Text testID="settings-title" variant="title">
           Settings
@@ -295,6 +298,12 @@ function LegacySettingsScreen() {
             </View>
           </View>
         ))}
+        {/* Night mode (Automatic · Day · Night), the same row as the new shell's You. */}
+        <View className="mx-4 mt-2">
+          <ListSection>
+            <AppearanceRow testID="settings-appearance" />
+          </ListSection>
+        </View>
         {/* Mobile UX revamp: admins and test builds can preview the new shell. */}
         <View className="mx-4 mt-2">
           <ShellPreviewSection />

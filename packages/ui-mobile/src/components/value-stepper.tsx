@@ -128,7 +128,7 @@ function ValueStepperImpl({
         tight ? 'h-11 w-9 items-center justify-center' : 'h-11 w-11 items-center justify-center',
         // Grouped: transparent, sits inside the shared container; pressed
         // state is 5% darker (MO-01) instead of its own fill (UX-05 A1).
-        grouped ? 'active:bg-black/5' : 'rounded-md bg-muted active:opacity-70',
+        grouped ? 'active:bg-label/5' : 'rounded-md bg-muted active:opacity-70',
       )}
     >
       <Text
@@ -164,10 +164,7 @@ function ValueStepperImpl({
           numberOfLines={1}
           maxFontSizeMultiplier={VALUE_MAX_FONT_SCALE}
           style={{ fontSize: valueFontSize(display) }}
-          className={cn(
-            'font-semibold tabular-nums',
-            done ? 'text-emerald-800' : 'text-foreground',
-          )}
+          className={cn('font-semibold tabular-nums', done ? 'text-positive' : 'text-foreground')}
         >
           {display}
         </Text>
