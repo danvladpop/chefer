@@ -22,6 +22,8 @@ import {
   LEGAL_VERSIONS,
   TRAINER_MODE_API_LEVEL,
   type ClientRowDto,
+  type CoachingShareChoice,
+  type CoachingSharingDto,
   type CoachingSource,
   type CoachingStatusDto,
 } from '@chefer/types';
@@ -35,10 +37,19 @@ import {
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
 import { keepItSimple } from './coaching-content.service.js';
-import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
+import {
+  clientSharingOf,
+  inviteStateOf,
+  linkStartDay,
+  resolveStartedOn,
+  sharingOf,
+} from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
 import { coachingRequestService, type CoachingRequestService } from './coaching-request.service.js';
-import { COACHING_CONSENT_DOCUMENT_VERSION } from './consent-copy.js';
+import {
+  COACHING_CONSENT_DOCUMENT_VERSION,
+  COACHING_DATA_DOCUMENT_VERSION,
+} from './consent-copy.js';
 
 // ─── Trainer coaching: links (spec §2.3, §2.7, §7.2, §7.3) ────────────────────
 // join / leave / remove are single transactions in CoachingLinkRepository: the
@@ -91,6 +102,7 @@ export class CoachingLinkService {
     source: CoachingSource,
     localDate?: string,
     level = 0,
+    share?: CoachingShareChoice,
   ): Promise<CoachingStatusDto> {
     const now = this.deps.now();
     const invite = await this.deps.invites.find(code);
@@ -124,6 +136,8 @@ export class CoachingLinkService {
         // Trainer mode M3 (§10): the consent screen shows copy v2 (bookings, logged workouts).
         consentCopyVersion: COACHING_CONSENT_COPY_VERSION,
         grantedDocumentVersion: COACHING_CONSENT_DOCUMENT_VERSION,
+        // Lane K1: the consent screen's food / weight switches (absent = share nothing).
+        ...(share && { share, shareDocumentVersion: COACHING_DATA_DOCUMENT_VERSION }),
       });
       if (result.status === 'joined') {
         // A switch: the previous trainer hears that the client left.
@@ -170,7 +184,7 @@ export class CoachingLinkService {
     if (active) {
       const name = await this.trainerName(active.trainerId);
       return {
-        trainer: { name, since: active.startedAt.toISOString() },
+        trainer: { name, since: active.startedAt.toISOString(), sharing: sharingOf(active) },
         request,
         stopped: null,
         ...(trainerMode && {
@@ -195,6 +209,32 @@ export class CoachingLinkService {
             }
           : null,
     };
+  }
+
+  /**
+   * `coaching.setSharing` (lane K1): turn food / weight sharing on or off for
+   * the client's ACTIVE coaching. A revoke is effective on the trainer's very
+   * next request (access is never cached across requests). NOT_FOUND without
+   * an active coaching.
+   */
+  async setSharing(
+    clientId: string,
+    input: { food?: boolean | undefined; weight?: boolean | undefined },
+    source: CoachingSource,
+  ): Promise<CoachingSharingDto> {
+    const link = await this.deps.links.setSharing({
+      clientId,
+      food: input.food,
+      weight: input.weight,
+      source,
+      grantedDocumentVersion: COACHING_DATA_DOCUMENT_VERSION,
+      documentVersion: LEGAL_VERSIONS.privacy,
+      now: this.deps.now(),
+    });
+    if (!link) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: COACHING_COPY.server.notFound });
+    }
+    return sharingOf(link);
   }
 
   /** `coaching.leave`: the trainer loses access at once; the routine, trainer notes and pending targets stay the client's. */
@@ -276,6 +316,7 @@ export class CoachingLinkService {
         routineChangedByClientAt: changedByClientAt(link, stamp),
         keepItSimple: keepItSimple(profile),
         nextBookingAt: nextBookings.get(link.clientId)?.toISOString() ?? null,
+        sharing: clientSharingOf(link),
       };
     });
   }

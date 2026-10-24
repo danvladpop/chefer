@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { COACHING_CONSENT_LABELS, FRIENDS_COPY } from '@chefer/types';
+import { coachingConsentLabel, FRIENDS_COPY } from '@chefer/types';
 import { Card, ErrorState, Text, useQueryState, useThemeColors } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
@@ -64,7 +64,8 @@ function describe(event: ConsentEventRow): string {
     case 'COACHING_SHARING':
       // Trainer coaching (WP-18): joined a trainer (granted) or the link ended (withdrawn). Level 6+ only:
       // the API filters these rows out below it, so an older bundle never prints the raw enum.
-      return COACHING_CONSENT_LABELS[event.granted ? 'granted' : 'withdrawn'];
+      // Lane K1: providers ['FOOD'] / ['WEIGHT'] is a sharing switch ("Food log shared with your trainer").
+      return coachingConsentLabel(event) ?? event.kind;
     default:
       return event.kind;
   }

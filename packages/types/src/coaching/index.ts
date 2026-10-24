@@ -5,3 +5,4 @@ export * from './copy';
 export * from './trainer-mode';
 export * from './templates';
 export * from './bookings';
+export * from './data-sharing';

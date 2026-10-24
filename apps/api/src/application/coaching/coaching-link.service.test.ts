@@ -45,6 +45,8 @@ const link = (over: Partial<CoachingLink> = {}): CoachingLink => ({
   endedAt: null,
   endedBy: null,
   consentCopyVersion: 2,
+  shareFoodAt: null,
+  shareWeightAt: null,
   ...over,
 });
 const profile = (over: Partial<GymProfile> = {}): GymProfile =>
@@ -79,6 +81,21 @@ function setup(opts: Opts = {}) {
     end: vi.fn(async () => link({ status: 'ENDED' })),
     deleteEndedBefore: vi.fn(),
     acknowledgeConsentCopy: vi.fn(async () => true),
+    setSharing: vi.fn(async (data: { food?: boolean | undefined; weight?: boolean | undefined }) =>
+      opts.current === undefined || opts.current === null
+        ? null
+        : link({
+            ...opts.current,
+            shareFoodAt:
+              data.food === true ? NOW : data.food === false ? null : opts.current.shareFoodAt,
+            shareWeightAt:
+              data.weight === true
+                ? NOW
+                : data.weight === false
+                  ? null
+                  : opts.current.shareWeightAt,
+          }),
+    ),
   };
   const content = {
     lastWorkoutDates: vi.fn(async () => new Map<string, string>()),
@@ -135,7 +152,11 @@ describe('join', () => {
       grantedDocumentVersion: `${LEGAL_VERSIONS.privacy}+coaching-v2`,
     });
     expect(status).toEqual({
-      trainer: { name: 'Ana', since: '2026-10-01T09:00:00.000Z' },
+      trainer: {
+        name: 'Ana',
+        since: '2026-10-01T09:00:00.000Z',
+        sharing: { food: false, weight: false, foodSince: null, weightSince: null },
+      },
       request: null,
       stopped: null,
     });
@@ -342,6 +363,7 @@ describe('listClients', () => {
       inactiveDays: 7,
       routineChangedByClientAt: null,
       keepItSimple: false,
+      sharing: { food: false, weight: false },
       nextBookingAt: null,
     });
     // The week is the trainer's device-local week (Mon 5 Oct – Sun 11 Oct).
@@ -441,6 +463,58 @@ describe('consent copy v2', () => {
       source: 'mobile',
       documentVersion: `${LEGAL_VERSIONS.privacy}+coaching-v2`,
       now: NOW,
+    });
+  });
+});
+
+describe('food and weight sharing (lane K1)', () => {
+  it('join passes the consent-screen switches with the sharing document version', async () => {
+    const { service, links } = setup();
+    await service.join(CLIENT, 'ABCDEFGHJK', 'web', undefined, 8, { food: true, weight: false });
+    expect(links.join).toHaveBeenCalledWith(
+      expect.objectContaining({
+        share: { food: true, weight: false },
+        shareDocumentVersion: `${LEGAL_VERSIONS.privacy}+coaching-data-v1`,
+      }),
+    );
+  });
+
+  it('a join without switches shares nothing (older clients)', async () => {
+    const { service, links } = setup();
+    await service.join(CLIENT, 'ABCDEFGHJK', 'web');
+    expect((links.join.mock.calls as unknown[][])[0]?.[0]).not.toHaveProperty('share');
+  });
+
+  it('status carries the switches for the active coaching', async () => {
+    const { service } = setup({ current: link({ shareFoodAt: NOW }) });
+    const status = await service.status(CLIENT, 8);
+    expect(status.trainer?.sharing).toEqual({
+      food: true,
+      weight: false,
+      foodSince: NOW.toISOString(),
+      weightSince: null,
+    });
+  });
+
+  it('setSharing records the change; granted with the sharing version, withdrawn with the privacy one', async () => {
+    const { service, links } = setup({ current: link({ shareFoodAt: NOW }) });
+    const next = await service.setSharing(CLIENT, { food: false, weight: true }, 'mobile');
+    expect(next).toMatchObject({ food: false, weight: true });
+    expect(links.setSharing).toHaveBeenCalledWith({
+      clientId: CLIENT,
+      food: false,
+      weight: true,
+      source: 'mobile',
+      grantedDocumentVersion: `${LEGAL_VERSIONS.privacy}+coaching-data-v1`,
+      documentVersion: LEGAL_VERSIONS.privacy,
+      now: NOW,
+    });
+  });
+
+  it('setSharing without an active coaching is NOT_FOUND', async () => {
+    const { service } = setup({ current: null });
+    await expect(service.setSharing(CLIENT, { food: true }, 'web')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
     });
   });
 });

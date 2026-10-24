@@ -38,6 +38,7 @@ vi.mock('@/lib/trpc', () => {
         },
         status: { useQuery: () => ({ data: m.status }) },
         leave: { useMutation: () => ({ mutate: m.leave, isPending: false }) },
+        setSharing: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
         cancelRequest: { useMutation: () => ({ mutate: m.cancel, isPending: false }) },
       },
     },

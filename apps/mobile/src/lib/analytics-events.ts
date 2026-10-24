@@ -30,3 +30,31 @@ export function trackOnboardingCompleted(
 ): void {
   track('onboarding_completed', trainingStyles.length > 0 ? { jobs, trainingStyles } : { jobs });
 }
+
+type SharingWhere = EventMap['coaching_sharing_changed']['where'];
+
+/**
+ * `coaching_sharing_changed` (lane K1) — one event per switch that changed. At join / request time
+ * only the switches turned ON are sent (both start off, so an untouched switch is no change).
+ */
+export function trackSharingChanged(
+  change: { food?: boolean | undefined; weight?: boolean | undefined },
+  where: SharingWhere,
+): void {
+  if (change.food !== undefined)
+    track('coaching_sharing_changed', { data: 'food', on: change.food, where });
+  if (change.weight !== undefined) {
+    track('coaching_sharing_changed', { data: 'weight', on: change.weight, where });
+  }
+}
+
+/** At join / request time: one `coaching_sharing_changed` per switch the client turned ON. */
+export function trackSharingChosen(
+  share: { food: boolean; weight: boolean } | undefined,
+  where: 'join' | 'request',
+): void {
+  trackSharingChanged(
+    { ...(share?.food && { food: true }), ...(share?.weight && { weight: true }) },
+    where,
+  );
+}
