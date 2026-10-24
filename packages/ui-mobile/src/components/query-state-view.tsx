@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useQueryState, type QueryStateSource } from '../hooks/use-query-state';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { ErrorState } from './error-state';
 
 export interface QueryStateViewProps<TData> {
@@ -38,6 +39,7 @@ export function QueryStateView<TData>({
   testID = 'query-state',
   children,
 }: QueryStateViewProps<TData>) {
+  const spinnerColor = useThemeColors().brand;
   const { state, data, retry } = useQueryState(query, isEmpty);
 
   if (state === 'error') {
@@ -56,7 +58,7 @@ export function QueryStateView<TData>({
     return (
       loading ?? (
         <View testID={`${testID}-loading`} className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={spinnerColor} />
         </View>
       )
     );

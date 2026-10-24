@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, WELLNESS_COPY } from '@chefer/utils';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { ONBOARDING_COPY } from '../../onboarding/copy';
@@ -54,6 +54,7 @@ export function GoalStep({
   goodFood = false,
   onGoodFood,
 }: GoalStepProps) {
+  const colors = useThemeColors();
   // Lane E3: the goal's kcal effect is a nutrition figure; protein-only and
   // "Hide numbers" users see the goal without it.
   const { show } = useNumbersMode();
@@ -102,18 +103,18 @@ export function GoalStep({
           >
             {goodFood && (
               <View className="absolute right-2 top-2 h-5 w-5 items-center justify-center rounded-full bg-primary">
-                <Ionicons name="checkmark" size={12} color="#fff" />
+                <Ionicons name="checkmark" size={12} color={colors.onBrand} />
               </View>
             )}
             <Ionicons
               name="restaurant-outline"
               size={32}
-              color={goodFood ? colors.primary : colors.mutedForeground}
+              color={goodFood ? colors.brand : colors.labelTertiary}
             />
             <Text
               className={cn(
                 'text-center text-sm font-semibold',
-                goodFood ? 'text-primary' : 'text-gray-800',
+                goodFood ? 'text-primary' : 'text-label',
               )}
             >
               {ONBOARDING_COPY.goodFoodTitle}
@@ -139,18 +140,18 @@ export function GoalStep({
             >
               {selected && (
                 <View className="absolute right-2 top-2 h-5 w-5 items-center justify-center rounded-full bg-primary">
-                  <Ionicons name="checkmark" size={12} color="#fff" />
+                  <Ionicons name="checkmark" size={12} color={colors.onBrand} />
                 </View>
               )}
               <Ionicons
                 name={g.icon}
                 size={32}
-                color={selected ? colors.primary : colors.mutedForeground}
+                color={selected ? colors.brand : colors.labelTertiary}
               />
               <Text
                 className={cn(
                   'text-center text-sm font-semibold',
-                  selected ? 'text-primary' : 'text-gray-800',
+                  selected ? 'text-primary' : 'text-label',
                 )}
               >
                 {g.label}
@@ -162,13 +163,13 @@ export function GoalStep({
                 <View
                   className={cn(
                     'rounded-full px-2 py-0.5',
-                    selected ? 'bg-primary/10' : 'bg-gray-100',
+                    selected ? 'bg-primary/10' : 'bg-surface-sunken',
                   )}
                 >
                   <Text
                     className={cn(
                       'text-xs font-medium',
-                      selected ? 'text-primary' : 'text-gray-600',
+                      selected ? 'text-primary' : 'text-label-secondary',
                     )}
                   >
                     {g.calorieEffect}

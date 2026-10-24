@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
@@ -51,6 +51,7 @@ export function PlanDayTotals({
   onOpenStatus?: (() => void) | undefined;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
   const { proteinOnly, noNumbers } = useNumbersMode();
   const totals = sumPlanDay(meals);
@@ -63,9 +64,9 @@ export function PlanDayTotals({
   });
 
   return (
-    <View testID={testID} className="gap-1 rounded-xl bg-gray-50 px-3 py-2">
+    <View testID={testID} className="gap-1 rounded-xl bg-surface-sunken px-3 py-2">
       <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
-        <Text className="text-xs font-semibold uppercase text-gray-500">Day total</Text>
+        <Text className="text-xs font-semibold uppercase text-label-tertiary">Day total</Text>
         {proteinOnly ? (
           <Text testID={`${testID}-protein`} className="text-sm font-bold text-primary">
             {totals.protein} g protein
@@ -75,7 +76,7 @@ export function PlanDayTotals({
             <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
               {formatKcal(totals.kcal)} kcal
             </Text>
-            <Text className="text-xs text-gray-500">{formatMacroLine(totals)}</Text>
+            <Text className="text-xs text-label-tertiary">{formatMacroLine(totals)}</Text>
           </>
         )}
       </View>
@@ -88,12 +89,12 @@ export function PlanDayTotals({
             onPress={onOpenStatus}
             className="min-h-11 flex-row items-center gap-1.5"
           >
-            <Text className="min-w-0 flex-shrink text-xs text-gray-600">{status}</Text>
+            <Text className="min-w-0 flex-shrink text-xs text-label-secondary">{status}</Text>
             <Text className="text-xs font-semibold text-primary">See options</Text>
-            <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={12} color={colors.brand} />
           </Pressable>
         ) : (
-          <Text testID={`${testID}-status`} className="text-xs text-gray-600">
+          <Text testID={`${testID}-status`} className="text-xs text-label-secondary">
             {status}
           </Text>
         ))}

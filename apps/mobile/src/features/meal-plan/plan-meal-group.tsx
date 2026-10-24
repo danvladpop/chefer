@@ -30,7 +30,9 @@ export function PlanMealGroup({
     <View testID={testID} className="gap-2">
       <View className="min-w-0 flex-row items-center gap-2 px-1">
         <MealTypeBadge mealType={mealType} />
-        <Text className="text-xs text-gray-500">{PLAN_MEAL_MENU_COPY.dishCount(dishCount)}</Text>
+        <Text className="text-xs text-label-tertiary">
+          {PLAN_MEAL_MENU_COPY.dishCount(dishCount)}
+        </Text>
       </View>
       {main}
       <View className="ml-4 gap-2 border-l-2 border-border pl-2">{sides}</View>
@@ -40,12 +42,12 @@ export function PlanMealGroup({
           testID={`${testID}-total`}
           accessible
           accessibilityLabel={`${PLAN_MEAL_MENU_COPY.groupTotal(mealType)}: ${totalLine}`}
-          className="min-w-0 flex-row flex-wrap items-center gap-x-2 rounded-xl bg-gray-50 px-3 py-2"
+          className="min-w-0 flex-row flex-wrap items-center gap-x-2 rounded-xl bg-surface-sunken px-3 py-2"
         >
-          <Text className="text-xs font-semibold uppercase text-gray-500">
+          <Text className="text-xs font-semibold uppercase text-label-tertiary">
             {PLAN_MEAL_MENU_COPY.groupTotal(mealType)}
           </Text>
-          <Text className="min-w-0 flex-shrink text-xs text-gray-700">{totalLine}</Text>
+          <Text className="min-w-0 flex-shrink text-xs text-label-secondary">{totalLine}</Text>
         </View>
       ) : null}
     </View>

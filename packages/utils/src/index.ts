@@ -906,6 +906,7 @@ export {
 } from './plan-meal-macros';
 export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';
 export * from './biscuit';
+export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
 

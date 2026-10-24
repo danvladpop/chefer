@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   formatPortion,
   HERO_LOGGED_HOLD_MS,
@@ -38,6 +38,7 @@ export function HeroMealCard({
    */
   onSlotActions?: ((meal: HeroMeal) => void) | undefined;
 }) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
   const { proteinOnly } = useNumbersMode();
@@ -125,21 +126,21 @@ export function HeroMealCard({
             </View>
             <MealTypeBadge mealType={meal.mealType} />
           </View>
-          <Text className="text-lg font-bold leading-snug text-gray-900">{meal.recipe.name}</Text>
-          <Text numberOfLines={2} className="text-xs text-gray-500">
+          <Text className="text-lg font-bold leading-snug text-label">{meal.recipe.name}</Text>
+          <Text numberOfLines={2} className="text-xs text-label-tertiary">
             {meal.recipe.description}
           </Text>
           <View className="mt-1 flex-row items-center gap-4">
             <View className="flex-row items-center gap-1">
-              <Ionicons name="time-outline" size={14} color="#6b7280" />
-              <Text testID="hero-meal-time" className="text-xs text-gray-500">
+              <Ionicons name="time-outline" size={14} color={colors.labelTertiary} />
+              <Text testID="hero-meal-time" className="text-xs text-label-tertiary">
                 {totalMins} min
               </Text>
             </View>
             {(!proteinOnly || meal.portion !== undefined) && (
               <View className="flex-row items-center gap-1">
-                <Ionicons name="flame-outline" size={14} color="#944a00" />
-                <Text className="text-xs text-gray-500">
+                <Ionicons name="flame-outline" size={14} color={colors.brand} />
+                <Text className="text-xs text-label-tertiary">
                   {proteinOnly
                     ? `${formatPortion(meal.portion ?? 1)} portion`
                     : `${meal.recipe.kcal} kcal${
@@ -222,7 +223,7 @@ export function HeroMealCard({
       </View>
 
       {logMutation.isError && (
-        <Text className="px-4 pb-3 text-xs text-red-600">
+        <Text className="px-4 pb-3 text-xs text-danger">
           Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </Text>
       )}
@@ -232,10 +233,10 @@ export function HeroMealCard({
           accessibilityRole="button"
           accessibilityLabel={`Logged ${lastLogged}. Change it in your full day`}
           onPress={() => router.push('/tracker')}
-          className="min-h-11 flex-row flex-wrap items-center gap-x-1 border-t border-border bg-emerald-50 px-4 py-2.5"
+          className="min-h-11 flex-row flex-wrap items-center gap-x-1 border-t border-border bg-positive/10 px-4 py-2.5"
         >
-          <Text className="text-xs text-emerald-800">Logged {lastLogged}.</Text>
-          <Text className="text-xs font-semibold text-emerald-800 underline">
+          <Text className="text-xs text-positive">Logged {lastLogged}.</Text>
+          <Text className="text-xs font-semibold text-positive underline">
             Change it in your full day
           </Text>
         </Pressable>

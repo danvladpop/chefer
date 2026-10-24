@@ -15,6 +15,7 @@ import { pantryRouter } from './pantry.router.js';
 import { preferencesRouter } from './preferences.router.js';
 import { privacyRouter } from './privacy.router.js';
 import { profileRouter } from './profile.router.js';
+import { progressRouter } from './progress.router.js';
 import { recapRouter } from './recap.router.js';
 import { recipeRouter } from './recipe.router.js';
 import { safetyRouter } from './safety.router.js';
@@ -52,6 +53,10 @@ export const appRouter = router({
   // this file later; real procedures land wave 1.
   privacy: privacyRouter,
   profile: profileRouter,
+  // Kitchen progress (docs/gamification-2026-10/tech-plan.md) — dark behind the
+  // `gamification` flag + GAMIFICATION_ALLOWLIST; `availability` and `finishCook`
+  // answer while it's off.
+  progress: progressRouter,
   // Import procedures (F5) merge into the recipe namespace:
   // recipe.importPreview / recipe.importSave live in import.router.ts.
   recipe: mergeRouters(recipeRouter, importRouter),

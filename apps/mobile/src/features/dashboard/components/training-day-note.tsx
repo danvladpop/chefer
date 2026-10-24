@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { PlanTrainingBasis, PlanTrainingDay, TrainingDayNutrition } from '@chefer/types';
-import { colors, ExplainSheet, Text } from '@chefer/ui-mobile';
+import { ExplainSheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   trainingDayLine,
@@ -40,6 +40,7 @@ export function TrainingDayNote({
   restProteinG?: number;
   className?: string;
 }) {
+  const colors = useThemeColors();
   const [explainOpen, setExplainOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion.
   const [explainMounted, setExplainMounted] = useState(false);
@@ -57,7 +58,7 @@ export function TrainingDayNote({
         className={cn('mb-4 rounded-xl bg-accent px-3 py-2.5', className)}
       >
         <View className="flex-row items-center gap-1.5">
-          <Ionicons name={trainingGlyph(kind)} size={16} color={colors.primary} />
+          <Ionicons name={trainingGlyph(kind)} size={16} color={colors.brand} />
           <Text
             testID="training-day-line"
             className="min-w-0 flex-1 text-xs font-semibold text-primary"
@@ -108,7 +109,7 @@ export function TrainingDayNote({
   return (
     <View testID="training-day" className={cn('mb-4 rounded-xl bg-accent px-3 py-2.5', className)}>
       <View className="flex-row items-center gap-1.5">
-        <Ionicons name={glyph} size={16} color={colors.primary} />
+        <Ionicons name={glyph} size={16} color={colors.brand} />
         <Text
           testID="training-day-line"
           className="min-w-0 flex-1 text-xs font-semibold text-primary"

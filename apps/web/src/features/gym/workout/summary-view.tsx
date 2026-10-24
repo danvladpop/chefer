@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { WorkoutReceipt } from '@/features/progress/workout-progress';
 import { ShareCardButton } from '@/features/share/share-card-button';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -181,6 +182,9 @@ export function SummaryView({ id }: { id: string }) {
               </ul>
             </GymCard>
           )}
+
+          {/* Kitchen progress: what this workout earned (nothing until it has synced, or when off). */}
+          <WorkoutReceipt doc={doc} />
 
           <SyncIndicator />
         </div>

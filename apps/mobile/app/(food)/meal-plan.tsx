@@ -21,6 +21,7 @@ import {
   Text,
   useReducedMotion,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -122,6 +123,7 @@ function formatWeekLabel(weekStart: Date): string {
 }
 
 export default function MealPlanScreen() {
+  const colors = useThemeColors();
   // T-08.1 (UX-08 AC1): Plan and Shop both default to next week from Friday
   // 15:00 to Sunday 23:59 local, else this week — the same `defaultWeekOffset`
   // shared with the Shop tab (@chefer/utils).
@@ -787,7 +789,7 @@ export default function MealPlanScreen() {
             weekOffset <= MIN_OFFSET && 'opacity-40',
           )}
         >
-          <Ionicons name="chevron-back" size={18} color="#6b7280" />
+          <Ionicons name="chevron-back" size={18} color={colors.labelTertiary} />
         </Pressable>
         {/* Tapping the week label opens the WEEK summary (week-level actions
             live there — the screen below stays day-level) */}
@@ -810,14 +812,14 @@ export default function MealPlanScreen() {
             testID="plan-week-label"
             numberOfLines={1}
             maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
-            className="min-w-0 flex-shrink text-sm font-medium text-gray-700"
+            className="min-w-0 flex-shrink text-sm font-medium text-label-secondary"
           >
             {weekLabel}
           </Text>
           <View
             className={cn(
               'rounded-full px-2 py-0.5',
-              isPast ? 'bg-gray-100' : weekOffset === 0 ? 'bg-accent' : 'bg-surface-sunken',
+              isPast ? 'bg-surface-sunken' : weekOffset === 0 ? 'bg-accent' : 'bg-surface-sunken',
             )}
           >
             <Text
@@ -825,7 +827,7 @@ export default function MealPlanScreen() {
               className={cn(
                 'text-xs font-semibold uppercase',
                 isPast
-                  ? 'text-gray-500'
+                  ? 'text-label-tertiary'
                   : weekOffset === 0
                     ? 'text-primary'
                     : 'text-label-secondary',
@@ -834,7 +836,7 @@ export default function MealPlanScreen() {
               {isPast ? 'Past' : weekOffset === 0 ? 'This Week' : 'Next Week'}
             </Text>
           </View>
-          {plan && <Ionicons name="chevron-down" size={14} color="#9ca3af" />}
+          {plan && <Ionicons name="chevron-down" size={14} color={colors.labelTertiary} />}
         </Pressable>
         <Pressable
           testID="plan-week-next"
@@ -847,7 +849,7 @@ export default function MealPlanScreen() {
             weekOffset >= MAX_OFFSET && 'opacity-40',
           )}
         >
-          <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+          <Ionicons name="chevron-forward" size={18} color={colors.labelTertiary} />
         </Pressable>
       </View>
 
@@ -877,22 +879,22 @@ export default function MealPlanScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : isError && !plan ? (
         // A failed load is not an empty week — never offer Generate over a
         // plan we couldn't fetch (F-X-3-1).
         <ErrorState
           title="Couldn't load your meal plan"
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
       ) : !plan ? (
         /* ── Empty week ─────────────────────────────────────────────────── */
         <ScrollView contentContainerClassName="gap-4 px-4 py-6">
           <Card testID="plan-empty" className="items-center border-dashed py-10">
-            <Ionicons name="calendar-outline" size={40} color="#d1d5db" />
-            <Text className="mb-1 mt-3 font-semibold text-gray-700">
+            <Ionicons name="calendar-outline" size={40} color={colors.labelTertiary} />
+            <Text className="mb-1 mt-3 font-semibold text-label-secondary">
               No plan for {weekLabel} yet
             </Text>
             {/* UX-07 §2/AC1,3: the summary + button name the shape, e.g.
@@ -975,8 +977,8 @@ export default function MealPlanScreen() {
           )}
 
           {generateMutation.isError && !poolExhaustedMessage && (
-            <Card className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">
+            <Card className="border-danger/30 bg-danger/10">
+              <Text className="text-sm text-danger">
                 {userFacingErrorMessage(generateMutation.error)}
               </Text>
             </Card>
@@ -993,7 +995,7 @@ export default function MealPlanScreen() {
               <Text
                 testID="plan-shape-summary"
                 numberOfLines={2}
-                className="min-w-0 flex-1 text-xs text-gray-500"
+                className="min-w-0 flex-1 text-xs text-label-tertiary"
               >
                 {shape ? planShapeSummaryText : ''}
               </Text>
@@ -1005,7 +1007,11 @@ export default function MealPlanScreen() {
                   onPress={() => setWeekOptionsOpen(true)}
                   className="min-h-11 flex-shrink-0 flex-row items-center gap-1.5 rounded-lg border border-border px-3"
                 >
-                  <Ionicons name="ellipsis-horizontal-circle-outline" size={18} color="#944a00" />
+                  <Ionicons
+                    name="ellipsis-horizontal-circle-outline"
+                    size={18}
+                    color={colors.brand}
+                  />
                   <Text
                     maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                     className="text-sm font-medium text-foreground"
@@ -1022,7 +1028,7 @@ export default function MealPlanScreen() {
                   onPress={() => setSettingsOpen(true)}
                   className="h-11 w-11 items-center justify-center"
                 >
-                  <Ionicons name="options-outline" size={20} color="#6b7280" />
+                  <Ionicons name="options-outline" size={20} color={colors.labelTertiary} />
                 </Pressable>
               )}
             </View>
@@ -1050,7 +1056,10 @@ export default function MealPlanScreen() {
 
           {/* T-10.4 (D-7): the free household week is sized for the table. */}
           {!isPast && plan.firstScaledWeek === true && (
-            <Text testID="plan-first-scaled-week" className="px-4 pb-2 text-xs text-gray-600">
+            <Text
+              testID="plan-first-scaled-week"
+              className="px-4 pb-2 text-xs text-label-secondary"
+            >
               Sized for your table of {memberCount + 1} — free for your first week
             </Text>
           )}
@@ -1136,7 +1145,7 @@ export default function MealPlanScreen() {
             {plan.tableSafety?.hasRules && (
               <View testID="plan-week-safety" className="gap-0.5 px-1">
                 <View className="flex-row items-center gap-1.5">
-                  <Ionicons name="shield-checkmark-outline" size={13} color="#944a00" />
+                  <Ionicons name="shield-checkmark-outline" size={13} color={colors.brand} />
                   <Text className="text-xs font-medium text-primary">
                     {SAFETY_COPY.weekCardTitle}
                   </Text>
@@ -1242,10 +1251,7 @@ export default function MealPlanScreen() {
                 className="gap-3"
               >
                 {updatedDays.has(selectedDay) && (
-                  <Text
-                    testID="plan-day-updated"
-                    className="text-xs font-semibold text-emerald-700"
-                  >
+                  <Text testID="plan-day-updated" className="text-xs font-semibold text-positive">
                     {PLAN_TAILORING_COPY.dayUpdated}
                   </Text>
                 )}

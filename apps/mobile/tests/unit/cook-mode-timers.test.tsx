@@ -51,6 +51,9 @@ jest.mock('../../src/features/tracker/rebalance-banner', () => ({ RebalanceBanne
 jest.mock('../../src/features/recipes/star-rating', () => ({ StarRating: () => null }));
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    // Kitchen progress is off in these tests (flags answer nothing).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over imports
+    ...(require('./progress-trpc-mock') as typeof import('./progress-trpc-mock')).progressTrpcOff(),
     useUtils: () => ({
       tracker: { getDay: { invalidate: jest.fn() }, weeklySummary: { invalidate: jest.fn() } },
       dashboard: { summary: { invalidate: jest.fn() } },

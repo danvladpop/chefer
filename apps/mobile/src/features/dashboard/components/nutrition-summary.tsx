@@ -54,9 +54,9 @@ function MacroBar({
   return (
     <View>
       <View className="mb-1 flex-row items-baseline justify-between gap-2">
-        <Text className="text-xs font-medium text-gray-700">{label}</Text>
+        <Text className="text-xs font-medium text-label-secondary">{label}</Text>
         {/* Lane E3: over target is said, never coloured as a warning. */}
-        <Text className={cn('text-xs text-gray-500', over && 'font-semibold')}>
+        <Text className={cn('text-xs text-label-tertiary', over && 'font-semibold')}>
           {value}g / {target}g
         </Text>
       </View>
@@ -91,15 +91,17 @@ function ProteinSummary({
   // Neutral palette: reaching the goal is green, otherwise just what is left.
   const reached = targetG > 0 && eatenG >= targetG;
   const chip = reached
-    ? { text: 'Protein goal reached', bg: 'bg-emerald-100', fg: 'text-emerald-700' }
+    ? { text: 'Protein goal reached', bg: 'bg-positive/15', fg: 'text-positive' }
     : eatenG === 0
-      ? { text: 'Nothing logged yet', bg: 'bg-gray-100', fg: 'text-gray-500' }
-      : { text: `${leftG} g to go`, bg: 'bg-gray-100', fg: 'text-gray-600' };
+      ? { text: 'Nothing logged yet', bg: 'bg-surface-sunken', fg: 'text-label-tertiary' }
+      : { text: `${leftG} g to go`, bg: 'bg-surface-sunken', fg: 'text-label-secondary' };
 
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</Text>
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
+          Today
+        </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', chip.bg)}>
           <Text testID="nutrition-status" className={cn('text-xs font-bold uppercase', chip.fg)}>
             {chip.text}
@@ -117,11 +119,7 @@ function ProteinSummary({
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
         >
-          <CountUp
-            testID="protein-count"
-            value={eatenG}
-            className="text-xl font-bold text-gray-900"
-          />
+          <CountUp testID="protein-count" value={eatenG} className="text-xl font-bold text-label" />
           <Text
             testID="protein-ring-caption"
             numberOfLines={2}
@@ -133,7 +131,7 @@ function ProteinSummary({
           </Text>
         </ProgressRing>
         {proteinGuide && (
-          <Text testID="protein-guide" className="text-center text-xs text-gray-600">
+          <Text testID="protein-guide" className="text-center text-xs text-label-secondary">
             {proteinGuide.label}
           </Text>
         )}
@@ -186,17 +184,19 @@ export function NutritionSummary({
   // Neutral palette (lane E3, eating-disorder-safe): "past the target" is grey
   // like "room left" — never amber or red; only "on target" gets a colour.
   const statusStyle = {
-    over: { bg: 'bg-gray-100', text: 'text-gray-700' },
-    heading_over: { bg: 'bg-gray-100', text: 'text-gray-600' },
-    under: { bg: 'bg-gray-100', text: 'text-gray-600' },
-    on: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-    none: { bg: 'bg-gray-100', text: 'text-gray-500' },
+    over: { bg: 'bg-surface-sunken', text: 'text-label-secondary' },
+    heading_over: { bg: 'bg-surface-sunken', text: 'text-label-secondary' },
+    under: { bg: 'bg-surface-sunken', text: 'text-label-secondary' },
+    on: { bg: 'bg-positive/15', text: 'text-positive' },
+    none: { bg: 'bg-surface-sunken', text: 'text-label-tertiary' },
   }[status];
 
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</Text>
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
+          Today
+        </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', statusStyle.bg)}>
           <Text
             testID="nutrition-status"
@@ -228,7 +228,7 @@ export function NutritionSummary({
           <CountUp
             testID="calorie-count"
             value={n.eatenKcal}
-            className="text-xl font-bold text-gray-900"
+            className="text-xl font-bold text-label"
           />
           {/* UX-FOOD-24: "of 1,701 kcal eaten" ran into the stroke at 390 pt and
               larger text. Short caption ("eaten" lives in the ring's accessible
@@ -244,7 +244,7 @@ export function NutritionSummary({
             of {formatKcal(target.dailyCalorieTarget)} kcal
           </Text>
         </ProgressRing>
-        <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
+        <Text testID="calorie-remaining" className="text-center text-xs text-label-tertiary">
           {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
         {targetMode && (
