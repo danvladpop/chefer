@@ -370,7 +370,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
                 className="min-h-11 flex-row items-center gap-1 px-2"
               >
                 <Text className="text-sm font-medium text-primary">{t('friends.home.seeAll')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={14} color={colors.brand} />
               </Pressable>
             ) : null}
           </View>
