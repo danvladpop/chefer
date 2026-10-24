@@ -2264,7 +2264,7 @@ One nullable column, `ChefProfile.mealReminders Json?` — `{ enabled, times }` 
 New table `ShareCard` (`share_cards`): `id` (20 hex chars, the public link), `userId` (cascade on account delete),
 `kind` (`'recipe' | 'cook' | 'workout' | 'recap'`, a string so a new kind is never a migration), `payload Json` (the
 snapshot the card renders, `ShareCardPayload` in `@chefer/types`), `createdAt`; index on `userId`. Migration
-`packages/database/prisma/migrations/20261023120000_share_cards/`. See `business_flow.md` §39.
+`packages/database/prisma/migrations/20261024120800_share_cards/`. See `business_flow.md` §39.
 
 ### AI cost tracking schema (Phase 2, 2026-10-11, additive only)
 
