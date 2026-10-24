@@ -50,7 +50,9 @@ services:
     networks:
       - chefer
 
-  # One-shot: applies the Prisma schema, then syncs the global ingredient
+  # One-shot: applies the Prisma schema through the additive-only guard
+  # (packages/database/src/schema-push — refuses drops and type changes, lets
+  # warning-only additive changes through), then syncs the global ingredient
   # catalog (packages/database/data/ingredients/catalog.json → ingredients,
   # aliases, portions; docs/plan-ingredient-catalog.md §4.4 step 7), before the
   # API starts. Both steps run on every deploy and are idempotent, so schema and
@@ -68,10 +70,14 @@ services:
     container_name: chefer-migrate
     restart: 'no'
     # One-shot that runs before the API starts, so it gets no limit of its own.
+    # deploy.sh runs it first with `run --rm` (old api/web keep serving if it
+    # fails), then `up -d` runs it again as a no-op before api starts.
     logging: *default-logging
     env_file:
       - .env.production
-    command: sh -c "cd packages/database && npx prisma db push --skip-generate && npx prisma db execute --schema prisma/schema.prisma --file prisma/ensure-indexes.sql && npx tsx src/catalog/sync-cli.ts"
+    # Images built before the guard (pre-2026-10-24, e.g. a TAG=sha-… rollback)
+    # don't have safe-push-cli.ts and fall back to the plain push they shipped with.
+    command: sh -c "cd packages/database && if [ -f src/schema-push/safe-push-cli.ts ]; then npx tsx src/schema-push/safe-push-cli.ts; else npx prisma db push --skip-generate; fi && npx prisma db execute --schema prisma/schema.prisma --file prisma/ensure-indexes.sql && npx tsx src/catalog/sync-cli.ts"
     depends_on:
       postgres:
         condition: service_healthy
