@@ -3,6 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { DEFAULT_PROGRESS_SETTINGS } from '@chefer/types';
 import { ProgressTodayTop } from '../../src/features/progress/today-cards';
 import { TodaysThreeCard } from '../../src/features/progress/todays-three-card';
+import { clearToken } from '../../src/lib/auth-store';
 import { renderWithTrpc } from './friends-core-harness';
 import {
   progressOnHandlers,
@@ -94,12 +95,18 @@ describe('the strip and Today’s three', () => {
     expect(screen.queryByTestId('todays-three')).toBeNull();
   });
 
-  it('shows nothing and makes no progress.* call with the flag off', async () => {
-    const { paths } = await renderWithTrpc(<Screen />, {
+  it('shows it for an allowlisted user while the global flag is off (dogfood)', async () => {
+    await renderWithTrpc(<Screen />, {
       ...progressOnHandlers(),
       'profile.flags': () => ({ gamification: false }),
     });
-    await waitFor(() => expect(paths()).toContain('profile.flags'));
+    expect(await screen.findByTestId('progress-strip')).toBeTruthy();
+    expect(await screen.findByTestId('todays-three')).toBeTruthy();
+  });
+
+  it('shows nothing and makes no progress.* call while signed out', async () => {
+    await clearToken();
+    const { paths } = await renderWithTrpc(<Screen />, progressOnHandlers());
     await act(async () => {
       await Promise.resolve();
     });
@@ -111,7 +118,6 @@ describe('the strip and Today’s three', () => {
   it('shows nothing and makes no progress.* call on the old shell', async () => {
     turnShellV2Off();
     const { paths } = await renderWithTrpc(<Screen />, progressOnHandlers());
-    await waitFor(() => expect(paths()).toContain('profile.flags'));
     await act(async () => {
       await Promise.resolve();
     });
@@ -125,8 +131,12 @@ describe('the strip and Today’s three', () => {
       'progress.availability': () => ({ enabled: false }),
     });
     await waitFor(() => expect(paths()).toContain('progress.availability'));
-    expect(paths()).not.toContain('progress.summary');
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(paths().filter((p) => p.startsWith('progress.'))).toEqual(['progress.availability']);
     expect(screen.queryByTestId('progress-strip')).toBeNull();
+    expect(screen.queryByTestId('todays-three')).toBeNull();
   });
 
   it('opens a quest where it can be done', async () => {

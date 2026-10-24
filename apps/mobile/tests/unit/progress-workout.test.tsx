@@ -124,12 +124,24 @@ describe('workout receipt', () => {
     expect(screen.queryByTestId('workout-receipt')).toBeNull();
   });
 
-  it('asks for nothing with Kitchen progress off', async () => {
+  it('asks for nothing but availability when the server says Kitchen progress is off', async () => {
     const { paths } = await renderWithTrpc(<WorkoutReceipt id="session-1" />, {
       ...progressOnHandlers(),
+      'progress.availability': () => ({ enabled: false }),
+    });
+    await waitFor(() => expect(paths()).toContain('progress.availability'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(paths().filter((p) => p.startsWith('progress.'))).toEqual(['progress.availability']);
+    expect(screen.queryByTestId('workout-receipt')).toBeNull();
+  });
+
+  it('shows the receipt to an allowlisted user while the global flag is off (dogfood)', async () => {
+    await renderWithTrpc(<WorkoutReceipt id="session-1" />, {
+      ...progressOnHandlers(summaryFixture(), { 'progress.receiptFor': () => receiptFixture() }),
       'profile.flags': () => ({ gamification: false }),
     });
-    await waitFor(() => expect(paths()).toContain('profile.flags'));
-    expect(paths().filter((p) => p.startsWith('progress.'))).toEqual([]);
+    expect(await screen.findByTestId('workout-receipt')).toBeTruthy();
   });
 });

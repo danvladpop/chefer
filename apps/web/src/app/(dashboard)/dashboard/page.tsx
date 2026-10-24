@@ -278,7 +278,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Kitchen progress: strip, Today's three, welcome / recap / quiet cards
-            (renders nothing while the gamification flag is off). */}
+            (renders nothing unless progress.availability says it is on for this user). */}
           <ProgressToday />
 
           {/* What you ate vs target — inline here below xl, in the right rail

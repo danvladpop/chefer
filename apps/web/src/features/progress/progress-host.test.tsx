@@ -105,8 +105,8 @@ describe('ProgressHost', () => {
     expect(progressMock.mutate.ack).toHaveBeenCalledTimes(1);
   });
 
-  it('does nothing, and asks for nothing, while the flag is off', () => {
-    progressMock.flags = { gamification: false };
+  it('does nothing, and asks for nothing, while the server says the gate is off', () => {
+    progressMock.availability = { enabled: false };
     progressMock.inbox = inboxWith({ levelUp });
     renderHost();
     expect(progressMock.queries['inbox']).toBeUndefined();

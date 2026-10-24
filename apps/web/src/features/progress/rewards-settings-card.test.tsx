@@ -81,7 +81,7 @@ describe('RewardsSettingsCard', () => {
   });
 
   it('renders nothing while the gate is off', () => {
-    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: false };
     const { container } = render(<RewardsSettingsCard />);
     expect(container.innerHTML).toBe('');
   });

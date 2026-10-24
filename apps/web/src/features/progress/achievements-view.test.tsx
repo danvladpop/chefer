@@ -103,7 +103,7 @@ describe('AchievementsView', () => {
   });
 
   it('shows the friendly "not available" state, and loads nothing, while the gate is off', () => {
-    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: false };
     render(<AchievementsView />);
     expect(screen.getByTestId('progress-not-available')).toBeTruthy();
     // One <h1> even then.

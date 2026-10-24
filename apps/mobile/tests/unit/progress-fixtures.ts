@@ -10,6 +10,7 @@ import type {
 } from '@chefer/types';
 import { localDateStr } from '@chefer/utils';
 import { setShellV2Preview } from '../../src/features/shell/shell-store';
+import { clearToken, setToken } from '../../src/lib/auth-store';
 import type { Handlers } from './friends-core-harness';
 
 // Kitchen progress fixtures (Lane C): the numbers of mockup 01 — Line Cook,
@@ -167,6 +168,16 @@ export function recapFixture(over: Partial<WeeklyRecap> = {}): WeeklyRecap {
     ...over,
   };
 }
+
+// The gate asks the server only for a signed-in user (use-progress.ts), so every
+// test file that imports this module runs signed in. A test that needs the
+// signed-out case calls `clearToken()` itself.
+beforeEach(async () => {
+  await setToken('test-token');
+});
+afterEach(async () => {
+  await clearToken();
+});
 
 /** Handlers for a signed-in user with Kitchen progress on (flag, availability, summary). */
 export function progressOnHandlers(
