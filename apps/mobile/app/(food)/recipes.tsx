@@ -20,6 +20,7 @@ import { recipeCardMeta } from '../../src/features/recipes/recipe-actions';
 import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
+import { useT } from '../../src/lib/i18n';
 import type { RecipeImageStatus } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
@@ -40,28 +41,10 @@ type Tab = 'all' | 'saved' | 'my' | 'discover';
 
 const PAGE_SIZE = 30;
 
-const TAB_CAPTIONS: Record<Tab, string> = {
-  all: 'Everything from your plans, your own recipes and your favourites.',
-  saved: 'Recipes you have hearted.',
-  my: 'Recipes you wrote or imported. Dishes from your plans are under All.',
-  discover: 'Curated dishes, already filtered for you and your household.',
-};
-
-const TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'saved', label: 'Saved' },
-  { key: 'my', label: 'Mine' },
-  { key: 'discover', label: 'Discover' },
-] as const;
+const TABS = ['all', 'saved', 'my', 'discover'] as const;
 
 type MealFilter = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-const MEAL_FILTERS: { key: MealFilter | null; label: string }[] = [
-  { key: null, label: 'Any meal' },
-  { key: 'breakfast', label: 'Breakfast' },
-  { key: 'lunch', label: 'Lunch' },
-  { key: 'dinner', label: 'Dinner' },
-  { key: 'snack', label: 'Snack' },
-];
+const MEAL_FILTERS: (MealFilter | null)[] = [null, 'breakfast', 'lunch', 'dinner', 'snack'];
 const QUICK_MINS = 30;
 
 /** The fields a card needs — shared by recipe.list and recipe.discover rows. */
@@ -100,6 +83,7 @@ function fromChipLabel(recipe: Pick<CardRecipe, 'creator' | 'origin'>): string |
 
 export default function RecipesScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -203,10 +187,10 @@ export default function RecipesScreen() {
         <View className="flex-row items-end justify-between">
           <View>
             <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-              Your Collection
+              {t('recipes.list.eyebrow')}
             </Text>
             <Text testID="recipes-title" variant="title">
-              Cookbook
+              {t('recipes.list.title')}
             </Text>
           </View>
           <View className="flex-row gap-2">
@@ -218,7 +202,7 @@ export default function RecipesScreen() {
               className="min-h-11 flex-row items-center gap-1.5 rounded-xl border border-primary/30 px-3"
             >
               <Ionicons name="link-outline" size={16} color={colors.brand} />
-              <Text className="text-sm font-semibold text-primary">Import</Text>
+              <Text className="text-sm font-semibold text-primary">{t('recipes.list.import')}</Text>
             </Pressable>
             <Pressable
               testID="recipes-new"
@@ -227,14 +211,16 @@ export default function RecipesScreen() {
               className="min-h-11 flex-row items-center gap-1.5 rounded-xl bg-primary px-3"
             >
               <Ionicons name="add" size={16} color={colors.onBrand} />
-              <Text className="text-sm font-semibold text-primary-foreground">New</Text>
+              <Text className="text-sm font-semibold text-primary-foreground">
+                {t('recipes.list.newShort')}
+              </Text>
             </Pressable>
           </View>
         </View>
 
         {/* Tabs */}
         <View className="flex-row border-b border-border">
-          {TABS.map(({ key, label }) => (
+          {TABS.map((key) => (
             <Pressable
               key={key}
               testID={`recipes-tab-${key}`}
@@ -251,25 +237,31 @@ export default function RecipesScreen() {
                   tab === key ? 'text-primary' : 'text-label-tertiary',
                 )}
               >
-                {label}
+                {t(`recipes.cookbook.tabs.${key}`)}
               </Text>
             </Pressable>
           ))}
         </View>
 
         <Text testID="recipes-tab-caption" variant="muted" className="text-xs">
-          {TAB_CAPTIONS[tab]}
+          {t(`recipes.list.captions.${tab}`)}
         </Text>
 
         {/* Search */}
         <SearchField
           testID="recipes-search"
           accessibilityLabel={
-            tab === 'discover' ? 'Search dishes or ingredients' : 'Search recipes'
+            tab === 'discover'
+              ? t('recipes.cookbook.searchDiscover')
+              : t('recipes.list.searchLabel')
           }
           value={search}
           onChangeText={handleSearch}
-          placeholder={tab === 'discover' ? 'Search dishes or ingredients…' : 'Search recipes…'}
+          placeholder={
+            tab === 'discover'
+              ? t('recipes.list.searchDiscoverPlaceholder')
+              : t('recipes.list.searchPlaceholder')
+          }
         />
 
         {/* Discover filters */}
@@ -280,17 +272,17 @@ export default function RecipesScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerClassName="gap-2"
           >
-            {MEAL_FILTERS.map(({ key, label }) => (
+            {MEAL_FILTERS.map((key) => (
               <Chip
-                key={label}
-                label={label}
+                key={key ?? 'any'}
+                label={t(`recipes.list.mealFilters.${key ?? 'any'}`)}
                 selected={mealFilter === key}
                 onPress={() => setMealFilter(key)}
                 testID={`discover-meal-${key ?? 'any'}`}
               />
             ))}
             <Chip
-              label={`≤ ${QUICK_MINS} min`}
+              label={t('recipes.list.quickFilter', { mins: QUICK_MINS })}
               selected={quickOnly}
               onPress={() => setQuickOnly((q) => !q)}
               testID="discover-quick"
@@ -305,7 +297,7 @@ export default function RecipesScreen() {
         </View>
       ) : isError && !recipes ? (
         <ErrorState
-          title="Couldn't load your recipes"
+          title={t('recipes.list.loadError')}
           icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
@@ -352,7 +344,7 @@ export default function RecipesScreen() {
                 variant="outline"
                 onPress={() => void list.fetchNextPage()}
               >
-                Couldn&apos;t load more. Try again
+                {t('recipes.cookbook.loadMoreError')}
               </Button>
             ) : null
           }
@@ -403,21 +395,29 @@ export default function RecipesScreen() {
                   </Text>
                   <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
                     <View className="flex-row items-center gap-1">
-                      <Ionicons name="time-outline" size={12} color={colors.labelTertiary} />
+                      <Ionicons name="time-outline" size={12} color={colors.labelSecondary} />
                       <Text className="text-xs text-label-tertiary">
-                        {recipe.prepTimeMins + recipe.cookTimeMins}m
+                        {t('recipes.card.minutesShort', {
+                          mins: recipe.prepTimeMins + recipe.cookTimeMins,
+                        })}
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1">
                       <Ionicons name="flame-outline" size={12} color={colors.brand} />
-                      <Text className="text-xs text-label-tertiary">{n.calories} kcal</Text>
+                      <Text className="text-xs text-label-tertiary">
+                        {t('recipes.card.kcal', { value: n.calories })}
+                      </Text>
                       <NutritionStatusTag
                         status={recipe.nutritionStatus}
                         testID={`recipe-card-status-${recipe.id}`}
                       />
                     </View>
                     <Text className="text-xs text-label-tertiary">
-                      P {n.protein}g · C {n.carbs}g · F {n.fat}g
+                      {[
+                        t('recipes.card.protein', { value: n.protein }),
+                        t('recipes.card.carbs', { value: n.carbs }),
+                        t('recipes.card.fat', { value: n.fat }),
+                      ].join(' · ')}
                     </Text>
                   </View>
                   {meta ? (
@@ -434,7 +434,9 @@ export default function RecipesScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={
-                      recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
+                      recipe.isFavourite
+                        ? t('recipes.list.unfavourite')
+                        : t('recipes.list.favourite')
                     }
                     onPress={() => toggleFav.mutate({ recipeId: recipe.id })}
                     className="h-11 w-11 items-center justify-center"
@@ -448,7 +450,7 @@ export default function RecipesScreen() {
                   {tab === 'my' && (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Edit recipe"
+                      accessibilityLabel={t('recipes.list.editRecipe')}
                       onPress={() =>
                         router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
                       }
@@ -500,6 +502,7 @@ function EmptyState({
   onDiscover: () => void;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   // UX-REC-09: with no search or filter set, an empty Discover means the
   // diet filters removed everything — say so, with a way to the settings.
   if (tab === 'discover' && !searching && !filtered && hidden && hidden.hiddenCount > 0) {
@@ -509,7 +512,9 @@ function EmptyState({
         className="mx-4 items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-sunken px-4 py-12"
       >
         <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
-        <Text className="font-medium text-label-secondary">Your diet settings hide every dish</Text>
+        <Text className="font-medium text-label-secondary">
+          {t('recipes.list.empty.dietHidesTitle')}
+        </Text>
         <FilteredForLine
           testID="discover-empty-filtered-for"
           filters={hidden.filteredFor.join(' + ')}
@@ -521,7 +526,7 @@ function EmptyState({
           variant="outline"
           onPress={() => router.push('/preferences')}
         >
-          Review your diet settings
+          {t('recipes.list.empty.dietHidesAction')}
         </Button>
       </View>
     );
@@ -534,9 +539,13 @@ function EmptyState({
         className="mx-4 items-center rounded-2xl border border-dashed border-border bg-surface-sunken py-16"
       >
         <Ionicons name="search-outline" size={40} color={colors.labelTertiary} />
-        <Text className="mt-3 font-medium text-label-secondary">No matches</Text>
+        <Text className="mt-3 font-medium text-label-secondary">
+          {t('recipes.cookbook.noMatches')}
+        </Text>
         <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-          Try another word{tab === 'discover' ? ', or clear the filters.' : '.'}
+          {tab === 'discover'
+            ? t('recipes.cookbook.tryAnotherWordFilters')
+            : t('recipes.cookbook.tryAnotherWord')}
         </Text>
       </View>
     );
@@ -550,43 +559,53 @@ function EmptyState({
       {tab === 'discover' ? (
         <>
           <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
-          <Text className="mt-3 font-medium text-label-secondary">No dishes match</Text>
+          <Text className="mt-3 font-medium text-label-secondary">
+            {t('recipes.list.empty.discoverTitle')}
+          </Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-            {filtered ? 'Try clearing the filters.' : 'Check back soon — new dishes are added.'}
+            {filtered
+              ? t('recipes.cookbook.tryClearingFilters')
+              : t('recipes.list.empty.discoverBody')}
           </Text>
         </>
       ) : tab === 'saved' ? (
         <>
           <Ionicons name="heart-outline" size={40} color={colors.labelTertiary} />
-          <Text className="mt-3 font-medium text-label-secondary">No saved recipes yet</Text>
+          <Text className="mt-3 font-medium text-label-secondary">
+            {t('recipes.list.empty.savedTitle')}
+          </Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-            Tap the ♥ on any recipe to save it to your collection.
+            {t('recipes.list.empty.savedBody')}
           </Text>
         </>
       ) : tab === 'my' ? (
         <>
           <Text className="text-4xl">✎</Text>
-          <Text className="mt-3 font-medium text-label-secondary">No custom recipes yet</Text>
+          <Text className="mt-3 font-medium text-label-secondary">
+            {t('recipes.list.empty.myTitle')}
+          </Text>
           <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
-            Create your own recipe, or import one from a link, photo or video.
+            {t('recipes.cookbook.myBodyTab')}
           </Text>
           <Button testID="recipes-empty-create" onPress={() => router.push('/recipe-form')}>
-            Create a recipe
+            {t('recipes.cookbook.createRecipe')}
           </Button>
         </>
       ) : (
         <>
           <Text className="text-4xl">📖</Text>
-          <Text className="mt-3 font-medium text-label-secondary">No recipes yet</Text>
+          <Text className="mt-3 font-medium text-label-secondary">
+            {t('recipes.list.empty.allTitle')}
+          </Text>
           <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
-            Recipes from your meal plans appear here. Browse the collection meanwhile.
+            {t('recipes.list.empty.allBody')}
           </Text>
           <View className="gap-2">
             <Button testID="recipes-browse-discover" onPress={onDiscover}>
-              Browse Discover
+              {t('recipes.list.empty.browseDiscover')}
             </Button>
             <Link href="/meal-plan" asChild>
-              <Button variant="outline">Go to Meal Planner</Button>
+              <Button variant="outline">{t('recipes.list.empty.goToPlanner')}</Button>
             </Link>
           </View>
         </>

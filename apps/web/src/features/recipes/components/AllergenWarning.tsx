@@ -1,3 +1,6 @@
+'use client';
+
+import { useT } from '@/lib/i18n';
 import { AlertTriangle } from 'lucide-react';
 import { cn, conflictHeadline, type ConflictLike } from '@chefer/utils';
 
@@ -17,6 +20,7 @@ export function AllergenWarningBanner({
   details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
+  const { t } = useT();
   if (!warnings || warnings.length === 0) return null;
   const headline = conflictHeadline(warnings, details);
   return (
@@ -29,8 +33,7 @@ export function AllergenWarningBanner({
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="min-w-0">
-        <span className="font-semibold">{headline}.</span> This recipe conflicts with your allergies
-        or diet — check the ingredients or swap it.
+        <span className="font-semibold">{headline}.</span> {t('recipes.allergen.banner')}
       </p>
     </div>
   );

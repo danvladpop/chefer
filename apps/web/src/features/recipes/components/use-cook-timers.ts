@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import {
   cookTimerRemaining,
   cookTimerStatus,
@@ -29,7 +30,7 @@ export type CookTimerView = {
   remainingSec: number;
 };
 
-function notifyEnd(recipeName: string, step: number): void {
+function notifyEnd(title: string, body: string): void {
   // Feature-detect: vibration exists on Android Chrome, not iOS Safari.
   navigator.vibrate?.([200, 100, 200]);
   try {
@@ -38,7 +39,7 @@ function notifyEnd(recipeName: string, step: number): void {
       Notification.permission === 'granted' &&
       document.visibilityState === 'hidden'
     ) {
-      new Notification('Timer done', { body: `Step ${step + 1} of ${recipeName} is ready.` });
+      new Notification(title, { body });
     }
   } catch {
     // Notifications are a convenience; the timer itself is unaffected.
@@ -65,6 +66,11 @@ export function useCookTimers(recipeName: string) {
   useEffect(() => {
     nameRef.current = recipeName;
   }, [recipeName]);
+  const { t: translate } = useT();
+  const translateRef = useRef(translate);
+  useEffect(() => {
+    translateRef.current = translate;
+  }, [translate]);
 
   const commit = useCallback((next: CookTimers) => {
     timersRef.current = next;
@@ -83,7 +89,11 @@ export function useCookTimers(recipeName: string) {
         const key = `${step}:${timer.endsAt}`;
         if (announced.current.has(key)) continue;
         announced.current.add(key);
-        notifyEnd(nameRef.current, Number(step));
+        const tr = translateRef.current;
+        notifyEnd(
+          tr('cook.timer.doneTitle'),
+          tr('cook.timer.doneBody', { step: Number(step) + 1, name: nameRef.current }),
+        );
       }
     }, TICK_MS);
     return () => clearInterval(id);
