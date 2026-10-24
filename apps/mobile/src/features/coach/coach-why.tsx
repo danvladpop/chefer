@@ -28,7 +28,7 @@ export function CoachWhy({
   const { lines, data } = coachExplanationText(explanation, system, { proteinOnly });
 
   return (
-    <View testID="coach-why" className="mt-2 rounded-xl bg-white/70 px-3 py-1">
+    <View testID="coach-why" className="mt-2 rounded-inner bg-surface-sunken px-3 py-1">
       <Pressable
         testID="coach-why-toggle"
         accessibilityRole="button"
