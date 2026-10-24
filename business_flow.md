@@ -46,7 +46,7 @@
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
-42. [Language Flow (i18n, ADR 0004)](#42-language-flow-i18n-adr-0004)
+41. [Language Flow (i18n, ADR 0004)](#42-language-flow-i18n-adr-0004)
 
 ---
 
