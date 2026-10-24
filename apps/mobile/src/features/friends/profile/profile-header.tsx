@@ -2,8 +2,9 @@ import { useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
+import { type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
 import { Avatar, Badge, Button, Sheet, Skeleton, Text, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { AppealLink } from '../components/appeal-link';
 import { RelationButton } from '../components/relation-button';
 import { TrainerTag } from '../components/trainer-tag';
@@ -23,11 +24,6 @@ import { BlockConfirmSheet, RemoveFollowerConfirmSheet } from '../safety/safety-
 // My own profile (preview, §8.3): no overflow, `Edit sharing`, the
 // Private/Public badge, the preview banner and the forced-private line.
 
-// TODO(F2.2 → copy owner): `Remove follower` (the overflow item, UX §8.1) has
-// no FRIENDS_COPY key; the literal is the UX string. Move it to
-// `FRIENDS_COPY.remove.menu` and use that here.
-export const REMOVE_FOLLOWER_MENU_LABEL = 'Remove follower';
-
 type MenuAction = 'report' | 'block' | 'remove';
 
 export function ProfileHeader({
@@ -40,6 +36,7 @@ export function ProfileHeader({
   testID?: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { user, counts, isSelf, visibility } = profile;
   const [menuOpen, setMenuOpen] = useState(false);
   const pending = useRef<MenuAction | null>(null);
@@ -74,11 +71,11 @@ export function ProfileHeader({
       <TrainerTag trainer={user.trainer} centered testID={`${testID}-trainer`} />
       {!isSelf && user.followsYou ? (
         <Badge testID={`${testID}-follows-you`} variant="secondary">
-          {FRIENDS_COPY.profile.followsYou}
+          {t('friends.profile.followsYou')}
         </Badge>
       ) : null}
       <Text testID={`${testID}-counts`} variant="muted" className="text-center">
-        {FRIENDS_COPY.profile.counts(counts.followers, counts.following)}
+        {t('friends.profile.counts', { count: counts.followers, following: counts.following })}
       </Text>
       <View className="flex-row items-center gap-2 pt-1">
         <RelationButton
@@ -97,7 +94,7 @@ export function ProfileHeader({
             ref={overflowRef}
             testID="friends-profile-overflow"
             accessibilityRole="button"
-            accessibilityLabel={FRIENDS_COPY.profile.moreOptions(user.displayName)}
+            accessibilityLabel={t('friends.profile.moreOptions', { name: user.displayName })}
             onPress={() => setMenuOpen(true)}
             className="h-11 w-11 items-center justify-center rounded-full"
           >
@@ -130,7 +127,7 @@ export function ProfileHeader({
                 className="min-h-12 justify-start"
                 onPress={() => choose('report')}
               >
-                {FRIENDS_COPY.report.profileAction(user.firstName)}
+                {t('friends.report.profileAction', { first: user.firstName })}
               </Button>
               <Button
                 testID="friends-profile-menu-block"
@@ -138,7 +135,7 @@ export function ProfileHeader({
                 className="min-h-12 justify-start"
                 onPress={() => choose('block')}
               >
-                {`${FRIENDS_COPY.block.cta} ${user.firstName}`}
+                {t('friends.block.profileAction', { first: user.firstName })}
               </Button>
               {user.followsYou ? (
                 <Button
@@ -147,7 +144,7 @@ export function ProfileHeader({
                   className="min-h-12 justify-start"
                   onPress={() => choose('remove')}
                 >
-                  {REMOVE_FOLLOWER_MENU_LABEL}
+                  {t('friends.remove.menu')}
                 </Button>
               ) : null}
               <Button
@@ -159,7 +156,7 @@ export function ProfileHeader({
                   setMenuOpen(false);
                 }}
               >
-                {FRIENDS_COPY.common.cancel}
+                {t('friends.common.cancel')}
               </Button>
             </View>
           </Sheet>
@@ -202,18 +199,19 @@ function PreviewBanners({
   me: FriendsMeDto | undefined;
   testID: string;
 }) {
+  const { t } = useT();
   const forcedPrivate = me?.settings?.forcedPrivate === true;
   return (
     <View className="w-full items-center gap-2 pb-2">
       <Badge testID={`${testID}-preview`} variant="info">
-        {FRIENDS_COPY.preview.banner}
+        {t('friends.preview.banner')}
       </Badge>
       {forcedPrivate ? (
         <View
           testID={`${testID}-forced-private`}
           className="w-full rounded-xl bg-attention/10 px-3 py-2"
         >
-          <Text className="text-sm text-attention">{FRIENDS_COPY.preview.forcedPrivate}</Text>
+          <Text className="text-sm text-attention">{t('friends.preview.forcedPrivate')}</Text>
           <AppealLink
             subject="profile"
             tone="text-attention"
@@ -223,16 +221,22 @@ function PreviewBanners({
       ) : null}
       <Badge testID={`${testID}-visibility`} variant="outline">
         {profile.visibility === 'PUBLIC'
-          ? FRIENDS_COPY.profile.badgePublic
-          : FRIENDS_COPY.profile.badgePrivate}
+          ? t('friends.profile.badgePublic')
+          : t('friends.profile.badgePrivate')}
       </Badge>
     </View>
   );
 }
 
 export function ProfileHeaderSkeleton({ testID = 'friends-profile-loading' }: { testID?: string }) {
+  const { t } = useT();
   return (
-    <View testID={testID} accessible accessibilityLabel="Loading" className="gap-4 px-4">
+    <View
+      testID={testID}
+      accessible
+      accessibilityLabel={t('friends.profile.loadingLabel')}
+      className="gap-4 px-4"
+    >
       <View className="items-center gap-2">
         <Skeleton className="h-[72px] w-[72px] rounded-full" />
         <Skeleton className="h-7 w-48 rounded-md" />

@@ -1,10 +1,6 @@
 import type { Ionicons } from '@expo/vector-icons';
-import {
-  FRIENDS_COPY,
-  type FriendProfileDto,
-  type FriendsMeDto,
-  type SectionAccess,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { FriendProfileDto, FriendsMeDto, SectionAccess } from '@chefer/types';
 
 // ─── Following profile: what each section shows (UX §8.2, §8.3) ──────────────
 // Pure, so the locked / not-shared / preview rules are unit-testable without
@@ -27,23 +23,23 @@ export type SectionView = { kind: 'visible' } | { kind: 'panel'; panel: SectionP
 const VISIBLE: SectionView = { kind: 'visible' };
 
 /** The non-follower panel (header only, both tabs): private, request sent, or public. */
-export function lockedPanel(profile: FriendProfileDto): SectionPanel {
+export function lockedPanel(profile: FriendProfileDto, t: Translator['t']): SectionPanel {
   const first = profile.user.firstName;
   if (profile.user.relation === 'requested') {
     return {
       icon: 'lock-closed-outline',
-      title: FRIENDS_COPY.locked.requested.title,
-      body: FRIENDS_COPY.locked.requested.body(first),
+      title: t('friends.locked.requested.title'),
+      body: t('friends.locked.requested.body', { first }),
     };
   }
   if (profile.visibility === 'PRIVATE') {
     return {
       icon: 'lock-closed-outline',
-      title: FRIENDS_COPY.locked.private.title,
-      body: FRIENDS_COPY.locked.private.body(first),
+      title: t('friends.locked.private.title'),
+      body: t('friends.locked.private.body', { first }),
     };
   }
-  return { icon: 'people-outline', body: FRIENDS_COPY.locked.public.body(first) };
+  return { icon: 'people-outline', body: t('friends.locked.public.body', { first }) };
 }
 
 /** True when the viewer sees only the header (they don't follow, or haven't been accepted). */
@@ -62,6 +58,7 @@ const SHARE_KEY = {
 export function sectionView(
   profile: FriendProfileDto,
   section: ProfileSection,
+  t: Translator['t'],
   me?: FriendsMeDto,
 ): SectionView {
   if (profile.isSelf) {
@@ -69,19 +66,19 @@ export function sectionView(
     if (settings && !settings[SHARE_KEY[section]]) {
       return {
         kind: 'panel',
-        panel: { icon: 'eye-off-outline', body: FRIENDS_COPY.preview.hidden },
+        panel: { icon: 'eye-off-outline', body: t('friends.preview.hidden') },
       };
     }
     return VISIBLE;
   }
   const access: SectionAccess = profile.access[section];
   if (access === 'visible') return VISIBLE;
-  if (access === 'locked') return { kind: 'panel', panel: lockedPanel(profile) };
+  if (access === 'locked') return { kind: 'panel', panel: lockedPanel(profile, t) };
   return {
     kind: 'panel',
     panel: {
       icon: 'eye-off-outline',
-      body: FRIENDS_COPY.notShared[section](profile.user.firstName),
+      body: t(`friends.notShared.${section}`, { first: profile.user.firstName }),
     },
   };
 }

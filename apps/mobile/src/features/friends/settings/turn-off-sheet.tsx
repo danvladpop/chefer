@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
+import type { FriendsMeDto } from '@chefer/types';
 import { useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { isFriendsQueryKey } from '../api/query-keys';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
@@ -15,17 +16,12 @@ import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 // `friends.me` refetched (it now says "not activated", so every entry point
 // shows the intro again), and the user goes back to More.
 
-const TURN_OFF_COPY: ConfirmCopy = {
-  title: FRIENDS_COPY.turnOff.title,
-  body: [
-    FRIENDS_COPY.turnOff.intro,
-    ...FRIENDS_COPY.turnOff.bullets.map((line) => `• ${line}`),
-    FRIENDS_COPY.turnOff.outro,
-  ].join('\n'),
-  confirmLabel: FRIENDS_COPY.turnOff.cta,
-  cancelLabel: FRIENDS_COPY.common.cancel,
-  destructive: true,
-};
+const TURN_OFF_BULLETS = [
+  'friends.turnOff.bulletFind',
+  'friends.turnOff.bulletFollows',
+  'friends.turnOff.bulletRecipes',
+  'friends.turnOff.bulletActivity',
+] as const;
 
 /** Where `Turn off Following` leaves to. */
 export function leaveToMore(): void {
@@ -43,6 +39,18 @@ export function TurnOffSheet({
   onClose: () => void;
   onExited?: () => void;
 }) {
+  const { t } = useT();
+  const turnOffCopy: ConfirmCopy = {
+    title: t('friends.turnOff.title'),
+    body: [
+      t('friends.turnOff.intro'),
+      ...TURN_OFF_BULLETS.map((key) => `• ${t(key)}`),
+      t('friends.turnOff.outro'),
+    ].join('\n'),
+    confirmLabel: t('friends.turnOff.cta'),
+    cancelLabel: t('friends.common.cancel'),
+    destructive: true,
+  };
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
   const mutation = trpc.friends.deactivate.useMutation({ meta: { silent: true } });
@@ -52,8 +60,8 @@ export function TurnOffSheet({
     <FriendsConfirmSheet
       testID="friends-settings-turn-off-confirm"
       visible={visible}
-      copy={TURN_OFF_COPY}
-      errorMessage={FRIENDS_COPY.settings.saveError}
+      copy={turnOffCopy}
+      errorMessage={t('friends.settings.saveError')}
       onClose={onClose}
       onConfirm={async () => {
         try {
@@ -68,7 +76,7 @@ export function TurnOffSheet({
         return true;
       }}
       onDone={() => {
-        snackbar.show({ message: FRIENDS_COPY.turnOff.done, tone: 'success' });
+        snackbar.show({ message: t('friends.turnOff.done'), tone: 'success' });
         // Everything about other people is gone server-side: drop it rather
         // than refetch (it would answer "not activated"). `availability` stays.
         queryClient.removeQueries({

@@ -9,6 +9,7 @@ import {
   relationView,
   type RelationButtonProps,
 } from '../../src/features/friends/components/relation-button';
+import { getTranslator } from '../../src/lib/i18n';
 import {
   deferred,
   makeQueryClient,
@@ -85,7 +86,7 @@ describe('states (UX §3.3)', () => {
     ['following', true, 'Following', 'secondary', 'Following Maria Pop. Double-tap to unfollow'],
     ['self', false, 'Edit sharing', 'outline', 'Edit what followers see'],
   ])('%s (follows you: %s) → %s', async (relation, followsYou, text, variant, a11y) => {
-    expect(relationView(relation, followsYou, 'Maria Pop')).toEqual({
+    expect(relationView(relation, followsYou, 'Maria Pop', getTranslator().t)).toEqual({
       label: text,
       variant,
       a11yLabel: a11y,

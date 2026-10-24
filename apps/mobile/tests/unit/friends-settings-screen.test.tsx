@@ -1,9 +1,10 @@
 import { Platform } from 'react-native';
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
+import type { FriendsMeDto } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import { FriendsSettingsScreen } from '../../src/features/friends/settings/settings-screen';
+import { getTranslator } from '../../src/lib/i18n';
 import {
   availableHandlers,
   meDto,
@@ -11,6 +12,8 @@ import {
   trpcError,
   type Handlers,
 } from './friends-core-harness';
+
+const { t } = getTranslator();
 
 // F2.3 M-SETTINGS — Sharing & privacy (UX §11.1, §11.2, §11.5, FR-03–FR-05).
 // The fake API keeps a mutable `friends.me` so a save is visible on the next
@@ -90,12 +93,12 @@ afterEach(() => jest.restoreAllMocks());
 describe('layout', () => {
   it('shows who / what / safety, the preview link, Blocked people with its count, Turn off', async () => {
     await renderSettings(fakeApi({ counts: { blocked: 2 } }));
-    expect(screen.getByText(FRIENDS_COPY.settings.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.settings.who)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.settings.what)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.settings.safety)).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.who'))).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.what'))).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.safety'))).toBeTruthy();
     expect(screen.getByText('Blocked people (2)')).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.settings.targetsDetail)).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.targetsDetail'))).toBeTruthy();
     expect(screen.getByTestId('friends-settings-turn-off')).toBeTruthy();
     expect(isOn('plan')).toBe(true);
     expect(isOn('targets')).toBe(false);
@@ -144,9 +147,9 @@ describe('visibility (FR-03)', () => {
     const pub = screen.getByTestId('friends-settings-visibility-public');
     expect(pub).toBeDisabled();
     expect(screen.getByTestId('friends-settings-visibility-private')).toBeDisabled();
-    expect(screen.getByText(FRIENDS_COPY.settings.forcedPrivate)).toBeTruthy();
+    expect(screen.getByText(t('friends.settings.forcedPrivate'))).toBeTruthy();
     await userEvent.setup().press(pub);
-    expect(screen.queryByText(FRIENDS_COPY.public.confirm.title)).toBeNull();
+    expect(screen.queryByText(t('friends.public.confirm.title'))).toBeNull();
     expect(api.updateSettings).not.toHaveBeenCalled();
   });
 
@@ -212,7 +215,7 @@ describe('visibility (FR-03)', () => {
     const user = userEvent.setup();
     await user.press(screen.getByTestId('friends-settings-visibility-private'));
     expect(screen.getByText('Make your profile private?')).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.private.confirm.body(4))).toBeTruthy();
+    expect(screen.getByText(t('friends.private.confirm.body', { count: 4 }))).toBeTruthy();
     await user.press(screen.getByTestId('friends-settings-private-confirm-confirm'));
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ visibility: 'PRIVATE' }));
     expect(router.dismissTo).not.toHaveBeenCalled();
@@ -271,7 +274,7 @@ describe('sharing switches (FR-04)', () => {
       }),
     );
     await fireEvent(switchOf('recipes'), 'valueChange', true);
-    expect(await screen.findByText(FRIENDS_COPY.activated.filterHidden(2))).toBeTruthy();
+    expect(await screen.findByText(t('friends.activated.filterHidden', { count: 2 }))).toBeTruthy();
   });
 
   it('no snackbar when no recipe was hidden, or when recipes are turned off', async () => {
@@ -362,7 +365,7 @@ describe('name (FR-02.6)', () => {
     await fireEvent(last, 'focus');
     await fireEvent.changeText(last, 'Rejected');
     await fireEvent(last, 'blur');
-    expect(await screen.findByText(FRIENDS_COPY.intro.nameRejected)).toBeTruthy();
+    expect(await screen.findByText(t('friends.intro.nameRejected'))).toBeTruthy();
     expect(nameInputs().last.props.value).toBe('Rejected');
     expect(track).toHaveBeenCalledWith('friend_text_rejected', { field: 'name' });
   });
@@ -377,7 +380,14 @@ describe('turn off (FR-05, FD-14)', () => {
     const body = screen.getByTestId('friends-settings-turn-off-confirm-body').props
       .children as string;
     expect(body).toContain('This removes you from Following straight away:');
-    for (const bullet of FRIENDS_COPY.turnOff.bullets) expect(body).toContain(`• ${bullet}`);
+    for (const key of [
+      'friends.turnOff.bulletFind',
+      'friends.turnOff.bulletFollows',
+      'friends.turnOff.bulletRecipes',
+      'friends.turnOff.bulletActivity',
+    ] as const) {
+      expect(body).toContain(`• ${t(key)}`);
+    }
     expect(body).toContain('You can turn Following on again later, starting fresh.');
     expect(api.deactivate).not.toHaveBeenCalled();
 

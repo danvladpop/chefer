@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY, REPORT_REASONS, type ReportReason } from '@chefer/types';
+import { REPORT_REASONS, type ReportReason } from '@chefer/types';
 import { Button, haptics, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { useReport } from './use-report';
 
 // ─── Following: ReportSheet (UX §11.4, PRD §9, §16.12) ────────────────────────
@@ -57,6 +58,7 @@ export function ReportSheet({
   onExited,
   testID = 'friends-report-sheet',
 }: ReportSheetProps) {
+  const { t } = useT();
   const { report } = useReport();
   const snackbar = useSnackbar();
   const [sending, setSending] = useState<ReportReason | null>(null);
@@ -98,7 +100,10 @@ export function ReportSheet({
     setFailed(false);
     if (done) {
       // tone 'success' fires haptics.success and announces the message.
-      snackbar.show({ message: FRIENDS_COPY.report.done(person.firstName), tone: 'success' });
+      snackbar.show({
+        message: t('friends.report.done', { first: person.firstName }),
+        tone: 'success',
+      });
       onReported?.();
     }
     onExited?.();
@@ -110,12 +115,14 @@ export function ReportSheet({
       onClose={close}
       onExited={exited}
       title={
-        recipeId ? FRIENDS_COPY.report.titleRecipe : FRIENDS_COPY.report.titleUser(person.firstName)
+        recipeId
+          ? t('friends.report.titleRecipe')
+          : t('friends.report.titleUser', { first: person.firstName })
       }
       testID={testID}
     >
       <Text testID={`${testID}-body`} variant="muted">
-        {FRIENDS_COPY.report.body(person.firstName)}
+        {t('friends.report.body', { first: person.firstName })}
       </Text>
       <View className="gap-2" accessibilityRole="list">
         {REPORT_REASONS.map((reason) => (
@@ -126,11 +133,11 @@ export function ReportSheet({
             className="min-h-12 justify-start"
             loading={sending === reason}
             disabled={sending !== null}
-            accessibilityLabel={FRIENDS_COPY.report.reasons[reason]}
-            accessibilityHint={FRIENDS_COPY.report.reasonHint(person.displayName)}
+            accessibilityLabel={t(`friends.report.reasons.${reason}`)}
+            accessibilityHint={t('friends.report.reasonHint', { name: person.displayName })}
             onPress={() => void submit(reason)}
           >
-            {FRIENDS_COPY.report.reasons[reason]}
+            {t(`friends.report.reasons.${reason}`)}
           </Button>
         ))}
       </View>
@@ -141,7 +148,7 @@ export function ReportSheet({
           accessibilityLiveRegion="polite"
           className="text-sm text-destructive"
         >
-          {FRIENDS_COPY.report.error}
+          {t('friends.report.error')}
         </Text>
       ) : null}
       <Button
@@ -151,7 +158,7 @@ export function ReportSheet({
         disabled={sending !== null}
         onPress={close}
       >
-        {FRIENDS_COPY.common.cancel}
+        {t('friends.common.cancel')}
       </Button>
     </Sheet>
   );

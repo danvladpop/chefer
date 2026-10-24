@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import type { Catalog } from '@chefer/i18n';
 import { useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 
 // ─── Settings section anchors (UX-ACC-04) ──────────────────────────────────────
 // The Settings hub lists ~20 rows but only a handful of screens. A row opens
@@ -18,25 +20,30 @@ import { cn } from '@chefer/utils';
 // re-scrolls on every layout change for a short settle window — and stops once
 // that has passed, so it never fights the user's own scrolling.
 
-/** Section ids → the screen title the matching Settings row promised. Ids are unique across screens. */
-export const SECTION_TITLES: Readonly<Record<string, string>> = {
+/** A hub row or section title: messages without placeholders. */
+type TitleKey =
+  | `settings.hub.rows.${keyof Catalog['settings']['hub']['rows']}`
+  | `settings.sections.${keyof Catalog['settings']['sections']}`;
+
+/** Section ids → the catalog key of the screen title the matching Settings row promised. Ids are unique across screens. */
+export const SECTION_TITLES: Readonly<Record<string, TitleKey>> = {
   // Preferences
-  safety: 'Allergies & diets',
-  'goal-body': 'Goal & body',
-  targets: 'Your targets',
-  display: 'Money & units',
-  budget: 'Weekly budget',
-  'auto-plan': 'Plan my week automatically',
-  'weekly-updates': 'Weekly updates',
+  safety: 'settings.hub.rows.safety',
+  'goal-body': 'settings.hub.rows.goalBody',
+  targets: 'settings.hub.rows.targets',
+  display: 'settings.hub.rows.moneyUnits',
+  budget: 'settings.hub.rows.budget',
+  'auto-plan': 'settings.hub.rows.autoPlan',
+  'weekly-updates': 'settings.sections.weeklyUpdates',
   // Profile
-  plan: 'Plan & Premium',
-  privacy: 'Privacy & data',
-  account: 'Your data & account',
+  plan: 'settings.hub.rows.planPremium',
+  privacy: 'settings.hub.rows.privacyData',
+  account: 'settings.sections.account',
   // Gym settings
-  units: 'Units, equipment & weekly goal',
-  reminders: 'Training days & reminders',
-  pause: 'Pause training',
-  export: 'Export workouts',
+  units: 'settings.hub.rows.gymUnits',
+  reminders: 'settings.hub.rows.trainingDays',
+  pause: 'settings.hub.rows.pause',
+  export: 'settings.hub.rows.exportWorkouts',
 };
 
 /** How long after first layout the target keeps re-scrolling while the page above it settles. */
@@ -56,8 +63,10 @@ export function useSectionParam(): string | null {
 
 /** The screen title for the opened section, else the screen's own. */
 export function useSectionTitle(fallback: string): string {
+  const { t } = useT();
   const section = useSectionParam();
-  return section ? (SECTION_TITLES[section] ?? fallback) : fallback;
+  const key = section ? SECTION_TITLES[section] : undefined;
+  return key ? t(key) : fallback;
 }
 
 export function SectionAnchor({

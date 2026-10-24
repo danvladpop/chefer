@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { ConfirmSheet } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
 import { activeSessionStore } from '../gym/offline/active-session-store';
@@ -19,13 +20,8 @@ function subscribeUnsynced(listener: () => void): () => void {
   return () => stops.forEach((stop) => stop());
 }
 
-export function unsyncedWorkoutsText(count: number): string {
-  return count === 1
-    ? '1 workout hasn’t synced to your account yet. Signing out now deletes it from this phone.'
-    : `${count} workouts haven’t synced to your account yet. Signing out now deletes them from this phone.`;
-}
-
 export function useSignOut(testID: string) {
+  const { t } = useT();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const unsynced = useSyncExternalStore(subscribeUnsynced, unsyncedGymWorkoutCount);
   const logout = trpc.auth.logout.useMutation({
@@ -48,10 +44,16 @@ export function useSignOut(testID: string) {
       testID={testID}
       visible={confirmOpen}
       onClose={() => setConfirmOpen(false)}
-      title={unsynced > 0 ? 'Sign out and lose workouts?' : 'Sign out of Chefer?'}
-      body={unsynced > 0 ? unsyncedWorkoutsText(unsynced) : 'You can sign back in any time.'}
-      confirmLabel={unsynced > 0 ? 'Sign out anyway' : 'Sign out'}
-      cancelLabel={unsynced > 0 ? 'Stay signed in' : 'Cancel'}
+      title={unsynced > 0 ? t('settings.signOut.unsyncedTitle') : t('settings.signOut.title')}
+      body={
+        unsynced > 0
+          ? t('settings.signOut.unsyncedBody', { count: unsynced })
+          : t('settings.signOut.body')
+      }
+      confirmLabel={
+        unsynced > 0 ? t('settings.signOut.unsyncedConfirm') : t('settings.signOut.confirm')
+      }
+      cancelLabel={unsynced > 0 ? t('settings.signOut.unsyncedCancel') : t('common.actions.cancel')}
       destructive
       onConfirm={proceed}
     />

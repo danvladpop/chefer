@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { FRIENDS_COPY, LEGAL_VERSIONS } from '@chefer/types';
+import { LEGAL_VERSIONS } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import FriendsHomeRoute from '../../app/friends/index';
 import { ACTIVATED_SNACKBAR_GAP_MS } from '../../src/features/friends/home/friends-entry';
 import { resetRememberedSegment } from '../../src/features/friends/home/home-screen';
+import { getTranslator } from '../../src/lib/i18n';
 import { meDto, renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { homeHandlers, settle } from './friends-home-fixtures';
+
+const { t } = getTranslator();
 
 // F2.1 · the intro (UX §4.1, PRD FR-02, E1): `/friends` for someone who hasn't
 // turned Following on. Names prefilled and required, Private preselected, the
@@ -86,9 +89,9 @@ describe('the intro', () => {
   it('shows the copy, prefills the names and preselects Private', async () => {
     await renderIntro();
     expect(screen.getByTestId('friends-intro')).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.intro.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.intro.body)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.intro.never)).toBeTruthy();
+    expect(screen.getByText(t('friends.intro.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.intro.body'))).toBeTruthy();
+    expect(screen.getByText(t('friends.intro.never'))).toBeTruthy();
     expect(screen.getByTestId('friends-intro-first-input').props.value).toBe('Dan');
     expect(screen.getByTestId('friends-intro-last-input').props.value).toBe('Pop');
     expect(
@@ -97,8 +100,8 @@ describe('the intro', () => {
     expect(
       screen.getByTestId('friends-intro-visibility-public').props.accessibilityState,
     ).toMatchObject({ checked: false });
-    expect(screen.getByText(FRIENDS_COPY.visibility.private)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.visibility.public)).toBeTruthy();
+    expect(screen.getByText(t('friends.visibility.private'))).toBeTruthy();
+    expect(screen.getByText(t('friends.visibility.public'))).toBeTruthy();
     expect(screen.getByTestId('friends-intro-turn-on')).toBeTruthy();
   });
 
@@ -114,13 +117,13 @@ describe('the intro', () => {
     const r = await renderIntro({ 'friends.me': () => ({ ...NOT_ACTIVATED, firstName: '' }) });
     const user = userEvent.setup();
     await user.press(screen.getByTestId('friends-intro-turn-on'));
-    expect(screen.getByText(FRIENDS_COPY.intro.firstNameError)).toBeTruthy();
-    expect(screen.queryByText(FRIENDS_COPY.intro.lastNameError)).toBeNull();
+    expect(screen.getByText(t('friends.intro.firstNameError'))).toBeTruthy();
+    expect(screen.queryByText(t('friends.intro.lastNameError'))).toBeNull();
     expect(r.paths()).not.toContain('friends.activate');
 
     await user.clear(screen.getByTestId('friends-intro-last-input'));
     await user.press(screen.getByTestId('friends-intro-turn-on'));
-    expect(screen.getByText(FRIENDS_COPY.intro.lastNameError)).toBeTruthy();
+    expect(screen.getByText(t('friends.intro.lastNameError'))).toBeTruthy();
     expect(r.paths()).not.toContain('friends.activate');
   });
 
@@ -150,7 +153,7 @@ describe('the intro', () => {
     await userEvent.setup().press(screen.getByTestId('friends-intro-turn-on'));
     await settle();
     // The Snackbar host lives in renderWithTrpc.
-    expect(await screen.findByText(FRIENDS_COPY.activated.private)).toBeTruthy();
+    expect(await screen.findByText(t('friends.activated.private'))).toBeTruthy();
   });
 
   it('queues the filter-hidden line after the first snackbar when recipes were hidden', async () => {
@@ -171,13 +174,15 @@ describe('the intro', () => {
       const user = userEvent.setup({ advanceTimers: () => undefined });
       await user.press(screen.getByTestId('friends-intro-turn-on'));
       await settle();
-      expect(await screen.findByText(FRIENDS_COPY.activated.private)).toBeTruthy();
-      expect(screen.queryByText(FRIENDS_COPY.activated.filterHidden(2))).toBeNull();
+      expect(await screen.findByText(t('friends.activated.private'))).toBeTruthy();
+      expect(screen.queryByText(t('friends.activated.filterHidden', { count: 2 }))).toBeNull();
       expect(delayed).toHaveLength(1);
       await act(() => {
         delayed[0]?.fn();
       });
-      expect(await screen.findByText(FRIENDS_COPY.activated.filterHidden(2))).toBeTruthy();
+      expect(
+        await screen.findByText(t('friends.activated.filterHidden', { count: 2 })),
+      ).toBeTruthy();
     } finally {
       spy.mockRestore();
     }
@@ -190,7 +195,7 @@ describe('the intro', () => {
       },
     });
     await userEvent.setup().press(screen.getByTestId('friends-intro-turn-on'));
-    expect(await screen.findByText(FRIENDS_COPY.intro.nameRejected)).toBeTruthy();
+    expect(await screen.findByText(t('friends.intro.nameRejected'))).toBeTruthy();
     expect(screen.queryByTestId('friends-intro-error')).toBeNull();
     expect(screen.getByTestId('friends-intro')).toBeTruthy();
     expect(track).toHaveBeenCalledWith('friend_text_rejected', { field: 'name' });
@@ -203,8 +208,8 @@ describe('the intro', () => {
       },
     });
     await userEvent.setup().press(screen.getByTestId('friends-intro-turn-on'));
-    expect(await screen.findByText(FRIENDS_COPY.intro.error)).toBeTruthy();
-    expect(screen.queryByText(FRIENDS_COPY.intro.nameRejected)).toBeNull();
+    expect(await screen.findByText(t('friends.intro.error'))).toBeTruthy();
+    expect(screen.queryByText(t('friends.intro.nameRejected'))).toBeNull();
   });
 
   it('Public: asks the Public confirm first, and activates only after it is confirmed', async () => {
@@ -213,7 +218,7 @@ describe('the intro', () => {
     const user = userEvent.setup();
     await user.press(screen.getByTestId('friends-intro-visibility-public'));
     await user.press(screen.getByTestId('friends-intro-turn-on'));
-    expect(await screen.findByText(FRIENDS_COPY.public.confirm.title)).toBeTruthy();
+    expect(await screen.findByText(t('friends.public.confirm.title'))).toBeTruthy();
     expect(activate).not.toHaveBeenCalled();
     await user.press(screen.getByTestId('friends-intro-public-confirm-confirm'));
     await waitFor(() => expect(activate).toHaveBeenCalledTimes(1));

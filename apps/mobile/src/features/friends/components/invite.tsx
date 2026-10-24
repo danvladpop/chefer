@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { Share } from 'react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { Button, Card, Text, type ButtonProps } from '@chefer/ui-mobile';
 import { getWebUrl } from '../../../lib/api-url';
+import { useT } from '../../../lib/i18n';
 import { useFriendsMe } from '../api/use-friends-me';
 
 // ─── Invite (UX §5.2, §12 `invite.*`) ─────────────────────────────────────────
@@ -17,17 +17,18 @@ export function inviteAppLink(): string {
 
 /** Opens the share sheet. Cancelling or a share failure is silent. */
 export function useInvite(): () => Promise<void> {
+  const { t } = useT();
   const { me } = useFriendsMe();
   const myName = [me?.firstName, me?.lastName].filter(Boolean).join(' ').trim();
   return useCallback(async () => {
     try {
       await Share.share({
-        message: FRIENDS_COPY.invite.message(myName, inviteAppLink()),
+        message: t('friends.invite.message', { myName, appLink: inviteAppLink() }),
       });
     } catch {
       // Share sheet unavailable or dismissed with an error — nothing to show.
     }
-  }, [myName]);
+  }, [myName, t]);
 }
 
 export type InviteButtonProps = {
@@ -42,6 +43,7 @@ export function InviteButton({
   className,
   testID = 'friends-invite',
 }: InviteButtonProps) {
+  const { t } = useT();
   const invite = useInvite();
   return (
     <Button
@@ -50,17 +52,18 @@ export function InviteButton({
       {...(className ? { className } : {})}
       onPress={() => void invite()}
     >
-      {FRIENDS_COPY.invite.cta}
+      {t('friends.invite.cta')}
     </Button>
   );
 }
 
 /** The empty-suggestions card: `Chefer is better together` (UX §5.2). */
 export function InviteCard({ testID = 'friends-invite-card' }: { testID?: string }) {
+  const { t } = useT();
   return (
     <Card testID={testID} className="gap-2">
-      <Text variant="heading">{FRIENDS_COPY.invite.card.title}</Text>
-      <Text variant="muted">{FRIENDS_COPY.invite.card.body}</Text>
+      <Text variant="heading">{t('friends.invite.card.title')}</Text>
+      <Text variant="muted">{t('friends.invite.card.body')}</Text>
       <InviteButton variant="outline" testID={`${testID}-cta`} className="mt-1 self-start" />
     </Card>
   );

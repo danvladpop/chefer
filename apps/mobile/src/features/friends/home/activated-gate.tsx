@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import { ErrorState, Screen, Skeleton } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { useFriendsMe } from '../api/use-friends-me';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
 
@@ -21,6 +21,7 @@ export function ActivatedGate({
   testID: string;
   children: ReactNode;
 }) {
+  const { t } = useT();
   const { me, isLoading, isError, refetch } = useFriendsMe();
   if (me?.activated) return <>{children}</>;
   if (me && !me.activated) return <Redirect href="/friends" />;
@@ -30,7 +31,7 @@ export function ActivatedGate({
       {isError && !isLoading ? (
         <ErrorState
           testID={`${testID}-error`}
-          title={FRIENDS_COPY.home.sectionError('list')}
+          title={t('friends.home.sectionError.list')}
           description=""
           onRetry={refetch}
         />

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
+import type { FriendsMeDto } from '@chefer/types';
 import { PressableScale, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { AppealLink } from '../components/appeal-link';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 import { sharedSectionsList } from './shared-sections';
@@ -66,6 +67,7 @@ function Radio({
 }
 
 export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings: Settings }) {
+  const { t } = useT();
   const { save } = useUpdateSettings();
   const [pending, setPending] = useState<Pending>(null);
   const [visible, setVisible] = useState(false);
@@ -77,14 +79,17 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
       // Snapshot the copy now: after the save the pending count drops to 0
       // while the sheet is still animating out.
       const requests = me.counts.pendingRequests;
-      const body = FRIENDS_COPY.public.confirm.body(sharedSectionsList(settings));
+      const body = t('friends.public.confirm.body', { sections: sharedSectionsList(settings, t) });
       setPending({
         kind: 'public',
         copy: {
-          title: FRIENDS_COPY.public.confirm.title,
-          body: requests > 0 ? `${body}\n\n${FRIENDS_COPY.public.confirm.pending(requests)}` : body,
-          confirmLabel: FRIENDS_COPY.public.confirm.cta,
-          cancelLabel: FRIENDS_COPY.common.cancel,
+          title: t('friends.public.confirm.title'),
+          body:
+            requests > 0
+              ? `${body}\n\n${t('friends.public.confirm.pending', { count: requests })}`
+              : body,
+          confirmLabel: t('friends.public.confirm.cta'),
+          cancelLabel: t('friends.common.cancel'),
           destructive: false,
         },
       });
@@ -108,14 +113,14 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
     <View testID="friends-settings-visibility" accessibilityRole="radiogroup" className="gap-1">
       <Radio
         testID="friends-settings-visibility-private"
-        label={FRIENDS_COPY.visibility.private}
+        label={t('friends.visibility.private')}
         selected={settings.visibility === 'PRIVATE'}
         disabled={locked}
         onPress={() => choose('PRIVATE')}
       />
       <Radio
         testID="friends-settings-visibility-public"
-        label={FRIENDS_COPY.visibility.public}
+        label={t('friends.visibility.public')}
         selected={settings.visibility === 'PUBLIC'}
         disabled={locked}
         onPress={() => choose('PUBLIC')}
@@ -126,7 +131,7 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
             testID="friends-settings-forced-private"
             className="text-subhead text-label-secondary"
           >
-            {FRIENDS_COPY.settings.forcedPrivate}
+            {t('friends.settings.forcedPrivate')}
           </Text>
           <AppealLink subject="profile" testID="friends-settings-forced-private-appeal" />
         </View>
@@ -137,7 +142,7 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
           testID="friends-settings-public-confirm"
           visible={visible}
           copy={pending.copy}
-          errorMessage={FRIENDS_COPY.settings.saveError}
+          errorMessage={t('friends.settings.saveError')}
           onConfirm={() => change('PUBLIC')}
           onClose={() => setVisible(false)}
           onExited={() => setPending(null)}

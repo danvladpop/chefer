@@ -1,12 +1,15 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import { catalogs, en } from '@chefer/i18n';
 import { FRIENDS_SCREEN_TITLES } from '../../src/features/friends/components/screen-titles';
+import { getTranslator } from '../../src/lib/i18n';
 
 // Program rule 1 (ux-design.md conventions, implementation-plan §15): the
 // user-facing name is "Following". Code identifiers keep `friends` (routes,
 // testIDs, procedures), but no user-visible string may say "Friends".
 // This scans every string literal and JSX text in the Following code this
-// lane ships (FRIENDS_COPY itself is deep-scanned by friends-copy.test.ts).
+// lane ships, and the `friends` catalog (the words people read now live there;
+// FRIENDS_COPY, the API's share of them, is deep-scanned by friends-copy.test.ts).
 
 const ROOT = join(__dirname, '..', '..');
 const SCANNED = [
@@ -29,12 +32,30 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;,{}()])\/\/.*$/gm, '$1');
 }
 
+/** Drops the `${…}` code inside a template literal: only its text is user-visible. */
+function withoutInterpolations(text: string): string {
+  let out = '';
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (depth === 0 && text[i] === '$' && text[i + 1] === '{') {
+      depth = 1;
+      i++;
+    } else if (depth > 0) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') depth--;
+    } else out += text[i] ?? '';
+  }
+  return out;
+}
+
 /** String literals and JSX text runs. */
 function strings(source: string): string[] {
   const code = stripComments(source);
   const literals = code.match(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g) ?? [];
   const jsxText = [...code.matchAll(/>([^<>{}=;]+)</g)].map((m) => m[1] ?? '');
-  return [...literals.map((l) => l.slice(1, -1)), ...jsxText].filter((s) => s.trim() !== '');
+  return [...literals.map((l) => withoutInterpolations(l.slice(1, -1))), ...jsxText].filter(
+    (s) => s.trim() !== '',
+  );
 }
 
 /** A capitalised "Friend(s)" anywhere, or "friend(s)" inside prose (a string with a space). */
@@ -56,10 +77,23 @@ describe('copy-deck scan: no user-visible "Friends"', () => {
   });
 
   it('the screen titles say Following, never Friends', () => {
-    for (const title of Object.values(FRIENDS_SCREEN_TITLES)) {
-      expect(looksUserVisibleFriends(title)).toBe(false);
+    const { t } = getTranslator();
+    for (const key of Object.values(FRIENDS_SCREEN_TITLES)) {
+      expect(looksUserVisibleFriends(t(key))).toBe(false);
     }
-    expect(FRIENDS_SCREEN_TITLES.home).toBe('Following');
+    expect(t(FRIENDS_SCREEN_TITLES.home)).toBe('Following');
+  });
+
+  it('the friends catalog never says Friends (English) or prieteni (Romanian)', () => {
+    const texts: string[] = [];
+    const walk = (node: unknown): void => {
+      if (typeof node === 'string') texts.push(node);
+      else if (node && typeof node === 'object') Object.values(node).forEach(walk);
+    };
+    walk(en.friends);
+    walk(catalogs.ro.friends);
+    expect(texts.length).toBeGreaterThan(300);
+    expect(texts.filter((s) => /\bfriends?\b|prieten/i.test(s))).toEqual([]);
   });
 
   it('the detector itself catches the obvious cases', () => {

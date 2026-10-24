@@ -1,8 +1,10 @@
 import { Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { type FriendUserSummary } from '@chefer/types';
 import { duration, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { PersonRow } from '../components/person-row';
 import { RelationButton } from '../components/relation-button';
 import { useDismissSuggestion } from './use-dismiss-suggestion';
@@ -20,19 +22,22 @@ export type SuggestionRowData = FriendUserSummary & {
 };
 
 /** `Followed by Maria Pop` · `Followed by Maria Pop and 2 others` · `Follows you` · `Popular on Chefer`. */
-export function suggestionReasonText(person: SuggestionRowData): string {
-  const copy = FRIENDS_COPY.reason;
-  if (person.reason === 'follows_you') return copy.followsYou;
+export function suggestionReasonText(person: SuggestionRowData, t: Translator['t']): string {
+  if (person.reason === 'follows_you') return t('friends.reason.followsYou');
   if (person.reason === 'mutual' && person.reasonName) {
     return person.mutualCount > 1
-      ? copy.mutualMany(person.reasonName, person.mutualCount - 1)
-      : copy.mutualOne(person.reasonName);
+      ? t('friends.reason.mutualMany', {
+          name: person.reasonName,
+          count: person.mutualCount - 1,
+        })
+      : t('friends.reason.mutualOne', { name: person.reasonName });
   }
-  return copy.popular;
+  return t('friends.reason.popular');
 }
 
 export function SuggestionRow({ person }: { person: SuggestionRowData }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const dismiss = useDismissSuggestion();
   const reduced = useReducedMotion();
   return (
@@ -44,7 +49,7 @@ export function SuggestionRow({ person }: { person: SuggestionRowData }) {
       <PersonRow
         testID={`friends-suggestion-${person.id}`}
         person={person}
-        secondary={suggestionReasonText(person)}
+        secondary={suggestionReasonText(person, t)}
         trailing={
           <View className="flex-row items-center">
             <RelationButton
@@ -59,7 +64,7 @@ export function SuggestionRow({ person }: { person: SuggestionRowData }) {
             <Pressable
               testID={`friends-suggestion-${person.id}-dismiss`}
               accessibilityRole="button"
-              accessibilityLabel={FRIENDS_COPY.home.hideSuggestion(person.displayName)}
+              accessibilityLabel={t('friends.home.hideSuggestion', { name: person.displayName })}
               onPress={() => void dismiss(person)}
               className="h-11 w-11 items-center justify-center"
             >

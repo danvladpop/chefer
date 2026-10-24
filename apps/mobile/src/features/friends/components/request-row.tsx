@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
+import type { FriendUserSummary } from '@chefer/types';
 import { Button, haptics, useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { useAnswerRequest } from '../api/use-answer-request';
 import { useIsOnline } from '../api/use-is-online';
 import { useRelationActions } from '../api/use-relation-actions';
@@ -42,6 +43,7 @@ export function RequestRow({
   onAnswered,
   testID = `friends-request-${person.id}`,
 }: RequestRowProps) {
+  const { t } = useT();
   const { accept, decline } = useAnswerRequest();
   const { follow } = useRelationActions();
   const snackbar = useSnackbar();
@@ -57,8 +59,8 @@ export function RequestRow({
     if (!result.ok) {
       haptics.error();
       snackbar.show({
-        message: FRIENDS_COPY.relation.error,
-        actionLabel: FRIENDS_COPY.relation.errorAction,
+        message: t('friends.relation.error'),
+        actionLabel: t('friends.relation.errorAction'),
         onAction: () => void answer(kind),
       });
       return;
@@ -66,14 +68,14 @@ export function RequestRow({
     track('friend_request_answered', { action: kind, via });
     onAnswered?.(kind);
     if (kind === 'decline') return;
-    announce(FRIENDS_COPY.announce.requestAccepted(person.displayName));
+    announce(t('friends.announce.requestAccepted', { name: person.displayName }));
     const canFollowBack = person.relation === 'none';
     snackbar.show({
-      message: FRIENDS_COPY.accepted.snackbar(person.firstName),
+      message: t('friends.accepted.snackbar', { first: person.firstName }),
       tone: 'success',
       ...(canFollowBack
         ? {
-            actionLabel: FRIENDS_COPY.accepted.action,
+            actionLabel: t('friends.accepted.action'),
             onAction: () => {
               void follow(person.id, 'requested').then((r) => {
                 if (r.ok)
@@ -88,7 +90,7 @@ export function RequestRow({
     });
   };
 
-  const offlineHint = online ? undefined : FRIENDS_COPY.offline.needsConnection;
+  const offlineHint = online ? undefined : t('friends.offline.needsConnection');
 
   return (
     <PersonRow
@@ -102,11 +104,11 @@ export function RequestRow({
             size="sm"
             loading={busy === 'accept'}
             disabled={busy !== null || !online}
-            accessibilityLabel={FRIENDS_COPY.requestRow.acceptLabel(person.displayName)}
+            accessibilityLabel={t('friends.requestRow.acceptLabel', { name: person.displayName })}
             accessibilityHint={offlineHint}
             onPress={() => void answer('accept')}
           >
-            {FRIENDS_COPY.requestRow.accept}
+            {t('friends.requestRow.accept')}
           </Button>
           <Button
             testID={`${testID}-decline`}
@@ -114,11 +116,11 @@ export function RequestRow({
             variant="outline"
             loading={busy === 'decline'}
             disabled={busy !== null || !online}
-            accessibilityLabel={FRIENDS_COPY.requestRow.declineLabel(person.displayName)}
+            accessibilityLabel={t('friends.requestRow.declineLabel', { name: person.displayName })}
             accessibilityHint={offlineHint}
             onPress={() => void answer('decline')}
           >
-            {FRIENDS_COPY.requestRow.decline}
+            {t('friends.requestRow.decline')}
           </Button>
         </>
       }

@@ -14,7 +14,7 @@ import {
 // summary flips `requestedYou` off (and `followsYou` on, for accept) wherever
 // it is cached, and their Activity item reads `You accepted` / `You declined`.
 // A failure restores all of it. The caller shows the snackbar
-// (`FRIENDS_COPY.accepted.snackbar`) and the announcement.
+// (`friends.accepted.snackbar`) and the announcement.
 
 export type AnswerResult = { ok: true } | { ok: false; error: unknown };
 
