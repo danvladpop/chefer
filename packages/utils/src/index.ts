@@ -373,6 +373,21 @@ export {
   type CoachExplanationText,
 } from './coach-explanation';
 export {
+  bodyLengthUnit,
+  formatMeasure,
+  measureChangeText,
+  measuredMeasures,
+  measureInUnit,
+  measureSeries,
+  measureUnit,
+  MEASUREMENTS_COPY,
+  parseMeasure,
+  parseMeasurementForm,
+  type MeasurementFormResult,
+  type MeasureParseResult,
+  type MeasurePoint,
+} from './body-measurements';
+export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,

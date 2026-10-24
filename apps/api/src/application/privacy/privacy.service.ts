@@ -1,4 +1,5 @@
 import {
+  bodyMeasurementRepository,
   chefProfileRepository,
   consentEventRepository,
   dietaryPreferencesRepository,
@@ -185,6 +186,8 @@ export class PrivacyService {
       householdMemberRepository.clearHealthData(input.userId),
       chefProfileRepository.clearHealthData(input.userId),
       weightEntryRepository.deleteAllForUser(input.userId),
+      // Lane D3: body measurements are health data too.
+      bodyMeasurementRepository.deleteAllForUser(input.userId),
       prisma.targetChange.deleteMany({ where: { userId: input.userId } }),
       prisma.safetyReport.updateMany({
         where: { userId: input.userId },
