@@ -176,7 +176,7 @@ export interface DayTrackerData {
     fatG: number;
   };
   /**
-   * GAIN_MUSCLE lifters only: this day's training-day adjustment — the same
+   * GAIN_MUSCLE and MAINTAIN lifters only: this day's training-day adjustment — the same
    * payload `dashboard.summary.nutrition.trainingDay` carries (audit P2-4
    * follow-up). Additive; `targets` above keeps meaning the BASE targets.
    */

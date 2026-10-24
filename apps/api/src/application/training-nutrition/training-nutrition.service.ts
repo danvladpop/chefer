@@ -134,7 +134,7 @@ export type TrainingDayResult = ReturnType<typeof buildTrainingDayNutrition>;
 export interface DayTargets {
   /** Base targets (lifter protein included) — what the older fields carry. */
   targets: DailyTargets;
-  /** GAIN_MUSCLE lifters only; `adjustedTargets` set when the bump applies. */
+  /** Lifters whose goal gets the bump (GAIN_MUSCLE, MAINTAIN); `adjustedTargets` set when it applies. */
   training: TrainingDayResult | null;
 }
 
@@ -242,7 +242,7 @@ export class TrainingNutritionService {
    * Completed workouts that make a day a training day. F-1 (2026-10-17, both
    * training styles): EVERY workout type counts — a logged yoga class is a
    * training day like an upper-body session (this reversed WP-20's
-   * exclusion). The bump is still the fixed +10% (GAIN_MUSCLE only), never
+   * exclusion). The bump is still the fixed +10% (GAIN_MUSCLE and MAINTAIN only), never
    * based on burned kcal, which is never read here ("no eating back", D-3).
    */
   private async completedWorkouts(
@@ -287,8 +287,8 @@ export class TrainingNutritionService {
 
   /**
    * One day's targets (audit P2-4 follow-up): the base targets from
-   * resolveDailyTargets (lifter protein included), and — for a GAIN_MUSCLE
-   * lifter — the training-day payload for `localDate`, applied when
+   * resolveDailyTargets (lifter protein included), and — for a GAIN_MUSCLE or
+   * MAINTAIN lifter — the training-day payload for `localDate`, applied when
    * `premium` and previewed otherwise. The dashboard ring and the tracker
    * both read this, so they show the same numbers.
    *

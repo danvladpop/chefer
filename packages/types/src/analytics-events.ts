@@ -230,4 +230,8 @@ export interface EventMap {
   coaching_joined: Record<string, never>;
   /** The client asked a trainer from the directory to coach them (the trainer accepts on their side). */
   coaching_requested: Record<string, never>;
+
+  // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
+  /** A public "switching from X" page was opened; `source` is the app it addresses. */
+  switch_page_viewed: { source: 'mealime' };
 }
