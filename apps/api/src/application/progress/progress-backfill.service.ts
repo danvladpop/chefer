@@ -60,12 +60,11 @@ export const BACKFILL_VERSION = 1;
 const CHUNK_SIZE = 40;
 
 /**
- * Which workout sessions may score. ONE place for the filter.
- * TODO(lane-G importSource): Strong/Hevy imports write sessions with a nullable
- * `importSource`; they never score. Add `importSource: null` here once Lane G lands.
+ * Which workout sessions may score. ONE place for the filter: completed, and
+ * logged in Chefer — Strong/Hevy imports (G2 `importSource`) never score.
  */
 export function scorableSessionWhere(userId: string): Prisma.WorkoutSessionWhereInput {
-  return { userId, status: 'COMPLETED' };
+  return { userId, status: 'COMPLETED', importSource: null };
 }
 
 export type BackfillResult = {

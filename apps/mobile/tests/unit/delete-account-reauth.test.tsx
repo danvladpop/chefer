@@ -25,6 +25,7 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: jest.fn() } } }),
     user: {
+      exportArchive: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       deleteSelf: {
         useMutation: () => ({
           mutate: mockDeleteMutate,

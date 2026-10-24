@@ -28,7 +28,7 @@ export interface NutritionTargets {
 
 /**
  * Today's training-day adjustment, sent on `dashboard.summary.nutrition`
- * for lifters (set-up gym profile, goal GAIN_MUSCLE, bodyweight known).
+ * for lifters (set-up gym profile, goal GAIN_MUSCLE or MAINTAIN, bodyweight known).
  * Additive: older clients ignore it and keep showing the base targets.
  */
 export interface TrainingDayNutrition {

@@ -77,7 +77,8 @@ const weighIns = (...kgs: number[]) =>
   kgs.map((weightKg, i) => ({
     id: `w${i}`,
     weightKg,
-    recordedAt: new Date(`2026-07-${String(i + 1).padStart(2, '0')}T08:00:00Z`),
+    // 45 days apart: long enough that the trend weight (lane D1) has caught up.
+    recordedAt: new Date(Date.UTC(2026, 6, 1 + 45 * i, 8)),
   }));
 
 const SAFE_AREA_METRICS = {
@@ -152,10 +153,18 @@ describe('ProgressScreen', () => {
     expect(screen.getByLabelText('+1.5 kg, in line with your goal')).toBeOnTheScreen();
   });
 
-  it('reads the same gain as off-goal for a weight-loss goal', async () => {
+  it('reads the same gain neutrally for a weight-loss goal: no red, no verdict (lane D1)', async () => {
     mockPreferences.mockReturnValue(query({ data: { chefProfile: { goal: 'LOSE_WEIGHT' } } }));
     await renderScreen();
-    expect(screen.getByLabelText('+1.5 kg, away from your goal')).toBeOnTheScreen();
+    expect(screen.getByLabelText('+1.5 kg')).toBeOnTheScreen();
+    expect(screen.getByTestId('progress-weight-change').props.className).not.toMatch(/red/);
+  });
+
+  it('draws the trend weight over the weigh-ins and explains it', async () => {
+    await renderScreen();
+    const chart = screen.getByTestId('progress-weight-chart');
+    expect(chart).toBeOnTheScreen();
+    expect(screen.getByTestId('progress-weight-explainer')).toHaveTextContent(/trend weight/);
   });
 
   it('logs a weigh-in through the shared parser and lists entries for editing', async () => {
