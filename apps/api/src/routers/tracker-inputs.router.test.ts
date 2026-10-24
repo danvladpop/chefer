@@ -7,6 +7,7 @@ import { trackerRouter } from './tracker.router.js';
 // mocked, so these tests exercise only the zod input schemas.
 const svc = vi.hoisted(() => ({
   logWeight: vi.fn(),
+  importWeights: vi.fn(),
   updateWeight: vi.fn(),
   deleteWeight: vi.fn(),
   getDay: vi.fn(),
@@ -56,6 +57,29 @@ describe('tracker input validation', () => {
     await caller.logWeight({ weightKg: 80.4, date: isoDaysFromNow(0) });
     await caller.logWeight({ weightKg: 80.4, date: isoDaysFromNow(-1) });
     expect(svc.logWeight).toHaveBeenCalledTimes(2);
+  });
+
+  it('importWeights (C2) applies the weigh-in bounds to every entry and pages at 500', async () => {
+    const entry = { externalId: 'hk-1', weightKg: 80.2, date: isoDaysFromNow(-3) };
+    await expect(
+      caller.importWeights({ source: 'APPLE_HEALTH', entries: [{ ...entry, weightKg: 1000 }] }),
+    ).rejects.toThrow();
+    await expect(
+      caller.importWeights({ source: 'APPLE_HEALTH', entries: [{ ...entry, date: '2099-01-01' }] }),
+    ).rejects.toThrow(/future/);
+    await expect(
+      caller.importWeights({ source: 'APPLE_HEALTH', entries: [{ ...entry, externalId: '' }] }),
+    ).rejects.toThrow();
+    await expect(
+      caller.importWeights({
+        source: 'HEALTH_CONNECT',
+        entries: Array.from({ length: 501 }, (_, i) => ({ ...entry, externalId: `hc-${i}` })),
+      }),
+    ).rejects.toThrow();
+    expect(svc.importWeights).not.toHaveBeenCalled();
+
+    await caller.importWeights({ source: 'HEALTH_CONNECT', entries: [entry] });
+    expect(svc.importWeights).toHaveBeenCalledWith('u1', 'HEALTH_CONNECT', [entry]);
   });
 
   it('updateWeight applies the same bounds and passes the owner through', async () => {

@@ -53,6 +53,7 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  type ImportedWeightEntryData,
   ChefReviewRepository,
   chefReviewRepository,
   type IChefReviewRepository,
@@ -160,6 +161,15 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  CuratedRecipeDraftRepository,
+  curatedRecipeDraftRepository,
+  CuratedDraftStateError,
+  type ICuratedRecipeDraftRepository,
+  type CuratedDraftCreateData,
+  type CuratedDraftPatch,
+  type CuratedRecipeCreateData,
+  type CuratedPublishData,
+  type ApprovedCuratedDraft,
   RecipeImageRepository,
   recipeImageRepository,
   POLLINATIONS_IMAGE_HOST,
@@ -473,6 +483,7 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  CuratedRecipeDraft,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -505,4 +516,7 @@ export {
   // Trainer coaching
   CoachingLinkStatus,
   CoachingEndedBy,
+  // Curated recipe ingest (market review F1)
+  CuratedDraftStatus,
+  CuratedProseStatus,
 } from '@prisma/client';

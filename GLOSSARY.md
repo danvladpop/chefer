@@ -141,6 +141,30 @@ Bringing past workouts from another app (Strong, Hevy) into Chefer's gym history
 Imported workouts count like logged ones: PRs, e1RM charts and progression.
 _Avoid_: sync (nothing stays connected), migration
 
+## Curated recipes
+
+**Curated pool**:
+The shared, non-personalised recipes free plans are drawn from (`source=CURATED`): the authored fixtures plus
+approved ingested recipes.
+_Avoid_: free recipes, default recipes, seed recipes
+
+**Ingest**:
+An admin pasting a recipe-video or web link so its facts become a draft for the curated pool.
+_Avoid_: import (that is a user saving a recipe to their own collection), scrape
+
+**Curated draft**:
+An ingested recipe waiting for review; it is never served. Approval turns it into a curated recipe, rejection closes it.
+_Avoid_: pending recipe, candidate
+
+**Unpublish**:
+Taking an approved ingested recipe out of the curated pool; plans that already hold it keep it.
+_Avoid_: delete, retire
+
+**Pool coverage**:
+How many curated recipes a household with given restrictions can actually be served per meal type, and so how
+soon it repeats (a pool of N daily meals repeats within N ÷ 7 weeks).
+_Avoid_: recipe count, catalog size
+
 ## Kitchen progress
 
 **Kitchen progress**:
@@ -194,6 +218,20 @@ _Avoid_: notifications setting
 **Cook (finished)**:
 A cook-mode session the user finished, stored on the server as a CookLog.
 _Avoid_: made it (the button), cooking session
+
+## Health sync
+
+**Health sync**:
+Chefer exchanging data with the phone's health store — Apple Health on iOS, Health Connect on Android — one data type at a time, each switched on by the user.
+_Avoid_: Health integration, HealthKit sync, Google Fit
+
+**Health store**:
+The phone's shared health database: Apple Health (HealthKit) or Health Connect.
+_Avoid_: Health app, health provider
+
+**Imported weigh-in**:
+A weigh-in read from the health store (a smart scale, another app). It is an ordinary weigh-in in Chefer, marked with its source; the same sample is never imported twice.
+_Avoid_: Synced weight, external weight
 
 ## Appearance
 
