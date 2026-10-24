@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 
 // ─── LockedPanel (UX §3.2, §8.2) ──────────────────────────────────────────────
 // Icon, title, body — what a non-follower sees under a profile header
@@ -21,6 +21,7 @@ export function LockedPanel({
   body,
   testID = 'friends-locked-panel',
 }: LockedPanelProps) {
+  const colors = useThemeColors();
   return (
     // One accessibility element with an explicit label: an `accessible` View
     // without one exposes no text to iOS (XCUITest, and some VoiceOver paths).
@@ -30,7 +31,7 @@ export function LockedPanel({
       accessibilityLabel={title ? `${title}. ${body}` : body}
       className="items-center gap-2 px-6 py-10"
     >
-      <Ionicons name={icon} size={36} color="#8a7560" />
+      <Ionicons name={icon} size={36} color={colors.labelTertiary} />
       {title ? (
         <Text variant="heading" className="text-center">
           {title}

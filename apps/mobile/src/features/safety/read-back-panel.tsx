@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { SAFETY_COPY } from '@chefer/utils';
 
 // UX-01 (a) — the "We'll keep out" read-back panel under the Allergies group:
@@ -19,19 +19,20 @@ export function ReadBackPanel({
   lines,
   testID,
 }: ReadBackPanelProps) {
+  const colors = useThemeColors();
   if (lines.length === 0) return null;
   return (
     <View
       testID={testID}
       accessibilityLiveRegion="polite"
-      className="gap-1.5 rounded-xl bg-accent/60 p-3"
+      className="gap-1.5 rounded-xl bg-brand-tint p-3"
     >
       <View className="flex-row items-center gap-1.5">
-        <Ionicons name="shield-outline" size={14} color="#944a00" accessible={false} />
-        <Text className="text-xs font-semibold uppercase tracking-wide text-primary">{title}</Text>
+        <Ionicons name="shield-outline" size={14} color={colors.brand} accessible={false} />
+        <Text className="text-xs font-semibold uppercase tracking-wide text-brand">{title}</Text>
       </View>
       {lines.map((line) => (
-        <Text key={line} className="text-sm leading-relaxed text-gray-700">
+        <Text key={line} className="text-sm leading-relaxed text-label-secondary">
           {line}
         </Text>
       ))}

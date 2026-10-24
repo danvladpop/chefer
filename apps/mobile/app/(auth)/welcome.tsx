@@ -1,7 +1,7 @@
 import { Image, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, colors, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { SocialSignIn, useHasSocialProviders } from '../../src/features/auth/social/social-sign-in';
 import { openLegal } from '../../src/features/legal/open-legal';
 import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
@@ -35,6 +35,7 @@ const FEATURES: FeatureRow[] = [
 ];
 
 function WelcomeScreenV3() {
+  const colors = useThemeColors();
   const { t } = useT();
   // WP-22: with Apple/Google buttons on screen, their consent line (which also
   // covers the 16+ confirmation) replaces the plain legal footer.
@@ -71,10 +72,10 @@ function WelcomeScreenV3() {
         <View className="w-full gap-3">
           {FEATURES.map((row) => (
             <View key={row.copyKey} className="flex-row items-center gap-3">
-              <View className="h-9 w-9 items-center justify-center rounded-full bg-accent">
-                <Ionicons name={row.icon} size={18} color={colors.primary} />
+              <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-tint">
+                <Ionicons name={row.icon} size={18} color={colors.brand} />
               </View>
-              <Text className="min-w-0 flex-1 text-sm text-gray-700">{t(row.copyKey)}</Text>
+              <Text className="min-w-0 flex-1 text-sm text-label-secondary">{t(row.copyKey)}</Text>
             </View>
           ))}
         </View>

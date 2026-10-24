@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PressableScale, Text } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import type { CatalogRef, PickedIngredient } from './catalog-line';
 import { CustomIngredientSheet } from './custom-ingredient-sheet';
@@ -56,6 +56,7 @@ export function IngredientPickerField({
   testID,
   layout = 'row',
 }: IngredientPickerFieldProps) {
+  const colors = useThemeColors();
   const [searchOpen, setSearchOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [customPrefill, setCustomPrefill] = useState('');
@@ -83,21 +84,21 @@ export function IngredientPickerField({
         onPress={() => setSearchOpen(true)}
         className={cn(
           'min-h-11 flex-row items-center gap-1 rounded-md border bg-background px-3 py-1',
-          needsMatch ? 'border-amber-400' : 'border-input',
+          needsMatch ? 'border-attention' : 'border-input',
         )}
       >
         {linked && name ? (
           <Ionicons
             name="nutrition-outline"
             size={14}
-            color="#6b7280"
+            color={colors.labelTertiary}
             accessibilityElementsHidden
           />
         ) : needsMatch ? (
           <Ionicons
             name="help-circle-outline"
             size={14}
-            color="#b45309"
+            color={colors.attention}
             accessibilityElementsHidden
           />
         ) : null}

@@ -13,7 +13,7 @@ import { useT } from '../../../lib/i18n';
 export type AppealLinkProps = {
   /** Which step is being appealed — sets the email subject. */
   subject: 'recipe' | 'profile';
-  /** Text colour of the surrounding banner (e.g. `text-blue-900`). */
+  /** Text colour of the surrounding banner (e.g. `text-attention`). */
   tone?: string;
   className?: string;
   testID?: string;

@@ -3,7 +3,8 @@ import { AccessibilityInfo, findNodeHandle, Pressable, View } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { FriendProfileDto, FriendsMeDto } from '@chefer/types';
-import { Avatar, Badge, Button, Sheet, Skeleton, Text } from '@chefer/ui-mobile';
+import { type FriendProfileDto, type FriendsMeDto } from '@chefer/types';
+import { Avatar, Badge, Button, Sheet, Skeleton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { AppealLink } from '../components/appeal-link';
 import { RelationButton } from '../components/relation-button';
@@ -35,6 +36,7 @@ export function ProfileHeader({
   me: FriendsMeDto | undefined;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   const { t } = useT();
   const { user, counts, isSelf, visibility } = profile;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,7 +65,7 @@ export function ProfileHeader({
       <Text
         testID={`${testID}-name`}
         accessibilityRole="header"
-        className="text-center text-2xl font-bold text-gray-900"
+        className="text-center text-2xl font-bold text-label"
       >
         {user.displayName}
       </Text>
@@ -97,7 +99,7 @@ export function ProfileHeader({
             onPress={() => setMenuOpen(true)}
             className="h-11 w-11 items-center justify-center rounded-full"
           >
-            <Ionicons name="ellipsis-horizontal" size={22} color="#1f2937" />
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.label} />
           </Pressable>
         ) : null}
       </View>
@@ -208,12 +210,12 @@ function PreviewBanners({
       {forcedPrivate ? (
         <View
           testID={`${testID}-forced-private`}
-          className="w-full rounded-xl bg-amber-50 px-3 py-2"
+          className="w-full rounded-xl bg-attention/10 px-3 py-2"
         >
-          <Text className="text-sm text-amber-900">{t('friends.preview.forcedPrivate')}</Text>
+          <Text className="text-sm text-attention">{t('friends.preview.forcedPrivate')}</Text>
           <AppealLink
             subject="profile"
-            tone="text-amber-900"
+            tone="text-attention"
             testID={`${testID}-forced-private-appeal`}
           />
         </View>

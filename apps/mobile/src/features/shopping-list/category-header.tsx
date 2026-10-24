@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 
 // Category header row on the Shop tab ("To buy"). Extracted from
 // app/(food)/shopping-list.tsx for bug B-28 (T-BUG-28): ticking an item
@@ -33,6 +33,7 @@ export function CategoryHeader({
   expanded,
   onPress,
 }: CategoryHeaderProps) {
+  const colors = useThemeColors();
   const allDone = doneCount === itemCount && itemCount > 0;
   return (
     <Pressable
@@ -44,21 +45,25 @@ export function CategoryHeader({
       <Text
         testID={`${testID}-label`}
         numberOfLines={1}
-        className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-gray-500"
+        className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-label-tertiary"
       >
         {label}{' '}
-        <Text className="text-xs font-normal normal-case text-gray-500">
+        <Text className="text-xs font-normal normal-case text-label-tertiary">
           {itemCount} item{itemCount !== 1 ? 's' : ''}
           {doneCount > 0 ? ` · ${doneCount} done` : ''}
         </Text>
       </Text>
       <View className="flex-shrink-0 flex-row items-center gap-2">
         {allDone && (
-          <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-            <Text className="text-xs font-bold text-emerald-700">✓ all</Text>
+          <View className="rounded-full bg-positive/10 px-2 py-0.5">
+            <Text className="text-xs font-bold text-positive">✓ all</Text>
           </View>
         )}
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#9ca3af" />
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={16}
+          color={colors.labelTertiary}
+        />
       </View>
     </Pressable>
   );

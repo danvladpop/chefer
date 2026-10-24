@@ -9,6 +9,7 @@ import {
   Screen,
   Text,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { isFriendsUnavailableError } from '../api/friends-errors';
@@ -25,6 +26,7 @@ import { PersonRowsSkeleton } from './skeletons';
 // after the last one the empty state fades in (MO-03).
 
 function RequestsBody() {
+  const colors = useThemeColors();
   const { t } = useT();
   const reduced = useReducedMotion();
   const { query, people } = useRequestsList();
@@ -56,7 +58,7 @@ function RequestsBody() {
       <Animated.View entering={reduced ? undefined : FadeIn.duration(duration.base)}>
         <EmptyState
           testID="friends-requests-empty"
-          icon={<Ionicons name="person-add-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="person-add-outline" size={40} color={colors.labelTertiary} />}
           title={t('friends.requests.empty.title')}
           description={t('friends.requests.empty.body')}
         />

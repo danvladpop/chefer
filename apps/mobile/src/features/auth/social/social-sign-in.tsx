@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useResolvedScheme } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { rich } from '../../../lib/i18n/rich';
 import { openLegal } from '../../legal/open-legal';
@@ -52,6 +52,7 @@ export function SocialSignIn({ showDivider = true }: { showDivider?: boolean }) 
   const providers = useSocialProviders();
   const { start, error, busy } = useSocialSignIn(providers);
   const Apple = providers.apple;
+  const scheme = useResolvedScheme();
   if (!Apple && !providers.google) return null;
 
   return (
@@ -77,7 +78,12 @@ export function SocialSignIn({ showDivider = true }: { showDivider?: boolean }) 
           <Apple.AppleAuthenticationButton
             testID="social-apple"
             buttonType={Apple.AppleAuthenticationButtonType.CONTINUE}
-            buttonStyle={Apple.AppleAuthenticationButtonStyle.BLACK}
+            // HIG: the black button on a light screen, the white one on a dark screen.
+            buttonStyle={
+              scheme === 'dark'
+                ? Apple.AppleAuthenticationButtonStyle.WHITE
+                : Apple.AppleAuthenticationButtonStyle.BLACK
+            }
             cornerRadius={8}
             style={{ height: 48, width: '100%' }}
             onPress={() => void start('apple')}

@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { CountPill } from '@chefer/ui-mobile';
+import { CountPill, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../../lib/i18n';
 import { FriendsScreenHeader } from './friends-screen-header';
 
@@ -22,6 +22,7 @@ export function FollowingHeader({
   onBack,
   testID = 'friends-header',
 }: FollowingHeaderProps) {
+  const colors = useThemeColors();
   const { t } = useT();
   return (
     <FriendsScreenHeader
@@ -41,7 +42,7 @@ export function FollowingHeader({
             onPress={() => router.push('/friends/activity')}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="notifications-outline" size={22} color="#1f2937" />
+            <Ionicons name="notifications-outline" size={22} color={colors.label} />
             {/* The button's label already says the count; the pill is visual only. */}
             <View
               className="absolute right-0.5 top-0.5"
@@ -59,7 +60,7 @@ export function FollowingHeader({
             onPress={() => router.push('/friends/settings')}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="settings-outline" size={22} color="#1f2937" />
+            <Ionicons name="settings-outline" size={22} color={colors.label} />
           </Pressable>
         </>
       }

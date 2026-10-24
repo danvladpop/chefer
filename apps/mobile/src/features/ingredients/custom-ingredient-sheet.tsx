@@ -15,6 +15,7 @@ import {
   SelectField,
   Sheet,
   Text,
+  useThemeColors,
   type SelectOption,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -108,6 +109,7 @@ export function CustomIngredientSheet({
   onCreated,
   testID = 'custom-ingredient-sheet',
 }: CustomIngredientSheetProps) {
+  const colors = useThemeColors();
   const isPremium = useIsPremium();
   // R-10: "Fill in for me" sends the typed name to the AI provider, so it asks
   // for AI-data consent like every other AI action (it used to be exempt).
@@ -250,12 +252,15 @@ export function CustomIngredientSheet({
       >
         <View className="gap-4">
           {showConflict ? (
-            <Card testID={`${testID}-conflict`} className="gap-3 border-amber-200 bg-amber-50">
+            <Card
+              testID={`${testID}-conflict`}
+              className="gap-3 border-attention/30 bg-attention/10"
+            >
               <View className="gap-1">
-                <Text className="text-sm font-semibold text-amber-900">
+                <Text className="text-sm font-semibold text-attention">
                   {copy.conflictTitle(conflictName)}
                 </Text>
-                <Text className="text-xs text-amber-900">{copy.conflictBody}</Text>
+                <Text className="text-xs text-attention">{copy.conflictBody}</Text>
               </View>
               <Button testID={`${testID}-use-it`} onPress={() => void chooseCatalogRow()}>
                 {copy.useIt}
@@ -320,7 +325,7 @@ export function CustomIngredientSheet({
                   <Ionicons
                     name={locked ? 'lock-closed-outline' : 'sparkles-outline'}
                     size={14}
-                    color="#944a00"
+                    color={colors.brand}
                   />
                   <Text className="text-xs font-medium text-primary">
                     {estimateMutation.isPending
@@ -436,8 +441,8 @@ export function CustomIngredientSheet({
           />
 
           {genericError && (
-            <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">
+            <Card testID={`${testID}-save-error`} className="border-danger/30 bg-danger/10">
+              <Text className="text-sm text-danger">
                 {userFacingErrorMessage(createMutation.error)}
               </Text>
             </Card>
@@ -483,7 +488,7 @@ function MacroField({
         onChangeText={onChangeText}
         keyboardType="decimal-pad"
         placeholder="0"
-        className={bad ? 'border-red-400 px-2 text-center' : 'px-2 text-center'}
+        className={bad ? 'border-danger px-2 text-center' : 'px-2 text-center'}
         {...chain}
       />
     </View>
