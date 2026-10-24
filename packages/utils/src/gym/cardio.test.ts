@@ -8,8 +8,8 @@ import {
   formatDurationClock,
   formatDurationMinutes,
   pace,
-  toMetres,
   profileDistanceUnit,
+  toMetres,
 } from './cardio';
 
 describe('formatDurationMinutes', () => {
