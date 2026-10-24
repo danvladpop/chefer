@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
@@ -14,6 +15,8 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
+  formatLoad,
+  livePrLine,
   routineWithoutSuperset,
   routineWithSuperset,
   sameKg,
@@ -25,6 +28,8 @@ import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
 import { useT } from '../../../lib/i18n';
 import { buildTrainerLines } from '../../coaching/logger-lines';
+import { LivePrBanner, useLivePrBanner } from '../../progress/live-pr-banner';
+import { useProgressEnabled } from '../../progress/use-progress';
 import { noteWorkoutCompleted } from '../../review/review-store';
 import { useShellV2 } from '../../shell/shell-store';
 import { WorkoutActions } from '../../shell/train/workout-actions';
@@ -133,6 +138,11 @@ export function WorkoutScreen() {
   const editRoutine = useRoutineEdit();
   const [ungroupAlsoRoutine, setUngroupAlsoRoutine] = useState(false);
   const snackbar = useSnackbar();
+  // Kitchen progress (mockup 03): a live PR also gets a 3 s banner, when the feature is on.
+  const progressOn = useProgressEnabled();
+  const livePrBanner = useLivePrBanner();
+  const showLivePr = livePrBanner.show;
+  const insets = useSafeAreaInsets();
   const [finishing, setFinishing] = useState(false);
   const [restBarHeight, setRestBarHeight] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
@@ -195,6 +205,11 @@ export function WorkoutScreen() {
   useEffect(() => {
     live.current = { prior, lookup, profile, bootstrap, supersets };
   }, [prior, lookup, profile, bootstrap, supersets]);
+  // Read by the stable set handlers, like `live`.
+  const liveProgress = useRef(progressOn);
+  useEffect(() => {
+    liveProgress.current = progressOn;
+  }, [progressOn]);
 
   // ── Sheets (one at a time; swaps wait for the previous Modal to leave) ────
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -283,8 +298,21 @@ export function WorkoutScreen() {
           after && !set.isWarmup && !isCoached
             ? livePr(after, live.current.prior, olderBest)
             : null;
-        if (pr?.setId === setId && before?.kind !== pr.kind) haptics.success();
-        else haptics.tick();
+        if (pr?.setId === setId && before?.kind !== pr.kind) {
+          haptics.success();
+          if (liveProgress.current) {
+            const meta = live.current.lookup(se.exerciseId);
+            const unitNow = unitOf(live.current.bootstrap);
+            // MO-14 pop: "New best · Bench press 80 kg × 5".
+            showLivePr(
+              livePrLine(
+                meta.name,
+                formatLoad(set.weightKg, unitNow, meta.loadType, { each: meta.perHand }),
+                set.reps,
+              ),
+            );
+          }
+        } else haptics.tick();
       },
       onWeight: (seId, setId, kg) => {
         const se = getDoc()?.exercises.find((e) => e.id === seId);
@@ -964,6 +992,10 @@ export function WorkoutScreen() {
       </ScrollView>
 
       <RestTimerBar onHeightChange={setRestBarHeight} />
+      <LivePrBanner
+        banner={livePrBanner.banner}
+        bottom={restBarHeight + Math.max(insets.bottom, 12) + 8}
+      />
 
       {/* ── Sheets ── */}
       <ExerciseMenuSheet

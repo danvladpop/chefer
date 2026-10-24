@@ -35,8 +35,10 @@ export function ShellPreviewSection({ footer = DEFAULT_FOOTER }: { footer?: stri
             accessibilityLabel="Preview the new design"
             value={on}
             onValueChange={setShellV2Preview}
-            // Android draws its own teal thumb unless told otherwise.
-            thumbColor={colors.surface}
+            // Android draws its own teal thumb unless told otherwise. White in
+            // both schemes, like the native thumb: `surface` vanished at night.
+            // drift-ok: native switch thumbs are white by day and by night
+            thumbColor="#FFFFFF"
             ios_backgroundColor={colors.separator}
             trackColor={{ true: colors.brand, false: colors.separator }}
           />

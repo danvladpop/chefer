@@ -32,7 +32,7 @@ export function CuisineStep({ value, onChange }: CuisineStepProps) {
   const pillCls = (active: boolean) =>
     cn(
       'min-h-9 flex-row items-center gap-1.5 rounded-full border px-3',
-      active ? 'border-primary bg-accent' : 'border-border bg-white',
+      active ? 'border-primary bg-accent' : 'border-border bg-surface',
     );
 
   return (
@@ -58,7 +58,7 @@ export function CuisineStep({ value, onChange }: CuisineStepProps) {
                 <Text
                   className={cn(
                     'text-sm',
-                    selected ? 'font-semibold text-primary' : 'text-gray-700',
+                    selected ? 'font-semibold text-primary' : 'text-label-secondary',
                   )}
                 >
                   {c.value}
@@ -81,13 +81,13 @@ export function CuisineStep({ value, onChange }: CuisineStepProps) {
               onPress={() => onChange({ ...value, mealsPerDay: n })}
               className={cn(
                 'h-11 flex-1 items-center justify-center rounded-md border',
-                value.mealsPerDay === n ? 'border-primary bg-primary' : 'border-border bg-white',
+                value.mealsPerDay === n ? 'border-primary bg-primary' : 'border-border bg-surface',
               )}
             >
               <Text
                 className={cn(
                   'text-sm font-semibold',
-                  value.mealsPerDay === n ? 'text-primary-foreground' : 'text-gray-600',
+                  value.mealsPerDay === n ? 'text-primary-foreground' : 'text-label-secondary',
                 )}
               >
                 {n}

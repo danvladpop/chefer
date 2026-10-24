@@ -1,0 +1,2097 @@
+<title>Chefer Kitchen Progress</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
+/>
+<style>
+  /* Layout: a single reading column (max 1080) with a sticky section nav; ideas as a
+   filterable two-column card grid; mockups as a phone gallery. Palette = Chefer tokens. */
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --sunken: #f2ece4;
+    --line: #e6ded3;
+    --ink: #1c1917;
+    --ink-2: #57534e;
+    --ink-3: #6f675f;
+    --brand: #944a00;
+    --brand-tint: #f6eadb;
+    --on-brand: #ffffff;
+    --flame: #c2410c;
+    --good: #2d7a4b;
+    --good-tint: #e3f1e8;
+    --warn: #a85100;
+    --warn-tint: #fbebd6;
+    --p1: #944a00;
+    --p2: #2d6a8a;
+    --p3: #6b5b95;
+    --f-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+    --f-body: 'Source Sans 3', -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --f-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #161311;
+      --surface: #211c18;
+      --sunken: #100d0b;
+      --line: #3a332d;
+      --ink: #f5f1ec;
+      --ink-2: #cfc6bc;
+      --ink-3: #a69b90;
+      --brand: #f0a35a;
+      --brand-tint: #3a2a1b;
+      --on-brand: #1c1917;
+      --flame: #f59e0b;
+      --good: #6bcb93;
+      --good-tint: #1c3326;
+      --warn: #f2b05e;
+      --warn-tint: #3a2a12;
+      --p1: #f0a35a;
+      --p2: #7db8d6;
+      --p3: #b3a3db;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #161311;
+    --surface: #211c18;
+    --sunken: #100d0b;
+    --line: #3a332d;
+    --ink: #f5f1ec;
+    --ink-2: #cfc6bc;
+    --ink-3: #a69b90;
+    --brand: #f0a35a;
+    --brand-tint: #3a2a1b;
+    --on-brand: #1c1917;
+    --flame: #f59e0b;
+    --good: #6bcb93;
+    --good-tint: #1c3326;
+    --warn: #f2b05e;
+    --warn-tint: #3a2a12;
+    --p1: #f0a35a;
+    --p2: #7db8d6;
+    --p3: #b3a3db;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.55 var(--f-body);
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--f-display);
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: clamp(26px, 4vw, 34px);
+    line-height: 1.15;
+    font-weight: 800;
+  }
+  h3 {
+    font-size: 19px;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+  p {
+    margin: 0;
+  }
+  a {
+    color: var(--brand);
+  }
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .eyebrow {
+    font: 700 12px/1.2 var(--f-body);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-3);
+  }
+  .muted {
+    color: var(--ink-2);
+  }
+  .mono {
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* header */
+  header.hero {
+    padding-block: 48px 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 32px;
+    align-items: end;
+  }
+  header.hero h1 {
+    font-size: clamp(38px, 7vw, 68px);
+    line-height: 1;
+    font-weight: 800;
+  }
+  header.hero h1 span {
+    color: var(--brand);
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--ink-2);
+    max-width: 60ch;
+    margin-top: 14px;
+  }
+  .meter {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+  }
+  .meter .rank {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .meter b {
+    font-family: var(--f-display);
+    font-size: 22px;
+  }
+  .bar {
+    height: 10px;
+    border-radius: 99px;
+    background: var(--sunken);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 68%;
+    background: linear-gradient(90deg, var(--flame), var(--brand));
+    border-radius: 99px;
+  }
+  .ranks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .ranks .on {
+    color: var(--brand);
+    font-weight: 700;
+  }
+
+  nav.toc {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: var(--bg);
+  }
+  nav.toc .wrap {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding-block: 8px;
+    scrollbar-width: none;
+  }
+  nav.toc a {
+    white-space: nowrap;
+    text-decoration: none;
+    color: var(--ink-2);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 8px 12px;
+    border-radius: 99px;
+  }
+  nav.toc a:hover {
+    background: var(--brand-tint);
+    color: var(--brand);
+  }
+
+  section.block {
+    padding-block: 44px 8px;
+    display: grid;
+    gap: 20px;
+    scroll-margin-top: 56px;
+  }
+  .tldr {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+    gap: 12px;
+  }
+  .tldr div {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    gap: 4px;
+    align-content: start;
+  }
+  .tldr strong {
+    font-family: var(--f-display);
+    font-size: 18px;
+  }
+
+  /* research table */
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 640px;
+    font-size: 15.5px;
+  }
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+    background: var(--sunken);
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  td:first-child {
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .stat {
+    font-family: var(--f-mono);
+    font-weight: 700;
+    color: var(--brand);
+    white-space: nowrap;
+  }
+  .callout {
+    border-left: 4px solid var(--warn);
+    background: var(--warn-tint);
+    border-radius: 0 12px 12px 0;
+    padding: 16px 18px;
+    display: grid;
+    gap: 8px;
+  }
+  .callout ul {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .rules {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 10px;
+    counter-reset: r;
+  }
+  .rules li {
+    counter-increment: r;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px 14px 52px;
+    position: relative;
+  }
+  .rules li::before {
+    content: counter(r);
+    position: absolute;
+    left: 14px;
+    top: 13px;
+    width: 26px;
+    height: 26px;
+    border-radius: 99px;
+    background: var(--brand);
+    color: var(--on-brand);
+    font: 700 13px/26px var(--f-mono);
+    text-align: center;
+  }
+  .rules b {
+    display: block;
+  }
+
+  .loop {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    overflow-x: auto;
+  }
+  .loop svg {
+    display: block;
+    min-width: 720px;
+    width: 100%;
+    height: auto;
+  }
+  .loop text {
+    font-family: var(--f-body);
+    fill: var(--ink);
+  }
+  .loop .lab {
+    font-size: 13px;
+    fill: var(--ink-3);
+  }
+  .loop .node {
+    fill: var(--brand-tint);
+    stroke: var(--brand);
+  }
+  .loop .node2 {
+    fill: var(--surface);
+    stroke: var(--line);
+  }
+  .loop .arr {
+    stroke: var(--ink-3);
+    fill: none;
+    stroke-width: 1.5;
+  }
+
+  /* ideas */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .filters button {
+    font: 600 15px var(--f-body);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-2);
+    border-radius: 99px;
+    padding: 8px 14px;
+    min-height: 40px;
+    cursor: pointer;
+  }
+  .filters button[aria-pressed='true'] {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+  .group {
+    display: grid;
+    gap: 12px;
+  }
+  .group h3 {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-top: 12px;
+  }
+  .group h3 .count {
+    font: 500 13px var(--f-mono);
+    color: var(--ink-3);
+  }
+  .ideas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+    gap: 10px;
+  }
+  .idea {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: grid;
+    gap: 6px;
+    align-content: start;
+  }
+  .idea .top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .idea .n {
+    font: 700 13px var(--f-mono);
+    color: var(--ink-3);
+  }
+  .idea .name {
+    font: 700 17px/1.3 var(--f-display);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .tag {
+    font: 700 11px/1 var(--f-mono);
+    padding: 4px 7px;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+  }
+  .tag.Parked {
+    color: var(--ink-3);
+    border-style: dashed;
+  }
+  .tag.P1 {
+    color: var(--p1);
+  }
+  .tag.P2 {
+    color: var(--p2);
+  }
+  .tag.P3 {
+    color: var(--p3);
+  }
+  .idea p {
+    font-size: 15.5px;
+    color: var(--ink-2);
+  }
+  .idea .refs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .idea .refs a {
+    font: 600 12px var(--f-mono);
+    text-decoration: none;
+    background: var(--brand-tint);
+    color: var(--brand);
+    padding: 3px 7px;
+    border-radius: 6px;
+  }
+
+  /* mockups */
+  .phones {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+    gap: 22px 18px;
+  }
+  figure {
+    margin: 0;
+    display: grid;
+    gap: 8px;
+    scroll-margin-top: 64px;
+  }
+  figure img {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 390 / 844;
+    border-radius: 26px;
+    border: 6px solid #1c1917;
+    box-shadow: 0 10px 30px rgba(28, 25, 23, 0.14);
+    background: #fff;
+  }
+  figure:target img {
+    outline: 3px solid var(--brand);
+    outline-offset: 4px;
+  }
+  figcaption {
+    font-size: 14.5px;
+    color: var(--ink-2);
+  }
+  figcaption b {
+    color: var(--ink);
+    display: block;
+    font-size: 15.5px;
+  }
+  figcaption .mono {
+    color: var(--brand);
+    font-size: 12px;
+  }
+
+  .two {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    min-width: 0;
+  }
+  .panel ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+    font-size: 15.5px;
+  }
+  .xp td:last-child,
+  .xp th:last-child {
+    color: var(--ink-3);
+  }
+  .xp td:nth-child(2) {
+    font-family: var(--f-mono);
+    font-weight: 700;
+    color: var(--brand);
+    white-space: nowrap;
+  }
+  .xp table {
+    min-width: 520px;
+  }
+  .phase {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .phase .lbl {
+    font: 800 20px var(--f-display);
+  }
+  .decisions {
+    margin: 0;
+    padding-left: 22px;
+    display: grid;
+    gap: 10px;
+  }
+  .decisions li::marker {
+    font-family: var(--f-mono);
+    color: var(--brand);
+    font-weight: 700;
+  }
+  .rec {
+    font: 700 11px var(--f-mono);
+    color: var(--good);
+    background: var(--good-tint);
+    padding: 2px 6px;
+    border-radius: 5px;
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+  .sources {
+    columns: 2 300px;
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+  .sources a {
+    display: block;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  footer {
+    padding-block: 40px 60px;
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+  @media (max-width: 720px) {
+    header.hero {
+      grid-template-columns: 1fr;
+      padding-block: 28px 18px;
+    }
+    .phase {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    body {
+      font-size: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+</style>
+
+<header class="wrap hero">
+  <div>
+    <div class="eyebrow">Chefer · gamification plan · draft 22 Oct 2026</div>
+    <h1>Kitchen <span>progress</span></h1>
+    <p class="lede">
+      One light reward system for the whole app. Cooking, eating, logging and training all count
+      toward your chef rank and a weekly flame. It never rewards eating less or weighing less, and
+      it never makes anyone feel bad for a slow week.
+    </p>
+  </div>
+  <div class="meter" aria-label="Example progress">
+    <div class="rank">
+      <b>Lv 7 · Line Cook</b><span class="mono" style="color: var(--flame)">🔥 6 wk</span>
+    </div>
+    <div class="bar"><i></i></div>
+    <div class="rank">
+      <span class="muted" style="font-size: 14px">340 / 500 XP to Chef de Partie</span
+      ><span class="mono muted" style="font-size: 13px">2 of 3 days</span>
+    </div>
+    <div class="ranks">
+      <span>Kitchen Porter</span><span>Commis</span><span class="on">Line Cook</span
+      ><span>Chef de Partie</span><span>Sous Chef</span><span>Head Chef</span
+      ><span>Executive Chef</span><span>Iron Chef</span><span>Three-Star</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#summary">Summary</a><a href="#research">Research</a><a href="#rules">Guardrails</a
+    ><a href="#ideas">59 ideas</a><a href="#mockups">Mockups</a><a href="#numbers">Numbers</a
+    ><a href="#rollout">Rollout</a><a href="#decisions">Your decisions</a
+    ><a href="#sources">Sources</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="block" id="summary">
+    <h2>In five lines</h2>
+    <div class="tldr">
+      <div>
+        <strong>Chef XP & ranks</strong
+        ><span class="muted"
+          >Every real action earns XP. Levels carry kitchen-brigade titles, and there is one level
+          for food and gym together.</span
+        >
+      </div>
+      <div>
+        <strong>A weekly Flame</strong
+        ><span class="muted"
+          >Reach your own active-day goal (3 of 7) and the flame grows. Rest days never break it,
+          and free pilot lights cover a rough week.</span
+        >
+      </div>
+      <div>
+        <strong>Small goals, every scale</strong
+        ><span class="muted"
+          >Today's three each day, weekly specials (pick 2 of 3), and a monthly event with a limited
+          badge.</span
+        >
+      </div>
+      <div>
+        <strong>Moments that feel earned</strong
+        ><span class="muted"
+          >"You made it!" after cooking, live PRs, level-ups, achievement tiers, and a Sunday recap
+          story.</span
+        >
+      </div>
+      <div>
+        <strong>Light by design</strong
+        ><span class="muted"
+          >No body-number rewards, no shame, nothing for sale, no leaderboards. Celebrations go
+          Full, Subtle or Off.</span
+        >
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="research">
+    <div>
+      <div class="eyebrow">What works elsewhere</div>
+      <h2>Patterns from the apps that do this well</h2>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Who</th>
+            <th>Evidence</th>
+            <th>What Chefer takes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Streaks</td>
+            <td>Duolingo, Snapchat, Headspace</td>
+            <td>
+              <span class="stat">2.4×</span> more likely to return after a 7-day streak;
+              <span class="stat">+3.3%</span> D14 when the streak action became tiny
+            </td>
+            <td>Keep the qualifying action small: one log, one cook or one workout.</td>
+          </tr>
+          <tr>
+            <td>Forgiveness</td>
+            <td>Duolingo freeze, Apple ring pause, Hevy backfill</td>
+            <td>
+              Weekly reserves: <span class="stat">55%</span> got back on track after a slip vs
+              <span class="stat">37%</span> with a hard goal
+            </td>
+            <td>Pilot lights, pause and relight, all free and automatic.</td>
+          </tr>
+          <tr>
+            <td>Weekly streaks</td>
+            <td>Hevy, Strava, Apple Perfect Week</td>
+            <td>Fits training, where rest is part of the plan</td>
+            <td>The Flame counts weeks, not days.</td>
+          </tr>
+          <tr>
+            <td>Goals & progress bars</td>
+            <td>Apple rings, Duolingo goal</td>
+            <td>
+              Top-rated elements in nutrition apps; a pre-filled card got finished
+              <span class="stat">34% vs 19%</span>
+            </td>
+            <td>Progress strip on Today, "closest next" badge, endowed start.</td>
+          </tr>
+          <tr>
+            <td>Commitment</td>
+            <td>Duolingo Streak Wager</td>
+            <td><span class="stat">+14%</span> D7 retention</td>
+            <td>Opt-in "commit to my week", with no penalty.</td>
+          </tr>
+          <tr>
+            <td>PR moments</td>
+            <td>Hevy, Strong, Strava</td>
+            <td>Competence: you against your past self</td>
+            <td>Live PR banner plus the PR wall.</td>
+          </tr>
+          <tr>
+            <td>Fresh starts</td>
+            <td>Apple / Strava monthly challenges</td>
+            <td>Motivation rises after landmarks such as Mondays and the 1st of the month</td>
+            <td>Monday reset, monthly events.</td>
+          </tr>
+          <tr>
+            <td>Recaps</td>
+            <td>Spotify Wrapped, Strava Year in Sport</td>
+            <td><span class="stat">≈500M</span> shares for Wrapped 2025</td>
+            <td>Weekly story, monthly recap, Chefer Wrapped.</td>
+          </tr>
+          <tr>
+            <td>Companion</td>
+            <td>Finch, Duolingo's Duo</td>
+            <td>Finch's pet never gets sad; Duo's guilt is a meme</td>
+            <td>Biscuit cheers you on and never guilt-trips.</td>
+          </tr>
+          <tr>
+            <td>Social</td>
+            <td>Duolingo friend streaks, Strava kudos</td>
+            <td>
+              <span class="stat">+22%</span> lesson completion with a friend streak,
+              <b>but</b> nutrition users rank leaderboards and avatars lowest
+            </td>
+            <td>
+              Cooperative only (cheers, duo flame, crew challenges), and later. No leaderboard for
+              now.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <h3>What goes wrong in diet apps, and how we avoid it</h3>
+      <ul>
+        <li>
+          <b>Gamifying intake can feed eating disorders.</b> 73% of ED patients who used
+          MyFitnessPal said it contributed, and users describe "competition to eat less each day". →
+          No XP, badge or challenge ever scales with eating less or weighing less.
+        </li>
+        <li>
+          <b>Broken streaks make people quit,</b> especially when the app shames them. Khan Academy
+          removed streaks for this reason. → Weekly unit, free freezes, pause, relight, "Best: 9
+          weeks".
+        </li>
+        <li>
+          <b>Paid or transactional rewards crowd out real motivation.</b> → XP is information about
+          progress, not a currency. Nothing is for sale.
+        </li>
+        <li>
+          <b>Exercise compulsion.</b> → Rest days count, and there's no daily ring for lifting.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="block" id="rules">
+    <div>
+      <div class="eyebrow">Every idea must pass these</div>
+      <h2>Guardrails</h2>
+    </div>
+    <ol class="rules">
+      <li>
+        <b>Reward behaviour, never body numbers.</b
+        ><span class="muted"
+          >Logging any amount, cooking, training and PRs earn. Eating less never does.</span
+        >
+      </li>
+      <li>
+        <b>The week is the unit.</b><span class="muted">Rest days are part of the plan.</span>
+      </li>
+      <li>
+        <b>Forgiveness is free and automatic.</b
+        ><span class="muted">Pilot lights, pause, relight.</span>
+      </li>
+      <li>
+        <b>Never shame.</b
+        ><span class="muted"
+          >No sad mascot, no red, no "you lost". At most one reminder a day.</span
+        >
+      </li>
+      <li>
+        <b>Compare with your past self.</b
+        ><span class="muted">Social is opt-in, cooperative and effort-based.</span>
+      </li>
+      <li>
+        <b>User in control.</b
+        ><span class="muted"
+          >Choose your goal; celebrations Full / Subtle / Off; hide everything.</span
+        >
+      </li>
+      <li>
+        <b>Rewards explain themselves.</b
+        ><span class="muted">An itemised receipt: +25 cooked at home.</span>
+      </li>
+      <li>
+        <b>Cosmetic only, and free.</b
+        ><span class="muted">Levels never lock a feature, and gamification is never premium.</span>
+      </li>
+    </ol>
+    <div
+      class="loop"
+      role="img"
+      aria-label="Core loop: a real action earns XP, which fills chef rank and achievements; active days fill the weekly goal, which grows the Flame and earns pilot lights; daily, weekly and monthly challenges feed in; Sunday recap closes the week."
+    >
+      <svg viewBox="0 0 960 230">
+        <defs>
+          <marker
+            id="a"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto"
+          >
+            <path d="M0 0L10 5L0 10z" fill="var(--ink-3)" />
+          </marker>
+        </defs>
+        <rect class="node" x="10" y="80" width="170" height="64" rx="12" />
+        <text x="95" y="108" text-anchor="middle" font-weight="700">Do something real</text>
+        <text class="lab" x="95" y="128" text-anchor="middle">cook · log · train · plan</text>
+        <rect class="node2" x="250" y="12" width="180" height="60" rx="12" />
+        <text x="340" y="38" text-anchor="middle" font-weight="700">Chef XP</text>
+        <text class="lab" x="340" y="57" text-anchor="middle">itemised receipt</text>
+        <rect class="node2" x="500" y="12" width="200" height="60" rx="12" />
+        <text x="600" y="38" text-anchor="middle" font-weight="700">Chef rank + unlocks</text>
+        <text class="lab" x="600" y="57" text-anchor="middle">titles · themes · Biscuit</text>
+        <rect class="node2" x="760" y="12" width="190" height="60" rx="12" />
+        <text x="855" y="38" text-anchor="middle" font-weight="700">Achievements</text>
+        <text class="lab" x="855" y="57" text-anchor="middle">tiers · collections · secret</text>
+        <rect class="node2" x="250" y="152" width="180" height="60" rx="12" />
+        <text x="340" y="178" text-anchor="middle" font-weight="700">Active day</text>
+        <text class="lab" x="340" y="197" text-anchor="middle">any one real action</text>
+        <rect class="node2" x="500" y="152" width="200" height="60" rx="12" />
+        <text x="600" y="178" text-anchor="middle" font-weight="700">Weekly goal · 3 of 7</text>
+        <text class="lab" x="600" y="197" text-anchor="middle">Today's three · specials</text>
+        <rect class="node" x="760" y="152" width="190" height="60" rx="12" />
+        <text x="855" y="178" text-anchor="middle" font-weight="700">🔥 Flame +1 week</text>
+        <text class="lab" x="855" y="197" text-anchor="middle">pilot light every 4 weeks</text>
+        <path class="arr" d="M180 100 C215 100 215 42 248 42" marker-end="url(#a)" />
+        <path class="arr" d="M180 124 C215 124 215 182 248 182" marker-end="url(#a)" />
+        <path class="arr" d="M430 42 H498" marker-end="url(#a)" />
+        <path class="arr" d="M700 42 H758" marker-end="url(#a)" />
+        <path class="arr" d="M430 182 H498" marker-end="url(#a)" />
+        <path class="arr" d="M700 182 H758" marker-end="url(#a)" />
+        <text class="lab" x="855" y="118" text-anchor="middle">Sunday recap closes the week ↺</text>
+      </svg>
+    </div>
+  </section>
+
+  <section class="block" id="ideas">
+    <div>
+      <div class="eyebrow">Two sentences each</div>
+      <h2>59 ideas</h2>
+    </div>
+    <p class="muted">
+      P1 = first release · P2 = next · P3 = later, mostly social. The chips link to the mockup that
+      shows the idea.
+    </p>
+    <div class="filters" role="group" aria-label="Filter by phase">
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+      <button type="button" data-f="P1" aria-pressed="false">P1 · first release</button>
+      <button type="button" data-f="P2" aria-pressed="false">P2 · next</button>
+      <button type="button" data-f="P3" aria-pressed="false">P3 · later</button>
+    </div>
+    <div class="group">
+      <h3>The core loop <span class="count">7</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">01</span><span class="name">Chef XP</span><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Every meaningful action earns a few XP: logging, cooking, training, planning, shopping.
+            XP shows progress; you can't spend it or buy it.
+          </p>
+          <div class="refs"><a href="#m01">screen 01</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">02</span><span class="name">Chef ranks</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Levels carry kitchen-brigade titles, from Kitchen Porter to Executive Chef, so a level
+            means something. Food and gym fill the same bar, giving one level for the whole app.
+          </p>
+          <div class="refs"><a href="#m04">screen 04</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">03</span><span class="name">Level-up moment</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            A full-screen celebration with the new title and what it unlocked. It shows once, can be
+            skipped, and can be shared.
+          </p>
+          <div class="refs"><a href="#m04">screen 04</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">04</span><span class="name">Kitchen receipt</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Every reward lists why it was earned ("+25 cooked at home, +10 first time"). Feedback
+            that explains itself keeps motivation intrinsic.
+          </p>
+          <div class="refs"><a href="#m02">screen 02</a><a href="#m03">screen 03</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">05</span><span class="name">Daily soft cap</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Past about 150 XP a day, actions still count but earn less. Logging 20 snacks shouldn't
+            beat cooking one dinner.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">06</span><span class="name">Endowed start</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Finishing onboarding drops you 20% into level 1 with a "Welcome to the kitchen" badge. A
+            pre-filled bar gets finished more often (34% vs 19%).
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">07</span><span class="name">Back-dated XP</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            On launch, existing users get XP and badges for the history they already have (workouts,
+            PRs, cooked meals). Day one then feels like a reward, not a reset.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Streaks &amp; consistency <span class="count">7</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">08</span><span class="name">The Flame (weekly streak)</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            It grows by one each week you reach your active-day goal (default 3 of 7, adjustable).
+            Rest days never break it.
+          </p>
+          <div class="refs"><a href="#m05">screen 05</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">09</span><span class="name">Active day = any real action</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Cooking, logging one meal or training makes the day active. A small qualifying action is
+            what made Duolingo's streak stick.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">10</span><span class="name">Pilot lights (freezes)</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            You earn one every 4 good weeks (max 2, or 3 from Chef de Partie), and it's used
+            automatically on a short week. This extends the gym "flex tokens" that already exist.
+          </p>
+          <div class="refs"><a href="#m05">screen 05</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">11</span><span class="name">Pause my flame</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Holiday or illness mode freezes the streak for up to 4 weeks. It works like Apple's ring
+            pause in watchOS 11.
+          </p>
+          <div class="refs"><a href="#m12">screen 12</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">12</span><span class="name">Relight</span><span class="tag P2">P2</span>
+          </div>
+          <p>
+            If the flame goes out, one extra active day within 7 days brings it back. After that you
+            see "Best: 9 weeks" and a fresh start, never a loss.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">13</span><span class="name">Gym streak becomes a sub-flame</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            The existing weekly training-goal streak stays as it is and feeds the main Flame.
+            Nothing users already have is taken away.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">14</span><span class="name">Flame milestones</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Badges at 4, 8, 12, 26 and 52 weeks; the crown at a year. Each milestone gets a tier-3
+            celebration.
+          </p>
+          <div class="refs"><a href="#m05">screen 05</a></div>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Daily &amp; weekly goals <span class="count">5</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">15</span><span class="name">Today's three</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Three personalised mini-quests a day, taken from your plan: log breakfast, cook dinner,
+            hit protein. Finishing all three gives a bonus.
+          </p>
+          <div class="refs"><a href="#m01">screen 01</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">16</span><span class="name">Chef's tip jar</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Finishing Today's three opens a small surprise: bonus XP, a Biscuit outfit, a pilot
+            light or a chef's tip. A variable reward, and only ever cosmetic.
+          </p>
+          <div class="refs"><a href="#m01">screen 01</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">17</span><span class="name">Weekly specials</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Three challenges each week (try a new recipe, green week, leg-day hero), and any two
+            count. Having the choice keeps it light.
+          </p>
+          <div class="refs"><a href="#m08">screen 08</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">18</span><span class="name">Monday fresh start</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Challenges and boards reset on Monday with a "new week" card. This uses the fresh-start
+            effect instead of dwelling on last week.
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">19</span><span class="name">Commit to your week</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            An opt-in Sunday pledge such as "I'll cook 4 dinners", for bonus XP if you do it.
+            Duolingo's version raised D7 by 14%; ours costs nothing if you miss.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Cooking <span class="count">8</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">20</span><span class="name">Cooked-at-home bonus</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Finishing cook mode is the biggest food reward. It needs a server record of the cook;
+            today that is only an analytics event.
+          </p>
+          <div class="refs"><a href="#m02">screen 02</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">21</span><span class="name">First-time bonus</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>Cooking a recipe you've never made earns extra. It quietly pushes variety.</p>
+          <div class="refs"><a href="#m02">screen 02</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">22</span><span class="name">Signature dish</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Cook a recipe 3, 5 and 10 times for bronze, silver and gold stars on its card. Your
+            repeat favourites become "yours".
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">23</span><span class="name">Passport stamps</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Each new cuisine stamps your passport, and 5, 10 or 20 cuisines earn a badge. The chef
+            suggests a recipe from a cuisine you haven't tried yet.
+          </p>
+          <div class="refs"><a href="#m07">screen 07</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">24</span><span class="name">Plate gallery</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            A plate photo after cooking (+5) goes on your personal "My kitchen" wall. Later it feeds
+            the "on this day" memories.
+          </p>
+          <div class="refs"><a href="#m02">screen 02</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">25</span><span class="name">Money saved vs takeout</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Each home-cooked meal estimates what you saved compared with delivery, and recaps show
+            the running total. A concrete win that has nothing to do with your body.
+          </p>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">26</span><span class="name">Seasonal bingo</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            A monthly 3×3 card of seasonal ingredients, with a badge for a full line. It makes the
+            shopping list a game.
+          </p>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">27</span><span class="name">Pantry hero</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            Cooking with pantry items or leftovers earns "zero waste" XP. That rewards planning, not
+            appetite.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Eating &amp; logging <span class="count">3</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">28</span><span class="name">Honest logging</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Logging always earns the same XP, including on days over target. The app never rewards
+            eating less.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">29</span><span class="name">Full day logged</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Logging every planned meal gives a small bonus on top of the existing "day complete"
+            confetti. It is consistency, not perfection.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">30</span><span class="name">Good-food goals</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Protein reached, or a full serving of veg, count as positive behaviours. There is never
+            an "under calories" reward.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Gym <span class="count">5</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">31</span><span class="name">Live PR banner</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            The moment you tick a set that beats your best, a banner fires mid-workout; the summary
+            then celebrates it in full (📱03). It builds on the existing
+            <span class="mono">detectPrs</span>.
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">32</span><span class="name">PR wall</span><span class="tag P2">P2</span>
+          </div>
+          <p>
+            A per-lift timeline of PRs with the climb chart. It shows "you, 8 weeks ago" next to
+            "you, today".
+          </p>
+          <div class="refs"><a href="#m03">screen 03</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">33</span><span class="name">Plate milestones</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Badges for gym-culture firsts: the 1-plate bench (60 kg), the 2-plate squat (100 kg),
+            benching your bodyweight. They're relative to lifting history, never to body weight
+            goals.
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">34</span><span class="name">Fun equivalents</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            "This week you lifted 12,400 kg — about two elephants." Volume becomes a smile instead
+            of a spreadsheet.
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">35</span><span class="name">Recovery counts</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Planned rest days show as "recovered ☾" rather than empty, as Fitbod does. Rest is
+            progress.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Planning &amp; shopping <span class="count">2</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">36</span><span class="name">Prepped</span><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Approving next week's plan by Sunday gives a "Prepped" reward. It rewards the habit that
+            makes the rest of the week easy.
+          </p>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">37</span><span class="name">Clean sweep</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Checking the last shopping item, which already fires confetti, now also earns XP.
+            Errands count too.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Achievements &amp; collections <span class="count">6</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">38</span><span class="name">Tiered achievements</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Most badges have I, II and III tiers, so there is always a next step. About 60 at
+            launch, across Kitchen, Table, Gym, Plan and Crew.
+          </p>
+          <div class="refs"><a href="#m06">screen 06</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">39</span><span class="name">Closest next</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            The achievements screen opens with the badge you're closest to. Goal-gradient: people
+            speed up near the finish.
+          </p>
+          <div class="refs"><a href="#m06">screen 06</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">40</span><span class="name">Secret achievements</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Hidden surprises: cooking on your birthday, three PRs in one session, a 7 am workout.
+            Discovery is fun.
+          </p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">41</span><span class="name">Limited monthly badges</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Event badges such as "Soup Season '26" can only be earned that month. Collectors come
+            back for them.
+          </p>
+          <div class="refs"><a href="#m08">screen 08</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">42</span><span class="name">Showcase</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>Pin your three favourite badges to your chef card. It turns progress into identity.</p>
+          <div class="refs"><a href="#m09">screen 09</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">43</span><span class="name">Rarity line</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>"Earned by 8% of Chefer cooks." A little pride, with no ranking.</p>
+          <div class="refs"><a href="#m07">screen 07</a></div>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Companion &amp; cosmetics <span class="count">2</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">44</span><span class="name">Biscuit cameo</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Biscuit, the corgi already in <span class="mono">@chefer/ui-mobile</span>, adds one
+            short line to big celebrations and the weekly recap. A wardrobe from level unlocks comes
+            in P2, only if the dogfood shows people like him. He's never sad and never guilt-trips.
+            He can be turned off, since avatars score low with nutrition-app users.
+          </p>
+          <div class="refs"><a href="#m02">screen 02</a><a href="#m10">screen 10</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">45</span><span class="name">Cosmetic unlocks</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Levels unlock accent themes, app icons, profile frames and Biscuit outfits. Nothing
+            functional is ever locked.
+          </p>
+          <div class="refs"><a href="#m04">screen 04</a></div>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Social (opt-in, cooperative first) <span class="count">6</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">46</span><span class="name">Cheers</span><span class="tag P2">P2</span>
+          </div>
+          <p>
+            A one-tap 👏 on a friend's PR, cooked dish or badge in Following. It's the cheapest kind
+            of warmth.
+          </p>
+          <div class="refs"><a href="#m11">screen 11</a></div>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">47</span><span class="name">Duo flame</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            A shared weekly flame with one friend or a household member; it grows when you both
+            reach your goals. There's no blame for who broke it.
+          </p>
+          <div class="refs"><a href="#m11">screen 11</a></div>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">48</span><span class="name">Crew challenges</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            A small group works toward one goal, such as "cook 15 home meals together". Cooperation,
+            not competition.
+          </p>
+          <div class="refs"><a href="#m08">screen 08</a></div>
+        </article>
+        <article class="idea" data-p="Parked">
+          <div class="top">
+            <span class="n">49</span><span class="name">Weekly crew board</span
+            ><span class="tag Parked">Parked</span>
+          </div>
+          <p>
+            Opt-in and friends only, ranked by effort XP. It resets weekly and nobody gets demoted.
+            Parked by the owner on 2026-10-22; revisit after P3.
+          </p>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">50</span><span class="name">Household co-op</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            A meal cooked for the household counts for everyone who ate it, plus a "family dinner"
+            bonus. It plugs into the existing Household feature.
+          </p>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">51</span><span class="name">Trainer kudos &amp; challenges</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>
+            Trainers see a client's flame and can send kudos or set a weekly challenge. It gives
+            coaching mode a warm, low-effort touchpoint.
+          </p>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Recaps &amp; memories <span class="count">4</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">52</span><span class="name">Weekly recap story</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Sunday "unwrap your week" story cards: meals cooked, workouts, PRs, dish of the week,
+            flame and XP. They reuse the existing weekly-review data.
+          </p>
+          <div class="refs"><a href="#m10">screen 10</a></div>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">53</span><span class="name">Monthly recap + Chefer Wrapped</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            A monthly card, then a December "Wrapped" covering dishes, cuisines, PRs and money
+            saved. No weight or calorie totals by default.
+          </p>
+        </article>
+        <article class="idea" data-p="P3">
+          <div class="top">
+            <span class="n">54</span><span class="name">On this day</span
+            ><span class="tag P3">P3</span>
+          </div>
+          <p>"A year ago you cooked your first tagine." The plate gallery becomes nostalgia.</p>
+        </article>
+        <article class="idea" data-p="P2">
+          <div class="top">
+            <span class="n">55</span><span class="name">Share cards</span
+            ><span class="tag P2">P2</span>
+          </div>
+          <p>
+            Branded PR, dish, badge and level cards for Instagram stories. Organic growth for free.
+          </p>
+          <div class="refs"><a href="#m03">screen 03</a><a href="#m07">screen 07</a></div>
+        </article>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Controls &amp; safety <span class="count">4</span></h3>
+      <div class="ideas">
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">56</span><span class="name">Celebration level</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            Full party, Subtle or Off; Off still records everything. Respects reduced motion (MO-07
+            already does).
+          </p>
+          <div class="refs"><a href="#m12">screen 12</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">57</span><span class="name">Hide it all</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            One toggle hides XP, levels and the flame strip, as Headspace lets you hide the streak.
+            It works together with the existing "protein-only" numbers mode.
+          </p>
+          <div class="refs"><a href="#m12">screen 12</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">58</span><span class="name">Gentle reminders</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            At most one a day, only if you haven't opened Chefer, with automatic back-off after 3
+            ignored reminders. Copy is invitational and lint-checked against guilt words.
+          </p>
+          <div class="refs"><a href="#m13">screen 13</a></div>
+        </article>
+        <article class="idea" data-p="P1">
+          <div class="top">
+            <span class="n">59</span><span class="name">No-restriction rule</span
+            ><span class="tag P1">P1</span>
+          </div>
+          <p>
+            No XP, badge or challenge may scale with eating less or weighing less, and this is
+            enforced in code review and tests. If logs show very low intake for days, food rewards
+            go quiet and the app shows support info instead.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="mockups">
+    <div>
+      <div class="eyebrow">Revamp shell · real Chefer tokens</div>
+      <h2>Mockups</h2>
+    </div>
+    <div class="phones">
+      <figure id="m01">
+        <img
+          src="screenshots/01-today.png"
+          alt="Mockup 01: Today"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">01</span><b>Today</b>Progress strip (level, flame, week) and Today's
+          three, with XP hints on the meal buttons.
+        </figcaption>
+      </figure>
+      <figure id="m02">
+        <img
+          src="screenshots/02-cook-finished.png"
+          alt="Mockup 02: Cook finished"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">02</span><b>Cook finished</b>"You made it!", Biscuit's line, the
+          kitchen receipt and the next achievement.
+        </figcaption>
+      </figure>
+      <figure id="m03">
+        <img
+          src="screenshots/03-workout-pr.png"
+          alt="Mockup 03: Workout PR"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">03</span><b>Workout PR</b>A full PR moment, the 8-week climb, the
+          receipt and the week streak.
+        </figcaption>
+      </figure>
+      <figure id="m04">
+        <img
+          src="screenshots/04-level-up.png"
+          alt="Mockup 04: Level up"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">04</span><b>Level up</b>New chef rank and what it unlocks. Cosmetic
+          only.
+        </figcaption>
+      </figure>
+      <figure id="m05">
+        <img
+          src="screenshots/05-streak.png"
+          alt="Mockup 05: Flame sheet"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">05</span><b>Flame sheet</b>Weekly active-day goal, rest days, pilot
+          lights and milestones.
+        </figcaption>
+      </figure>
+      <figure id="m06">
+        <img
+          src="screenshots/06-achievements.png"
+          alt="Mockup 06: Achievements"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">06</span><b>Achievements</b>Trophy shelf by category, with tiers and
+          the closest next badge on top.
+        </figcaption>
+      </figure>
+      <figure id="m07">
+        <img
+          src="screenshots/07-achievement-unlocked.png"
+          alt="Mockup 07: Achievement unlocked"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">07</span><b>Achievement unlocked</b>Passport stamps, the next tier, a
+          chef suggestion and rarity.
+        </figcaption>
+      </figure>
+      <figure id="m08">
+        <img
+          src="screenshots/08-challenges.png"
+          alt="Mockup 08: Challenges"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">08</span><b>Challenges</b>Monthly event with a limited badge, plus
+          weekly specials (pick 2 of 3).
+        </figcaption>
+      </figure>
+      <figure id="m09">
+        <img
+          src="screenshots/09-you-profile.png"
+          alt="Mockup 09: You · chef card"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">09</span><b>You · chef card</b>Rank, XP, showcase badges and lifetime
+          stats.
+        </figcaption>
+      </figure>
+      <figure id="m10">
+        <img
+          src="screenshots/10-weekly-recap.png"
+          alt="Mockup 10: Weekly recap"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">10</span><b>Weekly recap</b>Sunday story card: cooked, trained, PRs,
+          dish of the week.
+        </figcaption>
+      </figure>
+      <figure id="m11">
+        <img
+          src="screenshots/11-kitchen-crew.png"
+          alt="Mockup 11: Kitchen crew"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">11</span><b>Kitchen crew</b>Duo flame, cheers and a cooperative crew
+          challenge. No leaderboard.
+        </figcaption>
+      </figure>
+      <figure id="m12">
+        <img
+          src="screenshots/12-settings.png"
+          alt="Mockup 12: Rewards &amp; motivation"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">12</span><b>Rewards &amp; motivation</b>Celebration level, a 3-day
+          goal, Biscuit, pause, and one gentle reminder.
+        </figcaption>
+      </figure>
+      <figure id="m13">
+        <img
+          src="screenshots/13-notifications.png"
+          alt="Mockup 13: Notifications"
+          loading="lazy"
+          width="390"
+          height="844"
+        />
+        <figcaption>
+          <span class="mono">13</span><b>Notifications</b>Invitational copy, never guilt. At most
+          one a day.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="block" id="numbers">
+    <div>
+      <div class="eyebrow">Starting values, to tune after a 2-week dogfood</div>
+      <h2>XP, ranks and badges</h2>
+    </div>
+    <div class="two">
+      <div class="panel xp">
+        <h3>XP table</h3>
+        <div class="tablewrap" style="border: 0">
+          <table>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>XP</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Log a meal</td>
+                <td>5</td>
+                <td>Up to 5 a day, whatever the numbers</td>
+              </tr>
+              <tr>
+                <td>"I ate this" (planned meal)</td>
+                <td>10</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>Cook in cook mode</td>
+                <td>25</td>
+                <td>+10 first time, +5 plate photo</td>
+              </tr>
+              <tr>
+                <td>Full day logged</td>
+                <td>15</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>Protein reached / veg serving</td>
+                <td>10</td>
+                <td>Behaviours, never kcal limits</td>
+              </tr>
+              <tr>
+                <td>Finish a workout</td>
+                <td>40</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>PR (e1RM / weight / reps)</td>
+                <td>20/15/10</td>
+                <td>Up to 3 a session</td>
+              </tr>
+              <tr>
+                <td>Today's three, all done</td>
+                <td>+40</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>Weekly special</td>
+                <td>60</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>Weekly goal met</td>
+                <td>50</td>
+                <td>Grows the Flame</td>
+              </tr>
+              <tr>
+                <td>Daily soft cap</td>
+                <td>~150</td>
+                <td>Rewards halve above it</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="font-size: 15px">
+          A typical engaged week earns ≈600 XP. Going from level <i>n</i> to <i>n</i>+1 takes
+          <span class="mono">80 + 60·n</span> XP, so level 8 comes in about a month and level 20 in
+          about 5 months.
+        </p>
+      </div>
+      <div class="panel">
+        <h3>Chef ranks</h3>
+        <ul>
+          <li><b>Lv 1</b> Kitchen Porter · <b>3</b> Commis · <b>5</b> Line Cook</li>
+          <li><b>8</b> Chef de Partie · <b>12</b> Sous Chef · <b>16</b> Head Chef</li>
+          <li><b>20</b> Executive Chef · <b>25</b> Iron Chef · <b>30</b> Three-Star</li>
+        </ul>
+        <h3>Starter achievements</h3>
+        <ul>
+          <li>
+            <b>Kitchen:</b> Home Chef I–III, Passport Plate I–III, Ocean's Eleven, Eggcellent, Bake
+            Off, Food Paparazzi, Signature Dish
+          </li>
+          <li><b>Table:</b> Honest Logger, Green Week, Protein Pro, Full Day ×10</li>
+          <li>
+            <b>Gym:</b> PR Machine I–III, Iron Weeks, Never Skip Legs, 1-Plate Club, 2-Plate Club,
+            Bodyweight Bench, Early Bird
+          </li>
+          <li><b>Plan:</b> Prepped ×4, Clean Sweep, Zero Waste</li>
+          <li><b>Crew:</b> First Cheer, Duo Flame, Crew Challenge</li>
+          <li><b>Secret:</b> Birthday Chef, Hat-trick (3 PRs in a session), Midnight Honesty</li>
+        </ul>
+      </div>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <h3>Already in the codebase</h3>
+        <ul>
+          <li>
+            Weekly training streak + flex tokens (<span class="mono">gym/weeks.ts</span>). The Flame
+            generalises it.
+          </li>
+          <li>PR detection (<span class="mono">detectPrs</span>) and the monthly gym recap</li>
+          <li>
+            Tier-3 confetti (MO-07) already fires on day complete, shop done, PR and cook finished
+          </li>
+          <li>Biscuit the corgi component, with a confetti loop</li>
+          <li>Shame-free copy lint (bans "missed", "0-week streak")</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Gaps to close</h3>
+        <ul>
+          <li>A finished cook isn't stored on the server; today it is only an analytics event</li>
+          <li>
+            No generic event log → add an append-only <span class="mono">ProgressEvent</span> ledger
+            with idempotency keys
+          </li>
+          <li>
+            Shared rules as pure functions in <span class="mono">@chefer/utils</span>; new
+            <span class="mono">progress.*</span> procedures are additive, so shipped binaries are
+            safe
+          </li>
+          <li>
+            New <span class="mono">gamification</span> feature flag; web shows the same strip and
+            badges (parity rule)
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="rollout">
+    <div>
+      <div class="eyebrow">Ship the low-risk core first</div>
+      <h2>Rollout</h2>
+    </div>
+    <div class="phase">
+      <span class="lbl" style="color: var(--p1)">P1 · Core</span>
+      <div>
+        <b>≈2–3 weeks.</b> XP, ranks, level-up, receipts, the Flame, pilot lights, pause, Today's
+        three, cook and PR rewards, honest logging, 25 tiered achievements, back-dated XP, Biscuit
+        cameo, weekly recap, controls.
+        <span class="muted"
+          >Progress bars and goals are what nutrition users value most, and they carry the least
+          risk.</span
+        >
+      </div>
+    </div>
+    <div class="phase">
+      <span class="lbl" style="color: var(--p2)">P2 · Delight</span>
+      <div>
+        Tip jar, weekly specials, monthly events, relight, signature dish, passport, PR wall,
+        Biscuit wardrobe (only if the dogfood says yes), cosmetics, cheers, share cards, Chefer
+        Wrapped.
+      </div>
+    </div>
+    <div class="phase">
+      <span class="lbl" style="color: var(--p3)">P3 · Together</span>
+      <div>
+        Duo flame, crew challenges, household co-op, trainer kudos, seasonal bingo, on this day.
+        <span class="muted">Social carries the most risk, so it waits for P1 data.</span>
+      </div>
+    </div>
+    <p class="muted">
+      <b>Measure:</b> D7/D30 retention, goal-met weeks per user, cook-mode completions, the share of
+      users who turn celebrations off (a pressure signal), and reminder opt-outs.
+    </p>
+  </section>
+
+  <section class="block" id="decisions">
+    <div>
+      <div class="eyebrow">Answered 22 Oct 2026</div>
+      <h2>Your decisions</h2>
+    </div>
+    <ol class="decisions">
+      <li><b>Main streak:</b> the weekly Flame. <span class="rec">decided</span></li>
+      <li><b>Default goal:</b> 3 active days of 7, adjustable. <span class="rec">decided</span></li>
+      <li>
+        <b>Names:</b> keep Chef XP, Chef ranks, Flame, Pilot lights, Today's three.
+        <span class="rec">decided</span>
+      </li>
+      <li>
+        <b>Biscuit:</b> a light cameo in P1, with one line on big celebrations and the recap, and an
+        off switch. The wardrobe comes in P2 only if the dogfood shows people like him.
+        <span class="rec">our call</span>
+      </li>
+      <li>
+        <b>Leaderboard:</b> not now. The crew board is parked, and social stays cooperative.
+        <span class="rec">decided</span>
+      </li>
+      <li><b>Price:</b> free for everyone. <span class="rec">decided</span></li>
+      <li><b>Back-date XP</b> for existing users at launch. <span class="rec">decided</span></li>
+      <li>
+        <b>Platforms:</b> web ships in the same release as mobile. <span class="rec">decided</span>
+      </li>
+    </ol>
+  </section>
+
+  <section class="block" id="sources">
+    <div>
+      <div class="eyebrow">Company numbers are self-reported and mostly observational</div>
+      <h2>Sources</h2>
+    </div>
+    <div class="sources">
+      <a href="https://blog.duolingo.com/improving-the-streak"
+        >Duolingo: Improving the streak (2.4×, +3.3% D14)</a
+      >
+      <a
+        href="https://blog.duolingo.com/how-streaks-keep-duolingo-learners-committed-to-their-language-goals"
+        >Duolingo: Streak Wager +14% D7, Weekend Amulet</a
+      >
+      <a href="https://blog.duolingo.com/product-lessons-friend-streak/"
+        >Duolingo: Friend streak +22%</a
+      >
+      <a href="https://www.lennysnewsletter.com/p/how-duolingo-reignited-user-growth"
+        >Lenny's Newsletter: Duolingo growth, leagues</a
+      >
+      <a href="https://www.lennysnewsletter.com/p/behind-the-product-duolingo-streaks"
+        >Lenny's Newsletter: Behind Duolingo streaks</a
+      >
+      <a
+        href="https://9to5mac.com/2024/07/16/close-your-ringsbut-in-watchos-11-its-okay-if-you-dont/"
+        >watchOS 11 ring pause</a
+      >
+      <a href="https://support.strava.com/hc/en-us/articles/36553427481997-Streaks-on-Strava"
+        >Strava: Weekly streaks</a
+      >
+      <a href="https://help.hevyapp.com/hc/en-us/articles/36012016405655">Hevy: Live PR</a>
+      <a href="https://help.fitbod.me/hc/en-us/articles/360006269014-Muscle-Recovery"
+        >Fitbod: Muscle recovery</a
+      >
+      <a
+        href="https://www.musicbusinessworldwide.com/spotify-wrapped-campaign-hit-200m-engaged-users-in-24-hours-a-19-yoy-increase"
+        >Spotify Wrapped 2025</a
+      >
+      <a
+        href="https://support.khanacademy.org/hc/da/community/posts/360075847492/comments/360014049232"
+        >Khan Academy: Removing streaks</a
+      >
+      <a
+        href="https://www.colorado.edu/business/faculty-research/2023/04/19/or-track-how-broken-streaks-affect-consumer-decisions"
+        >Silverman & Barasch 2023: Broken streaks</a
+      >
+      <a href="https://anderson-review.ucla.edu/emergency-reserves/"
+        >Sharif & Shu: Emergency reserves</a
+      >
+      <a href="https://www.ucl.ac.uk/news/2009/aug/how-long-does-it-take-form-habit"
+        >Lally et al.: Habit formation</a
+      >
+      <a href="https://pubsonline.informs.org/doi/fpi/10.1287/mnsc.2014.1901"
+        >Dai, Milkman & Riis: Fresh start effect</a
+      >
+      <a href="https://business.columbia.edu/sites/default/files-efs/pubfiles/1200/goalgradient.pdf"
+        >Kivetz et al.: Goal-gradient</a
+      >
+      <a href="https://coglode.com/nuggets/endowed-progress-effect"
+        >Nunes & Drèze: Endowed progress</a
+      >
+      <a
+        href="https://depts.washington.edu/techdocs/papers/deciExtrinsicRewardsAndIntrinsicMotivation99.pdf"
+        >Deci, Koestner & Ryan 1999: Overjustification</a
+      >
+      <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11168059/"
+        >Berger & Jung 2024: Nutrition-app gamification preferences</a
+      >
+      <a href="https://arxiv.org/abs/1610.02085">Althoff et al.: Pokémon Go activity</a>
+      <a href="https://pubmed.ncbi.nlm.nih.gov/28843591/"
+        >Levinson et al. 2017: MyFitnessPal and EDs</a
+      >
+      <a
+        href="https://www.cambridge.org/core/journals/bjpsych-open/article/effects-of-diet-and-fitness-apps-on-eating-disorder-behaviours-qualitative-study/2D1EE739D97AB3EFC6573835E4C527BD"
+        >Eikey 2021: Diet apps and ED behaviours</a
+      >
+      <a href="https://psychiatry.duke.edu/blog/trouble-tracking"
+        >Simpson & Mazzeo 2017: Tracking and ED symptoms</a
+      >
+      <a href="https://pubmed.ncbi.nlm.nih.gov/21185970/">Burke et al. 2011: Self-monitoring</a>
+    </div>
+  </section>
+</main>
+<footer class="wrap">
+  Draft for owner review. Repo copy: <span class="mono">docs/gamification-2026-10/</span> (README,
+  HTML mockups, PNG screenshots). Nothing is built yet.
+</footer>
+
+<script>
+  (function () {
+    const btns = document.querySelectorAll('.filters button');
+    btns.forEach((b) =>
+      b.addEventListener('click', () => {
+        const f = b.dataset.f;
+        btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        document.querySelectorAll('.idea').forEach((i) => {
+          i.hidden = f !== 'all' && i.dataset.p !== f;
+        });
+        document.querySelectorAll('.group').forEach((g) => {
+          g.hidden = !g.querySelector('.idea:not([hidden])');
+        });
+      }),
+    );
+  })();
+</script>

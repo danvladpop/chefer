@@ -35,6 +35,7 @@ export function FriendWeekView({
   showTargets,
   testID = 'friends-week',
 }: FriendWeekViewProps) {
+  const colors = useThemeColors();
   const { t } = useT();
   const week = trpc.friends.week.useQuery({ userId }, { retry: false });
   const [selected, setSelected] = useState<number | null>(null);
@@ -57,7 +58,7 @@ export function FriendWeekView({
     return (
       <EmptyState
         testID={`${testID}-no-plan`}
-        icon={<Ionicons name="calendar-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="calendar-outline" size={40} color={colors.labelTertiary} />}
         title={t('friends.food.noPlan', { first: firstName })}
       />
     );
@@ -70,7 +71,7 @@ export function FriendWeekView({
   return (
     <View testID={testID} className="gap-3">
       <View className="flex-row flex-wrap items-baseline justify-between gap-x-3">
-        <Text testID={`${testID}-week-of`} className="font-semibold text-gray-900">
+        <Text testID={`${testID}-week-of`} className="font-semibold text-label">
           {t('friends.food.weekOf', { dMMM: formatDayMonth(data.weekStartDate, t) })}
         </Text>
         {data.averageKcal !== null ? (
@@ -100,11 +101,11 @@ export function FriendWeekView({
       )}
 
       {dayData && meals.length > 0 ? (
-        <View testID={`${testID}-totals`} className="gap-1 rounded-xl bg-gray-50 px-3 py-2">
-          <Text className="text-sm font-bold text-gray-900">
+        <View testID={`${testID}-totals`} className="gap-1 rounded-xl bg-surface-sunken px-3 py-2">
+          <Text className="text-sm font-bold text-label">
             {t('friends.food.dayTotal', { kcal: dayData.totals.kcal })}
           </Text>
-          <Text className="text-xs text-gray-600">{macroLine(dayData.totals, t)}</Text>
+          <Text className="text-xs text-label-secondary">{macroLine(dayData.totals, t)}</Text>
           {showTargets && data.targets ? (
             <Text testID={`${testID}-target`} variant="muted" className="text-xs">
               {t('friends.food.target', { kcal: data.targets.kcal, p: data.targets.protein })}
@@ -168,20 +169,20 @@ export function FriendMealCard({
           })}
       badges={
         meal.leftoverOf ? (
-          <View className="rounded-full bg-gray-100 px-2 py-0.5">
-            <Text className="text-xs text-gray-600">
+          <View className="rounded-full bg-surface-sunken px-2 py-0.5">
+            <Text className="text-xs text-label-secondary">
               {t('friends.food.leftoversFrom', { day: meal.leftoverOf })}
             </Text>
           </View>
         ) : null
       }
       meta={
-        <Text testID={`${testID}-macros`} className="text-xs text-gray-600">
+        <Text testID={`${testID}-macros`} className="text-xs text-label-secondary">
           {macros}
         </Text>
       }
     >
-      <Text testID={`${testID}-portion`} className="text-xs text-gray-500">
+      <Text testID={`${testID}-portion`} className="text-xs text-label-tertiary">
         {t('friends.food.portion', { count: meal.portion })}
       </Text>
     </MealCardView>
@@ -221,7 +222,7 @@ function WeekDayChips({
             onPress={() => onSelect(i)}
             className={cn(
               'h-14 w-11 items-center justify-center rounded-xl',
-              isSelected ? 'bg-primary' : 'bg-gray-50',
+              isSelected ? 'bg-primary' : 'bg-surface-sunken',
               isToday && !isSelected && 'border-2 border-primary',
               !hasMeals && !isSelected && 'opacity-50',
             )}
@@ -232,7 +233,7 @@ function WeekDayChips({
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
                 'text-xs font-semibold uppercase',
-                isSelected ? 'text-primary-foreground' : 'text-gray-700',
+                isSelected ? 'text-primary-foreground' : 'text-label-secondary',
               )}
             >
               {label}

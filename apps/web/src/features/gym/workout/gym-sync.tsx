@@ -52,6 +52,11 @@ export function GymSync() {
         // UX-44: a deleted session's tombstone is hard-deleted once the server has acked it.
         markHardDeletesAcked(ids);
         void utils.gym.bootstrap.invalidate();
+        // Kitchen progress: the server scored the synced workout — refresh the
+        // summary, the inbox and the receipt on the summary page.
+        void utils.progress.summary.invalidate();
+        void utils.progress.inbox.invalidate();
+        void utils.progress.receiptFor.invalidate();
         void processPendingHardDeletes(hardDelete);
       },
       onStale: (ids) => {

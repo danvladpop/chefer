@@ -69,6 +69,8 @@ vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/analytics-events', () => ({ trackMealLogged: vi.fn() }));
+// Kitchen progress has its own tests; Today only mounts it.
+vi.mock('@/features/progress/progress-today', () => ({ ProgressToday: () => null }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({

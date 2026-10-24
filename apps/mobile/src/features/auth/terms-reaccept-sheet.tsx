@@ -85,7 +85,7 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
       title={t('auth.reaccept.title')}
     >
       <View className="gap-3">
-        <Text className="text-sm text-gray-700">
+        <Text className="text-sm text-label-secondary">
           {rich(t, 'auth.reaccept.body', {
             terms: (
               <Text

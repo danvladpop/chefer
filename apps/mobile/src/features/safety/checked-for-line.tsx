@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SafetyChecks } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cantCheckLine,
   checkedForLineText,
@@ -24,6 +24,7 @@ export interface CheckedForLineProps {
 }
 
 export function CheckedForLine({ checks, onPress, testID }: CheckedForLineProps) {
+  const colors = useThemeColors();
   const { unchecked } = checks;
   // UX-REC-01: a pass that rests on the recipe's tag alone is "Tagged … (not
   // verified)", never "Checked".
@@ -42,7 +43,7 @@ export function CheckedForLine({ checks, onPress, testID }: CheckedForLineProps)
           <Ionicons
             name="shield-checkmark-outline"
             size={16}
-            color="#8a7560"
+            color={colors.labelTertiary}
             accessible={false}
             style={{ marginTop: 1 }}
           />
@@ -55,13 +56,13 @@ export function CheckedForLine({ checks, onPress, testID }: CheckedForLineProps)
         <Text
           testID={testID ? `${testID}-tagged-only` : undefined}
           variant="muted"
-          className={cn('text-xs text-amber-700', mainLine ? 'pl-[22px]' : '')}
+          className={cn('text-xs text-attention', mainLine ? 'pl-[22px]' : '')}
         >
           {taggedOnlyLineText(taggedOnly)}
         </Text>
       ) : null}
       {unchecked.map((term) => (
-        <Text key={term} variant="muted" className="pl-[22px] text-xs text-amber-700">
+        <Text key={term} variant="muted" className="pl-[22px] text-xs text-attention">
           {cantCheckLine(term)}
         </Text>
       ))}

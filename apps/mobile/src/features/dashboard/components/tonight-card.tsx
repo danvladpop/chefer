@@ -129,7 +129,7 @@ export function TonightCard({
       <Card testID="tonight-card-done" className="gap-2 py-3">
         <View className="flex-row items-center gap-2.5">
           <Text className="text-base">✓</Text>
-          <Text className="min-w-0 flex-1 text-sm font-medium text-gray-800" numberOfLines={1}>
+          <Text className="min-w-0 flex-1 text-sm font-medium text-label" numberOfLines={1}>
             Dinner done · {meal.recipe.name}
           </Text>
           {canRate && !rateOpen && (
@@ -183,8 +183,8 @@ export function TonightCard({
               />
             )}
           </View>
-          <Text className="text-lg font-bold leading-snug text-gray-900">{meal.recipe.name}</Text>
-          <Text className="text-xs text-gray-500">
+          <Text className="text-lg font-bold leading-snug text-label">{meal.recipe.name}</Text>
+          <Text className="text-xs text-label-tertiary">
             {meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)} min · for{' '}
             {meal.recipe.servings}
             {showNutrition && !proteinOnly ? ` · ${meal.recipe.kcal} kcal` : ''}
@@ -232,7 +232,7 @@ export function TonightCard({
         </View>
       )}
       {logMutation.isError && (
-        <Text className="px-4 pb-3 text-xs text-red-600">
+        <Text className="px-4 pb-3 text-xs text-danger">
           Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </Text>
       )}
@@ -243,7 +243,7 @@ export function TonightCard({
 export function NothingTonightCard() {
   return (
     <Card testID="nothing-tonight-card">
-      <Text className="text-sm font-semibold text-gray-800">Nothing planned tonight</Text>
+      <Text className="text-sm font-semibold text-label">Nothing planned tonight</Text>
       <Text variant="muted" className="mt-0.5 text-xs">
         Pick something quick from your recipes
       </Text>

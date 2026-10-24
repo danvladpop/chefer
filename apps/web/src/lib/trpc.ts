@@ -1,6 +1,7 @@
 'use client';
 
 import { loginPathFor } from '@/features/coaching/lib/next-path';
+import { invalidateProgress, isProgressTrigger } from '@/features/progress/invalidation';
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
@@ -72,9 +73,14 @@ function handleUnauthorized(error: unknown): void {
 export function makeQueryClient(
   notifyMutationError: (message: string) => void = (message) => showAppToast({ message }),
 ): QueryClient {
-  return new QueryClient({
+  const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({ onError: handleUnauthorized }),
     mutationCache: new MutationCache({
+      // Kitchen progress: a log, a shopping tick or a finished cook can earn
+      // XP, so the summary and the inbox are refetched (tech-plan §6).
+      onSuccess: (_data, _variables, _context, mutation) => {
+        if (isProgressTrigger(mutation.options.mutationKey)) invalidateProgress(client);
+      },
       onError: (error, _variables, _context, mutation) => {
         handleUnauthorized(error);
         // R-10: the server refused an AI action for missing consent → the
@@ -110,4 +116,5 @@ export function makeQueryClient(
       },
     },
   });
+  return client;
 }

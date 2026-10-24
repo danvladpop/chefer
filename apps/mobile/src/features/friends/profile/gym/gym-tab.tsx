@@ -38,7 +38,7 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
     <View testID="friends-profile-gym" className="gap-4">
       <Text
         accessibilityRole="header"
-        className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+        className="text-xs font-semibold uppercase tracking-widest text-label-tertiary"
       >
         {t('friends.gym.routine')}
       </Text>
@@ -56,7 +56,7 @@ function GymContent({ userId, firstName }: { userId: string; firstName: string }
 
       <Text
         accessibilityRole="header"
-        className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+        className="text-xs font-semibold uppercase tracking-widest text-label-tertiary"
       >
         {t('friends.gym.lastSevenDays')}
       </Text>
