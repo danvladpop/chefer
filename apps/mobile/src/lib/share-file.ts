@@ -82,3 +82,27 @@ export async function shareExportFile(
   const result = await Share.share({ title: filename, message: contents });
   return result.action !== Share.dismissedAction;
 }
+
+/**
+ * Shares an image file already on the device (lane D4: a progress photo the
+ * user chose to export). iOS uses the share sheet; Android needs
+ * `expo-sharing`'s FileProvider, so on a binary without it this returns false
+ * and the caller says so.
+ */
+export async function shareImageFile(uri: string): Promise<boolean> {
+  try {
+    if (Platform.OS === 'ios') {
+      const result = await Share.share({ url: uri });
+      return result.action !== Share.dismissedAction;
+    }
+    if (Platform.OS === 'android' && canShareFiles()) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy native module, see above
+      const Sharing = require('expo-sharing') as SharingModule;
+      await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', UTI: 'public.jpeg' });
+      return true;
+    }
+  } catch {
+    // Reported to the caller as "couldn't share".
+  }
+  return false;
+}

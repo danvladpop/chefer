@@ -222,3 +222,7 @@ _Avoid_: full day, good day
 **Body measurement**:
 One day's entry of waist, hips, chest, upper arm, thigh and/or body fat, each optional; free for everyone.
 _Avoid_: body metrics (that is height, age, sex and activity on the profile), measurement (alone, in code)
+
+**Progress photo**:
+A body photo the user takes to compare over time. It lives only on their phone (ADR 0005), never on Chefer's servers.
+_Avoid_: body photo (in copy), selfie, upload

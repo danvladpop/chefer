@@ -14,7 +14,7 @@ import { trpc } from '@/lib/trpc';
 import { Download, LogOut, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet, Toast } from '@chefer/ui';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { PROGRESS_PHOTOS_COPY, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Your data ────────────────────────────────────────────────────────────────
 // Self-service export and account deletion (audit P0-6, F-PROF-1-1). The
@@ -61,6 +61,7 @@ export function AccountDataCard() {
       <p className="mb-4 text-sm text-gray-600">
         Download everything Chefer stores about you, or delete your account for good.
       </p>
+      <p className="-mt-3 mb-4 text-xs text-gray-500">{PROGRESS_PHOTOS_COPY.exportNote}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="outline" onClick={() => void downloadData()} disabled={exporting}>
           <Download aria-hidden="true" />
@@ -175,6 +176,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
             ))}
           </ul>
           <p className="text-xs text-gray-600">{COPY.backups}</p>
+          <p className="text-xs text-gray-600">{COPY.progressPhotos}</p>
         </div>
         {passwordless ? (
           <div className="space-y-2" data-testid="delete-account-reauth">
