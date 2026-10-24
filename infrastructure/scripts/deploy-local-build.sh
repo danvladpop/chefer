@@ -24,6 +24,14 @@ $COMPOSE build api
 echo "==> Building web image (slowest — expect 15-40 min on this VM)"
 $COMPOSE build web
 
+echo "==> Migrating the database"
+# Before anything is recreated, so a failed migration leaves the running
+# stack serving (same as deploy.sh).
+if ! $COMPOSE run --rm migrate; then
+  echo "ERROR: migration failed — api/web were NOT recreated; the previous build is still serving." >&2
+  exit 1
+fi
+
 echo "==> Starting containers"
 $COMPOSE up -d
 
