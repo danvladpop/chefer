@@ -99,10 +99,10 @@ export function EditRecipeEntrySheet({
       }
     >
       <View className="gap-1">
-        <Text numberOfLines={2} className="text-sm font-medium text-gray-800">
+        <Text numberOfLines={2} className="text-sm font-medium text-label">
           {entry.recipeName}
         </Text>
-        <Text className="text-xs text-gray-500">
+        <Text className="text-xs text-label-tertiary">
           {proteinOnly
             ? entry.protein === undefined
               ? 'Logged'
@@ -112,7 +112,7 @@ export function EditRecipeEntrySheet({
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Portion</Text>
+        <Text className="text-xs font-medium text-label-secondary">Portion</Text>
         <SegmentedControl
           size="sm"
           options={portionOptions}
@@ -124,7 +124,7 @@ export function EditRecipeEntrySheet({
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Meal</Text>
+        <Text className="text-xs font-medium text-label-secondary">Meal</Text>
         <SegmentedControl
           size="sm"
           options={MEAL_OPTIONS}

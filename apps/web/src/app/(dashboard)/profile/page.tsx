@@ -10,6 +10,7 @@ import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { HealthConsentCard } from '@/features/profile/components/HealthConsentCard';
 import { SignInMethodsCard } from '@/features/profile/components/SignInMethodsCard';
+import { ChefCard } from '@/features/progress/chef-card';
 import { TrainerToolsLink } from '@/features/trainer/components/TrainerToolsLink';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
@@ -188,6 +189,9 @@ export default function ProfilePage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Account</p>
         <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
       </div>
+
+      {/* Kitchen progress: level, rank, flame and the badge shelf (nothing while the flag is off). */}
+      <ChefCard name={displayName} />
 
       {/* F6/F7: the plan first — status for Premium, the way in for Free. */}
       <TierRow />

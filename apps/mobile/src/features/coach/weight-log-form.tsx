@@ -1,7 +1,7 @@
 import { useId, useRef } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NumericReturnBar, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { NumericReturnBar, Text, useScrollFieldIntoView, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useWeightLog } from './use-weight-log';
@@ -27,6 +27,7 @@ export function WeightLogForm({
   /** The newest weigh-in on record, for the same-value-same-day dedupe. */
   lastEntry?: { weightKg: number; recordedAt: Date } | null;
 }) {
+  const colors = useThemeColors();
   const barId = `weight-log-numeric-bar-${useId()}`;
   const inputRef = useRef<TextInput>(null);
   // Keeps the field clear of the keyboard inside a KeyboardAwareScrollView
@@ -61,7 +62,7 @@ export function WeightLogForm({
           inputAccessoryViewID={barId}
           keyboardType="decimal-pad"
           placeholder={placeholder ?? `Log today’s weight (${imperial ? 'lb' : 'kg'})`}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.labelTertiary}
           accessibilityLabel={label ?? `Today's weight in ${imperial ? 'pounds' : 'kilograms'}`}
           className="min-h-11 py-2 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
         />
@@ -78,7 +79,7 @@ export function WeightLogForm({
             disabled && 'opacity-40',
           )}
         >
-          <Ionicons name={saved ? 'checkmark' : 'add'} size={20} color="white" />
+          <Ionicons name={saved ? 'checkmark' : 'add'} size={20} color={colors.onBrand} />
         </Pressable>
       </View>
       <NumericReturnBar
@@ -92,7 +93,7 @@ export function WeightLogForm({
         }}
       />
       {error && (
-        <Text testID="weight-error" className="mt-1 text-xs text-red-600">
+        <Text testID="weight-error" className="mt-1 text-xs text-danger">
           {error}
         </Text>
       )}

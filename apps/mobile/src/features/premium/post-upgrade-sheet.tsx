@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Button, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, PressableScale, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   ACTIVATION_STEP_COPY,
   activationIntro,
@@ -36,6 +36,7 @@ export function PostUpgradeSheet({
   /** The upgrade source, e.g. 'household'; null = the default order. */
   source: string | null;
 }) {
+  const colors = useThemeColors();
   const { data: hasProfile } = trpc.preferences.hasProfile.useQuery(undefined, {
     enabled: visible,
   });
@@ -77,16 +78,16 @@ export function PostUpgradeSheet({
             accessibilityRole="button"
             accessibilityLabel={`${i + 1}. ${title}. ${detail}`}
             onPress={() => go(key)}
-            className="min-h-11 flex-row items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3"
+            className="min-h-11 flex-row items-start gap-3 rounded-xl border border-brand/30 bg-brand-tint p-3"
           >
             <View className="h-6 w-6 items-center justify-center rounded-full bg-primary">
               <Text className="text-xs font-bold text-primary-foreground">{i + 1}</Text>
             </View>
             <View className="min-w-0 flex-1">
-              <Text className="text-sm font-semibold text-gray-900">{title}</Text>
-              <Text className="text-xs text-gray-600">{detail}</Text>
+              <Text className="text-sm font-semibold text-label">{title}</Text>
+              <Text className="text-xs text-label-secondary">{detail}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+            <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />
           </PressableScale>
         ))}
       </View>

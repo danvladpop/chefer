@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, Switch, View } from 'react-native';
 import { DISPLAY_CURRENCIES, type DisplayCurrency, type PlanShape } from '@chefer/types';
-import { ChipGroup, colors, SegmentedControl, Text } from '@chefer/ui-mobile';
+import { ChipGroup, SegmentedControl, Text, useThemeColors } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 import { HowYouCookForm } from '../meal-plan/how-you-cook-form';
 import { ONBOARDING_COPY } from './copy';
@@ -22,9 +22,6 @@ const UNITS_OPTIONS = [
   { value: 'METRIC' as const, label: 'Metric (g, kg)', testID: 'how-you-cook-units-metric' },
   { value: 'IMPERIAL' as const, label: 'Imperial (oz, lb)', testID: 'how-you-cook-units-imperial' },
 ];
-
-// UX-ONB-10: an untinted Switch is the platform's teal on Android.
-const SWITCH_TRACK = { true: colors.primary, false: colors.neutral };
 
 export interface HowYouCookStepValue {
   shape: (PlanShape & { leftovers: boolean }) | null;
@@ -51,6 +48,9 @@ export interface HowYouCookStepProps {
 }
 
 export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepProps) {
+  const colors = useThemeColors();
+  // UX-ONB-10: an untinted Switch is the platform's teal on Android.
+  const switchTrack = { true: colors.brand, false: colors.separator };
   const { data } = trpc.mealPlan.getShape.useQuery();
   // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
   const { data: householdMembers } = trpc.household.list.useQuery(undefined, {
@@ -69,7 +69,7 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
   if (!value.shape) {
     return (
       <View className="items-center py-10">
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.brand} />
       </View>
     );
   }
@@ -85,17 +85,17 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
 
       {isPremium && (
         <View className="gap-2 border-t border-border pt-4">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             Options
           </Text>
           <View className="min-h-11 flex-row items-center justify-between">
-            <Text className="flex-1 text-sm text-gray-700">
+            <Text className="flex-1 text-sm text-label-secondary">
               Cook once, eat twice (leftover lunches)
             </Text>
             <Switch
               testID="how-you-cook-leftovers"
               value={shape.leftovers}
-              trackColor={SWITCH_TRACK}
+              trackColor={switchTrack}
               accessibilityLabel="Cook once, eat twice (leftover lunches)"
               onValueChange={(leftovers) => onChange({ ...value, shape: { ...shape, leftovers } })}
             />
@@ -104,7 +104,7 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
       )}
 
       <View className="gap-2 border-t border-border pt-4">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Prices in
         </Text>
         <ChipGroup
@@ -119,7 +119,9 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
       </View>
 
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Units</Text>
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
+          Units
+        </Text>
         <SegmentedControl
           testID="how-you-cook-units"
           accessibilityLabel="Units"
@@ -131,13 +133,13 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
 
       <View className="gap-1 border-t border-border pt-4">
         <View className="min-h-11 flex-row items-center justify-between">
-          <Text className="flex-1 pr-3 text-sm text-gray-700">
+          <Text className="flex-1 pr-3 text-sm text-label-secondary">
             {ONBOARDING_COPY.autoPlanQuestion}
           </Text>
           <Switch
             testID="how-you-cook-auto-plan"
             value={value.autoPlanWeekly}
-            trackColor={SWITCH_TRACK}
+            trackColor={switchTrack}
             accessibilityLabel={ONBOARDING_COPY.autoPlanQuestion}
             onValueChange={(autoPlanWeekly) => onChange({ ...value, autoPlanWeekly })}
           />

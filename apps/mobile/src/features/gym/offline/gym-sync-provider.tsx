@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { onlineManager, useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
+import { invalidateProgress } from '../../progress/progress-signals';
 import { startCoachedSync } from '../../trainer-coach/coach-sync';
 import { coachedOutboxes } from '../../trainer-coach/coached-outbox';
 import { startRestNotifications } from '../rest-timer';
@@ -104,6 +105,8 @@ export function GymSyncProvider({
         markTargetNoticeSynced(ids);
         markHardDeletesAcked(ids);
         void utils.gym.bootstrap.invalidate();
+        // Kitchen progress: the synced workout's receipt, XP and Flame (gated by whoever reads them).
+        invalidateProgress(queryClient);
         void processPendingHardDeletes((id) => utils.client.gym.session.delete.mutate({ id }));
       },
       onStale: (ids) => {
@@ -135,7 +138,7 @@ export function GymSyncProvider({
       stopCheckpoint();
       stopRestNotifications();
     };
-  }, [token, utils, snackbar]);
+  }, [token, utils, snackbar, queryClient]);
 
   return children;
 }

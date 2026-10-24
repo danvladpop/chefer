@@ -129,6 +129,8 @@ export interface EventMap {
     trigger: 'food_log' | 'shopping_tick' | 'gym_pr' | 'gym_third_workout';
   };
   analytics_consent_changed: { anonymous: boolean; linked: boolean };
+  /** Mobile You › Appearance: Automatic (`system`), Day (`light`) or Night (`dark`). */
+  appearance_changed: { mode: 'system' | 'light' | 'dark' };
   // ─── L-CONSENT (T-26.2/T-26.4) — counts only ─────────────────────────────────
   health_consent_answered: { allowed: boolean };
   health_consent_withdrawn: Record<string, never>;
@@ -164,6 +166,14 @@ export interface EventMap {
   attendance_marked: { status: 'ATTENDED' | 'NO_SHOW' };
   coached_workout_started: { group: boolean };
   coached_workout_finished: Record<string, never>;
+
+  // ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §8) ───────────
+  // Pressure signals, enums and counts only (README §8 "Measure").
+  progress_level_up: { level: number; rankChanged: boolean };
+  progress_celebrations_changed: { to: 'FULL' | 'SUBTLE' | 'OFF' };
+  progress_hidden: { setting: 'showXp' | 'showFlameOnToday' | 'biscuit'; on: boolean };
+  progress_reminder_toggled: { on: boolean };
+  kitchen_recap_opened: { source: 'banner' | 'link' };
 
   // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
   // Never another user's id, a name or a search query.

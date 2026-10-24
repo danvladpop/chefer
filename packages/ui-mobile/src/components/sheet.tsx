@@ -288,7 +288,7 @@ export function Sheet({
           onLayout={(e) => panelHeight.set(e.nativeEvent.layout.height)}
         >
           <View
-            className={cn('rounded-t-3xl bg-card', className)}
+            className={cn('rounded-t-3xl bg-surface-raised', className)}
             style={[styles.panel, { paddingBottom: Math.max(insets.bottom, 16) }]}
           >
             {/* MO-02: the grabber and header are the drag handle; the body scrolls. */}
@@ -297,7 +297,7 @@ export function Sheet({
               {...dragResponder.panHandlers}
             >
               <View className="items-center pt-2">
-                <View className="h-1 w-10 rounded-full bg-gray-300" />
+                <View className="h-1 w-10 rounded-full bg-separator" />
               </View>
               <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
                 <View className="min-w-0 flex-1">
@@ -319,9 +319,9 @@ export function Sheet({
                   accessibilityRole="button"
                   accessibilityLabel="Close"
                   onPress={requestClose}
-                  className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
+                  className="h-11 w-11 items-center justify-center rounded-full bg-surface-sunken"
                 >
-                  <Text className="text-lg font-semibold text-gray-700">✕</Text>
+                  <Text className="text-lg font-semibold text-label-secondary">✕</Text>
                 </Pressable>
               </View>
             </View>

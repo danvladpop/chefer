@@ -284,6 +284,26 @@ async function exportCoachingData(
   };
 }
 
+// ─── Kitchen progress export (docs/gamification-2026-10/tech-plan.md §2) ───────
+// `progress` is an additive section: your totals and settings, every ledger
+// event (what earned the XP, on which day), the badges, the quest sets and the
+// cook log. All five tables cascade from the user row on deletion.
+
+async function exportProgressData(userId: string): Promise<Record<string, unknown>> {
+  const where = { userId };
+  const [state, events, unlocks, questDays, cookLogs] = await Promise.all([
+    prisma.progressState.findUnique({ where }),
+    prisma.progressEvent.findMany({
+      where,
+      orderBy: [{ localDate: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.progressUnlock.findMany({ where, orderBy: { unlockedAt: 'asc' } }),
+    prisma.progressQuestDay.findMany({ where, orderBy: { localDate: 'asc' } }),
+    prisma.cookLog.findMany({ where, orderBy: { finishedAt: 'asc' } }),
+  ]);
+  return { state, events, unlocks, questDays, cookLogs };
+}
+
 /** Everything Chefer stores about one user, as plain JSON. */
 export async function exportAccountData(userId: string): Promise<Record<string, unknown>> {
   const where = { userId };
@@ -374,6 +394,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
   });
   const social = await exportSocialData(userId, consentEvents);
   const coaching = await exportCoachingData(userId, consentEvents);
+  const progress = await exportProgressData(userId);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -403,6 +424,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     feedback,
     social,
     coaching,
+    progress,
     signInMethods,
     privacy: {
       consentHistory: consentEvents,
@@ -436,6 +458,9 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
  * with `originRecipeId`/`originCreatorId` set to null (SetNull), and hearts on
  * the deleted originals cascade away. account-data.service.test.ts pins the
  * schema's onDelete rules so a new Following table can't forget the cascade.
+ * Kitchen progress (gamification P1): the ledger, cook log, state, unlocks and
+ * quest sets all cascade from the users row; account-data.service.test.ts pins
+ * their onDelete rules.
  * Household members are the user's own extra eaters (no other accounts are
  * linked to them), so they simply cascade — there is nothing to hand over.
  * Everything runs in one transaction: all or nothing. After it commits, the
