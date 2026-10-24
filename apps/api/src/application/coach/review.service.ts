@@ -4,6 +4,7 @@
 
 import {
   calorieFloor,
+  dateOnlyKey,
   isMinorAge,
   summarizeWeightTrend,
   weightTrendSeries,
@@ -81,7 +82,9 @@ const CEILING_OVER_TDEE_KCAL = 500;
 
 // ─── Weight trend (shared trend weight, @chefer/utils weight-trend.ts) ──────
 
-const utcDay = (d: Date) => d.toISOString().slice(0, 10);
+// The review runs in the Sunday server sweep (no client localDate) and its
+// weeks are UTC, so weigh-ins are grouped into the same UTC calendar days.
+const utcDay = (d: Date) => dateOnlyKey(d);
 
 /**
  * How the trend weight moved over the 28 days up to `asOf`, from the same
