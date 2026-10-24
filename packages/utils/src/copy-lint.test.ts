@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { containsForbiddenPhrase } from '@chefer/eslint-config/rules/no-forbidden-copy';
 import { PLAN_TAILORING_COPY } from './plan-tailoring';
 import { PREMIUM_PITCH_COPY } from './premium-pitch';
+import { allProgressCopyStrings } from './progress/copy';
 import { SAFETY_COPY } from './safety-copy';
 import { WELLNESS_COPY } from './wellness-copy';
 
@@ -15,6 +16,7 @@ const COPY_MODULES: Record<string, Record<string, string>> = {
   'wellness-copy': WELLNESS_COPY,
   'premium-pitch': PREMIUM_PITCH_COPY,
   'plan-tailoring': PLAN_TAILORING_COPY,
+  'progress/copy': Object.fromEntries(allProgressCopyStrings().map((v, i) => [String(i), v])),
 };
 
 describe('copy modules never carry a forbidden phrase', () => {

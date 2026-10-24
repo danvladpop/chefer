@@ -5,6 +5,7 @@ import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
 import { NumbersModeHost } from '@/features/numbers-mode/numbers-mode';
+import { ProgressHost } from '@/features/progress/progress-host';
 import { LocaleSync } from '@/lib/i18n/locale-sync';
 
 interface DashboardLayoutProps {
@@ -30,6 +31,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           <TermsReacceptGate />
           {/* ADR 0004: the account's language choice wins over this browser's cookie. */}
           <LocaleSync />
+          {/* Kitchen progress: toasts + the level-up modal (renders nothing while the flag is off). */}
+          <ProgressHost />
         </DashboardShell>
       </NumbersModeHost>
     </AiConsentProvider>

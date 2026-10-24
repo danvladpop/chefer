@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router, useSegments } from 'expo-router';
 import type { GymBootstrap } from '@chefer/types';
-import { SegmentedControl } from '@chefer/ui-mobile';
+import { SegmentedControl, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
@@ -69,6 +69,7 @@ function RouteDerivedModeSwitch({ className }: { className?: string }) {
 }
 
 function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode }) {
+  const colors = useThemeColors();
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
 
@@ -153,7 +154,7 @@ function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode
           onPress={openSettings}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="settings-outline" size={22} color="#6b7280" />
+          <Ionicons name="settings-outline" size={22} color={colors.labelTertiary} />
         </Pressable>
         <HeaderAvatar />
       </View>

@@ -68,10 +68,10 @@ export function FeedbackCard({
         className={cn(
           'text-right text-xs tabular-nums',
           counter.tone === 'limit'
-            ? 'text-red-600'
+            ? 'text-danger'
             : counter.tone === 'near'
-              ? 'text-amber-700'
-              : 'text-gray-600',
+              ? 'text-attention'
+              : 'text-label-secondary',
         )}
       >
         {counter.label}
@@ -91,7 +91,7 @@ export function FeedbackCard({
         {submitMutation.isSuccess && !message ? 'Thank you! ✓' : 'Send feedback'}
       </Button>
       {submitMutation.isError && (
-        <Text className="text-xs text-red-600">{userFacingErrorMessage(submitMutation.error)}</Text>
+        <Text className="text-xs text-danger">{userFacingErrorMessage(submitMutation.error)}</Text>
       )}
     </Card>
   );

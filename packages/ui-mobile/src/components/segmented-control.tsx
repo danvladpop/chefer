@@ -3,12 +3,12 @@ import { Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { haptics } from '../motion/haptics';
 import { springs } from '../motion/motion';
 import { PressableScale } from '../motion/pressable-scale';
 import { useReducedMotion } from '../motion/use-reduced-motion';
 import { DENSE_MAX_FONT_SCALE } from './text';
-import { colors } from './theme';
 
 // Every segment keeps a 44pt hit area; `sm`/`xs` only shrink the visual.
 /** Text-scale cap for the compact (xs) header switch. */
@@ -66,8 +66,7 @@ const THUMB_STYLE = {
   bottom: TRACK_PADDING,
   left: TRACK_PADDING,
   borderRadius: 6,
-  backgroundColor: colors.card,
-  shadowColor: '#000',
+  shadowColor: '#000', // drift-ok: shadow
   shadowOpacity: 0.08,
   shadowRadius: 2,
   shadowOffset: { width: 0, height: 1 },
@@ -106,6 +105,7 @@ export function SegmentedControl<T extends string>({
     0,
     options.findIndex((o) => o.value === value),
   );
+  const colors = useThemeColors();
   const reduced = useReducedMotion();
   // Shared values, read inside the worklet (UX-X-10): the measured track
   // width, the option count and the (animated) selected index. `position`
@@ -139,9 +139,12 @@ export function SegmentedControl<T extends string>({
       accessibilityRole="tablist"
       accessibilityLabel={accessibilityLabel}
       onLayout={(e) => trackWidth.set(e.nativeEvent.layout.width)}
-      className={cn('flex-row rounded-lg bg-muted p-1', className)}
+      className={cn('flex-row rounded-lg bg-surface-sunken p-1', className)}
     >
-      <Animated.View pointerEvents="none" style={[THUMB_STYLE, thumbStyle]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[THUMB_STYLE, { backgroundColor: colors.surfaceRaised }, thumbStyle]}
+      />
       {options.map((option) => {
         const selected = option.value === value;
         return (

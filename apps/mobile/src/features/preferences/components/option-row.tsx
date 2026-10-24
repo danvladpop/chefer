@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 /** Shared selectable row — goal list, activity level, biological sex, etc. */
@@ -19,6 +19,7 @@ export function OptionRow({
   description?: string;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -31,14 +32,10 @@ export function OptionRow({
       )}
     >
       {icon && (
-        <Ionicons
-          name={icon}
-          size={22}
-          color={selected ? colors.primary : colors.mutedForeground}
-        />
+        <Ionicons name={icon} size={22} color={selected ? colors.brand : colors.labelTertiary} />
       )}
       <View className="min-w-0 flex-1">
-        <Text className={cn('text-sm font-semibold', selected ? 'text-primary' : 'text-gray-800')}>
+        <Text className={cn('text-sm font-semibold', selected ? 'text-primary' : 'text-label')}>
           {label}
         </Text>
         {description && (
@@ -47,7 +44,7 @@ export function OptionRow({
           </Text>
         )}
       </View>
-      {selected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+      {selected && <Ionicons name="checkmark-circle" size={20} color={colors.brand} />}
     </Pressable>
   );
 }

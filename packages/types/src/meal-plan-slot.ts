@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 /** The four meal types a plan slot can have. */
 export const planSlotMealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
+export type PlanSlotMealType = z.infer<typeof planSlotMealTypeSchema>;
 
 /**
  * `mealPlan.removeSlot` (FB7-04): removes ONE slot of a day when another slot

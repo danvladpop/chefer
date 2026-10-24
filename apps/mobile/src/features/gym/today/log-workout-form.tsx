@@ -213,7 +213,7 @@ export function LoggedWorkoutForm({
         today={today}
         onChangeDate={setDate}
       />
-      {shown.date ? <Text className="text-xs text-red-600">{shown.date}</Text> : null}
+      {shown.date ? <Text className="text-xs text-danger">{shown.date}</Text> : null}
 
       <FormField
         label="Calories from your watch (optional)"
