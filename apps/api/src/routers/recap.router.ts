@@ -1,4 +1,4 @@
-import { weeklyRecapInputSchema } from '@chefer/types';
+import { recapWeekInputSchema } from '@chefer/types';
 import { recapService } from '../application/recap/recap.service.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
 
@@ -6,7 +6,7 @@ import { protectedProcedure, router } from '../lib/trpc.js';
 // "Your week in review": factual counts for one Monday–Sunday week. Every tier.
 
 export const recapRouter = router({
-  week: protectedProcedure.input(weeklyRecapInputSchema).query(({ ctx, input }) => {
+  week: protectedProcedure.input(recapWeekInputSchema).query(({ ctx, input }) => {
     return recapService.week(ctx.user.id, input ?? {});
   }),
 });
