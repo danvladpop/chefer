@@ -28,7 +28,7 @@ import { reserveMealScan } from '../../lib/quotas.js';
 import { safetyService } from '../safety/safety.service.js';
 import { allergenLabel, toProductView } from './product-view.js';
 
-// ─── Packaged products (ADR 0002) ─────────────────────────────────────────────
+// ─── Packaged products (ADR 0005) ─────────────────────────────────────────────
 // Barcode → the user's own product, else Chefer's cached Open Food Facts row,
 // else Open Food Facts itself. Lookup and logging are free; reading a label
 // photo is premium AI (Snap-to-Log quota, AI consent at the router). Allergen

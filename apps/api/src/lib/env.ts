@@ -260,7 +260,7 @@ const envSchema = z.object({
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
 
-  // Open Food Facts barcode lookup (ADR 0002). No key needed; OFF asks every
+  // Open Food Facts barcode lookup (ADR 0005). No key needed; OFF asks every
   // client to name itself in the User-Agent. The base URL is overridable for a
   // staging mirror (https://world.openfoodfacts.net) or a test double.
   OFF_BASE_URL: z.preprocess(
@@ -314,6 +314,24 @@ const envSchema = z.object({
         ),
     ),
   TRAINER_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+
+  // Kitchen progress dark launch (docs/gamification-2026-10/tech-plan.md §8):
+  // comma-separated EMAIL ADDRESSES (case-insensitive) that see Kitchen progress
+  // while the `gamification` flag is off. `*` means everyone. Empty (the default)
+  // = nobody. Read through lib/progress-flags.ts, never directly. The ledger
+  // records for every user regardless (D1); this only gates what they see.
+  GAMIFICATION_ALLOWLIST: z
     .string()
     .default('')
     .transform(

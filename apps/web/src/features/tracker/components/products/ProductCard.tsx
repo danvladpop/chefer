@@ -18,7 +18,7 @@ import {
   scaleProduct,
 } from '@chefer/utils';
 
-// Web counterpart of mobile's products/product-card.tsx (ADR 0002): warnings
+// Web counterpart of mobile's products/product-card.tsx (ADR 0005): warnings
 // first (never blocking), the honest allergen line, grams or servings with a
 // live preview from the same `scaleProduct` the server logs with, and the
 // Open Food Facts (ODbL) attribution.

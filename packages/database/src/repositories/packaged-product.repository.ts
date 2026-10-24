@@ -1,7 +1,7 @@
 import { Prisma, type PackagedProduct, type PackagedProductSource } from '@prisma/client';
 import { prisma } from '../client';
 
-// ─── Packaged products (docs/adr/0002-packaged-products.md) ───────────────────
+// ─── Packaged products (docs/adr/0005-packaged-products.md) ───────────────────
 // Shared rows (ownerId null) are the Open Food Facts cache, one per barcode;
 // private rows (LABEL / USER) belong to one user and are only ever read back
 // for that user. Every read here takes the viewer's id and never returns

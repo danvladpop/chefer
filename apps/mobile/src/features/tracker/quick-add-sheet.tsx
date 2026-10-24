@@ -59,7 +59,7 @@ type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 // fallback (`view === 'manual'`). Recent → This week's plan → Your recipes →
 // Ingredients (per 100 g), in that order, so the fastest path (log a repeat
 // food) is one tap into the sheet. The ingredient group is Chefer's own catalogue
-// (`ingredients.search`) only — packaged products (ADR 0002, which replaced
+// (`ingredients.search`) only — packaged products (ADR 0005, which replaced
 // B-29) are a separate group and the "Scan barcode" view (`view === 'product'`).
 
 export type PlannedLogMeal = {
@@ -539,7 +539,7 @@ export function QuickAddSheet({
   const groupHeader = (label: string) => (
     <Text
       accessibilityRole="header"
-      className="mt-2 text-xs font-semibold uppercase tracking-widest text-gray-500"
+      className="mt-2 text-xs font-semibold uppercase tracking-widest text-label-tertiary"
     >
       {label}
     </Text>
@@ -584,8 +584,8 @@ export function QuickAddSheet({
         view === 'manual' ? (
           <View className="gap-2">
             {manualSanity?.message && (
-              <View testID="quick-add-sanity" className="gap-2 rounded-lg bg-amber-50 p-3">
-                <Text className="text-xs text-amber-800">{manualSanity.message}</Text>
+              <View testID="quick-add-sanity" className="gap-2 rounded-lg bg-attention/10 p-3">
+                <Text className="text-xs text-attention">{manualSanity.message}</Text>
                 <View className="flex-row gap-2">
                   <Button
                     testID="quick-add-sanity-fix"
@@ -649,7 +649,7 @@ export function QuickAddSheet({
             onSubmitEditing={() => Keyboard.dismiss()}
           />
 
-          {/* ADR 0002: next to the search, not under every group — the sheet
+          {/* ADR 0005: next to the search, not under every group — the sheet
             opens with the keyboard up, which hides anything at the bottom. */}
           <View className="flex-row flex-wrap gap-2">
             <Pressable
@@ -730,7 +730,7 @@ export function QuickAddSheet({
             <Text
               testID="log-sheet-api-error"
               accessibilityLiveRegion="polite"
-              className="text-sm text-red-600"
+              className="text-sm text-danger"
             >
               {"Couldn't log that: "}
               {userFacingErrorMessage(
@@ -752,7 +752,9 @@ export function QuickAddSheet({
                     <Text numberOfLines={1} className="text-sm font-medium text-label">
                       {r.name}
                     </Text>
-                    <Text className="text-xs text-gray-500">{nutritionLabel(r, proteinOnly)}</Text>
+                    <Text className="text-xs text-label-tertiary">
+                      {nutritionLabel(r, proteinOnly)}
+                    </Text>
                   </View>
                   <Pressable
                     testID={`log-sheet-recent-add-${r.key}`}
@@ -766,7 +768,7 @@ export function QuickAddSheet({
                     onPress={() => logRecentAgain(r)}
                     className="h-11 w-11 items-center justify-center"
                   >
-                    <Ionicons name="add-circle" size={26} color="#944a00" />
+                    <Ionicons name="add-circle" size={26} color={colors.brand} />
                   </Pressable>
                 </View>
               ))}
@@ -791,17 +793,17 @@ export function QuickAddSheet({
                     >
                       <RecipeImage imageUrl={m.imageUrl} className="h-9 w-9 rounded-lg" />
                       <View className="min-w-0 flex-1">
-                        <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                        <Text numberOfLines={1} className="text-sm font-medium text-label">
                           {m.recipeName}
                         </Text>
-                        <Text className="text-xs text-gray-500">
+                        <Text className="text-xs text-label-tertiary">
                           1 portion · {nutritionLabel(m, proteinOnly)}
                         </Text>
                       </View>
                       <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}
                         size={16}
-                        color="#9ca3af"
+                        color={colors.labelTertiary}
                       />
                     </Pressable>
                     {isOpen && (
@@ -868,11 +870,11 @@ export function QuickAddSheet({
                         className="h-9 w-9 rounded-lg"
                       />
                       <View className="min-w-0 flex-1">
-                        <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                        <Text numberOfLines={1} className="text-sm font-medium text-label">
                           {recipe.name}
                         </Text>
                         <View className="flex-row items-center gap-1">
-                          <Text className="text-xs text-gray-500">
+                          <Text className="text-xs text-label-tertiary">
                             1 portion ·{' '}
                             {nutritionLabel(
                               { kcal: kcalPerServing, protein: nutrition?.protein ?? 0 },
@@ -885,7 +887,7 @@ export function QuickAddSheet({
                       <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}
                         size={16}
-                        color="#9ca3af"
+                        color={colors.labelTertiary}
                       />
                     </Pressable>
                     {isOpen && (
@@ -994,10 +996,10 @@ export function QuickAddSheet({
                     >
                       <RecipeImage imageUrl={ingredient.imageUrl} className="h-9 w-9 rounded-lg" />
                       <View className="min-w-0 flex-1">
-                        <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                        <Text numberOfLines={1} className="text-sm font-medium text-label">
                           {ingredient.displayName}
                         </Text>
-                        <Text className="text-xs text-gray-500">
+                        <Text className="text-xs text-label-tertiary">
                           {ingredient.per100g
                             ? proteinOnly
                               ? `${Math.round(ingredient.per100g.protein)} g protein / 100 g`
@@ -1009,7 +1011,7 @@ export function QuickAddSheet({
                         <Ionicons
                           name={isOpen ? 'chevron-up' : 'chevron-down'}
                           size={16}
-                          color="#9ca3af"
+                          color={colors.labelTertiary}
                         />
                       )}
                     </Pressable>
@@ -1046,7 +1048,7 @@ export function QuickAddSheet({
                         <Text
                           testID={`log-sheet-grams-live-kcal-${key}`}
                           accessibilityLiveRegion="polite"
-                          className="text-xs text-gray-500"
+                          className="text-xs text-label-tertiary"
                         >
                           {expandedIngredient === ingredient && expandedIngredientLive
                             ? proteinOnly
@@ -1057,7 +1059,7 @@ export function QuickAddSheet({
                         {gramsCapped && gramsInfo && (
                           <Text
                             testID={`log-sheet-grams-max-${key}`}
-                            className="text-xs text-amber-700"
+                            className="text-xs text-attention"
                           >
                             One entry holds up to {formatNumber(gramsInfo.max)} g.
                           </Text>
@@ -1092,8 +1094,8 @@ export function QuickAddSheet({
           )}
 
           {searching && searchFailed && (
-            <View testID="log-sheet-search-error" className="gap-1 rounded-xl bg-amber-50 p-3">
-              <Text className="text-sm text-amber-800">
+            <View testID="log-sheet-search-error" className="gap-1 rounded-xl bg-attention/10 p-3">
+              <Text className="text-sm text-attention">
                 Couldn&apos;t search just now. Check your connection and try again.
               </Text>
               <Pressable
@@ -1110,7 +1112,7 @@ export function QuickAddSheet({
             </View>
           )}
           {searching && !searchFailed && !hasSearchResults && searchSettling && (
-            <Text testID="log-sheet-searching" className="py-2 text-sm text-gray-500">
+            <Text testID="log-sheet-searching" className="py-2 text-sm text-label-tertiary">
               Searching…
             </Text>
           )}
@@ -1121,7 +1123,7 @@ export function QuickAddSheet({
               onPress={startManual}
               className="min-h-11 justify-center py-2"
             >
-              <Text className="text-sm text-gray-600">
+              <Text className="text-sm text-label-secondary">
                 No matches —{' '}
                 <Text className="font-semibold text-primary">
                   {proteinOnly ? 'enter protein yourself' : 'enter calories yourself'}
@@ -1247,7 +1249,7 @@ export function QuickAddSheet({
             onPress={() => setView('search')}
             className="min-h-11 flex-row items-center gap-1"
           >
-            <Ionicons name="arrow-back" size={16} color="#944a00" />
+            <Ionicons name="arrow-back" size={16} color={colors.brand} />
             <Text className="text-sm font-medium text-primary">Back to search</Text>
           </Pressable>
 
@@ -1256,7 +1258,7 @@ export function QuickAddSheet({
           </Text>
 
           <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">What did you eat?</Text>
+            <Text className="text-xs font-medium text-label-secondary">What did you eat?</Text>
             <Input
               testID="quick-add-name"
               ref={nameInputRef}
@@ -1273,7 +1275,7 @@ export function QuickAddSheet({
               }}
             />
             {errors.name && (
-              <Text testID="quick-add-name-error" className="text-xs text-red-600">
+              <Text testID="quick-add-name-error" className="text-xs text-danger">
                 {errors.name}
               </Text>
             )}
@@ -1281,7 +1283,7 @@ export function QuickAddSheet({
 
           {!targetSlot && (
             <View className="gap-1">
-              <Text className="text-xs font-medium text-gray-600">Meal</Text>
+              <Text className="text-xs font-medium text-label-secondary">Meal</Text>
               <SegmentedControl
                 size="sm"
                 options={MEAL_OPTIONS}
@@ -1296,7 +1298,7 @@ export function QuickAddSheet({
           {proteinOnly ? (
             <>
               <View className="gap-1">
-                <Text className="text-xs font-medium text-gray-600">
+                <Text className="text-xs font-medium text-label-secondary">
                   Roughly how many grams of protein?
                 </Text>
                 <View className="flex-row items-center gap-2">
@@ -1316,7 +1318,7 @@ export function QuickAddSheet({
                   <Text className="text-sm text-muted-foreground">g</Text>
                 </View>
                 {errors.protein && (
-                  <Text testID="quick-add-protein-error" className="text-xs text-red-600">
+                  <Text testID="quick-add-protein-error" className="text-xs text-danger">
                     {errors.protein}
                   </Text>
                 )}
@@ -1325,7 +1327,7 @@ export function QuickAddSheet({
           ) : (
             <>
               <View className="gap-1">
-                <Text className="text-xs font-medium text-gray-600">
+                <Text className="text-xs font-medium text-label-secondary">
                   Roughly how many calories?
                 </Text>
                 <View className="flex-row items-center gap-2">
@@ -1346,18 +1348,20 @@ export function QuickAddSheet({
                   <Text className="text-sm text-muted-foreground">kcal</Text>
                 </View>
                 {errors.kcal && (
-                  <Text testID="quick-add-kcal-error" className="text-xs text-red-600">
+                  <Text testID="quick-add-kcal-error" className="text-xs text-danger">
                     {errors.kcal}
                   </Text>
                 )}
               </View>
 
               <View className="gap-1">
-                <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
+                <Text className="text-xs font-medium text-label-secondary">
+                  Macros (optional, grams)
+                </Text>
                 <View className="flex-row gap-2">
                   {MACROS.map(({ key, label }, index) => (
                     <View key={key} className="min-w-0 flex-1 gap-1">
-                      <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
+                      <Text className="text-xs font-medium text-label-secondary">{label} (g)</Text>
                       <Input
                         testID={`quick-add-${key}`}
                         accessibilityLabel={`${label} grams`}
@@ -1372,7 +1376,7 @@ export function QuickAddSheet({
                         {...numbers.bind(index + 1, { fieldRef: macroInputRefs[key] })}
                       />
                       {errors[key] && (
-                        <Text testID={`quick-add-${key}-error`} className="text-xs text-red-600">
+                        <Text testID={`quick-add-${key}-error`} className="text-xs text-danger">
                           {errors[key]}
                         </Text>
                       )}
@@ -1386,7 +1390,7 @@ export function QuickAddSheet({
           {numbers.bars}
 
           {logCustomMutation.isError && (
-            <Text testID="quick-add-api-error" className="text-sm text-red-600">
+            <Text testID="quick-add-api-error" className="text-sm text-danger">
               {userFacingErrorMessage(logCustomMutation.error)}
             </Text>
           )}

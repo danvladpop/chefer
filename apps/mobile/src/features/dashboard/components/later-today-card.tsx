@@ -14,7 +14,7 @@ export function LaterTodayCard({ meals }: { meals: RestOfToday }) {
   if (meals.length === 0) return null;
   return (
     <Card testID="rest-of-today">
-      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
         Later today
       </Text>
       <View className="gap-2.5">
@@ -31,13 +31,13 @@ export function LaterTodayCard({ meals }: { meals: RestOfToday }) {
           >
             <MealTypeBadge mealType={meal.mealType} />
             <View className="min-w-0 flex-1">
-              <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+              <Text numberOfLines={1} className="text-sm font-medium text-label">
                 {meal.recipeName}
               </Text>
-              <Text className="text-xs text-gray-500">{meal.scheduledLabel}</Text>
+              <Text className="text-xs text-label-tertiary">{meal.scheduledLabel}</Text>
             </View>
             {meal.kcal > 0 && !proteinOnly && (
-              <Text className="text-xs text-gray-500">{meal.kcal} kcal</Text>
+              <Text className="text-xs text-label-tertiary">{meal.kcal} kcal</Text>
             )}
           </Pressable>
         ))}

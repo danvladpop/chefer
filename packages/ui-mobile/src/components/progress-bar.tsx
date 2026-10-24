@@ -1,9 +1,10 @@
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { isOverTarget, mainFill, normaliseProgress, progressColor } from '../motion/progress';
 import { useProgressValue } from '../motion/use-progress-value';
-import { colors } from './theme';
+import { useChartColors } from './theme';
 
 export interface ProgressBarProps {
   /** 0..1 of the target; above 1 the bar is full (and over-coloured with `overColor`). */
@@ -13,7 +14,7 @@ export interface ProgressBarProps {
   overColor?: string;
   /** End-cap colour past 100% (default: a darker amber). */
   capColor?: string;
-  /** Track classes — height and background (default `h-2 bg-gray-100`). */
+  /** Track classes — height and background (default `h-2 bg-surface-sunken`). */
   className?: string;
   testID?: string;
   accessibilityLabel?: string;
@@ -28,13 +29,17 @@ export interface ProgressBarProps {
  */
 export function ProgressBar({
   progress,
-  color = colors.primary,
+  color: colorProp,
   overColor,
-  capColor = colors.warningStrong,
+  capColor: capColorProp,
   className,
   testID,
   accessibilityLabel,
 }: ProgressBarProps) {
+  const roles = useThemeColors();
+  const chart = useChartColors();
+  const color = colorProp ?? roles.brand;
+  const capColor = capColorProp ?? chart.overflow;
   const target = normaliseProgress(progress);
   const over = overColor !== undefined && isOverTarget(target);
   const animated = useProgressValue(target);
@@ -50,7 +55,7 @@ export function ProgressBar({
       accessibilityRole="progressbar"
       accessibilityLabel={accessibilityLabel}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(mainFill(target) * 100) }}
-      className={cn('h-2 w-full overflow-hidden rounded-full bg-gray-100', className)}
+      className={cn('h-2 w-full overflow-hidden rounded-full bg-surface-sunken', className)}
     >
       <Animated.View
         testID={testID ? `${testID}-fill` : undefined}

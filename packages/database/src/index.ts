@@ -317,7 +317,7 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
-  // Packaged products (ADR 0002)
+  // Packaged products (ADR 0005)
   PackagedProductRepository,
   packagedProductRepository,
   type IPackagedProductRepository,
@@ -328,6 +328,38 @@ export {
   savedMealRepository,
   SavedMealNameTakenError,
   type ISavedMealRepository,
+  // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
+  ProgressEventRepository,
+  progressEventRepository,
+  type IProgressEventRepository,
+  type NewProgressEvent,
+  type ProgressScorer,
+  type ProgressOrigin,
+  type AppendOptions,
+  type AppendResult,
+  type LedgerCounters,
+  type LedgerLight,
+  type WeekStats,
+  ProgressStateRepository,
+  progressStateRepository,
+  type IProgressStateRepository,
+  type ProgressStatePatch,
+  ProgressUnlockRepository,
+  progressUnlockRepository,
+  type IProgressUnlockRepository,
+  type NewUnlock,
+  ProgressQuestDayRepository,
+  progressQuestDayRepository,
+  type IProgressQuestDayRepository,
+  CookLogRepository,
+  cookLogRepository,
+  type ICookLogRepository,
+  type NewCookLog,
+  ProgressSourceRepository,
+  progressSourceRepository,
+  type IProgressSourceRepository,
+  type PlanWithDays,
+  type ShoppingListHistory,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -412,6 +444,12 @@ export type {
   ExerciseProgression,
   TrainingPause,
   EmailSend,
+  // Kitchen progress (tech-plan.md §2)
+  ProgressEvent,
+  CookLog,
+  ProgressState,
+  ProgressUnlock,
+  ProgressQuestDay,
   // Wave-0 schema contracts (T-00.10)
   SafetyReport,
   TargetChange,
@@ -446,7 +484,7 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
-  // Packaged products (ADR 0002)
+  // Packaged products (ADR 0005)
   PackagedProduct,
   // Saved meals (lane A2)
   SavedMeal,

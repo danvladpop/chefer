@@ -183,7 +183,7 @@ export const trackerRouter = router({
       return trackerService.logCustomMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
     }),
 
-  // Packaged products (ADR 0002): log grams or servings of a product the user
+  // Packaged products (ADR 0005): log grams or servings of a product the user
   // can see. FREE. The server scales the numbers; the entry is a custom entry
   // with an additive `product: { id, grams }`. Additive procedure.
   logProduct: protectedProcedure

@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Screen, Text } from '@chefer/ui-mobile';
+import { Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { ModeSwitch } from './mode-switch';
 
 // Wave G1 placeholder for gym screens: a real, routable screen with a stable
@@ -24,6 +24,7 @@ export function GymPlaceholder({
   variant,
   children,
 }: GymPlaceholderProps) {
+  const colors = useThemeColors();
   return (
     <Screen
       className="px-0"
@@ -38,9 +39,9 @@ export function GymPlaceholder({
             accessibilityRole="button"
             accessibilityLabel="Back"
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-            className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
+            className="h-11 w-11 items-center justify-center rounded-full bg-surface-sunken"
           >
-            <Ionicons name="chevron-back" size={22} color="#374151" />
+            <Ionicons name="chevron-back" size={22} color={colors.label} />
           </Pressable>
         )}
         <View>

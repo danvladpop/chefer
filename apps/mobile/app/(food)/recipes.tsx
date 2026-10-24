@@ -11,6 +11,7 @@ import {
   SEARCH_LIST_PROPS,
   SearchField,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -98,6 +99,7 @@ function fromChipLabel(recipe: Pick<CardRecipe, 'creator' | 'origin'>): string |
 }
 
 export default function RecipesScreen() {
+  const colors = useThemeColors();
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -200,7 +202,7 @@ export default function RecipesScreen() {
         <ModeSwitch />
         <View className="flex-row items-end justify-between">
           <View>
-            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
               Your Collection
             </Text>
             <Text testID="recipes-title" variant="title">
@@ -215,7 +217,7 @@ export default function RecipesScreen() {
               onPress={() => router.push('/import-recipe')}
               className="min-h-11 flex-row items-center gap-1.5 rounded-xl border border-primary/30 px-3"
             >
-              <Ionicons name="link-outline" size={16} color="#944a00" />
+              <Ionicons name="link-outline" size={16} color={colors.brand} />
               <Text className="text-sm font-semibold text-primary">Import</Text>
             </Pressable>
             <Pressable
@@ -224,7 +226,7 @@ export default function RecipesScreen() {
               onPress={() => router.push('/recipe-form')}
               className="min-h-11 flex-row items-center gap-1.5 rounded-xl bg-primary px-3"
             >
-              <Ionicons name="add" size={16} color="white" />
+              <Ionicons name="add" size={16} color={colors.onBrand} />
               <Text className="text-sm font-semibold text-primary-foreground">New</Text>
             </Pressable>
           </View>
@@ -246,7 +248,7 @@ export default function RecipesScreen() {
               <Text
                 className={cn(
                   'text-sm font-medium',
-                  tab === key ? 'text-primary' : 'text-gray-500',
+                  tab === key ? 'text-primary' : 'text-label-tertiary',
                 )}
               >
                 {label}
@@ -299,12 +301,12 @@ export default function RecipesScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : isError && !recipes ? (
         <ErrorState
           title="Couldn't load your recipes"
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
       ) : !recipes || recipes.length === 0 ? (
@@ -342,7 +344,7 @@ export default function RecipesScreen() {
           ListFooterComponent={
             tab !== 'discover' && list.isFetchingNextPage ? (
               <View testID="recipes-loading-more" className="items-center py-4">
-                <ActivityIndicator color="#944a00" />
+                <ActivityIndicator color={colors.brand} />
               </View>
             ) : tab !== 'discover' && list.isError && list.hasNextPage ? (
               <Button
@@ -390,31 +392,31 @@ export default function RecipesScreen() {
                     {fromLabel ? (
                       <View
                         testID={`recipe-card-${recipe.id}-from`}
-                        className="self-start rounded-full bg-gray-100 px-2 py-0.5"
+                        className="self-start rounded-full bg-surface-sunken px-2 py-0.5"
                       >
-                        <Text className="text-xs text-gray-700">{fromLabel}</Text>
+                        <Text className="text-xs text-label-secondary">{fromLabel}</Text>
                       </View>
                     ) : null}
                   </View>
-                  <Text numberOfLines={2} className="font-semibold text-gray-900">
+                  <Text numberOfLines={2} className="font-semibold text-label">
                     {recipe.name}
                   </Text>
                   <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
                     <View className="flex-row items-center gap-1">
-                      <Ionicons name="time-outline" size={12} color="#6b7280" />
-                      <Text className="text-xs text-gray-500">
+                      <Ionicons name="time-outline" size={12} color={colors.labelTertiary} />
+                      <Text className="text-xs text-label-tertiary">
                         {recipe.prepTimeMins + recipe.cookTimeMins}m
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1">
-                      <Ionicons name="flame-outline" size={12} color="#944a00" />
-                      <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
+                      <Ionicons name="flame-outline" size={12} color={colors.brand} />
+                      <Text className="text-xs text-label-tertiary">{n.calories} kcal</Text>
                       <NutritionStatusTag
                         status={recipe.nutritionStatus}
                         testID={`recipe-card-status-${recipe.id}`}
                       />
                     </View>
-                    <Text className="text-xs text-gray-500">
+                    <Text className="text-xs text-label-tertiary">
                       P {n.protein}g · C {n.carbs}g · F {n.fat}g
                     </Text>
                   </View>
@@ -422,7 +424,7 @@ export default function RecipesScreen() {
                     <Text
                       testID={`recipe-card-${recipe.id}-meta`}
                       numberOfLines={1}
-                      className="text-xs text-gray-500"
+                      className="text-xs text-label-tertiary"
                     >
                       {meta}
                     </Text>
@@ -440,7 +442,7 @@ export default function RecipesScreen() {
                     <Ionicons
                       name={recipe.isFavourite ? 'heart' : 'heart-outline'}
                       size={22}
-                      color={recipe.isFavourite ? '#944a00' : '#6b7280'}
+                      color={recipe.isFavourite ? colors.brand : colors.labelTertiary}
                     />
                   </Pressable>
                   {tab === 'my' && (
@@ -452,7 +454,7 @@ export default function RecipesScreen() {
                       }
                       className="h-11 w-11 items-center justify-center"
                     >
-                      <Ionicons name="pencil" size={18} color="#944a00" />
+                      <Ionicons name="pencil" size={18} color={colors.brand} />
                     </Pressable>
                   )}
                 </View>
@@ -497,16 +499,17 @@ function EmptyState({
   onShowRules: () => void;
   onDiscover: () => void;
 }) {
+  const colors = useThemeColors();
   // UX-REC-09: with no search or filter set, an empty Discover means the
   // diet filters removed everything — say so, with a way to the settings.
   if (tab === 'discover' && !searching && !filtered && hidden && hidden.hiddenCount > 0) {
     return (
       <View
         testID="recipes-empty"
-        className="mx-4 items-center gap-2 rounded-2xl border border-dashed border-border bg-gray-50 px-4 py-12"
+        className="mx-4 items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-sunken px-4 py-12"
       >
-        <Ionicons name="compass-outline" size={40} color="#d1d5db" />
-        <Text className="font-medium text-gray-700">Your diet settings hide every dish</Text>
+        <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
+        <Text className="font-medium text-label-secondary">Your diet settings hide every dish</Text>
         <FilteredForLine
           testID="discover-empty-filtered-for"
           filters={hidden.filteredFor.join(' + ')}
@@ -528,10 +531,10 @@ function EmptyState({
     return (
       <View
         testID="recipes-empty"
-        className="mx-4 items-center rounded-2xl border border-dashed border-border bg-gray-50 py-16"
+        className="mx-4 items-center rounded-2xl border border-dashed border-border bg-surface-sunken py-16"
       >
-        <Ionicons name="search-outline" size={40} color="#d1d5db" />
-        <Text className="mt-3 font-medium text-gray-700">No matches</Text>
+        <Ionicons name="search-outline" size={40} color={colors.labelTertiary} />
+        <Text className="mt-3 font-medium text-label-secondary">No matches</Text>
         <Text variant="muted" className="mt-1 px-6 text-center text-sm">
           Try another word{tab === 'discover' ? ', or clear the filters.' : '.'}
         </Text>
@@ -542,20 +545,20 @@ function EmptyState({
   return (
     <View
       testID="recipes-empty"
-      className="mx-4 items-center rounded-2xl border border-dashed border-border bg-gray-50 py-16"
+      className="mx-4 items-center rounded-2xl border border-dashed border-border bg-surface-sunken py-16"
     >
       {tab === 'discover' ? (
         <>
-          <Ionicons name="compass-outline" size={40} color="#d1d5db" />
-          <Text className="mt-3 font-medium text-gray-700">No dishes match</Text>
+          <Ionicons name="compass-outline" size={40} color={colors.labelTertiary} />
+          <Text className="mt-3 font-medium text-label-secondary">No dishes match</Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
             {filtered ? 'Try clearing the filters.' : 'Check back soon — new dishes are added.'}
           </Text>
         </>
       ) : tab === 'saved' ? (
         <>
-          <Ionicons name="heart-outline" size={40} color="#d1d5db" />
-          <Text className="mt-3 font-medium text-gray-700">No saved recipes yet</Text>
+          <Ionicons name="heart-outline" size={40} color={colors.labelTertiary} />
+          <Text className="mt-3 font-medium text-label-secondary">No saved recipes yet</Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
             Tap the ♥ on any recipe to save it to your collection.
           </Text>
@@ -563,7 +566,7 @@ function EmptyState({
       ) : tab === 'my' ? (
         <>
           <Text className="text-4xl">✎</Text>
-          <Text className="mt-3 font-medium text-gray-700">No custom recipes yet</Text>
+          <Text className="mt-3 font-medium text-label-secondary">No custom recipes yet</Text>
           <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
             Create your own recipe, or import one from a link, photo or video.
           </Text>
@@ -574,7 +577,7 @@ function EmptyState({
       ) : (
         <>
           <Text className="text-4xl">📖</Text>
-          <Text className="mt-3 font-medium text-gray-700">No recipes yet</Text>
+          <Text className="mt-3 font-medium text-label-secondary">No recipes yet</Text>
           <Text variant="muted" className="mb-4 mt-1 px-6 text-center text-sm">
             Recipes from your meal plans appear here. Browse the collection meanwhile.
           </Text>

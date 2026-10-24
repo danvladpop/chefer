@@ -40,6 +40,7 @@ import {
 } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { toProductView } from '../products/product-view.js';
+import { notifyProgress } from '../progress/progress-hooks.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import { recipeCopyService } from '../recipe/recipe-copy.service.js';
 import {
@@ -230,7 +231,7 @@ export interface RecentTrackerEntry {
   /** UX-FOOD-11: macros the entry left blank (stored as 0 g). */
   unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   estimatedBy?: 'vision' | 'manual';
-  /** Logged from a packaged product (ADR 0002). Additive. */
+  /** Logged from a packaged product (ADR 0005). Additive. */
   productId?: string;
   portionMultiplier?: number;
   count: number;
@@ -256,6 +257,15 @@ async function plannedRecipeIdsFor(userId: string, dateStr: string): Promise<Set
   const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek);
   const slots = (day?.meals ?? []) as { recipeId: string }[];
   return new Set(slots.map((s) => s.recipeId));
+}
+
+/**
+ * Kitchen progress hook (tech-plan §4.2): after any write to a day, re-read it
+ * and record what it earned. Best-effort and awaited; removals call it too,
+ * which is harmless because nothing is ever taken back (D2).
+ */
+function progressDayChanged(userId: string, dateStr: string): Promise<void> {
+  return notifyProgress('onDayChanged', userId, (r) => r.onDayChanged(userId, dateStr));
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -424,6 +434,7 @@ export const trackerService = {
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) =>
       mergeLoggedMeals(stored, loggedMeals, plannedRecipeIds),
     );
+    await progressDayChanged(user.id, dateStr);
     return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
@@ -498,6 +509,7 @@ export const trackerService = {
         };
       },
     );
+    await progressDayChanged(user.id, dateStr);
     return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
@@ -514,9 +526,11 @@ export const trackerService = {
     dateStr: string,
     input: { recipeId: string; mealType: string; slotIndex?: number | undefined },
   ): Promise<DailyLog> {
-    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
+    const log = await dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
       stored.filter((m) => !matchesRecipeSlot(m, input)),
     );
+    await progressDayChanged(userId, dateStr);
+    return log;
   },
 
   /**
@@ -528,9 +542,11 @@ export const trackerService = {
    */
   async deleteEntries(userId: string, dateStr: string, entryIds: string[]): Promise<DailyLog> {
     const ids = new Set(entryIds);
-    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
+    const log = await dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) =>
       stored.filter((m) => !m.entryId || !ids.has(m.entryId)),
     );
+    await progressDayChanged(userId, dateStr);
+    return log;
   },
 
   /**
@@ -563,7 +579,7 @@ export const trackerService = {
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
       replacesSlot?: SlotRefJson | undefined;
-      /** Set by logProduct only (ADR 0002). */
+      /** Set by logProduct only (ADR 0005). */
       product?: { id: string; grams: number } | undefined;
     },
     rebalanceMode: RebalanceMode = 'auto',
@@ -600,11 +616,12 @@ export const trackerService = {
         skippedSlots: replaces ? skippedSlots.filter((s) => !sameSlot(s, replaces)) : skippedSlots,
       }),
     );
+    await progressDayChanged(user.id, dateStr);
     return { log, entryId, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
-   * Packaged products (ADR 0002): logs an amount of a product the user can
+   * Packaged products (ADR 0005): logs an amount of a product the user can
    * see. The numbers are computed here from the product's per-100 g values
    * (the client's preview uses the same `scaleProduct`), and the entry is an
    * ordinary custom entry plus `product: { id, grams }` — so every shipped
@@ -696,6 +713,7 @@ export const trackerService = {
         };
       },
     );
+    await progressDayChanged(user.id, dateStr);
     return {
       log,
       skippedSlots: parseSkippedSlots(log.skippedSlots),
@@ -717,6 +735,7 @@ export const trackerService = {
         skippedSlots: skippedSlots.filter((s) => !sameSlot(s, slot)),
       }),
     );
+    await progressDayChanged(userId, dateStr);
     return { log, skippedSlots: parseSkippedSlots(log.skippedSlots) };
   },
 
@@ -733,7 +752,7 @@ export const trackerService = {
     dateStr: string,
     target: { entryId?: string | undefined; entryIndex?: number | undefined },
   ): Promise<DailyLog> {
-    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
+    const log = await dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
       const index =
         target.entryId !== undefined
           ? stored.findIndex((m) => m.entryId === target.entryId)
@@ -743,6 +762,8 @@ export const trackerService = {
       }
       return stored.filter((_, i) => i !== index);
     });
+    await progressDayChanged(userId, dateStr);
+    return log;
   },
 
   /**
@@ -883,6 +904,7 @@ export const trackerService = {
       ...stored,
       ...copies,
     ]);
+    await progressDayChanged(user.id, toDateStr);
     return {
       log,
       copiedEntryIds: copies.map((c) => c.entryId!),

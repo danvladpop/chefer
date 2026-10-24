@@ -91,6 +91,12 @@ vi.mock('@chefer/database', async (importOriginal) => {
       coachingInvite: { findMany: emptyFindMany() },
       coachingNote: { findMany: emptyFindMany() },
       authIdentity: { findMany: emptyFindMany() },
+      // Kitchen progress: the export reads these; deleteAccount must NOT touch them (cascade).
+      progressState: { findUnique: vi.fn(async () => null) },
+      progressEvent: { findMany: emptyFindMany() },
+      progressUnlock: { findMany: emptyFindMany() },
+      progressQuestDay: { findMany: emptyFindMany() },
+      cookLog: { findMany: emptyFindMany() },
       $transaction: vi.fn(),
     },
   };
@@ -929,5 +935,58 @@ describe('exportAccountData: coaching section', () => {
     ]) {
       expect(json).not.toContain(id);
     }
+  });
+});
+
+// ─── Kitchen progress (gamification P1) ───────────────────────────────────────
+
+describe('Kitchen progress data', () => {
+  it('every progress table cascades from User (account deletion needs no explicit step)', () => {
+    for (const model of [
+      'ProgressEvent',
+      'CookLog',
+      'ProgressState',
+      'ProgressUnlock',
+      'ProgressQuestDay',
+    ]) {
+      const userRelations = relationFields(model).filter((f) => f.type === 'User');
+      expect(userRelations.length, `${model} has a relation to User`).toBeGreaterThan(0);
+      for (const rel of userRelations) {
+        expect(rel.relationOnDelete, `${model}.${rel.name}`).toBe('Cascade');
+      }
+    }
+    // A deleted recipe only unlinks the cook; the cook itself stays the user's.
+    const recipe = relationFields('CookLog').find((f) => f.type === 'Recipe');
+    expect(recipe?.relationOnDelete).toBe('SetNull');
+  });
+
+  it('adds no explicit progress deletes', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    await deleteAccount('u1');
+    expect(transactionOps().map((o) => o.op)).not.toContainEqual(
+      expect.stringMatching(/progress|cook/i),
+    );
+  });
+
+  it('exports the five tables in a progress section', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'u1', email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.progressState.findUnique).mockResolvedValueOnce({
+      userId: 'u1',
+      totalXp: 120,
+    } as never);
+    vi.mocked(prisma.progressEvent.findMany).mockResolvedValueOnce([
+      { key: 'MEAL_LOGGED:x' },
+    ] as never);
+
+    const data = await exportAccountData('u1');
+    expect(data['progress']).toEqual({
+      state: { userId: 'u1', totalXp: 120 },
+      events: [{ key: 'MEAL_LOGGED:x' }],
+      unlocks: [],
+      questDays: [],
+      cookLogs: [],
+    });
   });
 });

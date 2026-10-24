@@ -84,7 +84,7 @@ export interface RecentAggregate {
   recipeId?: string;
   customName?: string;
   estimatedBy?: 'vision' | 'manual';
-  /** The packaged product a custom entry was logged from (ADR 0002). */
+  /** The packaged product a custom entry was logged from (ADR 0005). */
   productId?: string;
   mealType: string;
   kcal: number;

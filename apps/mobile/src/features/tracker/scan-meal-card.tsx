@@ -3,7 +3,16 @@ import { Image, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Button, Card, Chip, DONE_FIELD_PROPS, Input, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  Chip,
+  DONE_FIELD_PROPS,
+  Input,
+  Text,
+  useSnackbar,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   defaultMealSlot,
@@ -107,6 +116,7 @@ export function ScanMealCard(props: ScanMealCardProps) {
  * (`meal-scan`) before the camera or library opens.
  */
 function SnapTaste() {
+  const colors = useThemeColors();
   const { isPremium } = useEntitlement('mealScansPerDay');
   const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
   if (!showSnapTaste({ isPremium, jobs: data?.jobs ?? [] })) return null;
@@ -121,8 +131,8 @@ function SnapTaste() {
         accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${PREMIUM_PITCH_COPY.snapTasteExampleMacros}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
         className="flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-muted p-3"
       >
-        <View className="h-12 w-12 items-center justify-center rounded-lg bg-white">
-          <Ionicons name="restaurant-outline" size={24} color="#944a00" />
+        <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface">
+          <Ionicons name="restaurant-outline" size={24} color={colors.brand} />
         </View>
         <View className="min-w-0 flex-1 gap-0.5">
           <View className="self-start rounded-full bg-accent px-2 py-0.5">
@@ -130,7 +140,7 @@ function SnapTaste() {
               {PREMIUM_PITCH_COPY.snapTasteExampleLabel}
             </Text>
           </View>
-          <Text className="text-sm font-semibold text-gray-900">
+          <Text className="text-sm font-semibold text-label">
             {PREMIUM_PITCH_COPY.snapTasteExampleMacros}
           </Text>
           <Text variant="muted" className="text-xs">
@@ -150,6 +160,7 @@ function SnapTaste() {
 }
 
 function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
+  const colors = useThemeColors();
   const snackbar = useSnackbar();
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
   const { proteinOnly } = useNumbersMode();
@@ -300,7 +311,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               onPress={() => pick('camera')}
             >
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="camera-outline" size={16} color="#944a00" />
+                <Ionicons name="camera-outline" size={16} color={colors.brand} />
                 <Text className="text-sm font-medium text-primary">Camera</Text>
               </View>
             </Button>
@@ -312,7 +323,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               onPress={() => pick('library')}
             >
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="images-outline" size={16} color="#944a00" />
+                <Ionicons name="images-outline" size={16} color={colors.brand} />
                 <Text className="text-sm font-medium text-primary">Photos</Text>
               </View>
             </Button>
@@ -348,7 +359,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               </View>
             </View>
           )}
-          {error && <Text className="text-xs text-red-600">{error}</Text>}
+          {error && <Text className="text-xs text-danger">{error}</Text>}
         </>
       ) : (
         <>
@@ -372,7 +383,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               <Text
                 testID="scan-dish-name"
                 numberOfLines={2}
-                className="text-sm font-semibold text-gray-900"
+                className="text-sm font-semibold text-label"
               >
                 {estimate.dishName}
               </Text>
@@ -382,13 +393,13 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             {estimate.portionNote}
           </Text>
           {proteinOnly ? (
-            <Text testID="scan-protein" className="text-sm font-semibold text-gray-800">
+            <Text testID="scan-protein" className="text-sm font-semibold text-label">
               {`≈ ${proteinLabel(logged.protein)}`}
             </Text>
           ) : (
             <>
               <View className="gap-1">
-                <Text className="text-xs font-medium text-gray-600">Calories</Text>
+                <Text className="text-xs font-medium text-label-secondary">Calories</Text>
                 <View className="flex-row items-center gap-2">
                   <Input
                     testID="scan-kcal"
@@ -402,7 +413,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                   <Text className="text-sm text-muted-foreground">kcal</Text>
                 </View>
               </View>
-              <Text testID="scan-macros" className="text-sm text-gray-700">
+              <Text testID="scan-macros" className="text-sm text-label-secondary">
                 {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
               </Text>
             </>
@@ -441,13 +452,13 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                   onPress={() => setMealType(t)}
                   className={cn(
                     'h-9 flex-1 items-center justify-center rounded-lg border',
-                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
+                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-surface',
                   )}
                 >
                   <Text
                     className={cn(
                       'text-xs font-medium capitalize',
-                      mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                      mealType === t ? 'text-primary-foreground' : 'text-label-secondary',
                     )}
                   >
                     {t}
@@ -496,9 +507,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             </Button>
           </View>
           {logMutation.isError && (
-            <Text className="text-xs text-red-600">
-              {userFacingErrorMessage(logMutation.error)}
-            </Text>
+            <Text className="text-xs text-danger">{userFacingErrorMessage(logMutation.error)}</Text>
           )}
         </>
       )}
