@@ -2170,9 +2170,20 @@ timestamps; no migration SQL reads the server clock.
 
 All five cascade from `User`, so `deleteAccount` needs no explicit step (`account-data.service.test.ts` pins the
 `onDelete` rules); `user.exportData` gains a `progress` section with all five.
-| `CoachingLink` + `shareFoodAt DateTime?`, `shareWeightAt DateTime?` | When the client turned "Share my food log" / "Share my weight" on for THIS coaching; null = off. Cleared (with a withdrawn event) when the link ends, so a new coaching always starts with both off |
-| `CoachingRequest` + `shareFood`, `shareWeight` (default false) | The consent screen's switches on a coaching request; applied to the link when the trainer accepts |
-| `ConsentEvent` (`COACHING_SHARING`) `providers` | `[]` = the coaching itself (as before); `['FOOD']` / `['WEIGHT']` = a sharing switch. `contextId` = the link (or the request it was asked in); granted events carry `documentVersion` `<privacy>+coaching-data-v1` |
+
+### Coaching data: the client's food and weight sharing (lane K1, 2026-10-22, additive)
+
+Migration `20261024120300_coaching_data_sharing`. Owner decision: opt-in **per coaching**, both off by default.
+
+| Model / change                                                      | Meaning                                                                                                                                                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CoachingLink` + `shareFoodAt DateTime?`, `shareWeightAt DateTime?` | When the client turned "Share my food log" / "Share my weight" on for THIS coaching; null = off. Cleared (with a withdrawn event) when the link ends, so a new coaching always starts with both off                |
+| `CoachingRequest` + `shareFood`, `shareWeight` (default false)      | The consent screen's switches on a coaching request; applied to the link when the trainer accepts                                                                                                                  |
+| `ConsentEvent` (`COACHING_SHARING`) `providers`                     | `[]` = the coaching itself (as before); `['FOOD']` / `['WEIGHT']` = a sharing switch. `contextId` = the link (or the request it was asked in); granted events carry `documentVersion` `<privacy>+coaching-data-v1` |
+
+No new `ConsentKind` and **no new API level**: an installed bundle labels a FOOD / WEIGHT row with the generic
+"Trainer access allowed / ended"; the OTA bundle uses `coachingConsentLabel()` (`@chefer/types`). Access is
+decided in `coaching-access.service.ts` (scopes `food` / `weight`, rule 3b): the ACTIVE link AND its switch.
 
 ### Coaching data: weekly check-ins (lane K3, 2026-10-23, additive)
 
