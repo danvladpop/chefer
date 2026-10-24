@@ -2238,8 +2238,9 @@ the adjusted target must shape next week's budget)
   │         ├─ metrics (application/coach/review.service.ts — pure, unit-tested):
   │         │    adherence = logged days / 7; avg kcal (and protein) over
   │         │    logged days;
-  │         │    weight trend = EWMA (α=0.25) over ≤28 days of WeightEntry
-  │         │    rows, null unless ≥5 points spanning ≥10 days
+  │         │    weight trend = the trend weight's rate over the last 28
+  │         │    days (lane D1, see "Trend weight" below), fed by 56 days of
+  │         │    WeightEntry rows; null unless ≥5 weigh-in days span ≥10 days
   │         ├─ adjustment policy (deterministic, conservative):
   │         │    adherence <50% → nothing, coach the habit;
   │         │    LOSE plateau (trend ≥ −0.1 kg/wk) for 2 CONSECUTIVE reviews
@@ -2328,12 +2329,13 @@ the adjusted target must shape next week's budget)
   row with 0 kcal and no longer inflates "Days logged"). The weight card is
   rendered outside the calorie summary's error branch, so a failed summary
   does not hide it (UX-FOOD-28). Weight chart over the range (`tracker.weightHistory`)
-  with current weight and change. The change is coloured by goal via the
-  shared `weightChangeTone` (`@chefer/utils`): gaining is green for
-  GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
-  (audit F-TRK-4-1). Reads ignore
-  future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
-  so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
+  with the last weigh-in, the trend weight and the trend's change over the
+  range (lane D1). A change toward the goal is green via the shared
+  `weightChangeTone` (`@chefer/utils`; gaining for GAIN_MUSCLE, losing for
+  LOSE_WEIGHT, audit F-TRK-4-1); anything else stays neutral — never red
+  (adherence-neutral). Reads ignore future-dated rows, and the trend drops
+  jumps over 3 kg/day, so a single typo can't swing the chart or the weekly
+  adjustment (audit F-DASH-3-1).
   **T-21.1 (§2.12) bug fix:** the web page parsed each day's `YYYY-MM-DD`
   with `date-fns` `parseISO`, which reads a date-only string as UTC
   midnight — formatting it back in a browser west of Greenwich showed the
@@ -2341,6 +2343,33 @@ the adjusted target must shape next week's budget)
 matching mobile's `progress.tsx` `shortDate`, which already did this.
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
+
+### Trend weight (lane D1, 2026-10-22)
+
+One smoothing for every surface, in `@chefer/utils` `weight-trend.ts`, so the
+web chart, the app's chart and the Sunday review always agree:
+
+- `weightTrendSeries(entries)` → one point per calendar day (several weigh-ins
+  on one day count as their mean), oldest first, each with the day's reading
+  and the **trend weight** after it. The trend is an exponentially smoothed
+  average with α = 0.1 per day (`TREND_DAILY_ALPHA`). A gap of n days uses
+  `1 − 0.9ⁿ`, so the step after two weeks away closes most of the distance
+  (the old trend is stale) while daily weigh-ins each move it by a tenth.
+  A reading more than 3 kg/day from the last kept one is marked `outlier`:
+  it still shows as a dot, but the trend carries on without it.
+- `summarizeWeightTrend(series, { windowDays, asOf?, minWeighIns?, minSpanDays? })`
+  → where the trend started and ended inside the window, the change and the
+  kg/week rate between those ends. Weigh-ins before the window only warm the
+  trend up. The coach uses 28 days, ≥5 weigh-in days, ≥10-day span; the
+  charts use the selected range.
+- Charts (web `WeightTrendSection`, app Stats and legacy Progress): the
+  readings are faint dots, the trend is the bold line, captioned with
+  `TREND_WEIGHT_EXPLAINER`. The header shows the last weigh-in and "Trend
+  81.9 kg"; the change line is `trendChangeText` ("Trend −0.6 kg over 30
+  days" / "Trend steady over 7 days"). The clients fetch at least 90 days of
+  weigh-ins, so the line has warmed up before the 1W/1M range starts. No API
+  change: both platforms compute it from `tracker.weightHistory`.
+- Copy is adherence-neutral: directions, never verdicts, no red numbers.
 
 ---
 

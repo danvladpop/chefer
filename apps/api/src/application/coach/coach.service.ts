@@ -25,6 +25,7 @@ import {
   buildTemplateReviewText,
   computeReviewMetrics,
   decideAdjustmentKcal,
+  TREND_WINDOW_DAYS,
   type ReviewDayLog,
 } from './review.service.js';
 
@@ -45,8 +46,11 @@ export const MIN_LOGGED_DAYS = 3;
 /** A review is surfaced for two weeks: the reviewed week's Monday + 14 days. */
 const REVIEW_FRESH_DAYS = 14;
 
-/** Weigh-in window feeding the EWMA trend (~4 weeks). */
-const TREND_WINDOW_DAYS = 28;
+/**
+ * Weigh-ins fetched for the trend: the 28-day window the coach reads, plus as
+ * much again before it so the smoothed line has warmed up by the window start.
+ */
+const TREND_HISTORY_DAYS = TREND_WINDOW_DAYS * 2;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -149,7 +153,7 @@ export class CoachService {
 
     const [profile, weights, prevReview] = await Promise.all([
       this.profileRepo.findByUserId(userId),
-      this.weightRepo.findLastN(userId, TREND_WINDOW_DAYS),
+      this.weightRepo.findLastN(userId, TREND_HISTORY_DAYS),
       this.reviewRepo.findPreviousBefore(userId, weekStart),
     ]);
 
@@ -158,7 +162,7 @@ export class CoachService {
     // follow-up). Calories are identical either way.
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile);
     const targets = resolveDailyTargets(profile, lifterBodyweightKg);
-    const metrics = computeReviewMetrics(weekLogs, weights);
+    const metrics = computeReviewMetrics(weekLogs, weights, now);
     const proteinGPerKg = lifterBodyweightKg ? lifterProteinGPerKg(profile?.goal) : null;
 
     const bmrTdee =

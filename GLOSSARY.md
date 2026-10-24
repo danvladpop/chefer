@@ -248,3 +248,14 @@ _Avoid_: dark mode (in user copy), dark theme
 A colour named for what it does (`canvas`, `label-secondary`, `brand`, `attention`…) with a Day and a Night
 value, from `@chefer/tokens`. Every colour on mobile is one.
 _Avoid_: palette colour, hex
+
+## Progress
+
+**Weigh-in**:
+One body-weight reading the user logged, with its date. Raw and noisy: water, salt and timing move it a kilo or more.
+_Avoid_: weight entry (in user copy), measurement
+
+**Trend weight**:
+The smoothed line through the weigh-ins (an exponentially weighted average, α = 0.1 a day, gaps handled in time); what
+charts draw bold and what the Adaptive Chef reads. "Trend" for short in copy.
+_Avoid_: average weight, moving average (in user copy), real weight

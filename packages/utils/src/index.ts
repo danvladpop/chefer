@@ -355,6 +355,18 @@ export {
   type WeightParseResult,
 } from './weight';
 export {
+  TREND_DAILY_ALPHA,
+  TREND_WEIGHT_EXPLAINER,
+  summarizeWeightTrend,
+  trendChangeText,
+  weightTrendSeries,
+  type TrendPoint,
+  type WeighIn,
+  type WeightTrendOptions,
+  type WeightTrendSummary,
+  type WeightTrendSummaryOptions,
+} from './weight-trend';
+export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
