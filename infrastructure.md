@@ -2302,7 +2302,7 @@ One new table, `saved_meals` (`SavedMeal`): `id`, `userId` (FK → users, **ON D
 (JSON `SavedMealItem[]`: `recipeId?`, `name`, `estimatedBy?`, `portionMultiplier`, kcal/protein/carbs/fat,
 `unknownMacros?`, `product?` — a snapshot, never a live link to the entries it came from), `lastLoggedAt?`,
 timestamps; `@@unique([userId, name])`, index on `userId`. Migration:
-`packages/database/prisma/migrations/20261023120000_saved_meals/`.
+`packages/database/prisma/migrations/20261024120500_saved_meals/`.
 
 ## 7. API Layer
 
