@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
-import { Card, ExplainSheet, Text } from '@chefer/ui-mobile';
+import { Card, ExplainSheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatKcal, formatWeightTrend, proteinAverageText, withoutKcalLines } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { useUnitSystem } from '../../hooks/use-unit-system';
@@ -80,6 +80,7 @@ function ProteinReviewBanner() {
 }
 
 function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } | null }) {
+  const colors = useThemeColors();
   const { proteinOnly } = useNumbersMode();
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const system = useUnitSystem();
@@ -94,21 +95,23 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
 
   if (data.status === 'teaser') {
     return (
-      <Card testID="coach-teaser" className="border-amber-200 bg-amber-50">
+      <Card testID="coach-teaser" className="border-brand/30 bg-brand-tint">
         <View className="flex-row items-start gap-3">
-          <Ionicons name="restaurant-outline" size={18} color="#944a00" />
+          <Ionicons name="restaurant-outline" size={18} color={colors.brand} />
           <View className="min-w-0 flex-1">
-            <Text className="text-sm font-semibold text-gray-900">
+            <Text className="text-sm font-semibold text-label">
               Your chef noticed something about your week…
             </Text>
             {(proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine) !== '' && (
-              <Text className="mt-1 text-sm text-gray-700">
+              <Text className="mt-1 text-sm text-label-secondary">
                 {proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine}
               </Text>
             )}
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
-            <Text className="mt-1 text-sm text-gray-400 opacity-50">{TEASER_PLACEHOLDER}</Text>
-            <Text className="mt-2 text-xs text-gray-500">
+            <Text className="mt-1 text-sm text-label-tertiary opacity-50">
+              {TEASER_PLACEHOLDER}
+            </Text>
+            <Text className="mt-2 text-xs text-label-tertiary">
               The full review and auto-adjusting targets are part of Premium.
             </Text>
             <Pressable
@@ -132,39 +135,37 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
   const reviewText = expanded ? fullText : fullText.split('\n')[0];
 
   return (
-    <Card testID="coach-review" className="border-emerald-200 bg-emerald-50">
+    <Card testID="coach-review" className="border-positive/30 bg-positive/10">
       <View className="flex-row items-start gap-3">
-        <Ionicons name="restaurant-outline" size={18} color="#059669" />
+        <Ionicons name="restaurant-outline" size={18} color={colors.positive} />
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-semibold text-emerald-900">
-            Your chef&apos;s weekly review
-          </Text>
+          <Text className="text-sm font-semibold text-label">Your chef&apos;s weekly review</Text>
           {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
           <AiGeneratedChip
             recipe={r}
             testID="coach-review-ai-chip"
             a11yLabel={AI_REVIEW_A11Y_LABEL}
           />
-          <Text className="mt-0.5 text-xs text-emerald-800">{reviewText}</Text>
+          <Text className="mt-0.5 text-xs text-positive">{reviewText}</Text>
           <View className="mt-2 flex-row flex-wrap gap-x-4 gap-y-1">
-            <Text className="text-xs text-emerald-800">
-              <Text className="text-xs font-bold text-emerald-800">{r.adherencePct}%</Text> logged
+            <Text className="text-xs text-positive">
+              <Text className="text-xs font-bold text-positive">{r.adherencePct}%</Text> logged
             </Text>
             {proteinOnly ? (
               proteinAverage && (
-                <Text testID="coach-review-protein-average" className="text-xs text-emerald-800">
+                <Text testID="coach-review-protein-average" className="text-xs text-positive">
                   {proteinAverageText(proteinAverage)}
                 </Text>
               )
             ) : (
-              <Text className="text-xs text-emerald-800">
-                <Text className="text-xs font-bold text-emerald-800">{r.avgDailyKcal}</Text>{' '}
-                kcal/day avg
+              <Text className="text-xs text-positive">
+                <Text className="text-xs font-bold text-positive">{r.avgDailyKcal}</Text> kcal/day
+                avg
               </Text>
             )}
-            {trend && <Text className="text-xs text-emerald-800">{trend}</Text>}
+            {trend && <Text className="text-xs text-positive">{trend}</Text>}
             {!proteinOnly && r.adjustmentKcal !== 0 && (
-              <Text className="text-xs text-emerald-800">
+              <Text className="text-xs text-positive">
                 budget {r.adjustmentKcal > 0 ? '+' : ''}
                 {r.adjustmentKcal} kcal
               </Text>
@@ -181,7 +182,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
               }}
               className="mt-1 min-h-11 justify-center"
             >
-              <Text className="text-sm font-semibold text-emerald-700">Why?</Text>
+              <Text className="text-sm font-semibold text-positive">Why?</Text>
             </Pressable>
             <Pressable
               testID="coach-review-toggle"
@@ -189,7 +190,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
               onPress={() => setExpanded((e) => !e)}
               className="mt-1 min-h-11 justify-center"
             >
-              <Text className="text-sm font-semibold text-emerald-700">
+              <Text className="text-sm font-semibold text-positive">
                 {expanded ? 'Show less' : 'See full review →'}
               </Text>
             </Pressable>

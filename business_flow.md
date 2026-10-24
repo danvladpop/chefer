@@ -44,6 +44,8 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
+40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
 
 ---
 
@@ -6290,3 +6292,24 @@ The ledger records for everyone from deploy (D1); the flag only decides who sees
   celebrations and Biscuit go quiet, and a support card shows. Logging XP is recorded unchanged.
 - All copy lives in `@chefer/utils/progress/copy.ts`, scanned by `no-forbidden-copy` (no "missed", "lost", "safe"…).
 - XP is never a currency, nothing is sold, and everything is free.
+
+---
+
+## 40. Appearance: Night Mode (mobile, UX revamp phase 4)
+
+Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_backlog.md` holds the web port.
+
+1. **Default — Automatic.** A fresh install follows the phone: light by day, the night palette when
+   iOS/Android is in dark mode, switching live when the phone does.
+2. **Choosing.** You › Settings › **Appearance** (also on trainer-mode You and the legacy Settings
+   hub) opens three checked rows: **Automatic** ("Matches your phone's light or dark setting"),
+   **Day** (always light), **Night** (always dark). A tap applies at once — the screen itself is the
+   preview — and fires `appearance_changed { mode }`.
+3. **Persistence.** The choice is a device setting (`appearance.mode` in the gym KV store): it
+   survives restarts and sign-out, and is not synced to the account. A pinned Day/Night is applied
+   at launch before the first frame; Automatic leaves the native appearance alone.
+4. **What changes.** Every colour is a `@chefer/tokens` role with a Day and a Night value (Ember);
+   native chrome — status bar, keyboard, alerts, pickers, share sheet — follows the app's scheme,
+   not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
+   overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
+5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
-import { EmptyState, ErrorState, Screen } from '@chefer/ui-mobile';
+import { EmptyState, ErrorState, Screen, useThemeColors } from '@chefer/ui-mobile';
 import { useFriendsAvailability } from '../api/use-friends-availability';
 
 // ─── FriendsGate: every /friends/* route renders inside it ────────────────────
@@ -14,11 +14,12 @@ import { useFriendsAvailability } from '../api/use-friends-availability';
 // the server said yes.
 
 export function FriendsUnavailableScreen({ testID = 'friends-unavailable' }: { testID?: string }) {
+  const colors = useThemeColors();
   return (
     <Screen className="justify-center">
       <EmptyState
         testID={testID}
-        icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
         title={FRIENDS_COPY.unavailable}
         action={{
           label: FRIENDS_COPY.common.goBack,

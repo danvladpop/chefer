@@ -1,10 +1,10 @@
 import { ActivityIndicator, Keyboard, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
 import { withLabelSlack } from './label-slack';
 import { DEFAULT_MAX_FONT_SCALE } from './text';
-import { colors } from './theme';
 
 // Same variant vocabulary as @chefer/ui's web Button. All sizes clear the
 // 44pt minimum touch target (CLAUDE.md). Built on PressableScale (MO-01):
@@ -89,6 +89,7 @@ export function Button({
   onPress,
   ...props
 }: ButtonProps) {
+  const colors = useThemeColors();
   const closesKeyboard =
     dismissKeyboard ?? (!variant || variant === 'default' || variant === 'destructive');
   const isDisabled = (disabled ?? false) || loading;
@@ -121,8 +122,8 @@ export function Button({
           size="small"
           color={
             variant === 'outline' || variant === 'ghost' || variant === 'secondary'
-              ? colors.primary
-              : 'white'
+              ? colors.brand
+              : colors.onBrand
           }
         />
       ) : null}

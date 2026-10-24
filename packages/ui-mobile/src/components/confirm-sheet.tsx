@@ -1,8 +1,8 @@
 import { Switch, View } from 'react-native';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { Button } from './button';
 import { Sheet } from './sheet';
 import { Text } from './text';
-import { colors } from './theme';
 
 export interface ConfirmSheetOption {
   label: string;
@@ -63,6 +63,7 @@ export function ConfirmSheet({
   error,
   testID,
 }: ConfirmSheetProps) {
+  const colors = useThemeColors();
   return (
     <Sheet visible={visible} onClose={onClose} title={title} testID={testID}>
       <Text testID={`${testID}-body`}>{body}</Text>
@@ -87,14 +88,14 @@ export function ConfirmSheet({
                 accessibilityLabel={option.label}
                 value={option.value}
                 onValueChange={option.onChange}
-                trackColor={{ true: colors.primary, false: colors.neutral }}
+                trackColor={{ true: colors.brand, false: colors.separator }}
               />
             </View>
           ))}
         </View>
       ) : null}
       {error ? (
-        <Text testID={`${testID}-error`} accessibilityRole="alert" className="text-sm text-red-600">
+        <Text testID={`${testID}-error`} accessibilityRole="alert" className="text-sm text-danger">
           {error}
         </Text>
       ) : null}
