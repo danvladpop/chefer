@@ -25,6 +25,7 @@ let mockMembers: { name: string; portionFactor: number }[] | null = null;
 let mockCookingFor: number | null = null;
 const mockLogRecipe = vi.fn();
 const mockUnlogRecipe = vi.fn();
+const mockFinishCook = vi.fn();
 let mockLogSucceeds = false;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
@@ -65,6 +66,15 @@ vi.mock('@/lib/trpc', () => ({
       tracker: { getDay: { invalidate: vi.fn() }, weeklySummary: { invalidate: vi.fn() } },
       dashboard: { summary: { invalidate: vi.fn() } },
     }),
+    // Kitchen progress: the flag is off here, so only `finishCook` runs (D1).
+    profile: { flags: { useQuery: () => ({ data: {}, isPending: false }) } },
+    progress: {
+      availability: { useQuery: () => ({ data: undefined, isPending: false }) },
+      summary: { useQuery: () => ({ data: undefined, isPending: false }) },
+      finishCook: {
+        useMutation: () => ({ mutate: mockFinishCook, data: undefined, isPending: false }),
+      },
+    },
     mealPlan: {
       getRecipe: {
         useQuery: () => ({ data: RECIPE, isLoading: false, refetch: mockRefetch, ...mockQuery }),
@@ -104,6 +114,7 @@ afterEach(() => {
   mockCookingFor = null;
   mockLogRecipe.mockReset();
   mockUnlogRecipe.mockReset();
+  mockFinishCook.mockReset();
   mockLogSucceeds = false;
   vi.useRealTimers();
 });
@@ -426,6 +437,26 @@ describe('CookMode analytics (UX-PO-02)', () => {
     key('ArrowRight');
     const finished = vi.mocked(capture).mock.calls.filter(([event]) => event === 'cook_finished');
     expect(finished).toHaveLength(1);
+  });
+
+  // Kitchen progress (lane D2): the cook is recorded once, for everyone.
+  it('records the cook once with finishCook, even finishing twice, and not before the finish screen', () => {
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    expect(mockFinishCook).not.toHaveBeenCalled();
+    key('ArrowRight');
+    expect(mockFinishCook).toHaveBeenCalledTimes(1);
+    expect(mockFinishCook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipeId: 'r1',
+        id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-/) as string,
+        localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) as string,
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /back to the steps|steps/i }));
+    key('ArrowRight');
+    expect(mockFinishCook).toHaveBeenCalledTimes(1);
   });
 
   it('logs the meal as planned when opened from a plan slot, quick otherwise', () => {

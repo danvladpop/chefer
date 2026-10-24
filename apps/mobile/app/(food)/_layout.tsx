@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
-import { colors, countPillText } from '@chefer/ui-mobile';
+import { countPillText, useThemeColors } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
@@ -27,6 +27,7 @@ import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab
 const TAB_COUNT = 5;
 
 export default function FoodTabsLayout() {
+  const colors = useThemeColors();
   // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
   // T-04.3) — the persisted mode (today's behaviour, gym_plan.md D3) plus,
   // for an account that's never explicitly switched, a jobs-based default
@@ -125,8 +126,8 @@ export default function FoodTabsLayout() {
           tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
+            backgroundColor: colors.brand,
+            color: colors.onBrand,
             fontSize: 12,
           },
           tabBarIcon: ({ color, size }) => (

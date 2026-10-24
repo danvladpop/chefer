@@ -44,6 +44,9 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
+40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
+41. [Weekly Recap & Share Cards](#43-weekly-recap--share-cards-market-review-2026-10-lane-e2)
 
 ---
 
@@ -6259,7 +6262,98 @@ silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructur
 
 ---
 
-## 39. Weekly Recap & Share Cards (market review 2026-10, lane E2)
+## 39. Kitchen progress (gamification P1, `docs/gamification-2026-10/`)
+
+Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
+web on the same release. Design and rules: [`tech-plan.md`](docs/gamification-2026-10/tech-plan.md); the decision
+record: [ADR 0002](docs/adr/0002-progress-ledger.md).
+
+### 39.1 Earning (server-side, for every user)
+
+The ledger records for everyone from deploy (D1); the flag only decides who sees it. Each reward is one
+`ProgressEvent` with a key that makes it pay once.
+
+| The user…                                     | Where it is recorded                                      | Chef XP                                                                     |
+| --------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| logs a meal (any way: tick, quick add, scan…) | after every `tracker.*` day write (`onDayChanged`)        | 5, or 10 when it fills a plan slot; at most 5 meals a day earn              |
+| logs every planned meal of a day              | same                                                      | +15 full day (every slot logged, replaced or skipped, and ≥ 2 logged)       |
+| reaches the protein target                    | same                                                      | +10 (no reward ever depends on eating or weighing less)                     |
+| finishes cook mode                            | `progress.finishCook` (stores a `CookLog` for everyone)   | 25, +10 the first time they make that recipe                                |
+| finishes a workout (live, offline, coached)   | `gym.session.upsertMany` when a doc first syncs COMPLETED | 40, plus up to 3 PRs (e1RM 20 / weight 15 / reps 10); counts on its own day |
+| ticks the last shopping-list item             | `shoppingList.toggleItems`                                | 10                                                                          |
+| finishes all of Today's three                 | any of the above                                          | +40                                                                         |
+| reaches the active-day goal for a week        | any active-day event                                      | +50, and the Flame grows                                                    |
+
+- Above 150 XP in a day, further actions still count at half XP (the bonuses are exempt).
+- Nothing is ever taken back (D2). Unlogging or deleting keeps what was earned, and levels never go down.
+
+### 39.2 Seeing it (flag on)
+
+- **First open:**
+  - `progress.summary` back-dates the user's history (workouts and PRs, logged meals, full days, finished shopping
+    lists, met weeks, badges) with the same keys;
+  - it pays the "Welcome to the kitchen" start (28 XP and a badge);
+  - it shows one intro card with what the history earned. No celebration storm.
+- **Today** (mobile Today tab, web `/dashboard`):
+  - the progress strip: level, rank, XP to the next rank, the Flame and this week's dots;
+  - Today's three;
+  - the weekly-recap banner from Sunday to Tuesday;
+  - a calm support card when the low-intake guard is on.
+- **Moments:** after a reward, the client reads `progress.inbox` and celebrates at the user's level:
+  - Full: snackbar or toast receipts, the level-up modal, Biscuit's line;
+  - Subtle: snackbars only;
+  - Off: silent.
+
+  Cook mode and the workout summary show their own Kitchen receipt. A new PR mid-workout shows a live banner.
+
+- **The Flame sheet:** this week, pilot lights, milestones (4/8/12/26/52 weeks), the training-streak row, change goal,
+  pause (up to 4 weeks).
+- **You → Achievements** (11 achievements, 33 badges, "Closest next" first), the chef card on You (web `/profile`),
+  **You → Settings → Rewards & motivation** (web `/preferences`): celebrations, show XP, show flame, Biscuit, goal,
+  pause, and the gentle reminder (mobile only; at most one a day, only on days the app wasn't opened, backs off when
+  ignored, off by default).
+
+### 39.3 The Flame and the gym streak
+
+- An **active day** is any day with a logged meal, a finished cook or a completed workout.
+- The Flame counts weeks in a row that reached the active-day goal (default 3).
+- **Pilot lights** (one every 4 good weeks, max 2, or 3 from Chef de Partie) cover a short week automatically, even an
+  empty one.
+- The gym weekly streak, its goal, flex tokens and training pauses are unchanged. Workouts feed the Flame, and the Flame
+  sheet shows the training streak as a row. A Flame pause and a training pause are independent.
+
+### 39.4 Guardrails
+
+- Rules never read kcal, carbs, fat or weight. Protein can only add XP. A property test enforces this.
+- If at least 3 of the last 7 full days fall below the sex-specific calorie floor, `summary.quiet` turns on: food
+  celebrations and Biscuit go quiet, and a support card shows. Logging XP is recorded unchanged.
+- All copy lives in `@chefer/utils/progress/copy.ts`, scanned by `no-forbidden-copy` (no "missed", "lost", "safe"…).
+- XP is never a currency, nothing is sold, and everything is free.
+
+---
+
+## 40. Appearance: Night Mode (mobile, UX revamp phase 4)
+
+Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_backlog.md` holds the web port.
+
+1. **Default — Automatic.** A fresh install follows the phone: light by day, the night palette when
+   iOS/Android is in dark mode, switching live when the phone does.
+2. **Choosing.** You › Settings › **Appearance** (also on trainer-mode You and the legacy Settings
+   hub) opens three checked rows: **Automatic** ("Matches your phone's light or dark setting"),
+   **Day** (always light), **Night** (always dark). A tap applies at once — the screen itself is the
+   preview — and fires `appearance_changed { mode }`.
+3. **Persistence.** The choice is a device setting (`appearance.mode` in the gym KV store): it
+   survives restarts and sign-out, and is not synced to the account. A pinned Day/Night is applied
+   at launch before the first frame; Automatic leaves the native appearance alone.
+4. **What changes.** Every colour is a `@chefer/tokens` role with a Day and a Night value (Ember);
+   native chrome — status bar, keyboard, alerts, pickers, share sheet — follows the app's scheme,
+   not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
+   overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
+5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).
+
+---
+
+## 43. Weekly Recap & Share Cards (market review 2026-10, lane E2)
 
 > **Status:** Implemented on mobile and web. Every tier. No flag.
 

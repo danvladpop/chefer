@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { FRIENDS_COPY, type FriendWorkoutDto } from '@chefer/types';
-import { Card, colors, duration, Text, useReducedMotion } from '@chefer/ui-mobile';
+import { Card, duration, Text, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { formatWeekdayDayMonth } from '../format';
 import type { ViewerUnits } from '../use-viewer-units';
 import { setLines, topSetLine } from './workout-format';
@@ -24,6 +24,7 @@ export function FriendWorkoutCard({
   units: ViewerUnits;
   testID: string;
 }) {
+  const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion();
   const meta = [
@@ -94,7 +95,7 @@ export function FriendWorkoutCard({
           <Text className="text-sm font-semibold text-primary">
             {open ? FRIENDS_COPY.gym.hideSets : FRIENDS_COPY.gym.showSets}
           </Text>
-          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.primary} />
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.brand} />
         </Pressable>
       </Card>
     </Animated.View>

@@ -23,6 +23,8 @@ import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
 import { NumbersModeProvider, useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../privacy/health-consent-notice';
+import { ProgressTodayTop } from '../../progress/today-cards';
+import { TodaysThreeCard } from '../../progress/todays-three-card';
 import { RecapTodayCard } from '../../recap/recap-today-card';
 import { MigrationCard } from '../../safety/migration-card';
 import { DayFitNote } from '../../tracker/day-fit-note';
@@ -188,6 +190,9 @@ export function TodayScreen() {
               </PressableScale>
             ) : null}
 
+            {/* Kitchen progress (mockup 01): the strip, plus the intro / recap / support cards when due. Self-gated. */}
+            <ProgressTodayTop />
+
             {/* What you ate vs target (B-31: only with a goal, tracking, or the toggle on). */}
             {d.showNutrition ? (
               <NutritionCard
@@ -242,6 +247,9 @@ export function TodayScreen() {
                 </BoardCard>
               )}
             </View>
+
+            {/* Kitchen progress: three small things for today. Self-gated. */}
+            <TodaysThreeCard />
 
             <YourDayCard
               slots={slots}

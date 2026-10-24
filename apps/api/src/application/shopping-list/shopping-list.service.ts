@@ -22,6 +22,7 @@ import { householdService } from '../household/household.service.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { PANTRY_RETIRED } from '../pantry/pantry-retired.js';
 import { pantryService } from '../pantry/pantry.service.js';
+import { notifyProgress } from '../progress/progress-hooks.js';
 import { safetyService } from '../safety/safety.service.js';
 import { inferCategory, type GroceryCategory } from '../shared/category-map.js';
 import { slotShopFactor, type PortionTable } from '../shared/household-scale.js';
@@ -578,6 +579,8 @@ export class ShoppingListService {
     planId: string,
     keys: string[],
     checked: boolean,
+    /** Kitchen progress: the client's local day (optional; older clients send none). */
+    localDate?: string,
   ): Promise<{ checkedKeys: string[] }> {
     const userId = user.id;
     const plan = await mealPlanRepository.findByIdForUser(userId, planId);
@@ -621,6 +624,12 @@ export class ShoppingListService {
             console.error('[pantry] Failed to sync the pantry with a check-off:', err);
           }
         }
+        // Kitchen progress: a fully checked list earns SHOP_DONE (best-effort).
+        if (checked) {
+          await notifyProgress('onShoppingToggled', userId, (r) =>
+            r.onShoppingToggled(userId, planId, localDate),
+          );
+        }
         return { checkedKeys };
       } catch (err) {
         // P2034: transaction conflict — the concurrent writer won; retry on
@@ -630,6 +639,27 @@ export class ShoppingListService {
         if (!conflict || attempt >= 3) throw err;
       }
     }
+  }
+
+  /**
+   * Kitchen progress: how many lines the plan's list has (derived lines plus the
+   * user's custom items) and how many of them are still unchecked. Keys do not
+   * depend on household scaling, so no user profile is needed. Null when the
+   * plan is not the user's.
+   */
+  async progressFor(
+    userId: string,
+    planId: string,
+  ): Promise<{ total: number; unchecked: number } | null> {
+    const plan = await mealPlanRepository.findByIdForUser(userId, planId);
+    if (!plan) return null;
+    const stored = await prisma.shoppingList.findUnique({ where: { planId } });
+    const lines = [
+      ...(await this.buildDerivedRawItems(plan)),
+      ...readCustomItems(stored?.customItems),
+    ];
+    const checked = new Set(stored?.checkedKeys ?? []);
+    return { total: lines.length, unchecked: lines.filter((l) => !checked.has(l.key)).length };
   }
 
   /**

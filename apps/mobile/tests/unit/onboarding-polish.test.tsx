@@ -139,8 +139,8 @@ describe('How you cook nits (UX-ONB-10, UX-ONB-04)', () => {
     );
     const switches = source.match(/<Switch\b[^>]*>/gs) ?? [];
     expect(switches).toHaveLength(2);
-    for (const tag of switches) expect(tag).toContain('trackColor={SWITCH_TRACK}');
-    expect(source).toMatch(/SWITCH_TRACK = \{ true: colors\.primary, false: colors\.neutral \}/);
+    for (const tag of switches) expect(tag).toContain('trackColor={switchTrack}');
+    expect(source).toMatch(/switchTrack = \{ true: colors\.brand, false: colors\.separator \}/);
   });
 
   it('never rewrites the units or currency itself — the wizard owns the region default', async () => {

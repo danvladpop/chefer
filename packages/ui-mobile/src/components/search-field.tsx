@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { cn } from '@chefer/utils';
-import { colors } from './theme';
+import { useThemeColors } from '../hooks/use-theme-colors';
 
 /** Minimum touch target (pt) — the field height and the clear button's hit area. */
 export const SEARCH_TARGET_PT = 44;
@@ -67,6 +67,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
   },
   forwardedRef,
 ) {
+  const colors = useThemeColors();
   const [inner, setInner] = useState(defaultValue);
   const text = value ?? inner;
   const inputRef = useRef<TextInput | null>(null);
@@ -128,10 +129,10 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
       )}
     >
       <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
-        <Circle cx={11} cy={11} r={7} stroke={colors.mutedForeground} strokeWidth={2} />
+        <Circle cx={11} cy={11} r={7} stroke={colors.labelTertiary} strokeWidth={2} />
         <Path
           d="M20 20l-3.5-3.5"
-          stroke={colors.mutedForeground}
+          stroke={colors.labelTertiary}
           strokeWidth={2}
           strokeLinecap="round"
         />
@@ -147,7 +148,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
         returnKeyType="search"
         autoCorrect={false}
         autoCapitalize="words"
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor={colors.labelTertiary}
         className="min-w-0 flex-1 px-2 py-2 text-base text-foreground"
         {...props}
       />
@@ -163,7 +164,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
             <Path
               d="M6 6l12 12M18 6L6 18"
-              stroke={colors.mutedForeground}
+              stroke={colors.labelTertiary}
               strokeWidth={2.5}
               strokeLinecap="round"
             />

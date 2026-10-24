@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>08 Challenges — weekly specials + monthly event</title>
+    <link rel="stylesheet" href="phone.css" />
+  </head>
+  <body>
+    <div class="phone" data-tab="home">
+      <div class="scroll">
+        <div class="topbar">
+          <div class="row">
+            <span style="font-size: 20px; color: var(--brand)">‹</span>
+            <h1>Challenges</h1>
+          </div>
+          <span class="small">resets Mon</span>
+        </div>
+
+        <!-- Monthly event with a limited-edition badge -->
+        <section class="card" style="padding: 0; overflow: hidden; gap: 0; border-color: #f3c08f">
+          <div
+            style="
+              background: linear-gradient(135deg, #b45309, #944a00 55%, #7c2d12);
+              color: #fff;
+              padding: 14px;
+              display: flex;
+              gap: 12px;
+              align-items: center;
+            "
+          >
+            <div style="font-size: 44px">🎃</div>
+            <div class="grow">
+              <span class="eyebrow" style="color: #fde68a">October event · 9 days left</span>
+              <h2 style="color: #fff">Soup Season</h2>
+              <span style="font-size: 13px; color: #fde7cf">Cook 4 soups or stews this month</span>
+            </div>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+            <div class="row">
+              <span style="font-size: 22px">🍲🍲🍲</span
+              ><span style="font-size: 22px; opacity: 0.25">🍲</span><span class="grow"></span
+              ><b>3 / 4</b>
+            </div>
+            <div class="bar"><i style="width: 75%"></i></div>
+            <span class="small"
+              >Reward: limited <b>Soup Season '26</b> badge — gone after October. 12,480 cooks
+              joined.</span
+            >
+          </div>
+        </section>
+
+        <div class="between">
+          <h2>This week's specials</h2>
+          <span class="pill amber">pick any 2 of 3</span>
+        </div>
+
+        <section class="card" style="flex-direction: row; gap: 12px; align-items: center">
+          <div style="font-size: 30px">🌶️</div>
+          <div class="grow">
+            <div class="between">
+              <h3>Try something new</h3>
+              <span class="xp">+60</span>
+            </div>
+            <p class="sub">Cook a recipe you've never made</p>
+            <div class="bar thin" style="margin-top: 6px">
+              <i style="width: 100%; background: var(--success)"></i>
+            </div>
+          </div>
+          <span class="check on">✓</span>
+        </section>
+        <section class="card" style="flex-direction: row; gap: 12px; align-items: center">
+          <div style="font-size: 30px">🥦</div>
+          <div class="grow">
+            <div class="between">
+              <h3>Green week</h3>
+              <span class="xp">+60</span>
+            </div>
+            <p class="sub">5 meals with a full serving of veg · 3 / 5</p>
+            <div class="bar thin" style="margin-top: 6px"><i style="width: 60%"></i></div>
+          </div>
+        </section>
+        <section class="card" style="flex-direction: row; gap: 12px; align-items: center">
+          <div style="font-size: 30px">🦵</div>
+          <div class="grow">
+            <div class="between">
+              <h3>Leg day hero</h3>
+              <span class="xp">+60</span>
+            </div>
+            <p class="sub">Add one set to any leg exercise · 0 / 1</p>
+            <div class="bar thin" style="margin-top: 6px"><i style="width: 4%"></i></div>
+          </div>
+        </section>
+
+        <section class="card soft" style="flex-direction: row; gap: 12px; align-items: center">
+          <div style="font-size: 30px">👥</div>
+          <div class="grow">
+            <h3>Crew challenge</h3>
+            <p class="sub">You + Ana + Mihai: cook 15 home meals together · 11 / 15</p>
+          </div>
+        </section>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>

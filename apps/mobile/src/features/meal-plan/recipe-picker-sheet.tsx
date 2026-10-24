@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ErrorState,
+  SEARCH_LIST_PROPS,
+  SearchField,
+  Sheet,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   buildPickerSections,
   filterReplaceCandidates,
@@ -84,6 +92,7 @@ export function RecipePickerSheet({
   actions,
   onExited,
 }: RecipePickerSheetProps) {
+  const colors = useThemeColors();
   const { proteinOnly } = useNumbersMode();
   // Keep the title through the exit animation (the caller clears mealName on close).
   const [shownName, setShownName] = useState(mealName);
@@ -204,8 +213,8 @@ export function RecipePickerSheet({
           accessibilityLabel={safetyHeaderText}
           className="flex-row items-center gap-1.5 pb-2"
         >
-          <Ionicons name="shield-checkmark-outline" size={14} color="#944a00" />
-          <Text className="min-w-0 flex-1 text-sm text-gray-600">{safetyHeaderText}</Text>
+          <Ionicons name="shield-checkmark-outline" size={14} color={colors.brand} />
+          <Text className="min-w-0 flex-1 text-sm text-label-secondary">{safetyHeaderText}</Text>
         </View>
       )}
 
@@ -221,8 +230,8 @@ export function RecipePickerSheet({
       </View>
 
       {error && (
-        <View className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-          <Text className="text-xs text-red-600">{error.replace(/^UNSAFE_FOR_TABLE:\s*/, '')}</Text>
+        <View className="mb-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2">
+          <Text className="text-xs text-danger">{error.replace(/^UNSAFE_FOR_TABLE:\s*/, '')}</Text>
           {canAcknowledge && (
             <Pressable
               testID="picker-use-anyway"
@@ -231,7 +240,7 @@ export function RecipePickerSheet({
               onPress={() => lastAttemptedId && onSelect(lastAttemptedId, true)}
               className="mt-1.5 self-start"
             >
-              <Text className="text-xs font-semibold text-red-700 underline">Use anyway</Text>
+              <Text className="text-xs font-semibold text-danger underline">Use anyway</Text>
             </Pressable>
           )}
         </View>
@@ -240,7 +249,7 @@ export function RecipePickerSheet({
       {/* Recipe list */}
       {isLoading ? (
         <View className="items-center py-10">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : sections.length === 0 && loadFailed ? (
         <ErrorState
@@ -263,7 +272,7 @@ export function RecipePickerSheet({
           className="grow-0"
           contentContainerClassName="pb-2"
           renderSectionHeader={({ section }) => (
-            <Text className="pb-1.5 pt-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="pb-1.5 pt-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
               {section.title}
             </Text>
           )}
@@ -287,13 +296,13 @@ export function RecipePickerSheet({
                   className="h-12 w-12 rounded-lg"
                 />
                 <View className="min-w-0 flex-1">
-                  <Text numberOfLines={2} className="text-sm font-medium text-gray-900">
+                  <Text numberOfLines={2} className="text-sm font-medium text-label">
                     {recipe.name}
                   </Text>
                   <View className="flex-row flex-wrap items-center gap-x-1">
                     <Text
                       testID={`picker-recipe-${recipe.id}-meta`}
-                      className="text-xs text-gray-500"
+                      className="text-xs text-label-tertiary"
                     >
                       {pickerRowMeta({
                         ...recipe,
@@ -313,7 +322,7 @@ export function RecipePickerSheet({
                     labels={verifiedLabels(recipe.safetyChecks)}
                   />
                 )}
-                {recipe.isFavourite && <Ionicons name="heart" size={14} color="#944a00" />}
+                {recipe.isFavourite && <Ionicons name="heart" size={14} color={colors.brand} />}
               </Pressable>
             );
           }}

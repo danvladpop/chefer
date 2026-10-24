@@ -7,6 +7,7 @@ import { clearBookingReminders } from '../features/notifications/booking-reminde
 import { clearFoodNudges } from '../features/notifications/food-nudges';
 import { cancelAllMealReminders } from '../features/notifications/meal-reminders';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
+import { clearGentleReminder } from '../features/progress/gentle-reminder';
 import { clearToken, getSessionQueryClient } from './auth-store';
 
 // UX-ACC-02 / UX-ACC-12: THE way an account leaves this phone. More, Settings,
@@ -60,6 +61,8 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
     await stage(() => clearFoodNudges());
     // Lane E1: so are the meal-time reminders (the choice itself stays on the server).
     await stage(() => cancelAllMealReminders());
+    // Kitchen progress: the gentle reminder belongs to the account too.
+    await stage(() => clearGentleReminder());
     // Trainer mode §7.3: the booking reminders name this account's sessions.
     await stage(() => clearBookingReminders());
     await stage(() => {

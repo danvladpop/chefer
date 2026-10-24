@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { WeekGlanceDay } from '@chefer/types';
-import { colors, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, trainingGlyph, weekdayLongName, weekdayShortName } from '@chefer/utils';
 
 // T-06.5 — Today's `Your week` glance for people who train: seven equal-width
@@ -56,9 +56,10 @@ export function WeekGlance({
   /** The instant "today" is read from (tests pin it); defaults to the device clock. */
   now?: Date;
 }) {
+  const colors = useThemeColors();
   return (
     <View testID="week-glance">
-      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
         Your week
       </Text>
       <View
@@ -72,8 +73,8 @@ export function WeekGlance({
           const isSelected = selectedDayIdx === day.dayOfWeek;
           const training = day.training;
           const done = training?.status === 'done';
-          const inkClass = isToday ? 'text-primary-foreground' : 'text-gray-700';
-          const glyphColor = isToday ? '#ffffff' : colors.primary;
+          const inkClass = isToday ? 'text-primary-foreground' : 'text-label-secondary';
+          const glyphColor = isToday ? colors.onBrand : colors.brand;
           const dots = Math.min(Math.max(day.meals, 0), MAX_MEAL_DOTS);
           return (
             <Pressable
@@ -85,7 +86,7 @@ export function WeekGlance({
               onPress={() => onSelectDay?.(day.dayOfWeek)}
               className={cn(
                 'min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-0.5 py-3',
-                isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-gray-50',
+                isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-surface-sunken',
               )}
             >
               <Text
@@ -94,7 +95,7 @@ export function WeekGlance({
                 maxFontSizeMultiplier={MAX_FONT_SCALE}
                 className={cn(
                   'text-xs font-semibold uppercase',
-                  isToday ? 'text-primary-foreground' : 'text-gray-600',
+                  isToday ? 'text-primary-foreground' : 'text-label-secondary',
                 )}
               >
                 {weekdayShortName(day.dayOfWeek)}
@@ -119,7 +120,7 @@ export function WeekGlance({
                     key={i}
                     className={cn(
                       'h-1.5 w-1.5 rounded-full',
-                      isToday ? 'bg-primary-foreground' : 'bg-gray-400',
+                      isToday ? 'bg-primary-foreground' : 'bg-label-tertiary',
                     )}
                   />
                 ))}

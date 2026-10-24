@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PlanShape } from '@chefer/types';
-import { Button, colors, ErrorState, Sheet, Text, useQueryState } from '@chefer/ui-mobile';
+import { Button, ErrorState, Sheet, Text, useQueryState, useThemeColors } from '@chefer/ui-mobile';
 import { PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
@@ -44,6 +44,7 @@ export function PlanSettingsSheet({
   onSaved,
   fitTraining,
 }: PlanSettingsSheetProps) {
+  const colors = useThemeColors();
   const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: visible });
   // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
   const householdQuery = trpc.household.list.useQuery(undefined, {
@@ -104,7 +105,7 @@ export function PlanSettingsSheet({
         />
       ) : !draft ? (
         <View className="items-center py-10">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : (
         <View className="gap-5 pb-2">
@@ -116,12 +117,12 @@ export function PlanSettingsSheet({
 
           {(isPremium || fitTraining) && (
             <View className="gap-2 border-t border-border pt-4">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
                 Options
               </Text>
               {isPremium && (
                 <View className="min-h-11 flex-row items-center justify-between gap-3">
-                  <Text className="min-w-0 flex-1 text-sm text-gray-700">
+                  <Text className="min-w-0 flex-1 text-sm text-label-secondary">
                     Cook once, eat twice (leftover lunches)
                   </Text>
                   <Switch
@@ -140,10 +141,10 @@ export function PlanSettingsSheet({
                         <Ionicons
                           name="lock-closed-outline"
                           size={14}
-                          color={colors.mutedForeground}
+                          color={colors.labelTertiary}
                         />
                       )}
-                      <Text className="min-w-0 flex-shrink text-sm text-gray-700">
+                      <Text className="min-w-0 flex-shrink text-sm text-label-secondary">
                         Fit meals to my training days
                       </Text>
                     </View>
@@ -173,7 +174,7 @@ export function PlanSettingsSheet({
           )}
 
           {setShapeMutation.isError && (
-            <Text className="text-xs text-red-600">
+            <Text className="text-xs text-danger">
               {userFacingErrorMessage(setShapeMutation.error) || 'Could not save — try again.'}
             </Text>
           )}

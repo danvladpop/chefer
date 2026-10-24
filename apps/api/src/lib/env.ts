@@ -314,6 +314,24 @@ const envSchema = z.object({
         ),
     ),
 
+  // Kitchen progress dark launch (docs/gamification-2026-10/tech-plan.md §8):
+  // comma-separated EMAIL ADDRESSES (case-insensitive) that see Kitchen progress
+  // while the `gamification` flag is off. `*` means everyone. Empty (the default)
+  // = nobody. Read through lib/progress-flags.ts, never directly. The ledger
+  // records for every user regardless (D1); this only gates what they see.
+  GAMIFICATION_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+
   // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
   // `declared` rejects un-consented health writes only from clients that
   // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, formatBodyWeight } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
@@ -15,6 +15,7 @@ import { WeightSparkline } from './weight-sparkline';
 // 90-day chart lives on /progress.
 
 export function WeightCard() {
+  const colors = useThemeColors();
   const [showEntries, setShowEntries] = useState(false);
   // Stored in kg; shown in the user's unit (backlog P2-6).
   const system = useUnitSystem();
@@ -34,18 +35,18 @@ export function WeightCard() {
     <Card testID="weight-card">
       <View className="mb-3 flex-row items-center justify-between gap-3">
         <View className="flex-row items-center gap-1.5">
-          <Ionicons name="scale-outline" size={14} color="#10b981" />
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Ionicons name="scale-outline" size={14} color={colors.positive} />
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             Weight
           </Text>
         </View>
         {latest && (
-          <Text className="text-xs text-gray-500">
-            <Text className="text-xs font-semibold text-gray-800">
+          <Text className="text-xs text-label-tertiary">
+            <Text className="text-xs font-semibold text-label">
               {formatBodyWeight(latest.weightKg, system)}
             </Text>
             {delta != null && Math.abs(delta) >= 0.05 && (
-              <Text className={cn('text-xs', delta < 0 ? 'text-emerald-600' : 'text-gray-500')}>
+              <Text className={cn('text-xs', delta < 0 ? 'text-positive' : 'text-label-tertiary')}>
                 {' '}
                 ({formatBodyWeight(delta, system, { signed: true })} / 30d)
               </Text>
@@ -84,7 +85,7 @@ export function WeightCard() {
           className="min-h-11 flex-row items-center gap-0.5 pl-3"
         >
           <Text className="text-xs font-medium text-primary">See progress</Text>
-          <Ionicons name="chevron-forward" size={12} color="#944a00" />
+          <Ionicons name="chevron-forward" size={12} color={colors.brand} />
         </Pressable>
       </View>
       {showEntries && <WeightEntriesList entries={entries} />}
