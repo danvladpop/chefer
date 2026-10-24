@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Share, Switch, View } from 'react-native';
-import { Button, colors, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { Button, Sheet, Text, useSnackbar, useThemeColors } from '@chefer/ui-mobile';
 import { cn, dinnersFromPlan, weekdayShortName, weekRelationLabel } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { track } from '../../lib/analytics';
@@ -61,7 +61,7 @@ function RadioRow({
       <View
         className={cn(
           'h-5 w-5 items-center justify-center rounded-full border-2',
-          selected ? 'border-primary' : 'border-gray-300',
+          selected ? 'border-primary' : 'border-separator',
         )}
       >
         {selected && <View className="h-2.5 w-2.5 rounded-full bg-primary" />}
@@ -82,6 +82,7 @@ function SwitchRow({
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="min-h-11 flex-row items-center justify-between gap-3">
       <Text className="min-w-0 flex-1 text-base">{label}</Text>
@@ -90,7 +91,7 @@ function SwitchRow({
         accessibilityLabel={label}
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: colors.primary, false: '#d1d5db' }}
+        trackColor={{ true: colors.brand, false: colors.separator }}
       />
     </View>
   );

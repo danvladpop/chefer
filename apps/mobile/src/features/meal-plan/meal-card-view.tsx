@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
 import { RecipeImage } from '../recipes/recipe-image';
@@ -62,6 +62,7 @@ export function MealCardView({
   onLongPress,
   accessibilityLabel,
 }: MealCardViewProps) {
+  const colors = useThemeColors();
   const body = (
     <>
       <View className={compact ? 'h-20 w-20' : 'h-28 w-24'}>
@@ -70,7 +71,7 @@ export function MealCardView({
             testID={`${testID}-placeholder`}
             className="h-full w-full items-center justify-center bg-muted"
           >
-            <Ionicons name="eye-off-outline" size={22} color="#9ca3af" />
+            <Ionicons name="eye-off-outline" size={22} color={colors.labelTertiary} />
           </View>
         ) : (
           <RecipeImage imageUrl={imageUrl} className="h-full w-full" />
@@ -88,7 +89,7 @@ export function MealCardView({
             {!hideTypeBadge && <MealTypeBadge mealType={mealType} />}
             {badges}
           </View>
-          <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
+          <Text numberOfLines={2} className="text-sm font-semibold text-label">
             {name}
           </Text>
           {children}

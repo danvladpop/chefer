@@ -11,6 +11,7 @@ import {
   Text,
   useScrollFieldIntoView,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   checkedForListHeaderText,
@@ -60,6 +61,7 @@ import { trpc } from '../../src/lib/trpc';
 // the phone).
 
 export default function ShoppingListScreen() {
+  const colors = useThemeColors();
   // T-08.1 (UX-08 AC1): same default as Plan — next week Fri 15:00–Sun,
   // else this week — so Plan and Shop always agree on which week opens.
   const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
@@ -250,7 +252,7 @@ export default function ShoppingListScreen() {
       <Screen>
         <ModeSwitch className="mt-3" />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       </Screen>
     );
@@ -263,7 +265,7 @@ export default function ShoppingListScreen() {
         <ModeSwitch className="mt-3" />
         <ErrorState
           title="Couldn't load your shopping list"
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetchList()}
         />
       </Screen>
@@ -281,7 +283,7 @@ export default function ShoppingListScreen() {
         <View className="gap-1">
           <View className="flex-row items-center justify-between gap-2">
             <View className="min-w-0 flex-1">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
                 {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
               </Text>
               <Text testID="shopping-title" variant="title">
@@ -308,7 +310,7 @@ export default function ShoppingListScreen() {
                 <Ionicons
                   name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
                   size={18}
-                  color="#6b7280"
+                  color={colors.labelTertiary}
                 />
               </Pressable>
               <Pressable
@@ -319,7 +321,7 @@ export default function ShoppingListScreen() {
                 onPress={() => setWeekOffset((o) => o - 1)}
                 className="h-11 w-11 items-center justify-center rounded-full border border-border"
               >
-                <Ionicons name="chevron-back" size={18} color="#6b7280" />
+                <Ionicons name="chevron-back" size={18} color={colors.labelTertiary} />
               </Pressable>
               <Pressable
                 testID="week-next"
@@ -332,7 +334,7 @@ export default function ShoppingListScreen() {
                   weekOffset >= 1 && 'opacity-40',
                 )}
               >
-                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                <Ionicons name="chevron-forward" size={18} color={colors.labelTertiary} />
               </Pressable>
             </View>
           </View>
@@ -349,10 +351,10 @@ export default function ShoppingListScreen() {
           <View
             testID="shop-offline-pill"
             accessibilityLiveRegion="polite"
-            className="flex-row items-center gap-1.5 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-1"
+            className="flex-row items-center gap-1.5 self-start rounded-full border border-attention/30 bg-attention/10 px-3 py-1"
           >
-            <Ionicons name="cloud-offline-outline" size={13} color="#b45309" />
-            <Text className="text-xs font-medium text-amber-800">
+            <Ionicons name="cloud-offline-outline" size={13} color={colors.attention} />
+            <Text className="text-xs font-medium text-attention">
               Offline · changes sync when you&apos;re back
             </Text>
           </View>
@@ -362,7 +364,7 @@ export default function ShoppingListScreen() {
             checked against them (PAT-2, UX-02 §3). */}
         {weekList?.tableSafety?.hasRules && (
           <View testID="shopping-safety-line" className="flex-row items-center gap-1.5">
-            <Ionicons name="shield-checkmark-outline" size={13} color="#944a00" />
+            <Ionicons name="shield-checkmark-outline" size={13} color={colors.brand} />
             <Text className="text-xs font-medium text-primary">
               {checkedForListHeaderText(items.length)}
             </Text>
@@ -375,14 +377,14 @@ export default function ShoppingListScreen() {
         {weekList?.estimatedTotalEur != null && (
           <View className="flex-row flex-wrap gap-2">
             <View
-              className="rounded-full border border-border bg-gray-50 px-3 py-1"
+              className="rounded-full border border-border bg-surface-sunken px-3 py-1"
               accessibilityLabel={
                 isConvertedCurrency(currency)
                   ? `Estimated total about ${formatMoney(weekList.estimatedTotalEur, currency)}, converted from euros at an approximate rate`
                   : undefined
               }
             >
-              <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
+              <Text testID="shopping-total" className="text-xs font-medium text-label-secondary">
                 Est. total{' '}
                 {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
                   formatApproxPriceHint(weekList.estimatedTotalEur, currency)}
@@ -406,8 +408,11 @@ export default function ShoppingListScreen() {
               </View>
             )}
             {weekList.hasPlan && weekList.portions == null && memberCount > 0 && (
-              <View className="rounded-full border border-border bg-gray-50 px-3 py-1">
-                <Text testID="shopping-one-portion" className="text-xs font-medium text-gray-600">
+              <View className="rounded-full border border-border bg-surface-sunken px-3 py-1">
+                <Text
+                  testID="shopping-one-portion"
+                  className="text-xs font-medium text-label-secondary"
+                >
                   Sized for 1 portion
                 </Text>
               </View>
@@ -442,8 +447,8 @@ export default function ShoppingListScreen() {
         {!weekList?.hasPlan ? (
           /* Empty state */
           <Card testID="shopping-empty" className="items-center border-dashed py-12">
-            <Ionicons name="cart-outline" size={40} color="#d1d5db" />
-            <Text className="mb-1 mt-3 font-semibold text-gray-700">
+            <Ionicons name="cart-outline" size={40} color={colors.labelTertiary} />
+            <Text className="mb-1 mt-3 font-semibold text-label-secondary">
               No meal plan for this week
             </Text>
             <Text variant="muted" className="mb-4 text-center text-sm">
@@ -466,7 +471,7 @@ export default function ShoppingListScreen() {
                 onSubmitEditing={handleAddItem}
                 placeholder={units.addItemPlaceholder}
                 accessibilityLabel="Add an item to your shopping list"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={colors.labelTertiary}
                 returnKeyType="done"
                 submitBehavior="blurAndSubmit"
                 className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
@@ -478,7 +483,7 @@ export default function ShoppingListScreen() {
                 onPress={handleAddItem}
                 className="h-11 w-11 items-center justify-center rounded-md bg-primary"
               >
-                <Ionicons name="add" size={22} color="white" />
+                <Ionicons name="add" size={22} color={colors.onBrand} />
               </Pressable>
             </View>
 
@@ -511,8 +516,8 @@ export default function ShoppingListScreen() {
                             className={cn(
                               'flex-row items-center rounded-xl border',
                               isChecked
-                                ? 'border-gray-100 bg-gray-50 opacity-70'
-                                : 'border-border bg-white',
+                                ? 'border-separator bg-surface-sunken opacity-70'
+                                : 'border-border bg-surface',
                             )}
                           >
                             {/* Primary target — toggles bought/not */}
@@ -535,7 +540,7 @@ export default function ShoppingListScreen() {
                                     numberOfLines={1}
                                     className={cn(
                                       'shrink text-sm font-medium',
-                                      isChecked ? 'text-gray-500 line-through' : 'text-gray-800',
+                                      isChecked ? 'text-label-tertiary line-through' : 'text-label',
                                     )}
                                   >
                                     {item.ingredientName}
@@ -551,7 +556,7 @@ export default function ShoppingListScreen() {
                                     />
                                   )}
                                 </View>
-                                <Text numberOfLines={1} className="text-xs text-gray-500">
+                                <Text numberOfLines={1} className="text-xs text-label-tertiary">
                                   {quantityLabel}
                                   {item.estimatedPriceEur != null &&
                                     ` · ${formatApproxPriceHint(item.estimatedPriceEur, currency)}`}
@@ -561,10 +566,12 @@ export default function ShoppingListScreen() {
                               <View
                                 className={cn(
                                   'h-6 w-6 items-center justify-center rounded-full border-2',
-                                  isChecked ? 'border-primary bg-primary' : 'border-gray-300',
+                                  isChecked ? 'border-primary bg-primary' : 'border-separator',
                                 )}
                               >
-                                {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
+                                {isChecked && (
+                                  <Ionicons name="checkmark" size={14} color={colors.onBrand} />
+                                )}
                               </View>
                             </Pressable>
 
@@ -581,7 +588,7 @@ export default function ShoppingListScreen() {
                                 }}
                                 className="h-11 w-11 items-center justify-center"
                               >
-                                <Ionicons name="close" size={18} color="#9ca3af" />
+                                <Ionicons name="close" size={18} color={colors.labelTertiary} />
                               </Pressable>
                             ) : null}
                           </View>

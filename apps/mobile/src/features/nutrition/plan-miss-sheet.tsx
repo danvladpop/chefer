@@ -198,7 +198,7 @@ export function PlanMissSheet({
               </Text>
             ) : null}
             {applyMutation.isError && (
-              <Text className="text-xs text-red-600">
+              <Text className="text-xs text-danger">
                 {userFacingErrorMessage(applyMutation.error) ||
                   'Could not change the portions — try again.'}
               </Text>

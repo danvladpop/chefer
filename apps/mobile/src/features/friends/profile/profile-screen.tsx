@@ -18,6 +18,7 @@ import {
   SegmentedControl,
   Text,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
@@ -213,13 +214,14 @@ function ProfileContent({
 }
 
 function ProfileNotAvailable() {
+  const colors = useThemeColors();
   return (
     <Screen testID="friends-profile" className="px-0">
       <FriendsScreenHeader title="" testID="friends-profile-nav" />
       <View className="flex-1 justify-center">
         <EmptyState
           testID="friends-profile-not-available"
-          icon={<Ionicons name="person-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="person-outline" size={40} color={colors.labelTertiary} />}
           title={FRIENDS_COPY.notAvailable.title}
           description={FRIENDS_COPY.notAvailable.body}
           action={{

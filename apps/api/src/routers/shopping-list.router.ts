@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localDateSchema } from '@chefer/types';
 import { shoppingListService } from '../application/shopping-list/shopping-list.service.js';
 import { premiumProcedure, protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
@@ -20,10 +21,18 @@ export const shoppingListRouter = router({
         planId: z.string().min(1),
         keys: z.array(z.string().min(1).max(200)).min(1).max(200),
         checked: z.boolean(),
+        /** Kitchen progress: the client's local day (optional, additive). */
+        localDate: localDateSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return shoppingListService.toggleItems(ctx.user, input.planId, input.keys, input.checked);
+      return shoppingListService.toggleItems(
+        ctx.user,
+        input.planId,
+        input.keys,
+        input.checked,
+        input.localDate,
+      );
     }),
 
   /**

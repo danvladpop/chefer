@@ -5,6 +5,7 @@ import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
 import { NumbersModeHost } from '@/features/numbers-mode/numbers-mode';
+import { ProgressHost } from '@/features/progress/progress-host';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,6 +28,8 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           {/* T-39.1: re-accept sheet for an existing account whose stored
             Terms/Privacy acceptance predates a document version bump. */}
           <TermsReacceptGate />
+          {/* Kitchen progress: toasts + the level-up modal (renders nothing while the flag is off). */}
+          <ProgressHost />
         </DashboardShell>
       </NumbersModeHost>
     </AiConsentProvider>
