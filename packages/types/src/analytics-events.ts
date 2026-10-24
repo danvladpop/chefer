@@ -208,7 +208,7 @@ export interface EventMap {
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
 
-  // ─── Packaged foods (ADR 0005, lane A) — enums and booleans only ────────────
+  // ─── Packaged foods (ADR 0006, lane A) — enums and booleans only ────────────
   // Never a barcode, a product name or a brand.
   /** A barcode was submitted: from a photo, typed, or (later) the live scanner. */
   barcode_scan: { via: 'photo' | 'typed' | 'live' };

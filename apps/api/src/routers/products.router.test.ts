@@ -8,7 +8,7 @@ import {
 } from '@chefer/types';
 import { productsRouter } from './products.router.js';
 
-// ADR 0005: barcode lookup, photo decode, search and saving your own product
+// ADR 0006: barcode lookup, photo decode, search and saving your own product
 // are free and never ask for AI consent; the label scan is AI-consent gated
 // (R-10) before the service (and its Snap-to-Log quota) runs.
 

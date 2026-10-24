@@ -461,7 +461,7 @@ export {
   type PurgeResult,
 } from './upload-reference.repository';
 
-// Packaged products (ADR 0005): the Open Food Facts cache + users' own products
+// Packaged products (ADR 0006): the Open Food Facts cache + users' own products
 export {
   PackagedProductRepository,
   packagedProductRepository,

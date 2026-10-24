@@ -4,7 +4,7 @@ import type { DailyLog, LoggedMealEntry, PackagedProduct } from '@chefer/databas
 import type { UserProfile } from '@chefer/types';
 import { trackerService } from './tracker.service.js';
 
-// ADR 0005: logging a packaged product appends an ordinary custom entry (what
+// ADR 0006: logging a packaged product appends an ordinary custom entry (what
 // every shipped client already totals and edits) plus `product: { id, grams }`.
 
 vi.mock('@chefer/database', async (importOriginal) => ({

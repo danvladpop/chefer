@@ -56,7 +56,7 @@ _Avoid_: Quick add (the old calories-only form), food diary
 
 **Packaged product**:
 A branded, barcoded food (a pot of yoghurt, a cereal box), with its numbers per 100 g. Kept apart from the ingredient
-catalog (ADR 0005).
+catalog (ADR 0006).
 _Avoid_: Branded ingredient, food item, SKU
 
 **Barcode lookup**:

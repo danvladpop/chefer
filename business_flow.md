@@ -5148,7 +5148,7 @@ chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
 the fallback when nothing matches — gated by the macro sanity check above
 (`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
 The Ingredients group is Chefer's own reviewed catalog only. B-29 ("never a
-branded product or barcode") was superseded on 2026-10-22 by ADR 0005:
+branded product or barcode") was superseded on 2026-10-22 by ADR 0006:
 packaged products are logged too, as their own search group and the "Scan
 barcode" view (below), and never enter the catalog.
 
@@ -5178,7 +5178,7 @@ calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
 `Undo` calls the new `tracker.deleteEntries` with the returned
 `copiedEntryIds` — deleting exactly the copies, never the originals.
 
-**Packaged products: barcode + label scan (ADR 0005, lane A1, both platforms).**
+**Packaged products: barcode + label scan (ADR 0006, lane A1, both platforms).**
 Free barcode logging; the label scan is premium. Kept outside the reviewed
 ingredient catalog (`PackagedProduct` table, §6 of infrastructure.md).
 

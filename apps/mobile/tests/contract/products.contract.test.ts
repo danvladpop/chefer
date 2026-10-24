@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { makeUser, type ContractUser } from './friends-helpers';
 
-// Packaged products (ADR 0005): the free path a shipped-or-next app uses —
+// Packaged products (ADR 0006): the free path a shipped-or-next app uses —
 // save your own product, find it by barcode and by name, log it by servings,
 // see it in Recents — plus privacy (another user can't see or log it) and the
 // premium label scan's gate. Throwaway users only; nothing touches alice.
@@ -31,7 +31,7 @@ beforeAll(async () => {
   other = await makeUser({ prefix: 'products-contract-other' });
 }, 60_000);
 
-describe('products (ADR 0005)', () => {
+describe('products (ADR 0006)', () => {
   let productId = '';
 
   it('create saves a private USER product; lookupBarcode finds it as `own` with allergen info', async () => {

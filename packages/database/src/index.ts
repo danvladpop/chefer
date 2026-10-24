@@ -317,7 +317,7 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
-  // Packaged products (ADR 0005)
+  // Packaged products (ADR 0006)
   PackagedProductRepository,
   packagedProductRepository,
   type IPackagedProductRepository,
@@ -479,7 +479,7 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
-  // Packaged products (ADR 0005)
+  // Packaged products (ADR 0006)
   PackagedProduct,
 } from '@prisma/client';
 export {
