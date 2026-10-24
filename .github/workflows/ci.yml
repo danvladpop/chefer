@@ -304,7 +304,8 @@ jobs:
       AUTH_RATE_LIMIT_MAX: '200'
       # Following and trainer coaching ship dark; turn them on so friends.* and
       # coaching/trainer contract suites run (they skip themselves when off).
-      FEATURE_FLAGS: 'friends,coaching'
+      # Kitchen progress likewise (progress.contract.test.ts).
+      FEATURE_FLAGS: 'friends,coaching,gamification'
       # WP-18: anyone may turn on trainer tools in CI (e-mail allowlist, '*' = all).
       TRAINER_ALLOWLIST: '*'
     steps:

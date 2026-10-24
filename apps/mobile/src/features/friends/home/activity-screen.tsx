@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FRIENDS_COPY, type ActivityItemDto } from '@chefer/types';
-import { EmptyState, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { EmptyState, ErrorState, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 import { isFriendsUnavailableError } from '../api/friends-errors';
 import { FriendsGate, FriendsUnavailableScreen } from '../components/friends-gate';
@@ -105,6 +105,7 @@ function ActivityRowView({ item }: { item: ActivityItemDto }) {
 }
 
 function ActivityBody() {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const markRead = trpc.friends.markActivityRead.useMutation();
   const { query, items } = useActivityList();
@@ -145,7 +146,7 @@ function ActivityBody() {
     return (
       <EmptyState
         testID="friends-activity-empty"
-        icon={<Ionicons name="notifications-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="notifications-outline" size={40} color={colors.labelTertiary} />}
         title={FRIENDS_COPY.activity.empty.title}
         description={FRIENDS_COPY.activity.empty.body}
       />

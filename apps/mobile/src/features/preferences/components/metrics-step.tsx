@@ -5,7 +5,7 @@ import {
   bodyMetricsWeightError,
   MINOR_NO_DEFICIT_NOTE,
 } from '@chefer/types';
-import { Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { Card, Text, useScrollFieldIntoView, useThemeColors } from '@chefer/ui-mobile';
 import { cn, formatKcal, formatNumber, previewCalorieTarget, WELLNESS_COPY } from '@chefer/utils';
 import { ACTIVITY_OPTIONS, type Goal, type MetricsValue } from '../types';
 import { useNumericChain } from '../use-numeric-chain';
@@ -135,6 +135,7 @@ export function MetricsStep({
   units = 'METRIC',
   onSubmit,
 }: MetricsStepProps) {
+  const colors = useThemeColors();
   const preview = computeCaloriePreview(value, goal);
   const imperial = units === 'IMPERIAL';
   const errors = metricsFieldErrors(value, units);
@@ -172,13 +173,13 @@ export function MetricsStep({
                 onPress={() => onChange({ ...value, biologicalSex: sex })}
                 className={cn(
                   'h-11 flex-1 items-center justify-center rounded-md border',
-                  selected ? 'border-primary bg-primary' : 'border-border bg-white',
+                  selected ? 'border-primary bg-primary' : 'border-border bg-surface',
                 )}
               >
                 <Text
                   className={cn(
                     'text-sm font-medium',
-                    selected ? 'text-primary-foreground' : 'text-gray-600',
+                    selected ? 'text-primary-foreground' : 'text-label-secondary',
                   )}
                 >
                   {sex === 'MALE' ? 'Male' : 'Female'}
@@ -200,13 +201,13 @@ export function MetricsStep({
             onChangeText={onAgeText}
             keyboardType="number-pad"
             placeholder="e.g. 30"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.labelTertiary}
             accessibilityLabel="Age"
             accessibilityHint={ageError ?? undefined}
             aria-invalid={ageError !== null}
             className={cn(
               'min-h-11 py-2 rounded-md border bg-background px-3 text-base text-foreground',
-              ageError !== null ? 'border-red-600' : 'border-input',
+              ageError !== null ? 'border-danger' : 'border-input',
             )}
           />
         </View>
@@ -220,13 +221,13 @@ export function MetricsStep({
               onChangeText={onHeightText}
               keyboardType={imperial ? 'number-pad' : 'decimal-pad'}
               placeholder={heightPlaceholder}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.labelTertiary}
               accessibilityLabel={imperial ? 'Height, feet' : 'Height, centimetres'}
               accessibilityHint={errors.height ?? undefined}
               aria-invalid={errors.height !== null}
               className={cn(
                 'min-h-11 py-2 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
-                errors.height !== null ? 'border-red-600' : 'border-input',
+                errors.height !== null ? 'border-danger' : 'border-input',
               )}
             />
             {imperial && (
@@ -237,13 +238,13 @@ export function MetricsStep({
                 onChangeText={onHeightInchesText}
                 keyboardType="decimal-pad"
                 placeholder="in"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={colors.labelTertiary}
                 accessibilityLabel="Height, inches"
                 accessibilityHint={errors.height ?? undefined}
                 aria-invalid={errors.height !== null}
                 className={cn(
                   'min-h-11 py-2 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
-                  errors.height !== null ? 'border-red-600' : 'border-input',
+                  errors.height !== null ? 'border-danger' : 'border-input',
                 )}
               />
             )}
@@ -258,13 +259,13 @@ export function MetricsStep({
             onChangeText={onWeightText}
             keyboardType="decimal-pad"
             placeholder={weightPlaceholder}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.labelTertiary}
             accessibilityLabel={imperial ? 'Weight, pounds' : 'Weight, kilograms'}
             accessibilityHint={errors.weight ?? undefined}
             aria-invalid={errors.weight !== null}
             className={cn(
               'min-h-11 py-2 rounded-md border bg-background px-3 text-base text-foreground',
-              errors.weight !== null ? 'border-red-600' : 'border-input',
+              errors.weight !== null ? 'border-danger' : 'border-input',
             )}
           />
         </View>
@@ -274,7 +275,7 @@ export function MetricsStep({
         <Text
           testID="metrics-age-error"
           accessibilityRole="alert"
-          className="-mt-3 text-xs text-red-600"
+          className="-mt-3 text-xs text-danger"
         >
           {ageError}
         </Text>
@@ -283,7 +284,7 @@ export function MetricsStep({
         <Text
           testID="metrics-height-error"
           accessibilityRole="alert"
-          className="-mt-3 text-xs text-red-600"
+          className="-mt-3 text-xs text-danger"
         >
           {errors.height}
         </Text>
@@ -292,7 +293,7 @@ export function MetricsStep({
         <Text
           testID="metrics-weight-error"
           accessibilityRole="alert"
-          className="-mt-3 text-xs text-red-600"
+          className="-mt-3 text-xs text-danger"
         >
           {errors.weight}
         </Text>

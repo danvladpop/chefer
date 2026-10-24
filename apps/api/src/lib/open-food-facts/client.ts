@@ -2,7 +2,7 @@ import type { PackagedProductData } from '@chefer/database';
 import { env } from '../env.js';
 import { normaliseOffProduct } from './normalise.js';
 
-// ─── Open Food Facts v2 client (ADR 0002) ─────────────────────────────────────
+// ─── Open Food Facts v2 client (ADR 0005) ─────────────────────────────────────
 // One read: GET /api/v2/product/{barcode}. OFF's terms ask every client to
 // send a User-Agent that names it, and cap product reads at 100 a minute per
 // IP — this client stays at 60 (one API process serves every user), refuses

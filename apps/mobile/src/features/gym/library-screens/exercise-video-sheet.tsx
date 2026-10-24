@@ -73,6 +73,7 @@ export function ExerciseVideoSheet({
         {showPlayer ? (
           <View
             testID={`${testID}-player`}
+            // drift-ok: video letterbox stays black in both schemes
             className="w-full overflow-hidden rounded-control bg-black"
             style={{ aspectRatio: 16 / 9 }}
           >
@@ -93,6 +94,7 @@ export function ExerciseVideoSheet({
               mediaPlaybackRequiresUserAction={false}
               onError={() => setWebviewError(true)}
               onHttpError={() => setWebviewError(true)}
+              // drift-ok: video letterbox stays black in both schemes
               style={{ flex: 1, backgroundColor: 'black' }}
             />
           </View>

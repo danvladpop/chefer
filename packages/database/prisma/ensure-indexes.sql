@@ -16,7 +16,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "coaching_requests_one_pending"
   ON "coaching_requests" ("clientId")
   WHERE "status" = 'PENDING';
 
--- Packaged products (ADR 0002): one shared Open Food Facts row per barcode.
+-- Packaged products (ADR 0005): one shared Open Food Facts row per barcode.
 -- @@unique([ownerId, barcode]) covers private rows only (NULLs are distinct).
 CREATE UNIQUE INDEX IF NOT EXISTS "packaged_products_public_barcode"
   ON "packaged_products" ("barcode")

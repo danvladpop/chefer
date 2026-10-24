@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   conflictText,
   formatPortion,
@@ -65,6 +65,7 @@ export function PlanMealCard({
   /** FB7-04: inside a meal group the header names the type once. */
   hideTypeBadge?: boolean;
 }) {
+  const colors = useThemeColors();
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
   const { proteinOnly } = useNumbersMode();
   // P1-1: the slot may be sized to the day's targets (1½× the recipe).
@@ -98,9 +99,9 @@ export function PlanMealCard({
             accessible
             accessibilityRole="image"
             accessibilityLabel={PLAN_MEAL_MENU_COPY.pinnedBadge}
-            className="h-6 w-6 items-center justify-center rounded-full bg-white/90"
+            className="h-6 w-6 items-center justify-center rounded-full bg-surface/90"
           >
-            <Ionicons name="bookmark" size={13} color="#944a00" />
+            <Ionicons name="bookmark" size={13} color={colors.brand} />
           </View>
         ) : undefined
       }
@@ -120,20 +121,22 @@ export function PlanMealCard({
             <View
               testID={`${testID}-eaten`}
               accessibilityLabel="Eaten"
-              className="flex-row items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5"
+              className="flex-row items-center gap-1 rounded-full bg-positive/10 px-2 py-0.5"
             >
-              <Ionicons name="checkmark-circle" size={12} color="#047857" />
-              <Text className="text-xs font-semibold text-emerald-700">Eaten</Text>
+              <Ionicons name="checkmark-circle" size={12} color={colors.positive} />
+              <Text className="text-xs font-semibold text-positive">Eaten</Text>
             </View>
           )}
           {meal.leftoverOf && (
-            <View className="rounded-full bg-gray-100 px-2 py-0.5">
-              <Text className="text-xs uppercase text-gray-500">Leftovers · {meal.leftoverOf}</Text>
+            <View className="rounded-full bg-surface-sunken px-2 py-0.5">
+              <Text className="text-xs uppercase text-label-tertiary">
+                Leftovers · {meal.leftoverOf}
+              </Text>
             </View>
           )}
           {side && (
-            <View testID={`${testID}-side`} className="rounded-full bg-gray-100 px-2 py-0.5">
-              <Text className="text-xs font-semibold text-gray-600">
+            <View testID={`${testID}-side`} className="rounded-full bg-surface-sunken px-2 py-0.5">
+              <Text className="text-xs font-semibold text-label-secondary">
                 {PLAN_MEAL_MENU_COPY.sideBadge}
               </Text>
             </View>
@@ -151,7 +154,7 @@ export function PlanMealCard({
         <View className="gap-0.5">
           <View className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-0.5">
             <AiGeneratedChip recipe={meal.recipe} variant="icon" />
-            <Text testID={`${testID}-nutrition`} className="text-xs text-gray-500">
+            <Text testID={`${testID}-nutrition`} className="text-xs text-label-tertiary">
               {planMealMetaLine(
                 meal.recipe.prepTimeMins + meal.recipe.cookTimeMins,
                 meal.recipe.nutritionInfo,
@@ -162,7 +165,11 @@ export function PlanMealCard({
             <NutritionStatusTag status={meal.recipe.nutritionStatus} />
           </View>
           {macroLine !== null && (
-            <Text testID={`${testID}-macros`} numberOfLines={1} className="text-xs text-gray-500">
+            <Text
+              testID={`${testID}-macros`}
+              numberOfLines={1}
+              className="text-xs text-label-tertiary"
+            >
               {macroLine}
             </Text>
           )}
@@ -182,10 +189,10 @@ export function PlanMealCard({
               conflictText(conflictDetails?.find((d) => d.label === label) ?? { label }),
             )
             .join(', ')}
-          className="flex-row items-center gap-1 self-start rounded-full bg-red-100 px-2 py-0.5"
+          className="flex-row items-center gap-1 self-start rounded-full bg-danger/10 px-2 py-0.5"
         >
-          <Ionicons name="warning" size={12} color="#991b1b" />
-          <Text numberOfLines={1} className="text-xs font-semibold text-red-800">
+          <Ionicons name="warning" size={12} color={colors.danger} />
+          <Text numberOfLines={1} className="text-xs font-semibold text-danger">
             {conflictLabel}
           </Text>
         </View>

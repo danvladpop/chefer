@@ -51,7 +51,7 @@ make_photo oversize-photo.jpg 6000 6000 noise $((18 * MB)) $((40 * MB))
 make_photo large-photo.jpg 4000 4000 noise $((85 * MB / 10)) $((10 * MB))
 make_photo screenshot-photo.jpg 1170 2532 flat 0 $((1 * MB))
 
-# packaged-food.flow.yaml (ADR 0002): a photo of a real EAN-13 (Nutella,
+# packaged-food.flow.yaml (ADR 0005): a photo of a real EAN-13 (Nutella,
 # 3017620422003). The committed PNG is the barcode; the JPEG gets random
 # trailing bytes (ignored by decoders) so the library sees a new photo.
 sips -s format jpeg barcode-3017620422003.png --out barcode-photo.jpg >/dev/null

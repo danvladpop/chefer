@@ -1,7 +1,14 @@
 import { Pressable, Share, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DayKind, DisplayCurrency } from '@chefer/types';
-import { Button, colors, DENSE_MAX_FONT_SCALE, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  Button,
+  DENSE_MAX_FONT_SCALE,
+  Sheet,
+  Text,
+  useSnackbar,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   dinnersHeadingFor,
@@ -79,6 +86,7 @@ export function WeekSummarySheet({
   currency = 'EUR',
   dinners = [],
 }: WeekSummarySheetProps) {
+  const colors = useThemeColors();
   const { show: showSnackbar } = useSnackbar();
   const { proteinOnly } = useNumbersMode();
   const trainingChip = trainingDaysChip(days.filter((d) => d.training).length);
@@ -138,20 +146,22 @@ export function WeekSummarySheet({
     >
       {/* Week stats */}
       <View className="flex-row flex-wrap gap-2">
-        <View className="rounded-full bg-gray-100 px-3 py-1">
-          <Text className="text-xs font-medium text-gray-600">{plannedDays}/7 days planned</Text>
+        <View className="rounded-full bg-surface-sunken px-3 py-1">
+          <Text className="text-xs font-medium text-label-secondary">
+            {plannedDays}/7 days planned
+          </Text>
         </View>
         {proteinOnly
           ? weekProtein > 0 && (
-              <View className="rounded-full bg-gray-100 px-3 py-1">
-                <Text className="text-xs font-medium text-gray-600">
+              <View className="rounded-full bg-surface-sunken px-3 py-1">
+                <Text className="text-xs font-medium text-label-secondary">
                   ~{Math.round(weekProtein / Math.max(plannedDays, 1))} g protein/day
                 </Text>
               </View>
             )
           : weekKcal > 0 && (
-              <View className="rounded-full bg-gray-100 px-3 py-1">
-                <Text className="text-xs font-medium text-gray-600">
+              <View className="rounded-full bg-surface-sunken px-3 py-1">
+                <Text className="text-xs font-medium text-label-secondary">
                   ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
                 </Text>
               </View>
@@ -164,8 +174,8 @@ export function WeekSummarySheet({
         {weekCostEur !== null && (
           // UX-PLAN-07: a range (never a precise sum), for the week that is
           // open, over the days it really covers.
-          <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-            <Text testID="week-summary-cost" className="text-xs font-medium text-emerald-700">
+          <View className="rounded-full border border-positive/30 bg-positive/10 px-3 py-1">
+            <Text testID="week-summary-cost" className="text-xs font-medium text-positive">
               {`≈ ${formatPriceRange(weekCostEur, currency) ?? formatMoney(weekCostEur, currency)} · ${weekRelationLabel(weekOffset)} · ${planCostCoverageLabel(shoppingFromDay)}`}
             </Text>
           </View>
@@ -183,7 +193,7 @@ export function WeekSummarySheet({
             onPress={() => onSelectDay(d.dayIndex)}
             className={cn(
               'min-h-11 flex-row items-center justify-between rounded-xl px-3 py-1.5',
-              d.isToday ? 'bg-accent' : 'bg-gray-50',
+              d.isToday ? 'bg-accent' : 'bg-surface-sunken',
             )}
           >
             <View className="min-w-0 flex-shrink flex-row items-center gap-2">
@@ -194,7 +204,7 @@ export function WeekSummarySheet({
               <Text
                 className={cn(
                   'w-10 text-xs font-semibold uppercase',
-                  d.isToday ? 'text-primary' : 'text-gray-600',
+                  d.isToday ? 'text-primary' : 'text-label-secondary',
                 )}
                 maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               >
@@ -208,11 +218,7 @@ export function WeekSummarySheet({
                   testID={`week-summary-training-${d.dayIndex}`}
                   className="min-w-0 flex-shrink flex-row items-center gap-1"
                 >
-                  <Ionicons
-                    name={trainingGlyph(d.training.kind)}
-                    size={12}
-                    color={colors.primary}
-                  />
+                  <Ionicons name={trainingGlyph(d.training.kind)} size={12} color={colors.brand} />
                   {d.training.workoutName ? (
                     <Text numberOfLines={1} className="min-w-0 flex-shrink text-xs text-primary">
                       {d.training.workoutName}
@@ -233,7 +239,7 @@ export function WeekSummarySheet({
                       {d.totalKcal} kcal
                     </Text>
                   )}
-              <Ionicons name="chevron-forward" size={14} color="#9ca3af" />
+              <Ionicons name="chevron-forward" size={14} color={colors.labelTertiary} />
             </View>
           </Pressable>
         ))}

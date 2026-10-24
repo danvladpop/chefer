@@ -1,4 +1,4 @@
-# Packaged foods (ADR 0002, lane A1): Log sheet → Scan barcode → a photo of a
+# Packaged foods (ADR 0005, lane A1): Log sheet → Scan barcode → a photo of a
 # real EAN-13 from the library → decoded on the server → Open Food Facts →
 # product card (allergen line, "Data from Open Food Facts") → log 15 g. Then
 # a typed barcode Open Food Facts doesn't have → not found → "Enter it yourself"

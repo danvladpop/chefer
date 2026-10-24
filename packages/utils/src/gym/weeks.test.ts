@@ -464,3 +464,49 @@ describe('dateOnlyKey', () => {
     expect(dateOnlyKey(new Date(Date.UTC(2026, 0, 1)))).toBe('2026-01-01');
   });
 });
+
+describe('settleWeeks options (Kitchen progress Flame)', () => {
+  const met = (weekStart: string) => ({ weekStart, goal: 1, sessions: 1, paused: false });
+  const quiet = (weekStart: string) => ({ weekStart, goal: 1, sessions: 0, paused: false });
+  const fourMetThen = (next: ReturnType<typeof quiet>) => [
+    met('2026-08-03'),
+    met('2026-08-10'),
+    met('2026-08-17'),
+    met('2026-08-24'),
+    next,
+    { weekStart: '2026-09-07', goal: 1, sessions: 0, paused: false },
+  ];
+
+  it('an empty week breaks the streak by default, even with a token held', () => {
+    const r = settleWeeks(fourMetThen(quiet('2026-08-31')), '2026-09-07');
+    expect(r.weeks[4]?.status).toBe('empty');
+    expect(r.streak.current).toBe(0);
+  });
+
+  it('flexCoversEmpty spends a held token on a zero-session week', () => {
+    const r = settleWeeks(fourMetThen(quiet('2026-08-31')), '2026-09-07', {
+      flexCoversEmpty: true,
+    });
+    expect(r.weeks[4]).toMatchObject({ status: 'flex', flexTokens: 0 });
+    expect(r.streak.current).toBe(5);
+  });
+
+  it('flexCoversEmpty still breaks the streak when no token is held', () => {
+    const r = settleWeeks(
+      [met('2026-08-03'), quiet('2026-08-10'), quiet('2026-08-17')],
+      '2026-08-17',
+      {
+        flexCoversEmpty: true,
+      },
+    );
+    expect(r.weeks[1]?.status).toBe('empty');
+  });
+
+  it('flexMax caps the tokens held (default stays 2)', () => {
+    const weeks = Array.from({ length: 16 }, (_, i) => met(addDaysLocal('2026-01-05', i * 7)));
+    const current = addDaysLocal('2026-01-05', 16 * 7);
+    expect(settleWeeks(weeks, current).streak.flexTokens).toBe(2);
+    expect(settleWeeks(weeks, current, { flexMax: 3 }).streak.flexTokens).toBe(3);
+    expect(settleWeeks(weeks, current, { flexMax: 1 }).streak.flexTokens).toBe(1);
+  });
+});

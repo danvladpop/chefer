@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import type { RouterOutputs } from '../../../lib/trpc';
 
 // Shop-due card (UX-04 §4, T-04.2/T-04.4): unticked shopping-list lines
@@ -11,6 +11,7 @@ import type { RouterOutputs } from '../../../lib/trpc';
 type ShopDue = NonNullable<RouterOutputs['dashboard']['summary']['shopDue']>;
 
 export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
+  const colors = useThemeColors();
   const sample = shopDue.sample.join(', ');
   const more = shopDue.count - shopDue.sample.length;
 
@@ -22,10 +23,10 @@ export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
     >
       <Card className="flex-row items-center gap-3">
         <View className="h-10 w-10 items-center justify-center rounded-full bg-accent">
-          <Ionicons name="cart-outline" size={18} color="#944a00" />
+          <Ionicons name="cart-outline" size={18} color={colors.brand} />
         </View>
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-semibold text-gray-900">
+          <Text className="text-sm font-semibold text-label">
             {shopDue.count} thing{shopDue.count === 1 ? '' : 's'} to buy for tomorrow
           </Text>
           <Text numberOfLines={1} variant="muted" className="text-xs">

@@ -54,7 +54,7 @@ import { ProductFlow } from './products/ProductFlow';
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
 // Your recipes → Ingredients (per 100 g), in that order; "Enter calories
 // yourself" is the old calories-only form, now gated by the macro sanity
-// check (bug B-39, T-19.5). Packaged products (ADR 0002, which replaced B-29)
+// check (bug B-39, T-19.5). Packaged products (ADR 0005, which replaced B-29)
 // are a separate search group and the "Scan barcode" view.
 
 type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
@@ -606,7 +606,7 @@ export function QuickAddSheet({
               />
             </label>
 
-            {/* ADR 0002: next to the search, where it is seen first. */}
+            {/* ADR 0005: next to the search, where it is seen first. */}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"

@@ -161,7 +161,7 @@ export {
   valueFontSize,
   type ValueStepperProps,
 } from './components/value-stepper';
-export { chartPalette, colors } from './components/theme';
+export { chartColorsFor, useChartColors, type ChartColors } from './components/theme';
 // Charts (react-native-svg)
 export {
   BarChart,
@@ -177,7 +177,7 @@ export {
   type LineSeries,
 } from './components/charts/line-chart';
 export {
-  WEEK_STATUS_COLORS,
+  useWeekStatusColors,
   WEEK_STATUS_LABELS,
   WeekGrid,
   type WeekGridCell,
@@ -232,7 +232,7 @@ export { IconButton, type IconButtonProps } from './components/icon-button';
 export { LargeHeader, type LargeHeaderProps } from './components/large-header';
 export { ListRow, ListSection, type ListRowProps, type ListSectionProps } from './components/list';
 export { SurfaceCard, type SurfaceCardProps } from './components/surface-card';
-export { useThemeColors } from './hooks/use-theme-colors';
+export { useResolvedScheme, useThemeColors } from './hooks/use-theme-colors';
 // 10 Oct redesign (docs/design/feedback/2026-10-10): shared tiles, gauge, macros
 export { CalorieGauge, type CalorieGaugeProps } from './components/calorie-gauge';
 export { DayStrip, type DayStripDay, type DayStripProps } from './components/day-strip';
