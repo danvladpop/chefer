@@ -28,6 +28,7 @@ import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consen
 import { ProgressHost } from '../src/features/progress/progress-host';
 import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
+import { ShopOutboxHost } from '../src/features/shopping-list/use-shop-toggle';
 import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
@@ -245,12 +246,17 @@ export default function RootLayout() {
                     {/* WP-18: the invite link's route is reachable signed out too — it sends the visitor to
                       sign in / register and PendingJoinHost brings them back (spec §2.3). */}
                     <Stack.Screen name="coaching/join/[code]" />
+                    {/* ADR 0003: a household invite link, the same way (signed out → sign in → back). */}
+                    <Stack.Screen name="household/join/[code]" />
                   </Stack>
                 </NumbersModeHost>
               </SnackbarTouchBoundary>
               <AiConsentHost />
-              {/* WP-18: after sign-in, returns to the coaching invite the visitor opened signed out. */}
+              {/* WP-18 / ADR 0003: after sign-in, returns to the coaching or household invite the
+                visitor opened signed out. */}
               <PendingJoinHost signedIn={token !== null} />
+              {/* ADR 0003: Shop ticks made offline (even before a kill) are sent when back online. */}
+              <ShopOutboxHost signedIn={token !== null} />
               {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
               <FoodNudgeHost signedIn={token !== null} />
               {/* Kitchen progress: retries unsent cook finishes, shows the inbox (snackbars, level-up) and

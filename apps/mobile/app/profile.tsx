@@ -23,6 +23,10 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../src/components/icon';
+import {
+  noticeText,
+  useHouseholdNotices,
+} from '../src/features/household/sharing/household-notices';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
@@ -82,6 +86,8 @@ function StatRow({ label, used, limit }: { label: string; used: number; limit: n
 function HouseholdRow() {
   const colors = useThemeColors();
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
+  // ADR 0003: the newest household notice ("Maria joined your household") under the summary.
+  const latestNotice = useHouseholdNotices()[0];
   const summary =
     members.length === 0
       ? 'Just you — add the people you cook for'
@@ -105,6 +111,11 @@ function HouseholdRow() {
             line; the row's min-h-11 is a floor, not a fixed height, so it
             grows to fit instead of clipping the names. */}
         <Text className="text-subhead text-label-secondary">{summary}</Text>
+        {latestNotice ? (
+          <Text testID="profile-household-notice" className="text-subhead font-semibold text-brand">
+            {noticeText(latestNotice)}
+          </Text>
+        ) : null}
       </View>
       <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>

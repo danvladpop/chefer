@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, View, type TextInput } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
 import {
   AnimatedCheck,
   Button,
@@ -46,6 +47,8 @@ import { useIsPremium } from '../../../hooks/use-is-premium';
 import { useUnits } from '../../../hooks/use-units';
 import { track } from '../../../lib/analytics';
 import { trpc } from '../../../lib/trpc';
+import { PartnerBanner } from '../../household/sharing/partner-banner';
+import { useHouseholdSharing } from '../../household/sharing/use-household-sharing';
 import { LockedFeatureCard } from '../../premium/locked-feature-card';
 import { LabelCaveat } from '../../safety/label-caveat';
 import {
@@ -60,6 +63,8 @@ import {
   type ShopListItem,
 } from '../../shopping-list/pending-item';
 import { ShareListSheet } from '../../shopping-list/share-list-sheet';
+import { useSharedListSync } from '../../shopping-list/use-shared-list-sync';
+import { useCheckedWithPending, useShopToggle } from '../../shopping-list/use-shop-toggle';
 import { AskChefAction } from '../add-action';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
 import { shopGroups, shopGroupStatus, type ShopGroup } from './shop-groups';
@@ -75,6 +80,9 @@ import { shopGroups, shopGroupStatus, type ShopGroup } from './shop-groups';
 // share sheet and the household lock. Owner-approved removals: thumbnails,
 // per-item prices, recipe names, the "checked for your table" line, the
 // portions chip.
+// ADR 0003 (household sharing): ticks go through the durable outbox
+// (use-shop-toggle.ts); a shared list polls `shoppingList.sync` while this tab
+// is focused and says who ticked or added an item; a partner sees whose list it is.
 
 type WeekOffset = 0 | 1;
 
@@ -126,27 +134,16 @@ export function ShopScreen() {
     track('list_opened', { itemCount: weekList.items.length });
   }, [weekList]);
 
-  // Optimistic per-key tick (P1-5): flip now, the server merges devices.
-  const toggleMutation = trpc.shoppingList.toggleItems.useMutation({
-    onMutate: async ({ keys, checked }) => {
-      await utils.shoppingList.getForWeek.cancel({ weekOffset });
-      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
-      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
-        old
-          ? {
-              ...old,
-              checkedKeys: checked
-                ? [...new Set([...old.checkedKeys, ...keys])]
-                : old.checkedKeys.filter((k) => !keys.includes(k)),
-            }
-          : old,
-      );
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous)
-        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
-    },
+  // Optimistic per-key tick (P1-5): flip now, the server merges devices. ADR 0003:
+  // through the durable outbox, so a tick made offline survives the app being killed.
+  const toggleItems = useShopToggle(weekOffset);
+  // ADR 0003: a shared household's list is live while this tab is on screen.
+  const sharing = useHouseholdSharing();
+  const isFocused = useIsFocused();
+  const checkedBy = useSharedListSync({
+    weekOffset,
+    planId: weekList?.planId,
+    enabled: sharing.shared && isFocused,
   });
 
   // UX-SHOP-02: the new row shows at once, "Not saved yet" until the server answers.
@@ -204,7 +201,7 @@ export function ShopScreen() {
   };
 
   const items = weekList?.items ?? [];
-  const checkedKeys = weekList?.checkedKeys ?? [];
+  const checkedKeys = useCheckedWithPending(weekList?.checkedKeys, weekList?.planId);
   const checkedCount = checkedKeys.filter((key) => items.some((i) => i.key === key)).length;
   const groups = shopGroups(items, checkedKeys, text);
   const searching = text.trim().length > 0;
@@ -248,7 +245,7 @@ export function ShopScreen() {
     } else {
       haptics.selection();
     }
-    toggleMutation.mutate({ planId: weekList.planId, keys: [key], checked: checking });
+    toggleItems(weekList.planId, [key], checking);
   };
 
   // T-21.5 (CI-14): keeps the field clear of the keyboard.
@@ -285,6 +282,15 @@ export function ShopScreen() {
     Number.isFinite(Number(item.quantity))
       ? units.qty(Number(item.quantity), item.unit)
       : `${item.quantity} ${item.unit}`;
+
+  // ADR 0003: the live sync's "who" is fresher than the list's own.
+  const whoLine = (item: ShopListItem, checked: boolean): string | null => {
+    if (checked) {
+      const by: ListPersonDto | undefined = checkedBy[item.key] ?? item.checkedBy;
+      if (by) return HOUSEHOLD_SHARING_COPY.checkedBy(by);
+    }
+    return item.addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(item.addedBy) : null;
+  };
 
   const renderGroup = (group: ShopGroup<ShopListItem>) => {
     // A search shows every aisle with a match, open.
@@ -327,6 +333,7 @@ export function ShopScreen() {
               const checked = checkedKeys.includes(item.key);
               const pending = isPendingItem(item);
               const quantity = quantityLabel(item);
+              const who = sharing.shared ? whoLine(item, checked) : null;
               return (
                 <Animated.View
                   key={item.key}
@@ -354,27 +361,39 @@ export function ShopScreen() {
                       ringColor={colors.labelTertiary}
                       emptyColor={colors.surface}
                     />
-                    <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
-                      {/* MO-17: a strike sweeps across the name instead of line-through. */}
-                      <View className="relative shrink">
-                        <Text
-                          numberOfLines={1}
-                          className={cn(
-                            'text-body',
-                            checked ? 'text-label-tertiary' : 'text-label',
-                          )}
-                        >
-                          {item.ingredientName}
-                        </Text>
-                        <StrikeLine active={checked} color={colors.labelTertiary} />
+                    <View className="min-w-0 flex-1">
+                      <View className="min-w-0 flex-row items-center gap-1.5">
+                        {/* MO-17: a strike sweeps across the name instead of line-through. */}
+                        <View className="relative shrink">
+                          <Text
+                            numberOfLines={1}
+                            className={cn(
+                              'text-body',
+                              checked ? 'text-label-tertiary' : 'text-label',
+                            )}
+                          >
+                            {item.ingredientName}
+                          </Text>
+                          <StrikeLine active={checked} color={colors.labelTertiary} />
+                        </View>
+                        {/* T-01.9: the risk sits in a bought product — flagged inline. */}
+                        {item.labelCheck && item.labelCheck.length > 0 ? (
+                          <LabelCaveat
+                            testID={`shop-item-${item.key}-label`}
+                            text={labelCaveatCompactText()}
+                            compact
+                          />
+                        ) : null}
                       </View>
-                      {/* T-01.9: the risk sits in a bought product — flagged inline. */}
-                      {item.labelCheck && item.labelCheck.length > 0 ? (
-                        <LabelCaveat
-                          testID={`shop-item-${item.key}-label`}
-                          text={labelCaveatCompactText()}
-                          compact
-                        />
+                      {/* ADR 0003: "Ticked by Maria" / "Added by you" on a shared list. */}
+                      {who ? (
+                        <Text
+                          testID={`shop-item-${item.key}-who`}
+                          numberOfLines={1}
+                          className="text-caption text-label-secondary"
+                        >
+                          {who}
+                        </Text>
                       ) : null}
                     </View>
                     <Text
@@ -489,6 +508,10 @@ export function ShopScreen() {
                 </Text>
               ) : null}
             </View>
+
+            {sharing.isPartner && sharing.ownerName ? (
+              <PartnerBanner testID="shop-partner-banner" ownerName={sharing.ownerName} />
+            ) : null}
 
             {/* UX-SHOP-02: say so when changes are waiting for a connection. */}
             {!online ? (

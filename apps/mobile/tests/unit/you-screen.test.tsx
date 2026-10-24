@@ -48,7 +48,12 @@ jest.mock('../../src/lib/trpc', () => ({
       me: { useQuery: () => ({ data: mockMe }) },
       logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) },
     },
-    household: { list: { useQuery: () => ({ data: mockMembers }) } },
+    household: {
+      list: { useQuery: () => ({ data: mockMembers }) },
+      // ADR 0003: household sharing off (a solo household), no notices.
+      sharing: { useQuery: () => ({ data: undefined }) },
+      notices: { useQuery: () => ({ data: undefined }) },
+    },
     feedback: {
       submit: {
         useMutation: (opts: { onSuccess?: () => void }) => {

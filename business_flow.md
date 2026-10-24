@@ -2886,6 +2886,12 @@ Portions and targets
 **Events:** `household_invite_created`, `household_invite_opened`, `household_joined`, `household_left`,
 `shared_list_synced`, `shared_plan_conflict`.
 
+**Web:** the sharing UI lives in Preferences → My household (`#household`: invite sheet per adult profile, "Has
+Chefer" + remove, partner banner + leave, notices), `/household/join/<code>` (join screen) and
+`/household-invite/<code>` (signed-out phone). Meals polls `getForWeek` every 15 s and Shop polls `shoppingList.sync`
+every 4 s while the tab is visible and the household is shared; `mergeSyncedChecks` (`@chefer/utils`) keeps a tick
+still in flight over an older sync answer.
+
 ---
 
 ## 18. Zero-Waste Pantry Flow (F3)

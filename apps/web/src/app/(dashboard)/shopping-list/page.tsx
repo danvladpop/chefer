@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useHouseholdSharing } from '@/features/household-sharing/use-household-sharing';
+import { useSharedListSync } from '@/features/household-sharing/use-shared-list-sync';
 import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
 import { ItemThumb } from '@/features/shopping-list/components/ItemThumb';
 import { ShareListDialog } from '@/features/shopping-list/components/ShareListDialog';
@@ -28,6 +30,7 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
+import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
 import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } from '@chefer/ui';
 import {
   checkedForListHeaderText,
@@ -57,6 +60,18 @@ const PRINT_STYLES = `
 }
 .shopping-list-print-header { display: none; }
 `;
+
+/** "Added by Maria · Ticked by you" under an item of a shared list (ADR 0003). */
+function listPeopleLine(
+  addedBy: ListPersonDto | undefined,
+  checkedBy: ListPersonDto | undefined,
+): string | null {
+  const parts = [
+    addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(addedBy) : null,
+    checkedBy ? HOUSEHOLD_SHARING_COPY.checkedBy(checkedBy) : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
 
 const EXPANDED_STORAGE_KEY = 'chefer.shopping-expanded.v2';
 /** Rows added optimistically carry this key prefix until the server answers (UX-SHOP-02). */
@@ -133,6 +148,11 @@ export default function ShoppingListPage() {
 
   const utils = trpc.useUtils();
 
+  // ADR 0003: a shared household's list is live — the partner's ticks arrive
+  // within seconds, and rows say who ticked or added them.
+  const { isShared } = useHouseholdSharing();
+  const listSync = useSharedListSync({ weekOffset, enabled: isShared });
+
   // Checked state is per-plan on the server — switching weeks just shows the
   // other plan's state.
   const handleWeekChange = useCallback((offset: number) => {
@@ -180,6 +200,7 @@ export default function ShoppingListPage() {
   // add/remove, so concurrent devices merge instead of clobbering.
   const toggleMutation = trpc.shoppingList.toggleItems.useMutation({
     onMutate: async ({ keys, checked }) => {
+      listSync.beginToggle(keys);
       await utils.shoppingList.getForWeek.cancel({ weekOffset });
       const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
       utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
@@ -199,6 +220,7 @@ export default function ShoppingListPage() {
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
       }
     },
+    onSettled: (_data, _err, { keys }) => listSync.endToggle(keys),
   });
 
   const toggleItem = (key: string) => {
@@ -207,6 +229,8 @@ export default function ShoppingListPage() {
       planId: weekList.planId,
       keys: [key],
       checked: !checkedItems.includes(key),
+      // ADR 0003: last write per item wins by the device's time.
+      at: new Date().toISOString(),
     });
   };
 
@@ -309,7 +333,12 @@ export default function ShoppingListPage() {
     const matching = legacyChecked.filter((key) => items.some((i) => i.key === key));
     migratedRef.current = true;
     if (matching.length > 0 && weekList.checkedKeys.length === 0) {
-      toggleMutation.mutate({ planId: weekList.planId, keys: matching, checked: true });
+      toggleMutation.mutate({
+        planId: weekList.planId,
+        keys: matching,
+        checked: true,
+        at: new Date().toISOString(),
+      });
     }
     clearLegacyChecked();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when the list first loads
@@ -601,6 +630,14 @@ export default function ShoppingListPage() {
                     {catItems.map((item) => {
                       const isChecked = checkedItems.includes(item.key);
                       const itemImageUrl = item.imageUrl;
+                      const whoLine = isShared
+                        ? listPeopleLine(
+                            item.addedBy,
+                            isChecked
+                              ? (listSync.checkedBy[item.key] ?? item.checkedBy)
+                              : undefined,
+                          )
+                        : null;
                       const quantityLabel = Number.isFinite(Number(item.quantity))
                         ? units.qty(Number(item.quantity), item.unit)
                         : `${item.quantity} ${item.unit}`;
@@ -650,6 +687,14 @@ export default function ShoppingListPage() {
                                   <span className="ml-2 text-neutral-400">Saving…</span>
                                 )}
                               </p>
+                              {whoLine && (
+                                <p
+                                  data-testid="shop-item-who"
+                                  className="truncate text-xs text-neutral-500"
+                                >
+                                  {whoLine}
+                                </p>
+                              )}
                             </div>
 
                             <span

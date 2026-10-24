@@ -65,6 +65,8 @@ import { trackPlanGenerated } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useAiConsent } from '../../ai-consent/ai-consent-provider';
+import { PartnerBanner } from '../../household/sharing/partner-banner';
+import { useSharedWeek } from '../../household/sharing/use-shared-week';
 import { useAfterSheetExit } from '../../meal-plan/after-sheet-exit';
 import { CompareWeeksSheet } from '../../meal-plan/compare-weeks-sheet';
 import { dismissPlan, isPlanDismissed } from '../../meal-plan/dismissals';
@@ -109,6 +111,11 @@ import { TailoringLine } from './tailoring-line';
 // paragraph (now behind the safety line's info button), the shape summary
 // row. A meal's other actions (keep, side dish, ate something else, skipped,
 // remove a side) open from "More options" on its Change sheet.
+// ADR 0003 (household sharing): a shared week refetches every 15 s while this
+// tab is focused; slot edits send the recipe they expect to replace and a lost
+// race shows "This meal changed a moment ago"; a partner sees whose week it is
+// and none of the owner-only planning actions (generate, plan a day, Change
+// week, re-plan, day fit, resume tailoring).
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 type Plan = NonNullable<RouterOutputs['mealPlan']['getForWeek']>;
@@ -225,6 +232,9 @@ export function MealsScreen() {
 
   // Live tailoring polls only while the chef works AND this tab is on screen.
   const isFocused = useIsFocused();
+  // ADR 0003: the shared week (polling, partner view, slot conflicts).
+  const sharedWeek = useSharedWeek();
+  const isPartner = sharedWeek.isPartner;
   const {
     data: plan,
     isLoading,
@@ -236,9 +246,11 @@ export function MealsScreen() {
     {
       retry: false,
       refetchInterval: (query) =>
-        isFocused && isTailoringRunning(query.state.data?.tailoring)
-          ? PLAN_TAILORING_POLL_MS
-          : false,
+        !isFocused
+          ? false
+          : isTailoringRunning(query.state.data?.tailoring)
+            ? PLAN_TAILORING_POLL_MS
+            : sharedWeek.pollMs,
     },
   );
   const trainingDays = plan?.trainingDays ?? [];
@@ -364,9 +376,18 @@ export function MealsScreen() {
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({
     meta: { silent: true },
     onSuccess: () => void refetch(),
-    onError: (err) =>
-      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` }),
+    onError: (err) => {
+      if (sharedWeek.handleSlotConflict(err, refetch)) return;
+      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` });
+    },
   });
+  // ADR 0003: a swap that lost a race closes the picker and shows the latest week.
+  const onSlotSwapError = (err: unknown) => {
+    if (!sharedWeek.handleSlotConflict(err, refetch)) return;
+    setPickerTarget(null);
+    swapMutation.reset();
+    replaceMutation.reset();
+  };
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     meta: { silent: true },
     onSuccess: () => {
@@ -374,6 +395,7 @@ export function MealsScreen() {
       void refetch();
       invalidateDerived();
     },
+    onError: (err) => onSlotSwapError(err),
   });
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
     meta: { silent: true },
@@ -382,6 +404,7 @@ export function MealsScreen() {
       void refetch();
       invalidateDerived();
     },
+    onError: (err) => onSlotSwapError(err),
   });
   const addToWeekMutation = trpc.recipe.addToWeek.useMutation({
     meta: { silent: true },
@@ -404,8 +427,10 @@ export function MealsScreen() {
       void refetch();
       invalidateDerived();
     },
-    onError: (err) =>
-      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
+    onError: (err) => {
+      if (sharedWeek.handleSlotConflict(err, refetch)) return;
+      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` });
+    },
   });
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
     meta: { silent: true },
@@ -533,7 +558,13 @@ export function MealsScreen() {
   const removeSide = (meal: PlanMeal, slotIndex: number) => {
     if (!plan) return;
     removeSlotMutation.mutate(
-      { planId: plan.planId, dayOfWeek: selectedDay, mealType: meal.type, slotIndex },
+      {
+        planId: plan.planId,
+        dayOfWeek: selectedDay,
+        mealType: meal.type,
+        slotIndex,
+        expectedRecipeId: meal.recipe.id,
+      },
       {
         onSuccess: () =>
           showSnackbar({
@@ -576,6 +607,7 @@ export function MealsScreen() {
               mealType: meal.type,
               slotIndex,
               pinned: meal.pinned !== true,
+              expectedRecipeId: meal.recipe.id,
             }),
         },
         onAddSide: () =>
@@ -736,36 +768,52 @@ export function MealsScreen() {
                 <Text className="text-center text-headline font-semibold text-label">
                   No plan for {weekLabel} yet
                 </Text>
-                <Text
-                  testID="meals-empty-summary"
-                  className="text-center text-subhead text-label-secondary"
-                >
-                  {shape
-                    ? planShapeSummary(shape)
-                    : isPremium
-                      ? 'Generate an AI plan personalised to your profile and ratings.'
-                      : 'Generate a plan from our curated collection.'}
-                </Text>
-                <Button
-                  testID="meals-generate"
-                  loading={generateMutation.isPending}
-                  onPress={() => generateWithConsent()}
-                >
-                  {generateMutation.isPending
-                    ? 'Cooking up your week…'
-                    : shape
-                      ? planButtonLabel(shape)
-                      : 'Generate Plan'}
-                </Button>
-                <Pressable
-                  testID="meals-change-shape"
-                  accessibilityRole="button"
-                  onPress={openSettings}
-                  className="min-h-11 items-center justify-center px-2"
-                >
-                  <Text className="text-subhead font-semibold text-brand">Change what we plan</Text>
-                </Pressable>
-                {isPremium === true ? (
+                {isPartner ? null : (
+                  <Text
+                    testID="meals-empty-summary"
+                    className="text-center text-subhead text-label-secondary"
+                  >
+                    {shape
+                      ? planShapeSummary(shape)
+                      : isPremium
+                        ? 'Generate an AI plan personalised to your profile and ratings.'
+                        : 'Generate a plan from our curated collection.'}
+                  </Text>
+                )}
+                {isPartner && sharedWeek.ownerName ? (
+                  // ADR 0003: planning a week is the owner's.
+                  <PartnerBanner
+                    testID="meals-partner-banner"
+                    ownerName={sharedWeek.ownerName}
+                    ownerOnly
+                    className="self-stretch"
+                  />
+                ) : (
+                  <>
+                    <Button
+                      testID="meals-generate"
+                      loading={generateMutation.isPending}
+                      onPress={() => generateWithConsent()}
+                    >
+                      {generateMutation.isPending
+                        ? 'Cooking up your week…'
+                        : shape
+                          ? planButtonLabel(shape)
+                          : 'Generate Plan'}
+                    </Button>
+                    <Pressable
+                      testID="meals-change-shape"
+                      accessibilityRole="button"
+                      onPress={openSettings}
+                      className="min-h-11 items-center justify-center px-2"
+                    >
+                      <Text className="text-subhead font-semibold text-brand">
+                        Change what we plan
+                      </Text>
+                    </Pressable>
+                  </>
+                )}
+                {isPremium === true && !isPartner ? (
                   <View className="min-h-11 flex-row items-center gap-3">
                     <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
                       Cook once, eat twice (leftover lunches)
@@ -821,7 +869,15 @@ export function MealsScreen() {
           ) : (
             /* ── Day view ──────────────────────────────────────────────── */
             <>
-              {plan.portionRefit ? (
+              {/* ADR 0003: a partner reads the owner's week; planning it stays the owner's. */}
+              {isPartner && sharedWeek.ownerName ? (
+                <PartnerBanner
+                  testID="meals-partner-banner"
+                  ownerName={sharedWeek.ownerName}
+                  ownerOnly
+                />
+              ) : null}
+              {plan.portionRefit && !isPartner ? (
                 <PortionRefitNotice
                   planId={plan.planId}
                   days={plan.portionRefit.days}
@@ -842,7 +898,9 @@ export function MealsScreen() {
                 tailoring={plan.tailoring}
                 sawRunning={sawRunning}
                 onResume={
-                  isPremium === true && plan.tailoring?.canResume ? resumeTailoring : undefined
+                  isPremium === true && plan.tailoring?.canResume && !isPartner
+                    ? resumeTailoring
+                    : undefined
                 }
                 resuming={resumeTailoringMutation.isPending}
               />
@@ -867,7 +925,7 @@ export function MealsScreen() {
               ) : null}
 
               {/* T-11.3: the target moved since this week was planned. */}
-              {replanNeeded ? (
+              {replanNeeded && !isPartner ? (
                 <View testID="meals-replan-banner" className="gap-1 rounded-card bg-brand-tint p-3">
                   <Text className="text-subhead text-label">
                     {proteinOnly
@@ -961,7 +1019,12 @@ export function MealsScreen() {
                       fat={totals.fat}
                     />
                   )}
-                  {dayStatus !== null ? (
+                  {dayStatus !== null && isPartner ? (
+                    // ADR 0003: the day's options (bigger portions, rebalance) are the owner's.
+                    <Text testID="meals-day-status" className="text-subhead text-label-secondary">
+                      {dayStatus}
+                    </Text>
+                  ) : dayStatus !== null ? (
                     // T-11.3: neutral and tappable — Bigger portions / Add a snack / Keep it.
                     <Pressable
                       testID="meals-day-status"
@@ -976,7 +1039,7 @@ export function MealsScreen() {
                       <Text className="text-subhead font-semibold text-brand">See options</Text>
                     </Pressable>
                   ) : null}
-                  {suggestion ? (
+                  {suggestion && !isPartner ? (
                     <DayFitSuggestionCard
                       suggestion={suggestion.s}
                       dayOfWeek={selectedDay}
@@ -993,20 +1056,22 @@ export function MealsScreen() {
                 <Text accessibilityRole="header" className="text-title3 font-bold text-label">
                   Meals
                 </Text>
-                {/* MO-01: press feedback through PressableScale. */}
-                <PressableScale
-                  testID="meals-change-week"
-                  accessibilityRole="button"
-                  accessibilityLabel="Change week"
-                  onPress={() => {
-                    haptics.selection();
-                    setChangeWeekOpen(true);
-                  }}
-                  className="min-h-11 flex-row items-center gap-1.5 px-1"
-                >
-                  <Icon name="refresh" color={colors.brand} size={18} />
-                  <Text className="text-callout font-semibold text-brand">Change week</Text>
-                </PressableScale>
+                {/* MO-01: press feedback through PressableScale. ADR 0003: owner only. */}
+                {isPartner ? null : (
+                  <PressableScale
+                    testID="meals-change-week"
+                    accessibilityRole="button"
+                    accessibilityLabel="Change week"
+                    onPress={() => {
+                      haptics.selection();
+                      setChangeWeekOpen(true);
+                    }}
+                    className="min-h-11 flex-row items-center gap-1.5 px-1"
+                  >
+                    <Icon name="refresh" color={colors.brand} size={18} />
+                    <Text className="text-callout font-semibold text-brand">Change week</Text>
+                  </PressableScale>
+                )}
               </View>
 
               {meals.length === 0 ? (
@@ -1020,24 +1085,26 @@ export function MealsScreen() {
                       >
                         Not planned. You cook {shape ? planShapeSummary(shape) : 'some days'}.
                       </Text>
-                      <Pressable
-                        testID="meals-day-add"
-                        accessibilityRole="button"
-                        accessibilityLabel={`Plan ${weekdayLongName(selectedDay)} too`}
-                        disabled={planDayMutation.isPending}
-                        onPress={() =>
-                          planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
-                        }
-                        className="min-h-11 items-center justify-center px-2"
-                      >
-                        {planDayMutation.isPending ? (
-                          <ActivityIndicator size="small" color={colors.brand} />
-                        ) : (
-                          <Text className="text-subhead font-semibold text-brand">
-                            Plan this day
-                          </Text>
-                        )}
-                      </Pressable>
+                      {isPartner ? null : (
+                        <Pressable
+                          testID="meals-day-add"
+                          accessibilityRole="button"
+                          accessibilityLabel={`Plan ${weekdayLongName(selectedDay)} too`}
+                          disabled={planDayMutation.isPending}
+                          onPress={() =>
+                            planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
+                          }
+                          className="min-h-11 items-center justify-center px-2"
+                        >
+                          {planDayMutation.isPending ? (
+                            <ActivityIndicator size="small" color={colors.brand} />
+                          ) : (
+                            <Text className="text-subhead font-semibold text-brand">
+                              Plan this day
+                            </Text>
+                          )}
+                        </Pressable>
+                      )}
                     </>
                   ) : (
                     <Text className="text-subhead text-label-secondary">
@@ -1242,6 +1309,7 @@ export function MealsScreen() {
                   recipeId,
                   ...(acknowledgeConflict && { acknowledgeConflict }),
                   localDate: dayFitLocalDate(),
+                  expectedRecipeId: target.recipeId,
                 },
                 {
                   onSuccess: (data) =>
@@ -1267,6 +1335,7 @@ export function MealsScreen() {
                           mealType: target.mealType,
                           slotIndex: target.slotIndex,
                           localDate: dayFitLocalDate(),
+                          expectedRecipeId: target.recipeId,
                         },
                         {
                           onSuccess: (data) =>
