@@ -93,6 +93,24 @@ Safari's Smart App Banner (on every public page) stay hidden until
 `APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
 `SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
 
+**Switch page: `/switch/mealime` (market review 2026-10, lane L, 2026-10-22).**
+Mealime closed on 2026-10-21, and its closing notice says personal data is
+deleted with no export. This public page, linked from the shared public footer
+(`PublicFooter`, also on `/`), is for people looking for a replacement. It is an
+honest comparison. "What carries over" covers weekly plans, the aisle-sorted
+list, cook mode and diet filters. "What Chefer adds" covers household-wide
+allergy safety, EUR/RON prices, link/video import, the free gym log and free
+data export. A four-step guide shows how to bring recipes over with the
+existing import (Cookbook → Import → Link / Paste / Photo / Video). Rules for
+the copy: claims are about Chefer only, or are quoted from Mealime's own notice
+(with a link); the title says "A Mealime alternative"; and a line in the hero
+says Chefer is not affiliated with Mealime or Albertsons Companies. The page
+carries store badges (campaign `switch-mealime`) and a `WebPage` +
+`SoftwareApplication` + `FAQPage` JSON-LD graph. On view it sends
+`switch_page_viewed { source: 'mealime' }`. It is static, with no session
+check, so signed-in readers see it too. Web only by nature: the native app
+has no marketing pages.
+
 ```
 1. User fills in RegisterForm at /(auth)/register
    └── email, password, firstName?, lastName? (react-hook-form + Zod)

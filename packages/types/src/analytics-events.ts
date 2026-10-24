@@ -207,4 +207,8 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
+  /** A public "switching from X" page was opened; `source` is the app it addresses. */
+  switch_page_viewed: { source: 'mealime' };
 }
