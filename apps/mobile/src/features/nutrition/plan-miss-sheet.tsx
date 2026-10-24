@@ -93,7 +93,7 @@ export function PlanMissSheet({
 }: PlanMissSheetProps) {
   // WP-08: protein-only mode only ever judges a day by its protein (a calorie
   // miss is not offered), and states no calorie figure.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const judgedTarget = proteinOnly ? undefined : calorieTarget;
   const factor = useMemo(
     () => missScaleFactor({ kcal, protein, calorieTarget: judgedTarget, proteinGapG, goal }),
@@ -135,6 +135,8 @@ export function PlanMissSheet({
   const canAddSnack = under && goal !== undefined && goal !== 'LOSE_WEIGHT';
   const biggerLabel = under ? 'Bigger portions' : 'Smaller portions';
 
+  // Lane E3 "Hide numbers": a fit-to-target sheet has nothing to say without figures.
+  if (noNumbers) return null;
   return (
     <Sheet
       visible={visible}

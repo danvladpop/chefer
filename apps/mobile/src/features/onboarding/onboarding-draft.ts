@@ -36,7 +36,7 @@ export const onboardingDraftSchema = z.object({
     .catch(null),
   goodFood: z.boolean().catch(false),
   // WP-08: "What do you want to keep an eye on?" — saved with the rest at Finish. Absent in older drafts.
-  numbersMode: z.enum(['FULL', 'PROTEIN_ONLY']).optional().catch(undefined),
+  numbersMode: z.enum(['FULL', 'PROTEIN_ONLY', 'NONE']).optional().catch(undefined),
   goal: z.string().nullable().catch(null),
   metrics: z
     .object({

@@ -271,7 +271,7 @@ export function buildTemplateReviewText(input: ReviewTextInput): string {
       lines.push(`Your logged days averaged ${avgDailyKcal} kcal — right on your target.`);
     } else if (delta > 0) {
       lines.push(
-        `Your logged days averaged ${avgDailyKcal} kcal, about ${delta} over target — usually the dinners.`,
+        `Your logged days averaged ${avgDailyKcal} kcal, about ${delta} above your target.`,
       );
     } else {
       lines.push(

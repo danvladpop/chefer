@@ -88,7 +88,7 @@ describe('NutritionSummary', () => {
     }
   });
 
-  it('marks eaten calories and macros over target (MO-06: 2,810 of 2,728; fat 81 g of 62 g)', async () => {
+  it('says over target in words, never as a warning colour (lane E3: 2,810 of 2,728; fat 81 g of 62 g)', async () => {
     await render(
       <NutritionSummary
         nutrition={{
@@ -101,9 +101,9 @@ describe('NutritionSummary', () => {
         }}
       />,
     );
-    expect(screen.getByTestId('calorie-ring-overflow')).toBeOnTheScreen();
+    expect(screen.queryByTestId('calorie-ring-overflow')).toBeNull();
     expect(screen.getByTestId('calorie-remaining')).toHaveTextContent('2,500 planned · 82 over');
-    expect(screen.getByTestId('macro-fat-cap')).toBeOnTheScreen();
+    expect(screen.queryByTestId('macro-fat-cap')).toBeNull();
     expect(screen.queryByTestId('macro-protein-cap')).toBeNull();
     expect(screen.queryByTestId('macro-carbs-cap')).toBeNull();
   });

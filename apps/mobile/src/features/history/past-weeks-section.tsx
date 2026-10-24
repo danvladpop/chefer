@@ -26,7 +26,8 @@ export function PastWeeksSection() {
     refetch,
   } = trpc.mealPlan.list.useQuery({ limit: HISTORY_LIMIT, offset: 0 }, { staleTime: 30_000 });
   const restore = useRestorePlan();
-  const { proteinOnly } = useNumbersMode(); // WP-08: protein-only mode shows protein, never kcal
+  // WP-08: protein-only mode shows protein, never kcal; lane E3 "Hide numbers" neither.
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const weeks = pastWeeks(plans);
 
   return (
@@ -78,11 +79,13 @@ export function PastWeeksSection() {
                 </Text>
               )}
 
-              <Text className="text-caption text-label-tertiary">
-                {proteinOnly
-                  ? `${plan.macroSummary.avgProtein} g protein avg`
-                  : `${plan.macroSummary.avgKcal} kcal avg · ${plan.macroSummary.avgProtein}g P · ${plan.macroSummary.avgCarbs}g C · ${plan.macroSummary.avgFat}g F`}
-              </Text>
+              {noNumbers ? null : (
+                <Text className="text-caption text-label-tertiary">
+                  {proteinOnly
+                    ? `${plan.macroSummary.avgProtein} g protein avg`
+                    : `${plan.macroSummary.avgKcal} kcal avg · ${plan.macroSummary.avgProtein}g P · ${plan.macroSummary.avgCarbs}g C · ${plan.macroSummary.avgFat}g F`}
+                </Text>
+              )}
 
               {restore.errorFor(plan.id) && (
                 <Text className="text-caption text-danger">{restore.errorFor(plan.id)}</Text>

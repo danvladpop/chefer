@@ -149,12 +149,14 @@ function CompareDialog({
     { enabled: open, staleTime: 60_000 },
   );
   // WP-08: protein-only mode compares protein alone.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const cell = (t: { kcal: number; protein: number }) =>
     t.kcal > 0
-      ? proteinOnly
-        ? `${t.protein} g protein`
-        : `${formatKcal(t.kcal)} kcal · ${t.protein} g`
+      ? noNumbers
+        ? 'Planned'
+        : proteinOnly
+          ? `${t.protein} g protein`
+          : `${formatKcal(t.kcal)} kcal · ${t.protein} g`
       : 'Not planned';
 
   return (

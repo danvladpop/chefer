@@ -3,8 +3,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NumbersModeHost, NumbersModeProvider, useNumbersMode } from './numbers-mode';
 
-// WP-08: ONE predicate for every surface. null / NONE (reserved for WP-16) /
-// unknown values are the full numbers; only PROTEIN_ONLY changes anything.
+// WP-08: ONE predicate for every surface. null / unknown values are the full
+// numbers; PROTEIN_ONLY and lane E3's "Hide numbers" (NONE) drop the calories.
 
 const m = vi.hoisted(() => ({ prefs: undefined as { numbersMode?: string | null } | undefined }));
 vi.mock('@/lib/trpc', () => ({
@@ -28,7 +28,7 @@ describe('useNumbersMode', () => {
   it.each([
     ['PROTEIN_ONLY', 'PROTEIN_ONLY:true'],
     ['FULL', 'FULL:false'],
-    ['NONE', 'FULL:false'],
+    ['NONE', 'NONE:true'],
     ['protein_only', 'FULL:false'],
     ['something-new', 'FULL:false'],
     [null, 'FULL:false'],

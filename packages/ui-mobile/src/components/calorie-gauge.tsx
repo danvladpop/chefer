@@ -34,7 +34,8 @@ const fmt = (n: number) => formatNumber(Math.round(n));
  * Half-ring calorie gauge (10 Oct redesign, ref-1/ref-2 layout in Chefer's
  * roles): the arc fills left → right with eaten / target, the number sits in
  * the bowl, "left" and "target" sit under the two ends. Over target the arc
- * turns `attention` and "left" reads "over" — never red (F8). MO-06: the
+ * keeps the brand colour and "left" reads "over" in neutral text — never an
+ * alarm colour (F8; lane E3: eating-disorder-safe, every mode). MO-06: the
  * arc animates its dash offset from the previous value on the UI thread and
  * jumps under reduced motion (useProgressValue); the number counts up (CountUp).
  * One accessibility sentence covers the whole gauge.
@@ -99,7 +100,7 @@ export function CalorieGauge({
           <AnimatedPath
             {...(testID ? { testID: `${testID}-fill` } : {})}
             d={d}
-            stroke={over ? colors.attention : colors.brand}
+            stroke={colors.brand}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             fill="none"
@@ -122,7 +123,7 @@ export function CalorieGauge({
           <View>
             <Text
               testID={testID ? `${testID}-left` : undefined}
-              className={cn('text-headline font-bold', over ? 'text-attention' : 'text-label')}
+              className="text-headline font-bold text-label"
             >
               {fmt(over ? overBy : remaining)}
             </Text>

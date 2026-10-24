@@ -49,6 +49,12 @@ describe('CHAT_SYSTEM_PROMPT — guardrail (T-00.14)', () => {
     expect(CHAT_SYSTEM_PROMPT).toContain('never scold');
   });
 
+  // Lane E3 copy audit: a meal is never something to compensate for.
+  it('never tells the user to make up for what they ate', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain('to make up for what they ate');
+    expect(REVIEW_SYSTEM_PROMPT).toContain('Never suggest eating less or training more to make up');
+  });
+
   // Ask Chef helps with training (2026-10-10).
   it('is a chef AND training helper that answers training from getMyTraining, never invented', () => {
     expect(CHAT_SYSTEM_PROMPT).toContain('training helper');

@@ -36,8 +36,12 @@ import {
   copyDayMessage,
   formatPortion,
   groupByMeal,
+  HIDE_NUMBERS_COPY,
   localDateStr,
+  metaLine,
+  onPlanLine,
   plannedRowKey,
+  portionLabel,
   proteinLabel,
   slotPortion,
   slotStates,
@@ -99,7 +103,7 @@ export default function TrackerPage() {
     { enabled: !isFuture, staleTime: 30_000 },
   );
   // WP-08: the day's payload decides protein-only (no kcal in rows or totals).
-  const { proteinOnly } = useNumbersMode(data?.numbersMode);
+  const { proteinOnly, noNumbers } = useNumbersMode(data?.numbersMode);
 
   const [toast, setToast] = useState<{
     message: string;
@@ -467,82 +471,100 @@ export default function TrackerPage() {
             {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
             <ChangeNoticeCard />
 
-            {/* Macro summary */}
-            <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
+            {/* Lane E3 "Hide numbers": the day as planned meals eaten, no figures. */}
+            {noNumbers ? (
+              <div
+                data-testid="tracker-on-plan"
+                className="mb-6 rounded-2xl border bg-white p-5 shadow-sm"
+              >
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  {isToday ? "Today's Progress" : 'Day Progress'}
+                  {HIDE_NUMBERS_COPY.onPlanTitle}
                 </p>
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
-                    <Flame className="h-4 w-4 text-[#944a00]" />
-                    {proteinOnly
-                      ? `${Math.round(loggedProtein).toLocaleString()} / ${Math.round(proteinTarget).toLocaleString()} g protein`
-                      : `${loggedKcal.toLocaleString()} / ${target.toLocaleString()} kcal`}
-                  </span>
-                  {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
-                  <button
-                    type="button"
-                    aria-label="Why this target"
-                    data-testid="tracker-why-target"
-                    onClick={() => setExplainOpen(true)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-                  >
-                    <Info className="h-4 w-4" />
-                  </button>
-                </div>
+                <p className="mt-1 text-sm text-neutral-700">
+                  {onPlanLine(
+                    slots.filter((st) => st.status === 'eaten' || st.status === 'replaced').length,
+                    planned.length,
+                  )}
+                </p>
               </div>
-              {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
-              {[
-                {
-                  label: 'Calories',
-                  v: loggedKcal,
-                  t: target,
-                  unit: 'kcal',
-                  colour: 'bg-[#944a00]',
-                },
-                {
-                  label: 'Protein',
-                  v: loggedProtein,
-                  t: proteinTarget,
-                  unit: 'g',
-                  colour: 'bg-blue-500',
-                },
-                {
-                  label: 'Carbs',
-                  v: loggedCarbs,
-                  t: carbsTarget,
-                  unit: 'g',
-                  colour: 'bg-emerald-500',
-                },
-                { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
-              ]
-                // WP-08: protein-only shows the protein bar and nothing else.
-                .filter(({ label }) => !proteinOnly || label === 'Protein')
-                .map(({ label, v, t, unit, colour }) => (
-                  <div key={label} className="mb-2">
-                    <div className="mb-1 flex justify-between text-xs">
-                      <span className="text-neutral-600">{label}</span>
-                      <span className="text-neutral-500">
-                        {Math.round(v)}
-                        {unit} / {t}
-                        {unit}
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
-                      <div
-                        className={`h-full rounded-full ${colour} transition-all`}
-                        style={{ width: `${pct(v, t)}%` }}
-                      />
-                    </div>
+            ) : (
+              /* Macro summary */
+              <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                    {isToday ? "Today's Progress" : 'Day Progress'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
+                      <Flame className="h-4 w-4 text-[#944a00]" />
+                      {proteinOnly
+                        ? `${Math.round(loggedProtein).toLocaleString()} / ${Math.round(proteinTarget).toLocaleString()} g protein`
+                        : `${loggedKcal.toLocaleString()} / ${target.toLocaleString()} kcal`}
+                    </span>
+                    {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
+                    <button
+                      type="button"
+                      aria-label="Why this target"
+                      data-testid="tracker-why-target"
+                      onClick={() => setExplainOpen(true)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
                   </div>
-                ))}
-              {proteinOnly && data.proteinGuide && (
-                <p data-testid="tracker-protein-guide" className="mt-1 text-xs text-neutral-600">
-                  {data.proteinGuide.label}
-                </p>
-              )}
-            </div>
+                </div>
+                {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
+                {[
+                  {
+                    label: 'Calories',
+                    v: loggedKcal,
+                    t: target,
+                    unit: 'kcal',
+                    colour: 'bg-[#944a00]',
+                  },
+                  {
+                    label: 'Protein',
+                    v: loggedProtein,
+                    t: proteinTarget,
+                    unit: 'g',
+                    colour: 'bg-blue-500',
+                  },
+                  {
+                    label: 'Carbs',
+                    v: loggedCarbs,
+                    t: carbsTarget,
+                    unit: 'g',
+                    colour: 'bg-emerald-500',
+                  },
+                  { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
+                ]
+                  // WP-08: protein-only shows the protein bar and nothing else.
+                  .filter(({ label }) => !proteinOnly || label === 'Protein')
+                  .map(({ label, v, t, unit, colour }) => (
+                    <div key={label} className="mb-2">
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-neutral-600">{label}</span>
+                        <span className="text-neutral-500">
+                          {Math.round(v)}
+                          {unit} / {t}
+                          {unit}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
+                        <div
+                          className={`h-full rounded-full ${colour} transition-all`}
+                          style={{ width: `${pct(v, t)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                {proteinOnly && data.proteinGuide && (
+                  <p data-testid="tracker-protein-guide" className="mt-1 text-xs text-neutral-600">
+                    {data.proteinGuide.label}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Meal list */}
             {data.plannedMeals.length === 0 ? (
@@ -618,6 +640,7 @@ export default function TrackerPage() {
                                   replacement.kcal,
                                   replacement.protein,
                                   proteinOnly,
+                                  noNumbers,
                                 )
                               : SKIPPED_LABEL}
                           </p>
@@ -721,11 +744,15 @@ export default function TrackerPage() {
                             ))}
                           </div>
                           <span className="shrink-0 text-xs text-neutral-500">
-                            {proteinOnly
-                              ? proteinLabel(meal.protein * portion)
-                              : `${scaledKcal} kcal`}
-                            {planPortionOf(meal) !== 1 &&
-                              ` · plan ${formatPortion(planPortionOf(meal))}`}
+                            {metaLine(
+                              noNumbers
+                                ? portionLabel(portion)
+                                : proteinOnly
+                                  ? proteinLabel(meal.protein * portion)
+                                  : `${scaledKcal} kcal`,
+                              planPortionOf(meal) !== 1 &&
+                                `plan ${formatPortion(planPortionOf(meal))}`,
+                            )}
                           </span>
                         </div>
                       </div>
@@ -771,11 +798,16 @@ export default function TrackerPage() {
                                   {item.m.recipeName}
                                 </span>
                                 <span className="text-xs text-neutral-500">
-                                  {proteinOnly
-                                    ? proteinLabel(item.m.protein)
-                                    : `${Math.round(item.m.kcal)} kcal · ${Math.round(item.m.protein)}g P · ${Math.round(item.m.carbs)}g C · ${Math.round(item.m.fat)}g F`}
-                                  {(item.m.portionMultiplier ?? 1) !== 1 &&
-                                    ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
+                                  {metaLine(
+                                    noNumbers
+                                      ? portionLabel(item.m.portionMultiplier ?? 1)
+                                      : proteinOnly
+                                        ? proteinLabel(item.m.protein)
+                                        : `${Math.round(item.m.kcal)} kcal · ${Math.round(item.m.protein)}g P · ${Math.round(item.m.carbs)}g C · ${Math.round(item.m.fat)}g F`,
+                                    !noNumbers &&
+                                      (item.m.portionMultiplier ?? 1) !== 1 &&
+                                      formatPortion(item.m.portionMultiplier ?? 1),
+                                  )}
                                 </span>
                               </button>
                               {item.m.entryId && (
@@ -807,17 +839,19 @@ export default function TrackerPage() {
                                 <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
                                   {item.row.name}
                                 </p>
-                                <p className="text-xs text-neutral-500">
-                                  {proteinOnly
-                                    ? proteinLabel(item.row.protein)
-                                    : `${item.row.kcal} kcal${
-                                        item.row.protein > 0 ||
-                                        item.row.carbs > 0 ||
-                                        item.row.fat > 0
-                                          ? ` · ${Math.round(item.row.protein)}g P · ${Math.round(item.row.carbs)}g C · ${Math.round(item.row.fat)}g F`
-                                          : ''
-                                      }`}
-                                </p>
+                                {noNumbers ? null : (
+                                  <p className="text-xs text-neutral-500">
+                                    {proteinOnly
+                                      ? proteinLabel(item.row.protein)
+                                      : `${item.row.kcal} kcal${
+                                          item.row.protein > 0 ||
+                                          item.row.carbs > 0 ||
+                                          item.row.fat > 0
+                                            ? ` · ${Math.round(item.row.protein)}g P · ${Math.round(item.row.carbs)}g C · ${Math.round(item.row.fat)}g F`
+                                            : ''
+                                        }`}
+                                  </p>
+                                )}
                               </div>
                               <span
                                 role="button"

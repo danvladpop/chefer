@@ -7,7 +7,9 @@ import {
   customEntryChipLabel,
   formatDate,
   formatPortion,
+  metaLine,
   nutritionLabel,
+  portionLabel,
   proteinAverageText,
   userFacingErrorMessage,
   weeklyAverageText,
@@ -74,6 +76,7 @@ function LegacyTrackerScreen() {
     refetch,
     dayTargets,
     proteinOnly,
+    noNumbers,
     slotFlow,
     average,
     quickAddOpen,
@@ -299,7 +302,7 @@ function LegacyTrackerScreen() {
                         <MealTypeBadge mealType={meal.mealType} />
                         <SlotStatusLine
                           testID={`tracker-slot-replaced-${meal.key}`}
-                          text={youHadText(entry, proteinOnly)}
+                          text={youHadText(entry, proteinOnly, noNumbers)}
                           actionLabel={entryId ? SLOT_COPY.remove : undefined}
                           onAction={
                             entryId && entry.custom
@@ -373,12 +376,17 @@ function LegacyTrackerScreen() {
                               {meal.recipeName}
                             </Text>
                             <Text className="text-xs text-label-tertiary">
-                              {nutritionLabel(
-                                { kcal: meal.kcal * portion, protein: meal.protein * portion },
-                                proteinOnly,
+                              {metaLine(
+                                nutritionLabel(
+                                  { kcal: meal.kcal * portion, protein: meal.protein * portion },
+                                  proteinOnly,
+                                  noNumbers,
+                                ),
+                                // Lane E3 "Hide numbers": the portion stands in for the figures.
+                                noNumbers && portionLabel(portion),
+                                planPortionOf(meal) !== 1 &&
+                                  `plan ${formatPortion(planPortionOf(meal))}`,
                               )}
-                              {planPortionOf(meal) !== 1 &&
-                                ` · plan ${formatPortion(planPortionOf(meal))}`}
                             </Text>
                           </View>
                           <TrackerTick
@@ -465,9 +473,13 @@ function LegacyTrackerScreen() {
                               {item.m.recipeName}
                             </Text>
                             <Text className="text-xs text-label-tertiary">
-                              {nutritionLabel(item.m, proteinOnly)}
-                              {(item.m.portionMultiplier ?? 1) !== 1 &&
-                                ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
+                              {metaLine(
+                                nutritionLabel(item.m, proteinOnly, noNumbers),
+                                noNumbers
+                                  ? portionLabel(item.m.portionMultiplier ?? 1)
+                                  : (item.m.portionMultiplier ?? 1) !== 1 &&
+                                      formatPortion(item.m.portionMultiplier ?? 1),
+                              )}
                             </Text>
                           </View>
                           {item.m.entryId && (
@@ -513,7 +525,7 @@ function LegacyTrackerScreen() {
                               </View>
                             </View>
                             <Text className="text-xs text-label-tertiary">
-                              {nutritionLabel(item.row, proteinOnly)}
+                              {nutritionLabel(item.row, proteinOnly, noNumbers)}
                             </Text>
                           </View>
                           <Pressable
