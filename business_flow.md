@@ -6356,5 +6356,18 @@ React Native core, then `Intl` — no new native module, so it ships over the ai
 English reads "22 Oct", an English phone set to Romanian reads "22 oct.". When the phone already speaks the chosen
 language, its own regional style is kept (en-US stays "Oct 22").
 
+**Recipe text (curated recipes).** The display text of the curated pool (name, description, steps, ingredient names)
+can have a translation per language (`RecipeTranslation`). A Romanian reader of the plan, the recipe detail, cook
+mode, the cookbook or Discover sees it. Everyone else sees the English, and so does a Romanian reader when the recipe
+has no translation yet or its English changed after it was translated. Recipes people write or import stay in the
+language they were written in.
+
+```
+pnpm recipes:translate  →  AI draft per curated recipe (MACHINE_DRAFT, shown to Romanian readers)
+pnpm recipes:translate sheet  →  docs/i18n/recipes-ro-review.md  →  owner reads, fixes
+pnpm recipes:translate approve <ids> | --all  →  REVIEWED
+the English recipe changes  →  translation stale  →  English shown until the next run redoes it
+```
+
 **Not translated yet** (phases 2–4 of Lane J): most screens, server error messages, AI chat replies and recipe text.
 Until a screen is converted it shows English in both languages.

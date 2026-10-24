@@ -64,5 +64,12 @@ We rejected the libraries for these reasons:
 - On iOS, a per-app language setting in the system Settings app needs `CFBundleLocalizations` in the binary. That is
   native work for the next store build (Lane C). Until then, the in-app setting is how to choose a language that
   differs from the phone's.
-- Strings the server sends that the client shows verbatim stay English for now. That covers TRPCError messages, and
-  AI chat and recipe text. Lane J phases 2–4 move them to error codes and locale-aware prompts.
+- Strings the server sends that the client shows verbatim stay English for now. That covers TRPCError messages and AI
+  chat. Lane J phase 4 moves them to error codes and locale-aware prompts.
+- **Recipe content is data, not catalog copy** (phase 3).
+  - A curated recipe's name, description, steps and ingredient names in another language live in `RecipeTranslation`
+    rows: one per recipe and language, AI-drafted, then reviewed.
+  - The API swaps them into the DTOs a reader gets, keyed by the reader's language, and falls back to English when a
+    translation is missing or stale.
+  - The recipe row stays English, so nothing that matches recipes by name changes.
+  - Recipes people write or import are not translated.

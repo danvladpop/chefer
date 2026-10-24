@@ -4,11 +4,13 @@ import {
   recipeNutritionSourceSchema,
   undoAddToWeekInputSchema,
 } from '@chefer/types';
+import { recipeTranslationService } from '../application/recipe/recipe-translation.service.js';
 import { recipeService } from '../application/recipe/recipe.service.js';
 import { buildPollinationsUrl } from '../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../lib/image-gen/prompt.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
+import { userLocale } from '../lib/user-locale.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -92,7 +94,11 @@ export const recipeRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return recipeService.list(ctx.user.id, input);
+      // ADR 0004: curated recipes in the reader's language (English fallback).
+      return recipeTranslationService.localize(
+        await recipeService.list(ctx.user.id, input),
+        userLocale(ctx.user),
+      );
     }),
 
   /**
@@ -110,7 +116,10 @@ export const recipeRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return recipeService.discover(ctx.user.id, input);
+      return recipeTranslationService.localize(
+        await recipeService.discover(ctx.user.id, input),
+        userLocale(ctx.user),
+      );
     }),
 
   /**
