@@ -123,7 +123,9 @@ describe('BodyMeasurementsSection', () => {
     render(<BodyMeasurementsSection system="METRIC" />);
     const items = screen.getAllByRole('listitem');
     expect(items[0]?.textContent).toContain('Thigh 55 cm');
-    fireEvent.click(screen.getByRole('button', { name: /Delete the measurements from (1 Oct|Oct 1)/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Delete the measurements from (1 Oct|Oct 1)/ }),
+    );
     expect(m.remove).toHaveBeenCalledWith({ id: '2026-10-01' });
   });
 });
