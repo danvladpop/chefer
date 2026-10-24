@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '@chefer/ui-mobile';
 import { categoryTile } from './categories';
 
 /**
@@ -17,6 +18,7 @@ export function ItemThumb({
   category: string;
   testID: string;
 }) {
+  const colors = useThemeColors();
   const [failed, setFailed] = useState(false);
   // A new picture for the same row (e.g. the list refetched) gets a fresh try.
   useEffect(() => setFailed(false), [uri]);
@@ -30,7 +32,7 @@ export function ItemThumb({
         importantForAccessibility="no-hide-descendants"
         className={`h-12 w-12 items-center justify-center rounded-lg ${tile}`}
       >
-        <Ionicons name={icon} size={22} color={color} />
+        <Ionicons name={icon} size={22} color={colors[color]} />
       </View>
     );
   }
@@ -41,7 +43,7 @@ export function ItemThumb({
       onError={() => setFailed(true)}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className="h-12 w-12 rounded-lg bg-gray-100"
+      className="h-12 w-12 rounded-lg bg-surface-sunken"
       resizeMode="cover"
     />
   );

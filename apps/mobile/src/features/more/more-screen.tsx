@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, CountPill, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  CountPill,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { track } from '../../lib/analytics';
 import { getWebUrl } from '../../lib/api-url';
 import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../lib/current-build';
@@ -25,6 +32,7 @@ export function MoreScreen({
   /** Pin the mode pill (Gym screens never derive it from the route — UX-GYM-20). */
   mode?: 'food' | 'gym';
 }) {
+  const colors = useThemeColors();
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
   const coaching = useCoachingAvailability();
@@ -64,14 +72,12 @@ export function MoreScreen({
                     : 'min-h-12 flex-row items-center gap-3 px-4'
                 }
               >
-                <Ionicons name={item.icon} size={20} color="#944a00" />
-                <Text className="min-w-0 flex-1 text-sm font-medium text-gray-800">
-                  {item.label}
-                </Text>
+                <Ionicons name={item.icon} size={20} color={colors.brand} />
+                <Text className="min-w-0 flex-1 text-sm font-medium text-label">{item.label}</Text>
                 {badge > 0 ? (
                   <CountPill count={badge} testID="more-friends-badge" className="self-center" />
                 ) : null}
-                <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+                <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />
               </Pressable>
             );
           })}
@@ -88,7 +94,7 @@ export function MoreScreen({
             onPress={() => openLegal('terms')}
             className="min-h-11 justify-center"
           >
-            <Text className="text-sm text-gray-500 underline">Terms</Text>
+            <Text className="text-sm text-label-tertiary underline">Terms</Text>
           </Pressable>
           <Pressable
             accessibilityRole="link"
@@ -96,7 +102,7 @@ export function MoreScreen({
             onPress={() => openLegal('privacy')}
             className="min-h-11 justify-center"
           >
-            <Text className="text-sm text-gray-500 underline">Privacy</Text>
+            <Text className="text-sm text-label-tertiary underline">Privacy</Text>
           </Pressable>
           <Pressable
             testID="more-support"
@@ -104,7 +110,7 @@ export function MoreScreen({
             onPress={() => void Linking.openURL(getWebUrl('/support'))}
             className="min-h-11 justify-center"
           >
-            <Text className="text-sm text-gray-500 underline">Support</Text>
+            <Text className="text-sm text-label-tertiary underline">Support</Text>
           </Pressable>
         </View>
 

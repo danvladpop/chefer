@@ -4,7 +4,7 @@ import Animated, { LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendRoutineDto } from '@chefer/types';
-import { EmptyState, Text, useReducedMotion } from '@chefer/ui-mobile';
+import { EmptyState, Text, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { DayCardView } from '../../../gym/routine/day-card-view';
 import { formatRest, weekdayShort } from '../format';
 
@@ -30,11 +30,12 @@ export function FriendRoutineCard({
   firstName: string;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   if (!routine) {
     return (
       <EmptyState
         testID={`${testID}-empty`}
-        icon={<Ionicons name="barbell-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="barbell-outline" size={40} color={colors.labelTertiary} />}
         title={FRIENDS_COPY.gym.noRoutine(firstName)}
       />
     );

@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { AccessibilityInfo, Text as RNText } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, renderHook, screen, userEvent } from '@testing-library/react-native';
+import { colorsFor } from '@chefer/tokens';
 import {
   Button,
   Chip,
-  colors,
   CountUp,
   dashOffset,
   isOverTarget,
@@ -24,6 +24,9 @@ import {
   Text,
   useReducedMotion,
 } from '@chefer/ui-mobile';
+
+// The tests render in Day (the default scheme).
+const colors = colorsFor('light');
 
 // Motion primitives (P2-1, docs/audit-2026-09/motion-system.md). Reanimated,
 // worklets and expo-haptics run on the global mocks in tests/setup: animations
@@ -199,7 +202,9 @@ describe('haptics on selection controls', () => {
 
 describe('ProgressRing / ProgressBar over target (MO-06)', () => {
   it('ring: amber fill plus an overflow lap past 100% when overColor is set', async () => {
-    await render(<ProgressRing testID="ring" progress={2810 / 2728} overColor={colors.warning} />);
+    await render(
+      <ProgressRing testID="ring" progress={2810 / 2728} overColor={colors.attention} />,
+    );
     expect(screen.getByTestId('ring-overflow')).toBeOnTheScreen();
     expect(screen.getByTestId('ring')).toHaveAccessibilityValue({ min: 0, max: 100, now: 100 });
   });
@@ -207,7 +212,7 @@ describe('ProgressRing / ProgressBar over target (MO-06)', () => {
   it('ring: no overflow lap on target, or without an overColor (gym week ring)', async () => {
     await render(
       <>
-        <ProgressRing testID="met" progress={1} overColor={colors.warning} />
+        <ProgressRing testID="met" progress={1} overColor={colors.attention} />
         <ProgressRing testID="week" progress={1.4} />
       </>,
     );
@@ -218,14 +223,14 @@ describe('ProgressRing / ProgressBar over target (MO-06)', () => {
   it('bar: an end cap past 100%, none below', async () => {
     await render(
       <>
-        <ProgressBar testID="fat" progress={81 / 62} overColor={colors.warning} />
-        <ProgressBar testID="carbs" progress={0.5} overColor={colors.warning} />
+        <ProgressBar testID="fat" progress={81 / 62} overColor={colors.attention} />
+        <ProgressBar testID="carbs" progress={0.5} overColor={colors.attention} />
       </>,
     );
     expect(screen.getByTestId('fat-cap')).toBeOnTheScreen();
-    expect(screen.getByTestId('fat-fill')).toHaveStyle({ backgroundColor: colors.warning });
+    expect(screen.getByTestId('fat-fill')).toHaveStyle({ backgroundColor: colors.attention });
     expect(screen.queryByTestId('carbs-cap')).toBeNull();
-    expect(screen.getByTestId('carbs-fill')).toHaveStyle({ backgroundColor: colors.primary });
+    expect(screen.getByTestId('carbs-fill')).toHaveStyle({ backgroundColor: colors.brand });
   });
 });
 

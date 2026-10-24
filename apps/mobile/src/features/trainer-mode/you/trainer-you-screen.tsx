@@ -13,6 +13,7 @@ import {
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
+import { AppearanceRow } from '../../appearance/appearance-screen';
 import { useFriendsMe } from '../../friends/api/use-friends-me';
 import { BookingReminderSwitch } from '../../notifications/booking-reminder-switch';
 import { PushPreferencesCard } from '../../notifications/push/push-preferences-card';
@@ -114,6 +115,11 @@ export function TrainerYouScreen() {
               <BookingReminderSwitch role="trainer" testID="trainer-you-booking-reminders-switch" />
             </View>
           )}
+
+          {/* Night mode is a phone setting, so it is here in trainer mode too. */}
+          <ListSection>
+            <AppearanceRow testID="trainer-you-appearance" />
+          </ListSection>
 
           <YouHelpSection
             feedback={
