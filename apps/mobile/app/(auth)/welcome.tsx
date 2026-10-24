@@ -2,11 +2,12 @@ import { Image, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
-import { AUTH_COPY } from '../../src/features/auth/copy';
 import { SocialSignIn, useHasSocialProviders } from '../../src/features/auth/social/social-sign-in';
 import { openLegal } from '../../src/features/legal/open-legal';
 import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
 import { WelcomeV4 } from '../../src/features/onboarding-v4/welcome-v4';
+import { useT } from '../../src/lib/i18n';
+import { rich } from '../../src/lib/i18n/rich';
 
 // UX-25 (T-25.1): the first screen a fresh install ever sees (CI-09 — a
 // device that has never signed in landed on "Welcome back / Sign in" with no
@@ -21,17 +22,21 @@ import { WelcomeV4 } from '../../src/features/onboarding-v4/welcome-v4';
 
 interface FeatureRow {
   icon: keyof typeof Ionicons.glyphMap;
-  copyKey: 'welcomeFeatureWorkouts' | 'welcomeFeatureMeals' | 'welcomeFeatureSafety';
+  copyKey:
+    | 'auth.welcome.featureWorkouts'
+    | 'auth.welcome.featureMeals'
+    | 'auth.welcome.featureSafety';
 }
 
 const FEATURES: FeatureRow[] = [
-  { icon: 'barbell-outline', copyKey: 'welcomeFeatureWorkouts' },
-  { icon: 'calendar-outline', copyKey: 'welcomeFeatureMeals' },
-  { icon: 'shield-checkmark-outline', copyKey: 'welcomeFeatureSafety' },
+  { icon: 'barbell-outline', copyKey: 'auth.welcome.featureWorkouts' },
+  { icon: 'calendar-outline', copyKey: 'auth.welcome.featureMeals' },
+  { icon: 'shield-checkmark-outline', copyKey: 'auth.welcome.featureSafety' },
 ];
 
 function WelcomeScreenV3() {
   const colors = useThemeColors();
+  const { t } = useT();
   // WP-22: with Apple/Google buttons on screen, their consent line (which also
   // covers the 16+ confirmation) replaces the plain legal footer.
   const hasSocial = useHasSocialProviders();
@@ -50,17 +55,17 @@ function WelcomeScreenV3() {
           // `import`, and this is the standard RN/Expo pattern for images.
           // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro static asset
           source={require('../../assets/icon.png') as number}
-          accessibilityLabel="Chefer"
+          accessibilityLabel={t('common.appName')}
           className="h-16 w-16 rounded-2xl"
           style={{ height: 64, width: 64, borderRadius: 16 }}
         />
 
         <View className="items-center gap-2 px-2">
           <Text testID="welcome-title" variant="title" className="text-center">
-            {AUTH_COPY.welcomeTitle}
+            {t('auth.welcome.title')}
           </Text>
           <Text variant="muted" className="text-center">
-            {AUTH_COPY.welcomeSubtitle}
+            {t('auth.welcome.subtitle')}
           </Text>
         </View>
 
@@ -70,9 +75,7 @@ function WelcomeScreenV3() {
               <View className="h-9 w-9 items-center justify-center rounded-full bg-brand-tint">
                 <Ionicons name={row.icon} size={18} color={colors.brand} />
               </View>
-              <Text className="min-w-0 flex-1 text-sm text-label-secondary">
-                {AUTH_COPY[row.copyKey]}
-              </Text>
+              <Text className="min-w-0 flex-1 text-sm text-label-secondary">{t(row.copyKey)}</Text>
             </View>
           ))}
         </View>
@@ -80,33 +83,36 @@ function WelcomeScreenV3() {
 
       <View className="gap-3">
         <Button testID="welcome-create-account" onPress={() => router.push('/register')}>
-          {AUTH_COPY.welcomeCreateAccount}
+          {t('auth.welcome.createAccount')}
         </Button>
         <Button testID="welcome-sign-in" variant="outline" onPress={() => router.push('/login')}>
-          {AUTH_COPY.welcomeHaveAccount}
+          {t('auth.welcome.haveAccount')}
         </Button>
 
         <SocialSignIn />
 
         {!hasSocial && (
           <Text variant="muted" className="text-center text-xs">
-            {AUTH_COPY.welcomeLegalFooter}{' '}
-            <Text
-              accessibilityRole="link"
-              className="text-xs text-primary underline"
-              onPress={() => openLegal('terms')}
-            >
-              Terms
-            </Text>
-            {' and '}
-            <Text
-              accessibilityRole="link"
-              className="text-xs text-primary underline"
-              onPress={() => openLegal('privacy')}
-            >
-              Privacy Policy
-            </Text>
-            .
+            {rich(t, 'auth.welcome.legalFooter', {
+              terms: (
+                <Text
+                  accessibilityRole="link"
+                  className="text-xs text-primary underline"
+                  onPress={() => openLegal('terms')}
+                >
+                  {t('auth.links.terms')}
+                </Text>
+              ),
+              privacy: (
+                <Text
+                  accessibilityRole="link"
+                  className="text-xs text-primary underline"
+                  onPress={() => openLegal('privacy')}
+                >
+                  {t('auth.links.privacy')}
+                </Text>
+              ),
+            })}
           </Text>
         )}
       </View>

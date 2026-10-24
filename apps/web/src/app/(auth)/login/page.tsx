@@ -6,13 +6,18 @@ import { LoginForm } from '@/features/auth/components/login-form';
 import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 import { nextQuery, safeNextPath } from '@/features/coaching/lib/next-path';
+import { rich } from '@/lib/i18n/rich';
+import { getServerTranslator } from '@/lib/i18n/server';
 
-export const metadata: Metadata = {
-  ...smartAppBanner(),
-  title: 'Sign In',
-  description: 'Sign in to your Chefer account',
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return {
+    ...smartAppBanner(),
+    title: t('auth.login.metaTitle'),
+    description: t('auth.login.metaDescription'),
+    robots: { index: false },
+  };
+}
 
 export default async function LoginPage({
   searchParams,
@@ -23,6 +28,7 @@ export default async function LoginPage({
     next?: string | string[];
   }>;
 }) {
+  const { t } = await getServerTranslator();
   // WP-18: an invite link sends signed-out visitors here with `?next=` (only a
   // coaching join path is honoured) and they return to it after signing in.
   const params = await searchParams;
@@ -56,8 +62,10 @@ export default async function LoginPage({
             </span>
             <span>Chefer</span>
           </Link>
-          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>
+          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
+            {t('auth.login.title')}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t('auth.login.subtitle')}</p>
         </div>
 
         {/* Login Form Card */}
@@ -71,30 +79,33 @@ export default async function LoginPage({
 
         {/* Footer Links */}
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link
             href={`/register${nextQuery(next)}`}
             className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
-            Sign up
+            {t('auth.login.signUp')}
           </Link>
         </p>
         <p className="text-center text-xs text-muted-foreground">
-          By signing in, you agree to our{' '}
-          <Link
-            href="/terms"
-            className="touch-target relative underline underline-offset-4 hover:text-foreground"
-          >
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link
-            href="/privacy"
-            className="touch-target relative underline underline-offset-4 hover:text-foreground"
-          >
-            Privacy Policy
-          </Link>
-          .
+          {rich(t, 'auth.login.agree', {
+            terms: (
+              <Link
+                href="/terms"
+                className="touch-target relative underline underline-offset-4 hover:text-foreground"
+              >
+                {t('auth.links.termsOfService')}
+              </Link>
+            ),
+            privacy: (
+              <Link
+                href="/privacy"
+                className="touch-target relative underline underline-offset-4 hover:text-foreground"
+              >
+                {t('auth.links.privacy')}
+              </Link>
+            ),
+          })}
         </p>
       </div>
     </div>

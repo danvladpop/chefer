@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import {
-  HEALTH_CONSENT_COPY,
-  HEALTH_WITHDRAW_CONFIRM,
-  healthConsentAllowedLine,
-} from '@chefer/types';
+import { HEALTH_WITHDRAW_CONFIRM } from '@chefer/types';
 import { Button, Card, ConfirmSheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useHealthConsent } from './use-health-consent';
 
@@ -18,6 +15,7 @@ import { useHealthConsent } from './use-health-consent';
 // PENDING COUNSEL REVIEW: copy.
 
 export function HealthConsentCard() {
+  const { t, date } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const { data: me } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
@@ -31,7 +29,7 @@ export function HealthConsentCard() {
       setConfirming(false);
       // Everything that read the deleted data: rules, targets, plans' "Checked for", weigh-ins.
       void utils.invalidate();
-      snackbar.show({ message: HEALTH_CONSENT_COPY.withdrawDone, tone: 'success' });
+      snackbar.show({ message: t('consent.health.withdrawDone'), tone: 'success' });
     },
   });
 
@@ -39,12 +37,12 @@ export function HealthConsentCard() {
 
   return (
     <Card testID="profile-health-consent" className="gap-2">
-      <Text variant="heading">{HEALTH_CONSENT_COPY.rowTitle}</Text>
+      <Text variant="heading">{t('consent.health.rowTitle')}</Text>
       <Text testID="profile-health-consent-status" variant="muted" className="text-sm">
         {consentedAt
-          ? healthConsentAllowedLine(consentedAt)
+          ? t('consent.health.rowAllowed', { date: date(consentedAt, 'medium') })
           : me
-            ? HEALTH_CONSENT_COPY.rowNotAllowed
+            ? t('consent.health.rowNotAllowed')
             : ' '}
       </Text>
       <View className="flex-row flex-wrap gap-2">
@@ -57,7 +55,7 @@ export function HealthConsentCard() {
               setConfirming(true);
             }}
           >
-            {HEALTH_CONSENT_COPY.withdraw}
+            {t('consent.health.withdraw')}
           </Button>
         ) : (
           me && (
@@ -66,7 +64,7 @@ export function HealthConsentCard() {
               variant="outline"
               onPress={() => requestHealthConsent(() => void utils.user.me.invalidate())}
             >
-              {HEALTH_CONSENT_COPY.rowAllowAction}
+              {t('consent.health.rowAllowAction')}
             </Button>
           )
         )}
@@ -78,15 +76,15 @@ export function HealthConsentCard() {
           setConfirming(false);
           withdraw.reset();
         }}
-        title={HEALTH_CONSENT_COPY.withdrawTitle}
-        body={HEALTH_CONSENT_COPY.withdrawBody}
-        confirmLabel={HEALTH_CONSENT_COPY.withdraw}
-        cancelLabel={HEALTH_CONSENT_COPY.withdrawKeep}
+        title={t('consent.health.withdrawTitle')}
+        body={t('consent.health.withdrawBody')}
+        confirmLabel={t('consent.health.withdraw')}
+        cancelLabel={t('consent.health.withdrawKeep')}
         destructive
         // UX-X-13: the spinner and the failure live in the sheet — the old
         // inline line sat behind it, so a failed withdrawal looked like nothing.
         busy={withdraw.isPending}
-        error={withdraw.isError ? HEALTH_CONSENT_COPY.withdrawError : null}
+        error={withdraw.isError ? t('consent.health.withdrawError') : null}
         onConfirm={() => withdraw.mutate({ confirm: HEALTH_WITHDRAW_CONFIRM })}
       />
       {healthConsentSheet}

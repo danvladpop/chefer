@@ -11,8 +11,6 @@
 // what flips the auth gate, so there is no navigation to attach a param to.
 
 export const SESSION_EXPIRED_MESSAGE = 'Your session expired. Sign in again.';
-export const SESSION_EXPIRED_NOTICE =
-  'Your session expired, so we signed you out. Sign in to pick up where you left off.';
 
 let expired = false;
 let handler: (() => void) | null = null;

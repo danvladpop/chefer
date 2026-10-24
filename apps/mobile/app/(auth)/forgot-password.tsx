@@ -19,6 +19,8 @@ import {
   forgotPasswordSchema,
   type ForgotPasswordFormValues,
 } from '../../src/features/auth/schemas';
+import { authValidationMessage } from '../../src/features/auth/validation-copy';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // F-M-AUTH-3-1 — port of web /forgot-password. The emailed link opens the web
@@ -35,6 +37,7 @@ export default function ForgotPasswordScreen() {
 
 function ForgotPasswordForm() {
   const colors = useThemeColors();
+  const { t } = useT();
   const emailRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const [sent, setSent] = useState(false);
@@ -69,23 +72,23 @@ function ForgotPasswordForm() {
   return (
     <>
       <Text variant="title" testID="forgot-password-title">
-        Forgot your password?
+        {t('auth.forgot.title')}
       </Text>
-      <Text variant="muted">Enter your email and we&apos;ll send you a reset link</Text>
+      <Text variant="muted">{t('auth.forgot.subtitle')}</Text>
 
       {sent ? (
         <Card className="gap-2" testID="forgot-password-sent">
           <View className="items-center" accessibilityElementsHidden>
             <Ionicons name="mail-unread-outline" size={32} color={colors.brand} />
           </View>
-          <Text className="text-center">
-            If an account exists for that address, a reset link is on its way. It expires in one
-            hour — check your spam folder too.
-          </Text>
+          <Text className="text-center">{t('auth.forgot.sent')}</Text>
         </Card>
       ) : (
         <>
-          <AuthField label="Email address" error={errors.email?.message}>
+          <AuthField
+            label={t('auth.fields.email')}
+            error={authValidationMessage(t, errors.email?.message)}
+          >
             <Controller
               control={control}
               name="email"
@@ -94,7 +97,7 @@ function ForgotPasswordForm() {
                   ref={emailRef}
                   testID="forgot-password-email"
                   {...EMAIL_FIELD_PROPS}
-                  placeholder="you@example.com"
+                  placeholder={t('auth.placeholders.email')}
                   returnKeyType="send"
                   editable={!request.isPending}
                   onSubmitEditing={() => void onSubmit()}
@@ -121,13 +124,13 @@ function ForgotPasswordForm() {
             loading={request.isPending}
             onPress={() => void onSubmit()}
           >
-            {request.isPending ? 'Sending…' : 'Send reset link'}
+            {request.isPending ? t('auth.forgot.sending') : t('auth.forgot.submit')}
           </Button>
         </>
       )}
 
       <View className="flex-row items-center justify-center gap-1">
-        <Text variant="muted">Remembered it?</Text>
+        <Text variant="muted">{t('auth.forgot.remembered')}</Text>
         <Button
           variant="ghost"
           size="sm"
@@ -136,7 +139,7 @@ function ForgotPasswordForm() {
           onPress={backToLogin}
         >
           <Text variant="muted" className="font-semibold text-primary">
-            Sign in
+            {t('auth.forgot.signIn')}
           </Text>
         </Button>
       </View>

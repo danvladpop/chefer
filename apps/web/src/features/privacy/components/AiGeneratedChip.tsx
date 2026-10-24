@@ -1,5 +1,8 @@
+'use client';
+
+import { useT } from '@/lib/i18n';
 import { Sparkles } from 'lucide-react';
-import { AI_GENERATED_A11Y_LABEL, AI_GENERATED_LABEL, isAiGenerated } from '@chefer/types';
+import { isAiGenerated } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 // ─── AI-generated chip (UX-26 §4, T-26.6; EU AI Act Art. 50) ──────────────────
@@ -9,7 +12,7 @@ import { cn } from '@chefer/utils';
 export function AiGeneratedChip({
   recipe,
   className,
-  a11yLabel = AI_GENERATED_A11Y_LABEL,
+  a11yLabel,
   testId = 'ai-generated-chip',
   variant = 'chip',
 }: {
@@ -25,14 +28,16 @@ export function AiGeneratedChip({
    */
   variant?: 'chip' | 'icon';
 }) {
+  const { t } = useT();
   if (!isAiGenerated(recipe)) return null;
+  const label = a11yLabel ?? t('consent.aiGenerated.a11y');
   if (variant === 'icon') {
     return (
       <span
         data-testid={testId}
         role="img"
-        aria-label={a11yLabel}
-        title={a11yLabel}
+        aria-label={label}
+        title={label}
         className={cn('inline-flex shrink-0 items-center text-gray-500', className)}
       >
         <Sparkles className="h-3 w-3" aria-hidden="true" />
@@ -42,14 +47,14 @@ export function AiGeneratedChip({
   return (
     <span
       data-testid={testId}
-      title={a11yLabel}
+      title={label}
       className={cn(
         'inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600',
         className,
       )}
     >
       <Sparkles className="h-3 w-3" aria-hidden="true" />
-      {AI_GENERATED_LABEL}
+      {t('consent.aiGenerated.label')}
     </span>
   );
 }

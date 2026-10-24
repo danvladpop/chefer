@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import { usePathname } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
+import { rich } from '../../lib/i18n/rich';
 import { trpc } from '../../lib/trpc';
 import type { LegalDoc } from '../legal/legal-docs';
 import { openLegal } from '../legal/open-legal';
@@ -33,6 +35,7 @@ function isStale(latestVersion: string | null): boolean {
 }
 
 export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
+  const { t } = useT();
   const [dismissed, setDismissed] = useState(false);
   // The sheet is a Modal, so a route pushed under it would open BEHIND it:
   // a link closes the sheet, pushes the in-app page once the Modal is gone,
@@ -79,37 +82,40 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
         pendingDoc.current = null;
         if (doc) openLegal(doc);
       }}
-      title="Our Terms and Privacy Policy were updated"
+      title={t('auth.reaccept.title')}
     >
       <View className="gap-3">
         <Text className="text-sm text-label-secondary">
-          Please review and accept the current{' '}
-          <Text
-            accessibilityRole="link"
-            className="text-primary underline"
-            onPress={() => readDoc('terms')}
-          >
-            Terms
-          </Text>{' '}
-          and{' '}
-          <Text
-            accessibilityRole="link"
-            className="text-primary underline"
-            onPress={() => readDoc('privacy')}
-          >
-            Privacy Policy
-          </Text>{' '}
-          to keep using Chefer.
+          {rich(t, 'auth.reaccept.body', {
+            terms: (
+              <Text
+                accessibilityRole="link"
+                className="text-primary underline"
+                onPress={() => readDoc('terms')}
+              >
+                {t('auth.links.terms')}
+              </Text>
+            ),
+            privacy: (
+              <Text
+                accessibilityRole="link"
+                className="text-primary underline"
+                onPress={() => readDoc('privacy')}
+              >
+                {t('auth.links.privacy')}
+              </Text>
+            ),
+          })}
         </Text>
         <Button
           testID="terms-reaccept-agree"
           loading={acceptTerms.isPending}
           onPress={() => acceptTerms.mutate({ documentVersion: CURRENT_TERMS_VERSION })}
         >
-          I agree
+          {t('auth.reaccept.agree')}
         </Button>
         <Button testID="terms-reaccept-later" variant="ghost" onPress={() => setDismissed(true)}>
-          Not now
+          {t('auth.reaccept.notNow')}
         </Button>
       </View>
     </Sheet>
