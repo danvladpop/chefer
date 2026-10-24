@@ -2237,16 +2237,21 @@ the adjusted target must shape next week's budget)
   │         ├─ <3 logged days → no review ("log more days" is itself the coach)
   │         ├─ metrics (application/coach/review.service.ts — pure, unit-tested):
   │         │    adherence = logged days / 7; avg kcal (and protein) over
-  │         │    logged days;
+  │         │    COMPLETE logged days (lane D2: days marked "partly logged"
+  │         │    still count as logged but stay out of the averages);
   │         │    weight trend = the trend weight's rate over the last 28
   │         │    days (lane D1, see "Trend weight" below), fed by 56 days of
   │         │    WeightEntry rows; null unless ≥5 weigh-in days span ≥10 days
-  │         ├─ adjustment policy (deterministic, conservative):
-  │         │    adherence <50% → nothing, coach the habit;
+  │         ├─ adjustment policy (deterministic, conservative; lane D2:
+  │         │    `decideAdjustment` returns the kcal AND the rule's reason,
+  │         │    and runs for every tier — only premium gets a proposal):
+  │         │    goal without a direction → nothing; under-18 LOSE → nothing;
+  │         │    complete days <4 (50 %) → nothing, coach the habit;
   │         │    LOSE plateau (trend ≥ −0.1 kg/wk) for 2 CONSECUTIVE reviews
   │         │    → −100 kcal (floor BMR×1.1, partial clamp);
   │         │    GAIN stall (trend ≤ +0.05) → +100 kcal (ceiling TDEE+500);
-  │         │    free tier: policy skipped entirely (adjustmentKcal = 0)
+  │         │    free tier: nothing proposed (adjustmentKcal = 0); the
+  │         │    explanation is stored with `suggestedKcal: null`
   │         ├─ §2.11, T-35.4 (rev 2): the coach PROPOSES, it no longer writes
   │         │    ChefProfile.targetAdjustmentKcal itself. The adjustment is
   │         │    stored on ChefReview.proposedAdjustmentKcal and surfaced as a
@@ -2343,6 +2348,45 @@ the adjusted target must shape next week's budget)
 matching mobile's `progress.tsx` `shortDate`, which already did this.
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
+
+### Explained coach (lane D2, 2026-10-22)
+
+MacroFactor-style honesty: the user can see exactly why the coach suggested
+what it did, and a half-logged day can't make it think they ate less.
+
+- **Partly logged day.** A switch under a day's log on both platforms (app
+  Your day and legacy tracker, web `/tracker`; shown on days with something
+  logged, never in the future) → `tracker.setDayIncomplete({ date,
+incomplete })` → `DailyLog.incomplete`. `tracker.getDay` returns the flag.
+  The day still counts as logged (adherence, the ≥3-day review threshold);
+  the review's intake average and its complete-days rule leave it out.
+  Analytics: `day_incomplete_set { incomplete }`.
+- **The why.** Every review stores `ChefReview.explanation`
+  (`coachExplanationSchema`, `@chefer/types`), built deterministically by
+  `buildCoachExplanation` (no AI): the rule that decided (`COACH_REASONS`:
+  `plateau`, `plateau_watch`, `on_track`, `gain_stall`, `few_complete_days`,
+  `no_trend`, `at_floor`, `at_ceiling`, `under_18`, `no_body_metrics`,
+  `no_direction`), the suggested kcal, the trend window (from/to trend
+  weight, span, weigh-ins, kg/week), the previous review's rate, and the
+  intake (average over complete days, complete and partly logged counts, the
+  target). Clients render it with `coachExplanationText` (`@chefer/utils`)
+  in the user's units — e.g. "Your trend weight held steady, from 82.4 kg to
+  82.4 kg over 3 weeks. Your 5 complete days averaged 1,850 kcal, with a
+  target of 1,900 kcal. 1 partly logged day was left out. Your trend hasn't
+  moved down for two weekly reviews in a row, so I'd suggest −100 kcal a day for
+  next week." — plus a table of the numbers used. Protein-only mode drops
+  every calorie line.
+- **Gating unchanged.** The adjustment stays premium. The explanation is
+  free: `coach.currentReview` sends it in the `teaser` too, with
+  `suggestedKcal: null`, and the copy says "With Premium, your chef turns
+  that into a budget suggestion". Surfaces: a collapsed "Why this
+  suggestion" block in the web banner (teaser and full-review sheet), the
+  app's legacy banner and the Stats review line. Analytics:
+  `coach_why_viewed { tier, reason }`.
+- **Safety rails unchanged:** the BMR×1.1 / sex-specific floor, the TDEE+500
+  ceiling, maintenance for under-18s, one 100 kcal step. The copy is
+  adherence-neutral (a unit test sweeps every reason for forbidden or judging
+  words: missed, failed, cheat, compensate, make up…).
 
 ### Trend weight (lane D1, 2026-10-22)
 

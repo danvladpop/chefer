@@ -367,6 +367,12 @@ export {
   type WeightTrendSummaryOptions,
 } from './weight-trend';
 export {
+  COACH_WHY_TITLE,
+  coachExplanationText,
+  PARTLY_LOGGED_COPY,
+  type CoachExplanationText,
+} from './coach-explanation';
+export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,

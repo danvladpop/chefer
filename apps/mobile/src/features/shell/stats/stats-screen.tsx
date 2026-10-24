@@ -45,6 +45,7 @@ import { AiGeneratedChip } from '../../../components/ai-generated-chip';
 import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
+import { CoachWhy } from '../../coach/coach-why';
 import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { openPremium } from '../../premium/open-premium';
@@ -99,18 +100,24 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
   if (data.status === 'teaser') {
     const first = proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine;
     return (
-      <PressableScale
-        testID="stats-review-teaser"
-        accessibilityRole="button"
-        accessibilityHint="See what Premium adds"
-        onPress={() => openPremium('coach-review')}
-        className="min-h-12 flex-row items-center gap-3 rounded-card bg-brand-tint px-4 py-3"
-      >
-        <Icon name="chef" color={colors.brand} size={20} />
-        <Text numberOfLines={2} className="min-w-0 flex-1 text-callout text-label">
-          {first !== '' ? first : 'Your chef noticed something about your week…'}
-        </Text>
-      </PressableScale>
+      <View className="gap-1">
+        <PressableScale
+          testID="stats-review-teaser"
+          accessibilityRole="button"
+          accessibilityHint="See what Premium adds"
+          onPress={() => openPremium('coach-review')}
+          className="min-h-12 flex-row items-center gap-3 rounded-card bg-brand-tint px-4 py-3"
+        >
+          <Icon name="chef" color={colors.brand} size={20} />
+          <Text numberOfLines={2} className="min-w-0 flex-1 text-callout text-label">
+            {first !== '' ? first : 'Your chef noticed something about your week…'}
+          </Text>
+        </PressableScale>
+        {/* Lane D2: the reasoning is free; the number stays premium. */}
+        {data.explanation ? (
+          <CoachWhy explanation={data.explanation} tier="free" proteinOnly={proteinOnly} />
+        ) : null}
+      </View>
     );
   }
   const r = data.review;
@@ -119,28 +126,39 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
   const first = full.split('\n')[0] ?? '';
   const hasMore = full.trim() !== first.trim();
   return (
-    <PressableScale
-      testID="stats-review"
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityHint={hasMore ? (expanded ? 'Shows less' : 'Shows the full review') : undefined}
-      disabled={!hasMore}
-      onPress={() => setExpanded((e) => !e)}
-      className="gap-1 rounded-card bg-brand-tint px-4 py-3"
-    >
-      <View className="flex-row items-start gap-3">
-        <Icon name="chef" color={colors.brand} size={20} />
-        <Text
-          testID="stats-review-text"
-          numberOfLines={expanded ? undefined : 2}
-          className="min-w-0 flex-1 text-callout text-label"
-        >
-          {expanded ? full : first}
-        </Text>
-      </View>
-      {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
-      <AiGeneratedChip recipe={r} testID="stats-review-ai-chip" a11yLabel={AI_REVIEW_A11Y_LABEL} />
-    </PressableScale>
+    <View className="gap-1">
+      <PressableScale
+        testID="stats-review"
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityHint={
+          hasMore ? (expanded ? 'Shows less' : 'Shows the full review') : undefined
+        }
+        disabled={!hasMore}
+        onPress={() => setExpanded((e) => !e)}
+        className="gap-1 rounded-card bg-brand-tint px-4 py-3"
+      >
+        <View className="flex-row items-start gap-3">
+          <Icon name="chef" color={colors.brand} size={20} />
+          <Text
+            testID="stats-review-text"
+            numberOfLines={expanded ? undefined : 2}
+            className="min-w-0 flex-1 text-callout text-label"
+          >
+            {expanded ? full : first}
+          </Text>
+        </View>
+        {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
+        <AiGeneratedChip
+          recipe={r}
+          testID="stats-review-ai-chip"
+          a11yLabel={AI_REVIEW_A11Y_LABEL}
+        />
+      </PressableScale>
+      {r.explanation ? (
+        <CoachWhy explanation={r.explanation} tier="premium" proteinOnly={proteinOnly} />
+      ) : null}
+    </View>
   );
 }
 
