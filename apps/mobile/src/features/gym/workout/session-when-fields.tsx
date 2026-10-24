@@ -15,8 +15,6 @@ import { getTranslator, useT } from '../../../lib/i18n';
 /** Longest session the field accepts (10 h). */
 export const MAX_DURATION_MIN = 600;
 /** Enabled / disabled chevrons — Ionicons takes a colour, not a class. */
-const ICON_ON = '#374151';
-const ICON_OFF = '#d1d5db';
 
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const MONTH_KEYS = [
