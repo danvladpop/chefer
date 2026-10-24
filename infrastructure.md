@@ -2285,7 +2285,7 @@ new table — no data-loss prompt); the named migration is
 
 ### Curated recipe ingest schema (market review F1, 2026-10-22, additive only)
 
-Migration `20261022160000_curated_recipe_drafts`. New table only; no existing model changes.
+Migration `20261024120000_curated_recipe_drafts`. New table only; no existing model changes.
 
 - **`CuratedRecipeDraft`** (`curated_recipe_drafts`) — one row per pasted link (`sourceUrl` unique, the canonical post URL once extracted; `submittedUrl` is what the admin pasted; `via` `'video' | 'web'`). `draft` Json holds the editable recipe (`CuratedDraftRecipe` in `@chefer/types`: lines carry the GLOBAL catalog `slug`, no nutrition). `mealTypes String[]` (which pool slots it may fill), `assumptions`/`notFound` (the reviewer's checklist), `platform`/`creator`/`sourceTitle`/`transcriptSource` (provenance), `error`, `rejectReason`, `recipeId` (unique — the CURATED `recipes` row written on approval; plain id, no FK, so the `recipes`/`users` models are untouched), `createdById`/`reviewedById`/`reviewedAt`, and `submittedAt` (first submit or last retry — the daily cap counts it; the queue sorts by it). Indexes `(status, submittedAt)`, `(submittedAt)`.
 - **`CuratedDraftStatus`** `EXTRACTING | FAILED | DRAFT | APPROVED | REJECTED | UNPUBLISHED`. Only APPROVED drafts have a recipe in the free pool; UNPUBLISHED keeps its recipe row so plans that hold it still resolve.
