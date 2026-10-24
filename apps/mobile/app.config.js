@@ -136,6 +136,16 @@ function webcredentialsDomain() {
 }
 const ASSOCIATED_DOMAIN = APPLE_SIGN_IN ? webcredentialsDomain() : null;
 
+// ─── Universal links / Android App Links — NATIVE, needs a new binary ─────────
+// Coaching invite links (https://<domain>/coaching/join/<code>, QR codes too)
+// open the app instead of the browser. The domain is the production API host
+// (EXPO_PUBLIC_API_URL, as for webcredentials), so a domain switch is that one
+// value plus the association files the API serves on the new host
+// (apps/api/src/lib/well-known/well-known.ts, same path prefix). Production
+// only: the dev variant's ids are not in those files.
+const APP_LINK_PATH_PREFIX = '/coaching/join/';
+const APP_LINK_DOMAIN = IS_PRODUCTION ? webcredentialsDomain() : null;
+
 /**
  * Production iOS bundle id is com.popdan.chefer (2026-09-28): `dev.chefer.app`
  * stayed registered to the free personal team that signed the early builds,
@@ -190,7 +200,15 @@ const config = {
     ...(process.env.EXPO_APPLE_TEAM_ID ? { appleTeamId: process.env.EXPO_APPLE_TEAM_ID } : {}),
     // webcredentials: lets iOS offer saved passwords / strong-password
     // suggestions for the API's domain (AASA served by the API, WP-22).
-    ...(ASSOCIATED_DOMAIN ? { associatedDomains: [`webcredentials:${ASSOCIATED_DOMAIN}`] } : {}),
+    // applinks: universal links for coaching invites (block above).
+    ...(ASSOCIATED_DOMAIN
+      ? {
+          associatedDomains: [
+            `webcredentials:${ASSOCIATED_DOMAIN}`,
+            ...(APP_LINK_DOMAIN ? [`applinks:${APP_LINK_DOMAIN}`] : []),
+          ],
+        }
+      : {}),
     config: {
       // Only HTTPS and the OS's standard crypto — exempt from export
       // compliance, so App Store Connect stops asking on every build.
@@ -212,6 +230,20 @@ const config = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    // App Links for coaching invites (block above); autoVerify checks the
+    // host's assetlinks.json (handle_all_urls) at install time.
+    ...(APP_LINK_DOMAIN
+      ? {
+          intentFilters: [
+            {
+              action: 'VIEW',
+              autoVerify: true,
+              data: [{ scheme: 'https', host: APP_LINK_DOMAIN, pathPrefix: APP_LINK_PATH_PREFIX }],
+              category: ['BROWSABLE', 'DEFAULT'],
+            },
+          ],
+        }
+      : {}),
   },
   plugins: [
     // FIRST on purpose: mods run in reverse registration order, so this one

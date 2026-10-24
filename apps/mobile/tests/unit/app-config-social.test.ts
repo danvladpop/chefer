@@ -54,7 +54,10 @@ describe('app.config.js — social sign-in native config', () => {
       '@react-native-google-signin/google-signin',
       { iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc' },
     ]);
-    expect(config.ios.associatedDomains).toEqual(['webcredentials:chefer.duckdns.org']);
+    expect(config.ios.associatedDomains).toEqual([
+      'webcredentials:chefer.duckdns.org',
+      'applinks:chefer.duckdns.org',
+    ]);
     expect(config.extra.socialSignIn).toEqual({ apple: true, googleIos: true });
   });
 
