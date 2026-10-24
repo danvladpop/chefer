@@ -953,7 +953,7 @@ export function QuickAddSheet({
                 >
                   <RecipeImage imageUrl={product.imageUrl} className="h-9 w-9 rounded-lg" />
                   <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
                       {productDisplayName(product)}
                     </Text>
                     <Text className="text-xs text-label-secondary">
@@ -1212,7 +1212,7 @@ export function QuickAddSheet({
           </Pressable>
           {!targetSlot && (
             <View className="gap-1">
-              <Text className="text-xs font-medium text-gray-600">Meal</Text>
+              <Text className="text-xs font-medium text-label-secondary">Meal</Text>
               <SegmentedControl
                 size="sm"
                 options={MEAL_OPTIONS}
