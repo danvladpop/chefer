@@ -10,12 +10,15 @@ import { AssignFromClientButton } from '@/features/trainer-templates/components/
 import { COACHING_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { firstName } from '../format';
 import { isClientUnavailable, useClientOverview } from '../use-client-overview';
 import { AdherenceView } from './AdherenceTab';
 import { ClientHeader } from './ClientHeader';
 import { ClientUnavailable } from './ClientUnavailable';
+import { FoodTab } from './FoodTab';
 import { PrivateNotesPanel } from './PrivateNotesPanel';
 import { RemoveClientButton } from './RemoveClientButton';
+import { WeekSummaryCard } from './WeekSummaryCard';
 import { WorkoutsTab } from './WorkoutsTab';
 
 /** /trainer/[clientId]: Workouts or Adherence, with the private notes beside (xl) or below. */
@@ -24,7 +27,7 @@ export function ClientView({
   tab,
 }: {
   clientId: string;
-  tab: 'workouts' | 'adherence' | 'bookings';
+  tab: 'workouts' | 'adherence' | 'bookings' | 'food';
 }) {
   const overview = useClientOverview(clientId);
   // Templates live in trainer mode: without it (flag off) the header is unchanged.
@@ -61,8 +64,13 @@ export function ClientView({
   }
 
   const name = overview.data.client.name;
-  // Bookings live in trainer mode (M3): without it the tab falls back to Workouts.
-  const active = tab === 'bookings' && !trainerMode ? 'workouts' : tab;
+  // Lane K2: an older API sends no `sharing`, which reads as nothing shared.
+  const sharing = overview.data.client.sharing ?? { food: false, weight: false };
+  const sharesData = sharing.food || sharing.weight;
+  // Bookings live in trainer mode (M3), Food while the client shares something (K2):
+  // otherwise the tab falls back to Workouts.
+  const active =
+    (tab === 'bookings' && !trainerMode) || (tab === 'food' && !sharesData) ? 'workouts' : tab;
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
       <ClientHeader
@@ -70,6 +78,7 @@ export function ClientView({
         name={name}
         active={active}
         showBookings={trainerMode}
+        showFood={sharesData}
         keepItSimple={overview.data.client.keepItSimple}
         actions={
           trainerMode ? (
@@ -81,9 +90,12 @@ export function ClientView({
           ) : undefined
         }
       />
+      <WeekSummaryCard clientId={clientId} firstName={firstName(name)} />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="min-w-0">
-          {active === 'bookings' ? (
+          {active === 'food' ? (
+            <FoodTab clientId={clientId} firstName={firstName(name)} sharing={sharing} />
+          ) : active === 'bookings' ? (
             <ClientBookingsTab clientId={clientId} />
           ) : active === 'adherence' ? (
             <AdherenceView adherence={overview.data.adherence} />

@@ -6222,6 +6222,24 @@ trainer.client.food / trainer.client.weight  (requireCoachingAccess('food' | 'we
   policy needs the paragraph (bump `LEGAL_VERSIONS.privacy`).
 - Analytics: `coaching_sharing_changed { data: food | weight, on, where: join | request | settings }`.
 
+**Trainer views (K2).** Client detail (trainer tools and trainer mode, web + mobile):
+
+```
+trainer.client.weekSummary { clientId, today }   (scope read: every ACTIVE client)
+  "Last 7 days"   2 of 3 workouts                         always
+                  Food logged 5 of 7 days · 1,850 of 2,000 kcal a day · 110 of 125 g protein a day
+                  · 70% of planned meals eaten as planned  only while food is shared
+                  64.2 kg · Thu 23 Oct · −0.4 kg in 7 days only while weight is shared
+                  "Maria doesn't share food or weight with you."  when neither is
+Food tab (only while something is shared)
+  trainer.client.food { days: 7 }    per day: meals, kcal / protein vs target, "2 of 3 planned", entry names
+  trainer.client.weight              sparkline + the last 5 weigh-ins
+  revoke → the tab disappears on the next load (both reads answer NOT_FOUND), the card says "doesn't share"
+```
+
+The card's wording is `weekSummaryLines` / `foodDayParts` (`@chefer/utils`), so both apps say the same.
+Mobile shows kg (like every trainer screen); web uses the trainer's own gym unit.
+
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
 
 Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.

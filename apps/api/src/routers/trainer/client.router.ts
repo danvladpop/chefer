@@ -5,6 +5,7 @@ import {
   clientFoodInputSchema,
   clientIdInputSchema,
   clientOverviewInputSchema,
+  clientWeekSummaryInputSchema,
   clientWeightInputSchema,
   clientWorkoutsInputSchema,
   createClientRoutineInputSchema,
@@ -84,6 +85,10 @@ export const trainerClientRouter = router({
   bookings: readProcedure
     .input(clientBookingsInputSchema)
     .query(({ ctx, input }) => bookingService.clientBookings(ctx.coachingAccess, input.today)),
+  /** Lane K2: the weekly card: workouts always, food / weight only when the client shares them. */
+  weekSummary: readProcedure
+    .input(clientWeekSummaryInputSchema)
+    .query(({ ctx, input }) => coachingDataService.weekSummary(ctx.coachingAccess, input.today)),
   /** Lane K1: the client's shared food log, day by day (scope `food`). */
   food: foodProcedure
     .input(clientFoodInputSchema)

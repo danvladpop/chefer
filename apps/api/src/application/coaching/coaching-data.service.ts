@@ -1,30 +1,41 @@
 import {
   chefProfileRepository,
+  coachingContentRepository,
   dailyLogRepository,
   mealPlanRepository,
   parseSkippedSlots,
   userRepository,
   weightEntryRepository,
   type IChefProfileRepository,
+  type ICoachingContentRepository,
   type IDailyLogRepository,
   type IMealPlanRepository,
   type IUserRepository,
   type IWeightEntryRepository,
   type LoggedMealEntry,
 } from '@chefer/database';
-import { COACHING_DATA_LIMITS, type ClientFoodDto, type ClientWeightDto } from '@chefer/types';
+import {
+  COACHING_DATA_LIMITS,
+  type ClientFoodDto,
+  type ClientWeekSummaryDto,
+  type ClientWeightDto,
+} from '@chefer/types';
 import {
   addDaysLocal,
   dbDateKey,
   foodDaySummary,
+  goalForWeek,
+  summarizeFoodWeek,
   trainerNumbersView,
   weekStartOf,
+  weekWeight,
   weighInsByDay,
   type FoodLogEntryInput,
   type PlannedMealSlot,
 } from '@chefer/utils';
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { hasFeature } from '../../lib/entitlements.js';
+import { readGoalHistory } from '../gym/mappers.js';
 import { planForDate } from '../meal-plan/plan-for-date.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import {
@@ -60,6 +71,8 @@ export interface CoachingDataDeps {
   weights: Pick<IWeightEntryRepository, 'findInRange'>;
   users: Pick<IUserRepository, 'findById'>;
   training: Pick<TrainingNutritionService, 'loadLifter' | 'trainingWeek'>;
+  /** Lane K2: the weekly card's workouts against the goal. */
+  content: Pick<ICoachingContentRepository, 'countSessions' | 'gymProfiles'>;
 }
 
 const defaultDeps: CoachingDataDeps = {
@@ -69,6 +82,7 @@ const defaultDeps: CoachingDataDeps = {
   weights: weightEntryRepository,
   users: userRepository,
   training: trainingNutritionService,
+  content: coachingContentRepository,
 };
 
 export class CoachingDataService {
@@ -205,6 +219,39 @@ export class CoachingDataService {
     return {
       sharedSince: link.shareWeightAt.toISOString(),
       entries: weighInsByDay(entries, from).filter((e) => e.date <= addDaysLocal(today, 1)),
+    };
+  }
+
+  /**
+   * Lane K2: `trainer.client.weekSummary` (scope `read`): the 7 days ending
+   * `today`. Workouts always; food and weight ONLY when the link shares them
+   * (`linkShares`), computed through the same reads as `food` / `weight`.
+   */
+  async weekSummary(access: CoachingAccess, today: string): Promise<ClientWeekSummaryDto> {
+    const link = access.link;
+    if (!link) throw clientUnavailableError();
+    const from = addDaysLocal(today, -6);
+    const shares = { food: linkShares(link, 'food'), weight: linkShares(link, 'weight') };
+    const [counts, profiles, food, weight] = await Promise.all([
+      this.deps.content.countSessions([access.clientId], from, today),
+      this.deps.content.gymProfiles([access.clientId]),
+      shares.food ? this.food({ ...access, scope: 'food' }, today, 7) : Promise.resolve(null),
+      shares.weight ? this.weight({ ...access, scope: 'weight' }, today) : Promise.resolve(null),
+    ]);
+    const profile = profiles.get(access.clientId);
+    const history = profile ? readGoalHistory(profile.goalHistory) : [];
+    const goal = profile
+      ? history.length > 0
+        ? goalForWeek(history, weekStartOf(today))
+        : profile.weeklyGoal
+      : 0;
+    return {
+      from,
+      to: today,
+      workouts: { done: counts.get(access.clientId) ?? 0, goal },
+      sharing: shares,
+      food: food ? summarizeFoodWeek(food.days, food.numbers) : null,
+      weight: weight ? weekWeight(weight.entries, from) : null,
     };
   }
 }

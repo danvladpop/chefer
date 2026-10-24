@@ -199,5 +199,21 @@ describe(
       const status = await client.api.coaching.status.query();
       expect(status.trainer?.sharing).toMatchObject({ food: false, weight: true });
     });
+
+    it('the weekly card (lane K2) carries food and weight only while they are shared', async () => {
+      if (!enabled) return;
+      const { trainer, client } = await coachedPair({ food: true, weight: false });
+      const week = () =>
+        trainer.api.trainer.client.weekSummary.query({ clientId: client.id, today: TODAY });
+      const shared = await week();
+      expect(shared.sharing).toEqual({ food: true, weight: false });
+      expect(shared.food).toMatchObject({ daysLogged: 1, mealsLogged: 1, avgKcal: 700 });
+      expect(shared.weight).toBeNull();
+
+      await client.api.coaching.setSharing.mutate({ food: false });
+      const hidden = await week();
+      expect(hidden).toMatchObject({ food: null, weight: null });
+      expect(keyPaths(hidden).join(' ')).not.toMatch(/kcal|protein|weightKg/i);
+    });
   },
 );
