@@ -5,7 +5,7 @@ import type {
   IChefReviewRepository,
   IWeightEntryRepository,
 } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import { coachExplanationSchema, type CoachExplanation, type UserProfile } from '@chefer/types';
 import { targetsService } from '../targets/targets.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { CoachService, MIN_LOGGED_DAYS, weekStartUtc } from './coach.service.js';
@@ -407,6 +407,136 @@ describe('CoachService.getCurrentReview', () => {
 });
 
 // ─── runReviewSweep ───────────────────────────────────────────────────────────
+
+// ─── Explained coach (lane D2) ────────────────────────────────────────────────
+
+describe('CoachService — the explained coach (lane D2)', () => {
+  /** The row the review wrote, with its explanation parsed back. */
+  const upsertArg = (repo: IChefReviewRepository) => {
+    const arg = vi.mocked(repo.upsert).mock.calls[0]?.[0];
+    if (!arg) throw new Error('no review written');
+    return { ...arg, explanation: coachExplanationSchema.parse(arg.explanation) };
+  };
+
+  it('stores the why: trend, complete days and the rule that decided', async () => {
+    const reviewRepo = makeReviewRepo({
+      // The previous review was flat too → the two-week plateau rule fires.
+      findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
+    });
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+
+    await service.runWeeklyReview('u1', SUNDAY, true);
+
+    const { explanation } = upsertArg(reviewRepo);
+    expect(coachExplanationSchema.parse(explanation)).toEqual(explanation);
+    expect(explanation).toMatchObject({
+      reason: 'plateau',
+      suggestedKcal: -100,
+      goal: 'LOSE_WEIGHT',
+      prevKgPerWeek: 0,
+      trend: { kgPerWeek: 0, weighIns: 5, spanDays: 12 },
+      intake: { avgKcal: 2000, completeDays: 4, incompleteDays: 0 },
+    });
+  });
+
+  it('leaves partly logged days out of the average and the complete-days rule', async () => {
+    vi.mocked(prisma.dailyLog.findMany).mockResolvedValue([
+      dayLogRow(0, 2000),
+      dayLogRow(1, 2200),
+      dayLogRow(2, 2100),
+      { ...dayLogRow(3, 600), incomplete: true },
+      { ...dayLogRow(4, 400), incomplete: true },
+    ] as never);
+    const reviewRepo = makeReviewRepo({
+      findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
+    });
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+
+    await service.runWeeklyReview('u1', SUNDAY, true);
+
+    const row = upsertArg(reviewRepo);
+    // Five days still count as logged (the habit), the average reads three.
+    expect(row.adherencePct).toBe(71);
+    expect(row.avgDailyKcal).toBe(2100);
+    expect(row.explanation).toMatchObject({
+      reason: 'few_complete_days',
+      suggestedKcal: 0,
+      intake: { avgKcal: 2100, completeDays: 3, incompleteDays: 2 },
+    });
+    // Three complete days are under the four the coach needs: nothing proposed.
+    expect(row.proposedAdjustmentKcal).toBeNull();
+    expect(targetsService.proposeCoachAdjustment).not.toHaveBeenCalled();
+  });
+
+  it('free reviews carry the reasoning with the number withheld, and propose nothing', async () => {
+    const reviewRepo = makeReviewRepo({
+      findPreviousBefore: vi.fn().mockResolvedValue({ weightTrendKg: 0 }),
+    });
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+
+    await service.runWeeklyReview('u1', SUNDAY, false);
+
+    const row = upsertArg(reviewRepo);
+    expect(row.explanation).toMatchObject({ reason: 'plateau', suggestedKcal: null });
+    expect(row.proposedAdjustmentKcal).toBeNull();
+    expect(targetsService.proposeCoachAdjustment).not.toHaveBeenCalled();
+  });
+
+  const EXPLANATION: CoachExplanation = {
+    version: 1,
+    reason: 'plateau',
+    suggestedKcal: -100,
+    goal: 'LOSE_WEIGHT',
+    trend: null,
+    prevKgPerWeek: 0,
+    intake: { avgKcal: 2000, completeDays: 5, incompleteDays: 0, targetKcal: 2100 },
+  };
+  const ROW = {
+    id: 'r1',
+    userId: 'u1',
+    weekStart: WEEK_START,
+    adherencePct: 71,
+    avgDailyKcal: 2000,
+    weightTrendKg: 0,
+    adjustmentKcal: 0,
+    savedEur: null,
+    reviewText: 'First line.\nSecond line.',
+    aiGenerated: false,
+    createdAt: SUNDAY,
+    explanation: EXPLANATION,
+  };
+
+  it('premium gets the full explanation; free gets it without the number', async () => {
+    const service = new CoachService(
+      makeReviewRepo({ findLatest: vi.fn().mockResolvedValue(ROW) }),
+      makeProfileRepo(),
+      makeWeightRepo(),
+    );
+
+    const full = await service.getCurrentReview(PREMIUM_USER, SUNDAY);
+    expect(full.status === 'full' && full.review.explanation).toEqual(EXPLANATION);
+
+    const teaser = await service.getCurrentReview(FREE_USER, SUNDAY);
+    expect(teaser.status === 'teaser' && teaser.explanation).toEqual({
+      ...EXPLANATION,
+      suggestedKcal: null,
+    });
+  });
+
+  it('a review written before the explanation existed reads null', async () => {
+    const service = new CoachService(
+      makeReviewRepo({
+        findLatest: vi.fn().mockResolvedValue({ ...ROW, explanation: null }),
+      }),
+      makeProfileRepo(),
+      makeWeightRepo(),
+    );
+    const full = await service.getCurrentReview(PREMIUM_USER, SUNDAY);
+    expect(full.status === 'full' && full.review.explanation).toBeNull();
+    const teaser = await service.getCurrentReview(FREE_USER, SUNDAY);
+    expect(teaser.status === 'teaser' && teaser.explanation).toBeNull();
+  });
+});
 
 describe('CoachService.runReviewSweep', () => {
   it('reviews eligible users and skips already-reviewed ones (idempotent)', async () => {

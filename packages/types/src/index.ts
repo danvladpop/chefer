@@ -23,6 +23,7 @@ export * from './feature-flags';
 export * from './analytics-events';
 export * from './targets';
 export * from './body-metrics';
+export * from './coach-review';
 export * from './legal';
 export * from './friends';
 export * from './friends-copy';

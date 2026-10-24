@@ -193,6 +193,14 @@ export const trackerRouter = router({
       return trackerService.unskipSlot(ctx.user.id, date, slot);
     }),
 
+  // Lane D2: mark a day as partly logged so the weekly review leaves it out
+  // of its averages. Additive — shipped clients never call it.
+  setDayIncomplete: protectedProcedure
+    .input(z.object({ date: logDateSchema, incomplete: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.setDayIncomplete(ctx.user.id, input.date, input.incomplete);
+    }),
+
   // The tracker's untick (T-19.4, one-save model): removes the planned-recipe
   // entry `logRecipe` would have written for this slot. A no-op when nothing
   // matches (already unticked) — additive, older clients keep using upsertDay.
