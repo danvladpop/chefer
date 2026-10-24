@@ -27,7 +27,7 @@ import { pickProductPhoto } from './pick-product-photo';
 import { ProductCard } from './product-card';
 import { ProductForm } from './product-form';
 
-// The Log sheet's packaged-food path (ADR 0002). Barcode photo or typed
+// The Log sheet's packaged-food path (ADR 0005). Barcode photo or typed
 // number → products.lookupBarcode → a product card → tracker.logProduct.
 // Not found: photograph the label (premium, Snap-to-Log quota, AI consent) or
 // enter it yourself (free). Both save the user's own product, which then

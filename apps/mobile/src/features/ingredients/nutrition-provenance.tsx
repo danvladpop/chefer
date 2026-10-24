@@ -15,7 +15,7 @@ import {
   NUTRITION_SOURCE_LABELS,
   type NutritionStatus,
 } from '@chefer/types';
-import { PressableScale, Text, timing, useReducedMotion } from '@chefer/ui-mobile';
+import { PressableScale, Text, timing, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { cn, formatFractionalQuantity } from '@chefer/utils';
 import type { RouterOutputs } from '../../lib/trpc';
 
@@ -83,6 +83,7 @@ export function NutritionProvenance({
   onFix,
   testID = 'recipe-nutrition-provenance',
 }: NutritionProvenanceProps) {
+  const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   const reducedMotion = useReducedMotion();
   const layoutMs = reducedMotion ? 0 : duration.base;
@@ -110,12 +111,15 @@ export function NutritionProvenance({
                   : 'calculator-outline'
             }
             size={14}
-            color={partial ? '#b45309' : '#6b7280'}
+            color={partial ? colors.attention : colors.labelTertiary}
             accessibilityElementsHidden
           />
           <Text
             testID={`${testID}-text`}
-            className={cn('min-w-0 flex-1 text-xs', partial ? 'text-amber-800' : 'text-gray-600')}
+            className={cn(
+              'min-w-0 flex-1 text-xs',
+              partial ? 'text-attention' : 'text-label-secondary',
+            )}
           >
             {text}
           </Text>
@@ -177,6 +181,7 @@ export function NutritionProvenance({
 
 /** MO-05: the chevron flips 180° over `fast`; under reduced motion the icon swaps instead. */
 function Chevron({ open, reducedMotion }: { open: boolean; reducedMotion: boolean }) {
+  const colors = useThemeColors();
   const rotation = useSharedValue(0);
   useEffect(() => {
     rotation.value = reducedMotion ? 0 : withTiming(open ? 180 : 0, timing(duration.fast));
@@ -187,7 +192,7 @@ function Chevron({ open, reducedMotion }: { open: boolean; reducedMotion: boolea
       <Ionicons
         name={reducedMotion && open ? 'chevron-up' : 'chevron-down'}
         size={14}
-        color="#944a00"
+        color={colors.brand}
       />
     </Animated.View>
   );
@@ -217,10 +222,10 @@ function BreakdownRow({ line, testID }: { line: NutritionLineRow; testID: string
       className="flex-row items-start gap-2"
     >
       <View className="min-w-0 flex-1">
-        <Text numberOfLines={2} className="text-sm text-gray-800">
+        <Text numberOfLines={2} className="text-sm text-label">
           {name}
         </Text>
-        <Text className="text-xs text-gray-500">
+        <Text className="text-xs text-label-tertiary">
           {[amount, line.grams !== null ? `${Math.round(line.grams)} g` : null, source]
             .filter(Boolean)
             .join(' · ')}
@@ -230,7 +235,7 @@ function BreakdownRow({ line, testID }: { line: NutritionLineRow; testID: string
       <Text
         className={cn(
           'shrink-0 text-right text-xs',
-          missing && !line.optional ? 'font-medium text-amber-700' : 'text-gray-700',
+          missing && !line.optional ? 'font-medium text-attention' : 'text-label-secondary',
         )}
       >
         {missing ? copy.needsData : (numbers ?? '')}
@@ -250,7 +255,7 @@ export function NutritionStatusTag({ status, testID }: { status: unknown; testID
   return (
     <Text
       testID={testID}
-      className={cn('text-xs', status === 'PARTIAL' ? 'text-amber-700' : 'text-gray-500')}
+      className={cn('text-xs', status === 'PARTIAL' ? 'text-attention' : 'text-label-tertiary')}
     >
       {`· ${badge}`}
     </Text>

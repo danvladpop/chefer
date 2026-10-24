@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { OnboardingIntent } from '@chefer/types';
-import { colors, PressableScale, Text } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 // Step 0: "What brings you here?" (backlog P2-3, audit F-PM-6) — port of
@@ -40,6 +40,7 @@ export function IntentStep({
   value: OnboardingIntent | null;
   onChange: (intent: OnboardingIntent) => void;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="gap-3">
       <Text variant="muted" className="text-sm">
@@ -59,7 +60,7 @@ export function IntentStep({
               onPress={() => onChange(option.value)}
               className={cn(
                 'min-h-11 flex-row items-center gap-4 rounded-xl border-2 p-4',
-                selected ? 'border-primary bg-accent' : 'border-border bg-white',
+                selected ? 'border-primary bg-accent' : 'border-border bg-surface',
               )}
             >
               <View
@@ -71,11 +72,11 @@ export function IntentStep({
                 <Ionicons
                   name={option.icon}
                   size={22}
-                  color={selected ? colors.primaryForeground : colors.primary}
+                  color={selected ? colors.onBrand : colors.brand}
                 />
               </View>
               <View className="min-w-0 flex-1">
-                <Text className="font-semibold text-gray-900">{option.title}</Text>
+                <Text className="font-semibold text-label">{option.title}</Text>
                 <Text variant="muted" className="text-sm">
                   {option.detail}
                 </Text>

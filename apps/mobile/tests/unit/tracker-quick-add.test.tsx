@@ -443,13 +443,13 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     expect(screen.getByTestId('log-sheet-api-error')).toHaveTextContent(/Recipe not found/);
   });
 
-  it('ADR 0002 (replaces B-29): offers "Scan barcode" next to the other ways to log', async () => {
+  it('ADR 0005 (replaces B-29): offers "Scan barcode" next to the other ways to log', async () => {
     await renderSheet();
     expect(screen.getByTestId('log-sheet-scan-barcode')).toHaveTextContent(/Scan barcode/);
   });
 });
 
-describe('QuickAddSheet — packaged products (ADR 0002)', () => {
+describe('QuickAddSheet — packaged products (ADR 0005)', () => {
   // Several typed fields per test: userEvent typing is slow on a busy runner.
   jest.setTimeout(30_000);
   it('typed barcode → product card with the allergen warning and OFF attribution → logs servings', async () => {

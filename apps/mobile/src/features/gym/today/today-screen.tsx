@@ -430,7 +430,7 @@ export function TodayScreen() {
                           testID={`gym-today-next-up-superset-${slot.label}`}
                           className="flex-row items-center gap-2 pt-1"
                         >
-                          <Text className="text-xs font-semibold text-violet-800">
+                          <Text className="text-xs font-semibold text-info">
                             Superset {slot.label}
                           </Text>
                           <Text
@@ -445,15 +445,15 @@ export function TodayScreen() {
                       <View
                         className={cn(
                           'flex-row items-center justify-between',
-                          slot && 'border-l-4 border-l-violet-500 pl-2',
+                          slot && 'border-l-4 border-l-info pl-2',
                         )}
                       >
                         <View className="min-w-0 flex-1 flex-row items-center gap-1.5 pr-2">
                           {slot ? (
-                            <View className="rounded bg-violet-100 px-1 py-0.5">
+                            <View className="rounded bg-info/10 px-1 py-0.5">
                               <RNText
                                 testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
-                                className="text-xs font-bold text-violet-800"
+                                className="text-xs font-bold text-info"
                               >
                                 {slot.label}
                                 {slot.position + 1}
@@ -597,9 +597,9 @@ export function TodayScreen() {
           <Card
             key={entry.doc.id}
             testID={`gym-today-parked-${entry.doc.id}`}
-            className="gap-2 border border-amber-300 bg-amber-50"
+            className="gap-2 border border-attention/30 bg-attention/10"
           >
-            <Text className="font-semibold text-amber-900">{`${entry.doc.name} didn't save`}</Text>
+            <Text className="font-semibold text-attention">{`${entry.doc.name} didn't save`}</Text>
             <Text testID={`gym-today-parked-${entry.doc.id}-reason`} className="text-sm">
               {entry.parkedReason}
             </Text>

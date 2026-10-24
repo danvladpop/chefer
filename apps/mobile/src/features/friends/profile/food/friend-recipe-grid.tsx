@@ -20,6 +20,7 @@ import {
   Text,
   useReducedMotion,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { trpc } from '../../../../lib/trpc';
 import { RecipeImage } from '../../../recipes/recipe-image';
@@ -58,6 +59,7 @@ export function FriendRecipeGrid({
   registerLoadMore,
   testID = 'friends-recipes',
 }: FriendRecipeGridProps) {
+  const colors = useThemeColors();
   const { fontScale } = useWindowDimensions();
   const oneColumn = fontScale >= RECIPE_GRID_SINGLE_COLUMN_SCALE;
   const [search, setSearch] = useState('');
@@ -111,7 +113,7 @@ export function FriendRecipeGrid({
       ) : items.length === 0 ? (
         <EmptyState
           testID={`${testID}-empty`}
-          icon={<Ionicons name="book-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="book-outline" size={40} color={colors.labelTertiary} />}
           title={FRIENDS_COPY.recipes.empty(firstName)}
         />
       ) : (
@@ -128,7 +130,9 @@ export function FriendRecipeGrid({
           ))}
         </View>
       )}
-      {isFetchingNextPage ? <ActivityIndicator testID={`${testID}-more`} color="#944a00" /> : null}
+      {isFetchingNextPage ? (
+        <ActivityIndicator testID={`${testID}-more`} color={colors.brand} />
+      ) : null}
     </View>
   );
 }
@@ -191,6 +195,7 @@ export function FriendRecipeTile({
   onHeart: () => void;
   testID: string;
 }) {
+  const colors = useThemeColors();
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -225,10 +230,10 @@ export function FriendRecipeTile({
           className="aspect-[4/3] w-full bg-muted"
         />
         <View className="gap-1 p-3">
-          <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">
+          <Text numberOfLines={2} className="text-sm font-semibold text-label">
             {recipe.name}
           </Text>
-          <Text className="text-xs text-gray-600">
+          <Text className="text-xs text-label-secondary">
             {FRIENDS_COPY.recipes.perServing(kcal, recipe.totalTimeMins)}
           </Text>
           {recipe.sourceDomain ? (
@@ -256,13 +261,13 @@ export function FriendRecipeTile({
           if (!recipe.isFavourite) pop();
           onHeart();
         }}
-        className="absolute right-1.5 top-1.5 h-11 w-11 items-center justify-center rounded-full bg-white/90"
+        className="absolute right-1.5 top-1.5 h-11 w-11 items-center justify-center rounded-full bg-surface/90"
       >
         <Animated.View style={heartStyle}>
           <Ionicons
             name={recipe.isFavourite ? 'heart' : 'heart-outline'}
             size={20}
-            color={recipe.isFavourite ? '#944a00' : '#6b7280'}
+            color={recipe.isFavourite ? colors.brand : colors.labelTertiary}
           />
         </Animated.View>
       </Pressable>

@@ -146,18 +146,29 @@ export interface WeekRow {
   paused: boolean;
 }
 
+/** Optional knobs for `settleWeeks`; the defaults are the gym streak's rules. */
+export interface SettleWeeksOptions {
+  /** Most tokens held at once (default `FLEX_MAX`). The Flame's pilot lights pass 2, or 3 from level 8. */
+  flexMax?: number;
+  /** A settled week under goal with 0 sessions also spends a held token (default false; the Flame passes true). */
+  flexCoversEmpty?: boolean;
+}
+
 /**
  * Settle weeks in order (research §4.2):
  * - met (sessions ≥ goal): streak +1, and every 4th met week earns a flex token (max 2);
  * - paused (under goal, overlapping a pause): the streak is frozen — no change;
  * - flex (≥ 1 session, under goal, token held): spends a token, streak +1 ("Streak safe");
- * - under / empty: streak resets to 0;
+ * - under / empty: streak resets to 0 (`flexCoversEmpty` lets a token cover an empty week too);
  * - the current (in-progress) week is 'current' and changes nothing unless already met.
  */
 export function settleWeeks(
   rows: WeekRow[],
   currentWeek: string,
+  options: SettleWeeksOptions = {},
 ): { weeks: WeekSummary[]; streak: StreakInfo } {
+  const flexMax = options.flexMax ?? FLEX_MAX;
+  const flexCoversEmpty = options.flexCoversEmpty ?? false;
   let tokens = 0;
   let metCount = 0;
   let streak = 0;
@@ -174,13 +185,13 @@ export function settleWeeks(
       streak += 1;
       metCount += 1;
       if (metCount % FLEX_EARN_EVERY === 0) {
-        tokens = Math.min(FLEX_MAX, tokens + 1);
+        tokens = Math.min(flexMax, tokens + 1);
       }
     } else if (isCurrent) {
       status = 'current';
     } else if (row.paused) {
       status = 'paused';
-    } else if (row.sessions >= 1 && tokens > 0) {
+    } else if ((row.sessions >= 1 || flexCoversEmpty) && tokens > 0) {
       status = 'flex';
       tokens -= 1;
       streak += 1;

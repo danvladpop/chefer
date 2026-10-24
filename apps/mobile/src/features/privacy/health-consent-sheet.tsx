@@ -62,19 +62,19 @@ export function HealthConsentSheet({
         </View>
       }
     >
-      <Text className="text-base text-gray-800">{HEALTH_CONSENT_COPY.intro}</Text>
+      <Text className="text-base text-label">{HEALTH_CONSENT_COPY.intro}</Text>
       <View className="gap-2">
         {LINES.map((line) => (
           <View key={line.label} className="flex-row gap-2">
-            <Text className="text-sm text-gray-700">•</Text>
-            <Text className="min-w-0 flex-1 text-sm text-gray-700">
-              <Text className="text-sm font-semibold text-gray-900">{line.label}: </Text>
+            <Text className="text-sm text-label-secondary">•</Text>
+            <Text className="min-w-0 flex-1 text-sm text-label-secondary">
+              <Text className="text-sm font-semibold text-label">{line.label}: </Text>
               {line.text}
             </Text>
           </View>
         ))}
       </View>
-      {saveFailed && <Text className="text-sm text-red-700">{HEALTH_CONSENT_COPY.saveError}</Text>}
+      {saveFailed && <Text className="text-sm text-danger">{HEALTH_CONSENT_COPY.saveError}</Text>}
     </Sheet>
   );
 }

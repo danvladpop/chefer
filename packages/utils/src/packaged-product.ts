@@ -12,7 +12,7 @@ import {
 } from '@chefer/types';
 import { formatNumber } from './format';
 
-// ─── Packaged products (ADR 0002) ─────────────────────────────────────────────
+// ─── Packaged products (ADR 0005) ─────────────────────────────────────────────
 // The arithmetic and copy every surface shares: the API scales a logged
 // amount with the same functions the product card previews it with, so the
 // number on the button is the number that gets logged.

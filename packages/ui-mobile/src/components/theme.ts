@@ -1,23 +1,41 @@
-// Raw colour values for places NativeWind classes can't reach (react-native-svg
-// fills/strokes, ActivityIndicator, icon tints). They mirror the HSL tokens in
-// apps/mobile/global.css — keep the two in sync.
-export const colors = {
-  primary: '#944a00', // --primary (brand brown)
-  primaryForeground: '#fcf9f5',
-  foreground: '#020817',
-  mutedForeground: '#8a7560', // --muted-foreground
-  muted: '#faf5f0', // --muted / --secondary
-  accent: '#fcf3ea', // --accent
-  border: '#e2e8f0', // --border
-  card: '#ffffff',
-  destructive: '#ef4444',
-  success: '#059669', // emerald-600
-  warning: '#d97706', // amber-600 — also the over-target colour (MO-06)
-  warningStrong: '#92400e', // amber-800 — over-target overflow lap / end cap
-  info: '#2563eb', // blue-600
-  neutral: '#d1d5db', // gray-300
-  neutralSoft: '#f3f4f6', // gray-100
-} as const;
+import type { ColorScheme } from '@chefer/tokens';
+import { useResolvedScheme } from '../hooks/use-theme-colors';
 
-/** Categorical series colours for charts (brand first). */
-export const chartPalette = ['#944a00', '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777'];
+// Colours the @chefer/tokens roles don't name, per scheme (Day / Night):
+// chart series, the over-target second lap (MO-06) and the week grid's
+// in-between states. Everything else is a role — `useThemeColors()`.
+
+export type ChartColors = {
+  /** Categorical series colours (brand first). */
+  series: readonly string[];
+  /** Past-100% second lap / end cap: a stronger amber than `attention`. */
+  overflow: string;
+  /** Week grid: a flexible day. */
+  flex: string;
+  /** Week grid: a paused day. */
+  paused: string;
+};
+
+const CHART_COLORS: Record<ColorScheme, ChartColors> = {
+  light: {
+    series: ['#944a00', '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777'],
+    overflow: '#92400e',
+    flex: '#e0a060',
+    paused: '#bfdbfe',
+  },
+  dark: {
+    series: ['#f0a35a', '#86aeff', '#6bcb93', '#f2b05e', '#b9a2ff', '#ff8fc0'],
+    overflow: '#ffd39a',
+    flex: '#8a5a2b',
+    paused: '#2d4a7a',
+  },
+};
+
+export function chartColorsFor(scheme: ColorScheme): ChartColors {
+  return CHART_COLORS[scheme];
+}
+
+/** The chart colours of the active scheme. */
+export function useChartColors(): ChartColors {
+  return CHART_COLORS[useResolvedScheme()];
+}

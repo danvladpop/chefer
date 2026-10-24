@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 // The tick at the end of a tracker meal row (WP-04 C, UX-ACC "busy hands").
@@ -11,6 +12,7 @@ import { cn } from '@chefer/utils';
 export const TRACKER_TICK_HIT_PT = 48;
 
 export function TrackerTick({ checked, testID }: { checked: boolean; testID?: string }) {
+  const colors = useThemeColors();
   return (
     <View
       {...(testID !== undefined && { testID })}
@@ -19,10 +21,10 @@ export function TrackerTick({ checked, testID }: { checked: boolean; testID?: st
       <View
         className={cn(
           'h-7 w-7 items-center justify-center rounded-full border-2',
-          checked ? 'border-primary bg-primary' : 'border-gray-300',
+          checked ? 'border-primary bg-primary' : 'border-separator',
         )}
       >
-        {checked && <Ionicons name="checkmark" size={16} color="white" />}
+        {checked && <Ionicons name="checkmark" size={16} color={colors.onBrand} />}
       </View>
     </View>
   );

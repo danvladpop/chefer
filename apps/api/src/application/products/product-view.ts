@@ -5,7 +5,7 @@ import {
   type ProductAllergenRef,
 } from '@chefer/types';
 
-// A stored packaged product → the shape every client renders (ADR 0002).
+// A stored packaged product → the shape every client renders (ADR 0005).
 // Pure and dependency-light, so the tracker can log a product without
 // loading the lookup's AI and Open Food Facts clients.
 

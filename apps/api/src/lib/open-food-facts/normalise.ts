@@ -1,6 +1,6 @@
 import type { PackagedProductData } from '@chefer/database';
 
-// ─── Open Food Facts → PackagedProductData (ADR 0002) ─────────────────────────
+// ─── Open Food Facts → PackagedProductData (ADR 0005) ─────────────────────────
 // OFF is crowd-sourced: any field may be missing, a string, or nonsense. The
 // rule is honesty — a value we can't read is null (shown as "not stated"),
 // never 0 and never guessed. Only calories may be derived, from kJ, because

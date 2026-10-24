@@ -82,7 +82,7 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
       title="Our Terms and Privacy Policy were updated"
     >
       <View className="gap-3">
-        <Text className="text-sm text-gray-700">
+        <Text className="text-sm text-label-secondary">
           Please review and accept the current{' '}
           <Text
             accessibilityRole="link"
