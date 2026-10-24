@@ -2257,7 +2257,7 @@ One nullable column, `DietaryPreferences.fitTrainingDays Boolean?` (null = not c
 
 One nullable column, `ChefProfile.mealReminders Json?` — `{ enabled, times }` (`mealRemindersSchema`,
 `@chefer/types` `meal-reminders.ts`); null = never chosen. Migration
-`packages/database/prisma/migrations/20261022120000_meal_reminders/`. See `business_flow.md` §23 "Mealtime reminders".
+`packages/database/prisma/migrations/20261024120700_meal_reminders/`. See `business_flow.md` §23 "Mealtime reminders".
 
 ### Share cards (market review 2026-10, lane E2, additive only)
 
