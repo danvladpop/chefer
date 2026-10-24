@@ -3,7 +3,14 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendWeekDto } from '@chefer/types';
-import { DENSE_MAX_FONT_SCALE, EmptyState, ErrorState, Skeleton, Text } from '@chefer/ui-mobile';
+import {
+  DENSE_MAX_FONT_SCALE,
+  EmptyState,
+  ErrorState,
+  Skeleton,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { trpc } from '../../../../lib/trpc';
 import { MealCardView } from '../../../meal-plan/meal-card-view';
@@ -33,6 +40,7 @@ export function FriendWeekView({
   showTargets,
   testID = 'friends-week',
 }: FriendWeekViewProps) {
+  const colors = useThemeColors();
   const week = trpc.friends.week.useQuery({ userId }, { retry: false });
   const [selected, setSelected] = useState<number | null>(null);
   const data = week.data;
@@ -54,7 +62,7 @@ export function FriendWeekView({
     return (
       <EmptyState
         testID={`${testID}-no-plan`}
-        icon={<Ionicons name="calendar-outline" size={40} color="#9ca3af" />}
+        icon={<Ionicons name="calendar-outline" size={40} color={colors.labelTertiary} />}
         title={FRIENDS_COPY.food.noPlan(firstName)}
       />
     );
@@ -67,7 +75,7 @@ export function FriendWeekView({
   return (
     <View testID={testID} className="gap-3">
       <View className="flex-row flex-wrap items-baseline justify-between gap-x-3">
-        <Text testID={`${testID}-week-of`} className="font-semibold text-gray-900">
+        <Text testID={`${testID}-week-of`} className="font-semibold text-label">
           {FRIENDS_COPY.food.weekOf(formatDayMonth(data.weekStartDate))}
         </Text>
         {data.averageKcal !== null ? (
@@ -97,11 +105,11 @@ export function FriendWeekView({
       )}
 
       {dayData && meals.length > 0 ? (
-        <View testID={`${testID}-totals`} className="gap-1 rounded-xl bg-gray-50 px-3 py-2">
-          <Text className="text-sm font-bold text-gray-900">
+        <View testID={`${testID}-totals`} className="gap-1 rounded-xl bg-surface-sunken px-3 py-2">
+          <Text className="text-sm font-bold text-label">
             {FRIENDS_COPY.food.dayTotal(dayData.totals.kcal)}
           </Text>
-          <Text className="text-xs text-gray-600">{macroLine(dayData.totals)}</Text>
+          <Text className="text-xs text-label-secondary">{macroLine(dayData.totals)}</Text>
           {showTargets && data.targets ? (
             <Text testID={`${testID}-target`} variant="muted" className="text-xs">
               {FRIENDS_COPY.food.target(data.targets.kcal, data.targets.protein)}
@@ -157,20 +165,20 @@ export function FriendMealCard({
           })}
       badges={
         meal.leftoverOf ? (
-          <View className="rounded-full bg-gray-100 px-2 py-0.5">
-            <Text className="text-xs text-gray-600">
+          <View className="rounded-full bg-surface-sunken px-2 py-0.5">
+            <Text className="text-xs text-label-secondary">
               {FRIENDS_COPY.food.leftoversFrom(meal.leftoverOf)}
             </Text>
           </View>
         ) : null
       }
       meta={
-        <Text testID={`${testID}-macros`} className="text-xs text-gray-600">
+        <Text testID={`${testID}-macros`} className="text-xs text-label-secondary">
           {macros}
         </Text>
       }
     >
-      <Text testID={`${testID}-portion`} className="text-xs text-gray-500">
+      <Text testID={`${testID}-portion`} className="text-xs text-label-tertiary">
         {FRIENDS_COPY.food.portion(meal.portion)}
       </Text>
     </MealCardView>
@@ -204,7 +212,7 @@ function WeekDayChips({
             onPress={() => onSelect(i)}
             className={cn(
               'h-14 w-11 items-center justify-center rounded-xl',
-              isSelected ? 'bg-primary' : 'bg-gray-50',
+              isSelected ? 'bg-primary' : 'bg-surface-sunken',
               isToday && !isSelected && 'border-2 border-primary',
               !hasMeals && !isSelected && 'opacity-50',
             )}
@@ -215,7 +223,7 @@ function WeekDayChips({
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
                 'text-xs font-semibold uppercase',
-                isSelected ? 'text-primary-foreground' : 'text-gray-700',
+                isSelected ? 'text-primary-foreground' : 'text-label-secondary',
               )}
             >
               {label}

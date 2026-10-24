@@ -45,6 +45,7 @@ import {
 import { AdjustSheet, goToday, PR_KIND_LABEL } from '../../gym/workout/summary-screen';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { DIRECTION_LABEL, fallbackMeta, unitOf } from '../../gym/workout/workout-model';
+import { WorkoutReceipt } from '../../progress/workout-receipt';
 import { useWorkoutReviewPrompt } from '../../review/review-signals';
 import { BurnTile } from './burn-tile';
 
@@ -228,6 +229,9 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
             <PrCard prs={prs} nameOf={(exerciseId) => lookup(exerciseId).name} loadOf={loadOf} />
           </PopIn>
         ) : null}
+
+        {/* Kitchen progress (mockup 03): self-gated; nothing until the workout has synced. */}
+        <WorkoutReceipt id={id} />
 
         {streak ? (
           <Animated.View

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Sheet, showSnackbar, Text } from '@chefer/ui-mobile';
+import { Sheet, showSnackbar, Text, useThemeColors } from '@chefer/ui-mobile';
 import { FeedbackCard } from './feedback-card';
 
 // Gym-mode entry to the feedback channel (UX-PO-05): the form lived only in
@@ -9,6 +9,7 @@ import { FeedbackCard } from './feedback-card';
 // One row in Gym settings opens the same form (same build/OS/route context) in
 // a sheet.
 export function GymFeedbackRow() {
+  const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion.
   const [mounted, setMounted] = useState(false);
@@ -25,14 +26,14 @@ export function GymFeedbackRow() {
         }}
         className="min-h-11 flex-row items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
       >
-        <Ionicons name="chatbubble-ellipses-outline" size={20} color="#374151" />
+        <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.labelSecondary} />
         <View className="min-w-0 flex-1">
           <Text className="text-base font-medium">Send feedback</Text>
           <Text variant="muted" className="text-xs">
             Something broken or missing? It goes straight to the team.
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+        <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />
       </Pressable>
       <Sheet
         visible={open}

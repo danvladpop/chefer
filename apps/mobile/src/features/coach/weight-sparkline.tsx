@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
-import { colors, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { bodyWeightInUnit, bodyWeightUnit, formatDate, type UnitSystem } from '@chefer/utils';
 
 // UX-FOOD-27: the Today weight card used to draw a bar per weigh-in whose
@@ -28,6 +28,7 @@ export function WeightSparkline({
   system: UnitSystem;
   windowDays?: number;
 }) {
+  const colors = useThemeColors();
   const [width, setWidth] = useState(0);
   const first = entries.at(0);
   const last = entries.at(-1);
@@ -67,26 +68,26 @@ export function WeightSparkline({
             <Polyline
               points={points.map((p) => `${p.x},${p.y}`).join(' ')}
               fill="none"
-              stroke={colors.success}
+              stroke={colors.positive}
               strokeWidth={2}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
             {points.length > 0 && (
               <>
-                <Circle cx={points[0]?.x} cy={points[0]?.y} r={3} fill={colors.success} />
-                <Circle cx={points.at(-1)?.x} cy={points.at(-1)?.y} r={4} fill={colors.success} />
+                <Circle cx={points[0]?.x} cy={points[0]?.y} r={3} fill={colors.positive} />
+                <Circle cx={points.at(-1)?.x} cy={points.at(-1)?.y} r={4} fill={colors.positive} />
               </>
             )}
           </Svg>
         )}
       </View>
       <View className="mt-1 flex-row items-baseline justify-between gap-2">
-        <Text className="text-xs text-gray-500">{dayLabel(first.recordedAt)}</Text>
-        <Text testID="weight-sparkline-summary" className="text-xs font-semibold text-gray-800">
+        <Text className="text-xs text-label-tertiary">{dayLabel(first.recordedAt)}</Text>
+        <Text testID="weight-sparkline-summary" className="text-xs font-semibold text-label">
           {summary}
         </Text>
-        <Text className="text-xs text-gray-500">{dayLabel(last.recordedAt)}</Text>
+        <Text className="text-xs text-label-tertiary">{dayLabel(last.recordedAt)}</Text>
       </View>
     </View>
   );

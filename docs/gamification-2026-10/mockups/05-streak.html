@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>05 Streak sheet — weekly flame + pilot lights</title>
+    <link rel="stylesheet" href="phone.css" />
+  </head>
+  <body>
+    <div class="phone dim" data-tab="home">
+      <div class="scroll">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Thursday, 22 October</div>
+            <h1>Today</h1>
+          </div>
+        </div>
+        <div class="card soft" style="height: 150px"></div>
+        <div class="card" style="height: 200px"></div>
+      </div>
+      <div class="sheet" style="top: 92px">
+        <div class="grabber"></div>
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 2px;
+          "
+        >
+          <div style="font-size: 54px; line-height: 60px">🔥</div>
+          <div style="font-size: 40px; font-weight: 800; line-height: 44px; color: var(--flame1)">
+            6 weeks
+          </div>
+          <div class="sub" style="font-size: 15px">Your cooking flame. Best: 9 weeks.</div>
+        </div>
+
+        <section class="card" style="gap: 10px">
+          <div class="between">
+            <h3>This week</h3>
+            <span class="pill green">2 of 3 days</span>
+          </div>
+          <div class="weekdots" style="justify-content: space-between">
+            <span>Mon<i class="done">✓</i></span
+            ><span>Tue<i class="done">✓</i></span
+            ><span>Wed<i class="rest">☾</i></span
+            ><span>Thu<i class="today">·</i></span
+            ><span>Fri<i></i></span><span>Sat<i></i></span><span>Sun<i></i></span>
+          </div>
+          <p class="sub">
+            An <b>active day</b> is any day you cook, log a meal, or train. Hit
+            <b>3 this week</b> and the flame grows. Rest days never break it. ☾
+          </p>
+        </section>
+
+        <section class="card" style="flex-direction: row; gap: 12px; align-items: center">
+          <div style="font-size: 30px">🫙</div>
+          <div class="grow">
+            <h3>Pilot lights: 2</h3>
+            <p class="sub">
+              Keep the flame lit through a busy or sick week — used automatically. You earn one
+              every 4 good weeks.
+            </p>
+          </div>
+        </section>
+
+        <section style="display: flex; flex-direction: column; gap: 8px">
+          <h3>Flame milestones</h3>
+          <div class="row" style="justify-content: space-between">
+            <div style="text-align: center">
+              <div
+                class="badge bronze"
+                style="width: 52px; height: 52px; font-size: 22px; border-radius: 14px"
+              >
+                🔥
+              </div>
+              <div class="small" style="margin-top: 6px">4 wk</div>
+            </div>
+            <div style="text-align: center">
+              <div
+                class="badge"
+                style="
+                  width: 52px;
+                  height: 52px;
+                  font-size: 22px;
+                  border-radius: 14px;
+                  background: #fff;
+                  outline: 2px dashed var(--brand);
+                  outline-offset: 3px;
+                "
+              >
+                🔥
+              </div>
+              <div class="small" style="margin-top: 6px"><b>8 wk · next</b></div>
+            </div>
+            <div style="text-align: center">
+              <div
+                class="badge locked"
+                style="width: 52px; height: 52px; font-size: 22px; border-radius: 14px"
+              >
+                🔥
+              </div>
+              <div class="small" style="margin-top: 6px">12 wk</div>
+            </div>
+            <div style="text-align: center">
+              <div
+                class="badge locked"
+                style="width: 52px; height: 52px; font-size: 22px; border-radius: 14px"
+              >
+                🔥
+              </div>
+              <div class="small" style="margin-top: 6px">26 wk</div>
+            </div>
+            <div style="text-align: center">
+              <div
+                class="badge locked"
+                style="width: 52px; height: 52px; font-size: 22px; border-radius: 14px"
+              >
+                👑
+              </div>
+              <div class="small" style="margin-top: 6px">52 wk</div>
+            </div>
+          </div>
+        </section>
+        <button class="btn outline full">Change weekly goal (3 days)</button>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>

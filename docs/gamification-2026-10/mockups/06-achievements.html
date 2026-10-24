@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>06 Achievements — trophy shelf</title>
+    <link rel="stylesheet" href="phone.css" />
+    <style>
+      .shelf {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px 8px;
+      }
+      .shelf > div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+        text-align: center;
+      }
+      .shelf .name {
+        font-size: 12px;
+        line-height: 15px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .shelf .badge {
+        width: 60px;
+        height: 60px;
+        font-size: 27px;
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+        overflow: hidden;
+      }
+      .chip {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+      }
+      .chip.on {
+        background: var(--brand);
+        color: #fff;
+        border-color: var(--brand);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="phone" data-tab="you">
+      <div class="scroll">
+        <div class="topbar">
+          <div class="row">
+            <span style="font-size: 20px; color: var(--brand)">‹</span>
+            <h1>Achievements</h1>
+          </div>
+          <span class="pill soft">23 / 64</span>
+        </div>
+        <div class="chips">
+          <span class="chip on">All</span><span class="chip">🍳 Kitchen</span
+          ><span class="chip">🥗 Table</span><span class="chip">🏋️ Gym</span
+          ><span class="chip">🗓 Plan</span>
+        </div>
+
+        <section class="card soft" style="flex-direction: row; align-items: center; gap: 12px">
+          <div
+            class="badge gold"
+            style="width: 52px; height: 52px; font-size: 24px; border-radius: 14px"
+          >
+            🥚
+          </div>
+          <div class="grow">
+            <div class="between">
+              <h3>Closest next</h3>
+              <span class="small">2 to go</span>
+            </div>
+            <p class="sub">Eggcellent III — cook 25 egg dishes</p>
+            <div class="bar thin" style="margin-top: 6px"><i style="width: 92%"></i></div>
+          </div>
+        </section>
+
+        <h3 style="margin-top: 2px">🍳 Kitchen</h3>
+        <div class="shelf">
+          <div>
+            <div class="badge gold">🍳<span class="tier">III</span></div>
+            <span class="name">Home Chef</span>
+          </div>
+          <div>
+            <div class="badge silver">🌍<span class="tier">II</span></div>
+            <span class="name">Passport Plate</span>
+          </div>
+          <div>
+            <div class="badge bronze">🐟<span class="tier">I</span></div>
+            <span class="name">Ocean's Eleven</span>
+          </div>
+          <div>
+            <div class="badge bronze">🔪<span class="tier">I</span></div>
+            <span class="name">Knife Work</span>
+          </div>
+          <div>
+            <div class="badge silver">📸<span class="tier">II</span></div>
+            <span class="name">Food Paparazzi</span>
+          </div>
+          <div>
+            <div class="badge bronze">🍲</div>
+            <span class="name">Soup Season '26</span>
+          </div>
+          <div>
+            <div class="badge locked">🥐</div>
+            <span class="name">Bake Off</span>
+          </div>
+          <div>
+            <div class="badge locked">❓</div>
+            <span class="name">Secret</span>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 4px">🏋️ Gym</h3>
+        <div class="shelf">
+          <div>
+            <div class="badge silver">🏅<span class="tier">II</span></div>
+            <span class="name">PR Machine</span>
+          </div>
+          <div>
+            <div class="badge gold">🔥<span class="tier">III</span></div>
+            <span class="name">Iron Weeks</span>
+          </div>
+          <div>
+            <div class="badge bronze">🦵<span class="tier">I</span></div>
+            <span class="name">Never Skip Legs</span>
+          </div>
+          <div>
+            <div class="badge locked">🏋️</div>
+            <span class="name">Bodyweight Bench</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="shell.js"></script>
+  </body>
+</html>

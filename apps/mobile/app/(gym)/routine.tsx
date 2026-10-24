@@ -234,8 +234,11 @@ export default function RoutineScreen() {
         </Text>
 
         {!isOnline ? (
-          <View testID="gym-routine-offline-banner" className="rounded-lg bg-amber-50 px-3 py-2">
-            <Text className="text-sm text-amber-900">
+          <View
+            testID="gym-routine-offline-banner"
+            className="rounded-lg bg-attention/10 px-3 py-2"
+          >
+            <Text className="text-sm text-attention">
               Editing routines needs a connection. Logging works offline.
             </Text>
           </View>

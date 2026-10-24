@@ -9,6 +9,7 @@ import {
   type WeeklyEmailPreferences,
 } from '@/features/preferences/components/weekly-email-toggles';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
+import { RewardsSettingsCard } from '@/features/progress/rewards-settings-card';
 import { createServerClient } from '@/lib/trpc-server';
 import { Users } from 'lucide-react';
 import type { OnboardingJob } from '@chefer/types';
@@ -138,6 +139,8 @@ export default async function PreferencesPage() {
       <AutoPlanToggle initialEnabled={autoPlanWeekly} isPremium={isPremium} />
       <JobsSection initialJobs={jobs} />
       {emailPrefs && <WeeklyEmailToggles initial={emailPrefs} />}
+      {/* Kitchen progress: celebrations, XP, Biscuit, goal, pause (nothing while the flag is off). */}
+      <RewardsSettingsCard />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Text } from '@chefer/ui-mobile';
+import { Button, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, conditionNoticeText, unrecognisedNoticeText } from '@chefer/utils';
 
 // UX-01 "Something else" outcomes (§Flow (a)) + UX-22 T-22.1: two flavours of
@@ -37,23 +37,24 @@ export function UncheckedNotice({
   onDismiss,
   testID,
 }: UncheckedNoticeProps) {
+  const colors = useThemeColors();
   const text = variant === 'condition' ? conditionNoticeText(term) : unrecognisedNoticeText(term);
 
   return (
     <View
       testID={testID}
       accessibilityRole="alert"
-      className={cn('gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3')}
+      className={cn('gap-2 rounded-xl border border-attention/30 bg-attention/10 p-3')}
     >
       <View className="flex-row items-start gap-2">
         <Ionicons
           name="help-circle-outline"
           size={16}
-          color="#92400e"
+          color={colors.attention}
           accessible={false}
           style={{ marginTop: 1 }}
         />
-        <Text className="min-w-0 flex-1 text-sm text-amber-900">{text}</Text>
+        <Text className="min-w-0 flex-1 text-sm text-attention">{text}</Text>
       </View>
       <View className="flex-row gap-2">
         {variant === 'condition' ? (

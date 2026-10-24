@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    setupFiles: ['src/test-setup/progress-noop.ts'],
     coverage: {
       provider: 'v8',
       // The service layer is where the business logic (and the bugs F-1/F-5

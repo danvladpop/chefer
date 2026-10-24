@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { TableSafety, TableSafetyPerson } from '@chefer/types';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { SAFETY_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // WhatWeCheckSheet (UX-02 "What we check" sheet, an ExplainSheet instance —
@@ -34,6 +34,7 @@ export function WhatWeCheckSheet({
   onEditPerson,
   testID = 'what-we-check-sheet',
 }: WhatWeCheckSheetProps) {
+  const colors = useThemeColors();
   return (
     <Sheet
       visible={visible}
@@ -64,9 +65,16 @@ export function WhatWeCheckSheet({
             className="min-h-11 flex-row items-center justify-between gap-3 border-b border-border py-2.5"
           >
             <Text className="w-20 shrink-0 text-sm font-medium capitalize">{person.who}</Text>
-            <Text className="min-w-0 flex-1 text-sm text-gray-600">{personLine(person)}</Text>
+            <Text className="min-w-0 flex-1 text-sm text-label-secondary">
+              {personLine(person)}
+            </Text>
             {onEditPerson ? (
-              <Ionicons name="chevron-forward" size={16} color="#9ca3af" accessible={false} />
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.labelTertiary}
+                accessible={false}
+              />
             ) : null}
           </Pressable>
         ))}
