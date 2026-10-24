@@ -46,6 +46,7 @@
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
+41. [Weekly Recap & Share Cards](#43-weekly-recap--share-cards-market-review-2026-10-lane-e2)
 
 ---
 
@@ -6259,6 +6260,8 @@ success moment ──► maybeRequestReview(trigger)
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
 
+---
+
 ## 39. Kitchen progress (gamification P1, `docs/gamification-2026-10/`)
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
@@ -6347,3 +6350,42 @@ Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_back
    not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
    overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
 5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).
+
+---
+
+## 43. Weekly Recap & Share Cards (market review 2026-10, lane E2)
+
+> **Status:** Implemented on mobile and web. Every tier. No flag.
+
+**Weekly recap — "Your week in review".** Factual counts for one Monday–Sunday week, from `recap.week`:
+
+- **Food:** meals cooked from the plan (planned slots that were logged or ticked, cook mode's "Made it!" included, via
+  `matchLoggedToSlots`), new recipes tried (recipe ids logged that week and never before), and protein-goal days
+  (logged days not protein-short per `proteinGapG`, only with a goal or own targets).
+- **Training:** completed sessions, PRs (first-ever lifts are baselines, not PRs) and the existing weekly streak
+  (read-only; no new streak logic — Kitchen progress owns gamification).
+- **Shame-free by rule:** no denominators that read as a shortfall ("9 meals cooked from your plan", never "9 of 14"),
+  no zero rows, and a week with nothing in it says "A quiet week".
+- **Where it opens:** the mobile `/recap` screen and web `/recap` (previous/next week, newest = the last completed
+  week); Today on **Monday** (mobile `RecapTodayCard`, web `RecapDashboardCard`, hidden when last week is empty or
+  the `gamification` flag is on — Kitchen progress's Sunday–Tuesday banner owns that slot); and the Monday "week
+  ready" email's "Look back at last week" link (`APP_URL/recap?from=email`; email links open the web).
+
+**Share cards.** "Share as a card" on a recipe, the cook-mode finish ("Share what you cooked"), the workout summary
+("Share your workout", online only) and the recap ("Share your week", with a pick-what-goes-on-it sheet).
+
+```
+tap Share ─► share.create({ kind, …, opt-ins }) ─► ShareCard row (snapshot of ONLY what the card shows)
+          ◄─ { id, url: APP_URL/s/<id>, imageUrl: …/image }
+mobile: FileSystem.downloadAsync(imageUrl) ─► iOS Share.share({ url: file, message: text + link })
+                                            Android (expo-sharing) shareAsync(file, image/png)
+                                            no image / old binary ─► Share.share({ message: text + link })
+web:    fetch(imageUrl) ─► navigator.share({ files: [png], text, url }) when supported
+                          else a sheet with the card, Download and Copy link
+anyone with the link ─► web /s/<id> (public, noindex, OG tags) ─► share.get ─► next/og PNG at /s/<id>/image
+```
+
+- **Privacy** (the Following rules): a card never carries allergies, diets, body weight, logged meals, notes, heart
+  rate or the person's name. Nutrition per serving (recipe/cook) and protein days (recap) are opt-in; PRs on a
+  workout card are on by default (weights lifted, never body weight). Cards are deleted with the account.
+- **Analytics:** `share_card_shared { kind, completed }`, `weekly_recap_viewed { from, empty }`.

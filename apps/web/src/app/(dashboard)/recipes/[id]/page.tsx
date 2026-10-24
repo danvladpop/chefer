@@ -16,6 +16,7 @@ import { writeRecipeDeleteUndo } from '@/features/recipes/lib/recipe-delete-undo
 import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
 import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
+import { ShareCardButton } from '@/features/share/share-card-button';
 import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
@@ -669,6 +670,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <Share2 className="h-3.5 w-3.5" />
             Share
           </button>
+          {/* Lane E2: an image card (title, photo, time) with the app link. */}
+          <ShareCardButton
+            testId="recipe-share-card"
+            input={{ kind: 'recipe', recipeId: recipe.id, showNutrition: false }}
+            message={recipe.name}
+          />
           {savedData?.canEdit ? (
             <button
               type="button"

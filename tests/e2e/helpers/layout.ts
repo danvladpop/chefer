@@ -30,6 +30,8 @@ export const APP_ROUTES = [
   '/tracker',
   '/progress',
   '/my-weeks',
+  // Lane E2: the weekly recap.
+  '/recap',
   '/profile',
   '/preferences',
   // Kitchen progress (gamification flag): with the flag off these render the

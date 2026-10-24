@@ -12,6 +12,16 @@ logged or ticked. Stored on the account; only the phone sends it.
 _Avoid_: nudge (the dinner / plan-Sunday food nudges are a separate, device-only feature), push notification (nothing
 is sent from the server)
 
+**Weekly recap**:
+"Your week in review": factual counts for one Monday–Sunday week (meals cooked from the plan, new recipes, protein
+days, workouts, PRs, the streak). Never a shortfall or a zero row.
+_Avoid_: report, score
+
+**Share card**:
+An image (with an app link) the user chooses to share: a recipe, a finished cook, a workout or the weekly recap. Holds
+only a snapshot of what it shows.
+_Avoid_: post, story (Kitchen progress's recap story is a separate, gamified surface)
+
 ## Premium
 
 **Tier**:

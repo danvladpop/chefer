@@ -58,6 +58,7 @@ import { useCookTimers, type CookTimerView } from '../../src/features/recipes/co
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
+import { useShareCard } from '../../src/features/share/share-card';
 import { SectionTitle } from '../../src/features/shell/today/parts';
 import { TrainButton } from '../../src/features/shell/train/train-button';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
@@ -211,6 +212,8 @@ export default function CookModeScreen() {
   const [step, setStep] = useState(() => getCookSession(id).step);
   const [finished, setFinished] = useState(false);
   const [finishBurst, setFinishBurst] = useState(0);
+  // Lane E2: "Share what you cooked" — an image card + the app link.
+  const { share: shareCard, sharing } = useShareCard();
   // Premium motion #16: which way the last step change went (slide direction).
   const stepDirection = useRef<1 | -1>(1);
   const [logged, setLogged] = useState(false);
@@ -663,6 +666,20 @@ export default function CookModeScreen() {
               {userFacingErrorMessage(upsertDay.error)}
             </Text>
           )}
+          <TrainButton
+            testID="cook-share"
+            variant="outline"
+            icon="share"
+            label="Share what you cooked"
+            className="self-stretch"
+            loading={sharing === 'cook'}
+            onPress={() =>
+              void shareCard(
+                { kind: 'cook', recipeId: recipe.id, showNutrition: false },
+                recipe.name,
+              )
+            }
+          />
           {logged && loggedAs ? (
             <View className="items-center gap-1">
               <Text testID="cook-logged-as" className="text-subhead text-label-secondary">

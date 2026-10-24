@@ -920,7 +920,23 @@ export {
 } from './meal-reminders';
 export {
   ENGAGEMENT_COPY,
+  RECAP_COPY,
+  recapFoodLines,
+  recapGymLines,
+  recapShareMessage,
   MEAL_REMINDER_NOTIFICATION,
   mealReminderLabel,
   type EngagementCopyKey,
 } from './engagement-copy';
+
+// ─── Weekly recap + share cards (market review 2026-10, lane E2) ─────────────
+export {
+  lastCompletedWeekStart,
+  mondayOf,
+  recapFoodCounts,
+  weekLabel,
+  type RecapFoodCounts,
+  type RecapLogDay,
+  type RecapPlanDay,
+} from './weekly-recap';
+export { shareCardLines, type ShareCardLines } from './share-card-lines';
