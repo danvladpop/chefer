@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { EmptyState, ErrorState, useQueryState } from '@chefer/ui-mobile';
+import { EmptyState, ErrorState, useQueryState, useThemeColors } from '@chefer/ui-mobile';
 
 // UX-GYM-24 / audit §6.3: every gym tab reads the one persisted
 // `gym.bootstrap` query, and each used to branch on "no data yet" with a
@@ -47,10 +47,11 @@ export function GymBootstrapUnavailable({
   testID,
   what = 'your training',
 }: GymBootstrapUnavailableProps) {
+  const colors = useThemeColors();
   if (load === 'loading') {
     return (
       <View className="flex-1 items-center justify-center py-10" testID={`${testID}-loading`}>
-        <ActivityIndicator size="large" color="#944a00" />
+        <ActivityIndicator size="large" color={colors.brand} />
       </View>
     );
   }

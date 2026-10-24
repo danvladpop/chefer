@@ -1,6 +1,6 @@
 import { Switch, View } from 'react-native';
 import { AI_CONSENT_COPY } from '@chefer/types';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import { aiConsentToggleOn } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useAiProviderDisclosure } from '../ai-consent/use-ai-providers';
@@ -10,9 +10,9 @@ import { openLegal } from '../legal/open-legal';
 // the AI guard asks for before the first AI action. Off = the next AI action
 // asks again. Mirrors apps/web/src/features/profile/components/AiConsentCard.tsx.
 
-const TRACK = { true: '#944a00', false: '#d1d5db' };
-
 export function AiConsentCard() {
+  const colors = useThemeColors();
+  const switchTrack = { true: colors.brand, false: colors.separator };
   const utils = trpc.useUtils();
   const { data: user } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
   const providers = useAiProviderDisclosure();
@@ -34,7 +34,7 @@ export function AiConsentCard() {
       <Text variant="heading">{AI_CONSENT_COPY.cardTitle}</Text>
       <View className="min-h-11 flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-medium text-gray-900">{AI_CONSENT_COPY.toggleTitle}</Text>
+          <Text className="text-sm font-medium text-label">{AI_CONSENT_COPY.toggleTitle}</Text>
           <Text variant="muted" className="text-xs">
             {enabled ? aiConsentToggleOn(providers) : AI_CONSENT_COPY.toggleOff}
           </Text>
@@ -45,7 +45,7 @@ export function AiConsentCard() {
           value={enabled}
           disabled={!user || busy}
           onValueChange={(next) => (next ? grant.mutate() : revoke.mutate())}
-          trackColor={TRACK}
+          trackColor={switchTrack}
         />
       </View>
       <Text variant="muted" className="text-xs" testID="profile-ai-consent-coach-note">
@@ -55,7 +55,7 @@ export function AiConsentCard() {
         {AI_CONSENT_COPY.privacyLabel}
       </Button>
       {(grant.isError || revoke.isError) && (
-        <Text className="text-xs text-red-600">{AI_CONSENT_COPY.saveError}</Text>
+        <Text className="text-xs text-danger">{AI_CONSENT_COPY.saveError}</Text>
       )}
     </Card>
   );

@@ -271,7 +271,7 @@ export function AddToWeekSheet({
                 onPress={() => pickDay(d)}
                 className={cn(
                   'h-14 w-11 items-center justify-center rounded-xl',
-                  isSelected ? 'bg-primary' : 'bg-gray-50',
+                  isSelected ? 'bg-primary' : 'bg-surface-sunken',
                   past && 'opacity-40',
                 )}
               >
@@ -279,7 +279,7 @@ export function AddToWeekSheet({
                   maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                   className={cn(
                     'text-xs font-semibold',
-                    isSelected ? 'text-primary-foreground' : 'text-gray-700',
+                    isSelected ? 'text-primary-foreground' : 'text-label-secondary',
                   )}
                 >
                   {weekdayShort(d)}
@@ -288,7 +288,7 @@ export function AddToWeekSheet({
                   maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                   className={cn(
                     'text-xs',
-                    isSelected ? 'text-primary-foreground' : 'text-gray-500',
+                    isSelected ? 'text-primary-foreground' : 'text-label-tertiary',
                   )}
                 >
                   {dayOfMonth(weekOffset, d)}
@@ -348,11 +348,11 @@ export function AddToWeekSheet({
                   )}
                 >
                   <View className="min-w-0 flex-1">
-                    <Text className="text-xs font-semibold uppercase text-gray-500">
+                    <Text className="text-xs font-semibold uppercase text-label-tertiary">
                       {row.mealType}
                     </Text>
                     {row.currentName ? (
-                      <Text numberOfLines={1} className="text-sm text-gray-900">
+                      <Text numberOfLines={1} className="text-sm text-label">
                         {row.currentName}
                       </Text>
                     ) : null}
@@ -367,9 +367,9 @@ export function AddToWeekSheet({
         {failure?.kind === 'conflict' ? (
           <View
             testID={`${testID}-conflict`}
-            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2"
+            className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2"
           >
-            <Text accessibilityRole="alert" className="text-xs text-red-600">
+            <Text accessibilityRole="alert" className="text-xs text-danger">
               {failure.message}
             </Text>
             {failure.canAcknowledge ? (

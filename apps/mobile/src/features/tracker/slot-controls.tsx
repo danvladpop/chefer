@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { moreActionsLabel } from './slot-copy';
 
@@ -28,6 +28,7 @@ export function SlotOverflowButton({
   /** Overrides "More actions for Dinner" (a side dish names itself instead). */
   accessibilityLabel?: string;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       {...(testID !== undefined && { testID })}
@@ -39,7 +40,7 @@ export function SlotOverflowButton({
       hitSlop={0}
       className={cn('h-11 w-11 items-center justify-center rounded-full', className)}
     >
-      <Ionicons name="ellipsis-horizontal" size={20} color="#6b7280" />
+      <Ionicons name="ellipsis-horizontal" size={20} color={colors.labelTertiary} />
     </Pressable>
   );
 }
@@ -65,7 +66,7 @@ export function SlotStatusLine({
 }) {
   return (
     <View testID={testID} className={cn('flex-row items-center gap-2', className)}>
-      <Text testID={`${testID}-text`} className="min-w-0 flex-1 text-sm text-gray-600">
+      <Text testID={`${testID}-text`} className="min-w-0 flex-1 text-sm text-label-secondary">
         {text}
       </Text>
       {actionLabel && onAction && (

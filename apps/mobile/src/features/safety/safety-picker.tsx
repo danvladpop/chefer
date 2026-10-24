@@ -6,7 +6,7 @@ import {
   safetyPickerEntries,
   safetyTaxonomyEntriesByGroup,
 } from '@chefer/types';
-import { ChipGroup, Input, Text } from '@chefer/ui-mobile';
+import { ChipGroup, Input, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   applySafetyTerm,
   BASE_DIET_IDS,
@@ -63,6 +63,7 @@ export function SafetyPicker({
   ref,
   onPendingChange,
 }: SafetyPickerProps) {
+  const colors = useThemeColors();
   const classified = classifySafetyValue(value);
   const [somethingElse, setSomethingElse] = useState('');
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
@@ -267,7 +268,7 @@ export function SafetyPicker({
             onPress={() => handleAdd()}
             className="h-11 w-11 items-center justify-center rounded-md border border-border"
           >
-            <Ionicons name="add" size={20} color="#944a00" />
+            <Ionicons name="add" size={20} color={colors.brand} />
           </Pressable>
         </View>
         {addedMessage ? (
@@ -299,7 +300,7 @@ export function SafetyPicker({
           <Text
             testID={`${testIDPrefix}-save-blocked`}
             accessibilityLiveRegion="polite"
-            className="text-xs text-red-600"
+            className="text-xs text-danger"
           >
             Choose what to do with “{blockedTerm}” first — then save again.
           </Text>
@@ -313,11 +314,11 @@ export function SafetyPicker({
                 accessibilityRole="button"
                 accessibilityLabel={`Remove note ${note}`}
                 onPress={() => commit({ notes: classified.notes.filter((n) => n !== note) })}
-                className="min-h-9 flex-row items-center gap-1 rounded-full bg-gray-100 px-3"
+                className="min-h-9 flex-row items-center gap-1 rounded-full bg-surface-sunken px-3"
               >
-                <Ionicons name="help-circle-outline" size={12} color="#6b7280" />
-                <Text className="text-xs text-gray-600">{note}</Text>
-                <Ionicons name="close" size={12} color="#6b7280" />
+                <Ionicons name="help-circle-outline" size={12} color={colors.labelTertiary} />
+                <Text className="text-xs text-label-secondary">{note}</Text>
+                <Ionicons name="close" size={12} color={colors.labelTertiary} />
               </Pressable>
             ))}
           </View>

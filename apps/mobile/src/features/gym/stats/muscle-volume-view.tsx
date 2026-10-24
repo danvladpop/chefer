@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { GymBootstrap, MuscleVolumeWeekDto, VolumeGroup } from '@chefer/types';
 import { VOLUME_GROUPS } from '@chefer/types';
-import { BarChart, chartPalette, SelectField, Text, useThemeColors } from '@chefer/ui-mobile';
+import { BarChart, SelectField, Text, useChartColors, useThemeColors } from '@chefer/ui-mobile';
 import { completedSetsByWeek, landmarkFor, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { TrainCard } from '../../shell/train/train-cards';
@@ -51,6 +51,7 @@ function shortLabel(weekStart: string): string {
 
 export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const colors = useThemeColors();
+  const chart = useChartColors();
   const online = useIsOnline();
   const [group, setGroup] = useState<VolumeGroup>('chest');
 
@@ -68,7 +69,7 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const windowWeeks = weeks.slice(-WEEKS);
   const stackGroups = pickStackGroups(windowWeeks, group);
   const seriesColors: Record<string, string> = Object.fromEntries(
-    stackGroups.map((g, i) => [g, chartPalette[i % chartPalette.length] ?? colors.brand]),
+    stackGroups.map((g, i) => [g, chart.series[i % chart.series.length] ?? colors.brand]),
   );
   seriesColors[OTHER_KEY] = colors.labelTertiary;
   const hasOther = windowWeeks.some((w) =>
