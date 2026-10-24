@@ -124,6 +124,9 @@ function setup(opts: Opts = {}) {
               checkInEnabled: false,
               checkInDay: 6,
               checkInQuestions: [],
+              quietAfterDays: 3,
+              quietDigestEmail: false,
+              quietSeenAt: null,
             }
           : id === OTHER
             ? {
@@ -135,6 +138,9 @@ function setup(opts: Opts = {}) {
                 checkInEnabled: false,
                 checkInDay: 6,
                 checkInQuestions: [],
+                quietAfterDays: 3,
+                quietDigestEmail: false,
+                quietSeenAt: null,
               }
             : null,
       ),
@@ -147,6 +153,7 @@ function setup(opts: Opts = {}) {
     notices,
     requests: { clientRequest: vi.fn(async () => null) },
     bookings: { nextStartsByClient: vi.fn(async () => new Map<string, Date>()) },
+    foodLogs: { lastLoggedDates: vi.fn(async () => new Map<string, Date>()) },
     now: () => NOW,
   });
   return { service, links, content, notices };
@@ -383,6 +390,10 @@ describe('listClients', () => {
       keepItSimple: false,
       sharing: { food: false, weight: false },
       nextBookingAt: null,
+      // Lane K4: nothing logged for 7 days ≥ the trainer's 3.
+      lastActivityDate: '2026-09-30',
+      quietDays: 7,
+      quiet: true,
     });
     // The week is the trainer's device-local week (Mon 5 Oct – Sun 11 Oct).
     expect(content.countSessions).toHaveBeenCalledWith([CLIENT], '2026-10-05', '2026-10-11');
@@ -534,5 +545,34 @@ describe('food and weight sharing (lane K1)', () => {
     await expect(service.setSharing(CLIENT, { food: true }, 'web')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+describe('listClients: went quiet (lane K4)', () => {
+  const row = (over: Partial<ActiveLinkWithClient> = {}): ActiveLinkWithClient => ({
+    ...link(),
+    client: { id: CLIENT, firstName: 'Maria', lastName: 'Pop', name: null },
+    ...over,
+  });
+
+  it('a shared food log counts as activity; an unshared one never does', async () => {
+    const { service, links, content } = setup();
+    vi.mocked(content.lastWorkoutDates).mockResolvedValue(new Map([[CLIENT, '2026-09-30']]));
+    const foodLogs = (
+      service as unknown as { deps: { foodLogs: { lastLoggedDates: ReturnType<typeof vi.fn> } } }
+    ).deps.foodLogs;
+    foodLogs.lastLoggedDates.mockResolvedValue(
+      new Map([[CLIENT, new Date('2026-10-06T00:00:00Z')]]),
+    );
+
+    links.listActiveForTrainer.mockResolvedValue([row({ shareFoodAt: NOW })]);
+    const [shared] = await service.listClients(TRAINER, '2026-10-07');
+    expect(shared).toMatchObject({ lastActivityDate: '2026-10-06', quietDays: 1, quiet: false });
+    expect(foodLogs.lastLoggedDates).toHaveBeenLastCalledWith([CLIENT], expect.any(Date));
+
+    links.listActiveForTrainer.mockResolvedValue([row({ shareFoodAt: null })]);
+    const [unshared] = await service.listClients(TRAINER, '2026-10-07');
+    expect(foodLogs.lastLoggedDates).toHaveBeenLastCalledWith([], expect.any(Date));
+    expect(unshared).toMatchObject({ lastActivityDate: '2026-09-30', quiet: true });
   });
 });

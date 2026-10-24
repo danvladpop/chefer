@@ -124,7 +124,11 @@ export function ModeProvider({
       trainerModeAvailable: trainer.available,
       trainerModeLoading: trainer.isLoading,
       trainerBadges: badges,
-      navBadges: mode === 'trainer' && badges ? { '/trainer/clients': badges.requests } : NO_BADGES,
+      // Lane K4: Today's badge = clients who went quiet since the trainer last opened Today.
+      navBadges:
+        mode === 'trainer' && badges
+          ? { '/trainer/clients': badges.requests, '/trainer/today': badges.quietClients ?? 0 }
+          : NO_BADGES,
     }),
     [
       mode,

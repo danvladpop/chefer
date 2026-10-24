@@ -1,5 +1,6 @@
 import { useCoachingAvailability } from '@/features/coaching/use-coaching-availability';
 import { useFlagsState } from '@/features/flags/use-flags';
+import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
 import { trpc } from '@/lib/trpc';
 import { TRAINER_MODE_LIMITS, type TrainerBadgesDto } from '@chefer/types';
@@ -30,13 +31,17 @@ export function useTrainerMode(): TrainerModeState {
     flag: flags.trainerMode,
     trainerActive: status.active,
   });
-  const badges = trpc.trainer.badges.useQuery(undefined, {
-    enabled: available,
-    refetchInterval: TRAINER_MODE_LIMITS.badgePollMs,
-    refetchIntervalInBackground: false,
-    retry: false,
-    staleTime: 30_000,
-  });
+  // Lane K4: the browser's local day judges who is quiet (an older API ignores it).
+  const badges = trpc.trainer.badges.useQuery(
+    { today: localDate() },
+    {
+      enabled: available,
+      refetchInterval: TRAINER_MODE_LIMITS.badgePollMs,
+      refetchIntervalInBackground: false,
+      retry: false,
+      staleTime: 30_000,
+    },
+  );
   return {
     available,
     isLoading:

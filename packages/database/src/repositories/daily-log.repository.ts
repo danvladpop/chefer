@@ -80,6 +80,11 @@ export interface IDailyLogRepository {
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
   /** Lane K: the user's logs from `from` to `to` (both UTC-midnight `@db.Date` days, inclusive), oldest first. */
   findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
+  /**
+   * Lane K4: per user, the latest `@db.Date` on or after `since` with at least one logged entry.
+   * Users with none are missing from the map.
+   */
+  lastLoggedDates(userIds: readonly string[], since: Date): Promise<Map<string, Date>>;
   upsert(data: UpsertDailyLogData): Promise<DailyLog>;
   /**
    * Read-modify-write of one day's entries in a SERIALIZABLE transaction,
@@ -158,6 +163,22 @@ export class DailyLogRepository implements IDailyLogRepository {
       where: { userId, date: { gte: from, lte: to } },
       orderBy: { date: 'asc' },
     });
+  }
+
+  async lastLoggedDates(userIds: readonly string[], since: Date): Promise<Map<string, Date>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await prisma.dailyLog.findMany({
+      where: { userId: { in: [...userIds] }, date: { gte: since } },
+      select: { userId: true, date: true, loggedMeals: true },
+      orderBy: { date: 'desc' },
+    });
+    const out = new Map<string, Date>();
+    for (const row of rows) {
+      if (out.has(row.userId)) continue;
+      if (Array.isArray(row.loggedMeals) && row.loggedMeals.length > 0)
+        out.set(row.userId, row.date);
+    }
+    return out;
   }
 
   async upsert(data: UpsertDailyLogData): Promise<DailyLog> {

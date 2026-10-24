@@ -4,6 +4,7 @@ import {
   coachingContentRepository,
   coachingInviteRepository,
   coachingLinkRepository,
+  dailyLogRepository,
   gymProfileRepository,
   trainerProfileRepository,
   type CoachingLink,
@@ -11,6 +12,7 @@ import {
   type ICoachingContentRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
+  type IDailyLogRepository,
   type IGymProfileRepository,
   type ITrainerProfileRepository,
 } from '@chefer/database';
@@ -20,6 +22,7 @@ import {
   COACHING_LIMITS,
   FALLBACK_TRAINER_NAME,
   LEGAL_VERSIONS,
+  QUIET_LIMITS,
   TRAINER_MODE_API_LEVEL,
   type ClientRowDto,
   type CoachingShareChoice,
@@ -30,8 +33,10 @@ import {
 import {
   addDaysLocal,
   daysBetweenLocal,
+  dbDateKey,
   displayNameOf,
   goalForWeek,
+  quietState,
   weekStartOf,
 } from '@chefer/utils';
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
@@ -68,6 +73,8 @@ export interface CoachingLinkDeps {
   requests: Pick<CoachingRequestService, 'clientRequest'>;
   /** Trainer mode M3: each client row's next booking (`ClientRowDto.nextBookingAt`). */
   bookings: Pick<IBookingRepository, 'nextStartsByClient'>;
+  /** Lane K4: the last food log of clients who share it (quiet = nothing logged). */
+  foodLogs: Pick<IDailyLogRepository, 'lastLoggedDates'>;
   now: () => Date;
 }
 
@@ -80,6 +87,7 @@ const defaultDeps: CoachingLinkDeps = {
   notices: coachingNoticeService,
   requests: coachingRequestService,
   bookings: bookingRepository,
+  foodLogs: dailyLogRepository,
   now: () => new Date(),
 };
 
@@ -281,23 +289,53 @@ export class CoachingLinkService {
    * handful of queries however many clients.
    */
   async listClients(trainerId: string, today: string | undefined): Promise<ClientRowDto[]> {
+    return (await this.clientRowsWithQuiet(trainerId, today)).rows;
+  }
+
+  /**
+   * Lane K4: the client rows plus, per client, the first day they counted as
+   * quiet (`trainer.badges` counts those after the trainer last looked).
+   */
+  async clientRowsWithQuiet(
+    trainerId: string,
+    today: string | undefined,
+  ): Promise<{ rows: ClientRowDto[]; quietSince: Map<string, string> }> {
     const day = today ?? serverToday(this.deps.now());
     const links = await this.deps.links.listActiveForTrainer(trainerId);
-    if (links.length === 0) return [];
+    if (links.length === 0) return { rows: [], quietSince: new Map() };
     const ids = links.map((l) => l.clientId);
     const weekStart = weekStartOf(day);
-    const [last, counts, profiles, stamps, nextBookings] = await Promise.all([
+    // Lane K4: food counts as activity only for clients who share their food log.
+    const foodSharers = links.filter((l) => l.shareFoodAt != null).map((l) => l.clientId);
+    const foodSince = new Date(
+      `${addDaysLocal(day, -QUIET_LIMITS.activityWindowDays)}T00:00:00.000Z`,
+    );
+    const [last, counts, profiles, stamps, nextBookings, trainer, food] = await Promise.all([
       this.deps.content.lastWorkoutDates(ids),
       this.deps.content.countSessions(ids, weekStart, addDaysLocal(weekStart, 6)),
       this.deps.content.gymProfiles(ids),
       this.deps.content.activeRoutineStamps(ids),
       this.deps.bookings.nextStartsByClient(trainerId, ids, this.deps.now()),
+      this.deps.trainers.find(trainerId),
+      this.deps.foodLogs.lastLoggedDates(foodSharers, foodSince),
     ]);
-    return links.map((link) => {
+    const quietAfterDays = trainer?.quietAfterDays ?? QUIET_LIMITS.defaultDays;
+    const quietSince = new Map<string, string>();
+    const rows = links.map((link) => {
       const profile = profiles.get(link.clientId);
       const lastWorkoutDate = last.get(link.clientId) ?? null;
       const stamp = stamps.get(link.clientId);
       const goalHistory = profile ? readGoalHistory(profile.goalHistory) : [];
+      // Never a food date for a client who doesn't share it, whatever the read returned.
+      const foodDate = link.shareFoodAt != null ? food.get(link.clientId) : undefined;
+      const quiet = quietState({
+        lastWorkoutDate,
+        lastFoodDate: foodDate ? dbDateKey(foodDate) : null,
+        startDay: linkStartDay(link),
+        today: day,
+        quietAfterDays,
+      });
+      quietSince.set(link.clientId, quiet.quietSince);
       return {
         clientId: link.clientId,
         name: displayNameOf(link.client),
@@ -317,8 +355,12 @@ export class CoachingLinkService {
         keepItSimple: keepItSimple(profile),
         nextBookingAt: nextBookings.get(link.clientId)?.toISOString() ?? null,
         sharing: clientSharingOf(link),
+        lastActivityDate: quiet.lastActivityDate,
+        quietDays: quiet.quietDays,
+        quiet: quiet.quiet,
       };
     });
+    return { rows, quietSince };
   }
 
   private async trainerName(trainerId: string): Promise<string> {

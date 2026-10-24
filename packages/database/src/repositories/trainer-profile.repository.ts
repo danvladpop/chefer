@@ -66,6 +66,22 @@ export interface ITrainerProfileRepository {
     userId: string,
     data: { enabled: boolean; day: number; questions: string[] },
   ): Promise<TrainerProfile | null>;
+  /** Lane K4: the "went quiet" threshold and digest switch. Null when the trainer is not active. */
+  saveAlertsConfig(
+    userId: string,
+    data: { quietAfterDays: number; quietDigestEmail: boolean },
+  ): Promise<TrainerProfile | null>;
+  /** Lane K4: the trainer looked at Today (clears the quiet badge). */
+  markQuietSeen(userId: string, at: Date): Promise<void>;
+  /** Lane K4: the digest email's one-click unsubscribe. */
+  setQuietDigestEmail(userId: string, on: boolean): Promise<boolean>;
+  /** Lane K4: active trainers with the digest on, a confirmed address and no `email_sends` claim for (kind, date). */
+  listDigestRecipients(data: {
+    kind: string;
+    claimDate: Date;
+  }): Promise<
+    { userId: string; email: string; firstName: string | null; quietAfterDays: number }[]
+  >;
 }
 
 export class TrainerProfileRepository implements ITrainerProfileRepository {
@@ -97,6 +113,53 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
         activatedAt: new Date(),
       },
     });
+  }
+
+  async saveAlertsConfig(
+    userId: string,
+    data: { quietAfterDays: number; quietDigestEmail: boolean },
+  ): Promise<TrainerProfile | null> {
+    const res = await prisma.trainerProfile.updateMany({
+      where: { userId, disabledAt: null },
+      data,
+    });
+    return res.count === 0 ? null : this.find(userId);
+  }
+
+  async markQuietSeen(userId: string, at: Date): Promise<void> {
+    await prisma.trainerProfile.updateMany({ where: { userId }, data: { quietSeenAt: at } });
+  }
+
+  async setQuietDigestEmail(userId: string, on: boolean): Promise<boolean> {
+    const res = await prisma.trainerProfile.updateMany({
+      where: { userId },
+      data: { quietDigestEmail: on },
+    });
+    return res.count > 0;
+  }
+
+  async listDigestRecipients(data: { kind: string; claimDate: Date }) {
+    const rows = await prisma.trainerProfile.findMany({
+      where: {
+        disabledAt: null,
+        quietDigestEmail: true,
+        user: {
+          emailVerified: { not: null },
+          emailSends: { none: { kind: data.kind, weekStart: data.claimDate } },
+        },
+      },
+      select: {
+        userId: true,
+        quietAfterDays: true,
+        user: { select: { email: true, firstName: true } },
+      },
+    });
+    return rows.map((r) => ({
+      userId: r.userId,
+      email: r.user.email,
+      firstName: r.user.firstName,
+      quietAfterDays: r.quietAfterDays,
+    }));
   }
 
   /** Lane K3: the weekly check-in config. Null when the trainer is not active. */

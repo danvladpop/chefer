@@ -6261,6 +6261,20 @@ The questions are a fixed catalogue (no free text from the trainer in a client's
 text, never sent to AI or analytics. Analytics: `check_in_config_saved { enabled, questions }`,
 `check_in_submitted { questions, withNote, edit }`.
 
+**"Client went quiet" (K4).**
+
+```
+Trainer settings → "Client alerts"   Tell me when a client goes quiet after [1·2·3·5·7·14] days (default 3)
+                                     [ ] Email me a daily summary
+quiet = no workout logged, and no food logged for clients who SHARE their food log, for N days
+        (a client who doesn't share food is never judged by food: the trainer learns nothing from it)
+  Clients list   "Nothing logged for 4 days" badge (trainer.clients.list → quiet / quietDays)
+  Today          "Quiet clients" stat ("3+ days with nothing logged") and the rows under Needs attention
+  badge          Today tab (mobile trainer mode) / Today nav item (web): quiet since the trainer last
+                 opened Today; opening Today calls trainer.quiet.markSeen
+  email          07:00 UTC, once a day, only when someone is quiet: names and days, nothing else
+```
+
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
 
 Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.
