@@ -4151,6 +4151,51 @@ the rule that a level is only ever sent by a bundle that implements it. **Not do
 rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
 mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
 
+### 22.3 Workout import from Strong / Hevy (G2, market review 2026-10)
+
+> **Status:** web, 2026-10-23. Mobile needs a file picker the current binary lacks
+> (`expo-document-picker`, lane C) — `mobile_parity_backlog.md`.
+
+Importing a Strong export is how lifters switch apps. Imported workouts are ordinary COMPLETED
+sessions, so PRs, e1RM charts, progression, history and the CSV export all see them.
+
+```
+Gym settings → "Import workouts" → /gym/import
+  │  choose the CSV (read in the browser, ≤ 5 MB of text)
+  ├─ gym.import.preview { csv, weightUnit? }          (30 per 10 min)
+  │     parseWorkoutCsv (@chefer/utils, pure): Strong A/B/C or Hevy, by header
+  │       Strong "Set Order": 1..N / W warm-up / D drop / F failure kept;
+  │       "Rest Timer" rows dropped; "Note" rows → the exercise's notes
+  │       weights → kg (header unit, per-row unit, or the user's answer)
+  │     → needs_unit   older Strong file with no unit anywhere → "kg or lb?" → preview again
+  │     → invalid      empty / not a Strong or Hevy export / no workouts
+  │     → ready        counts, date range, alreadyImported, one review row per exercise name:
+  │                    matched (certain) | suggested (best guess) | unmatched
+  │                    ImportExerciseMatcher: own custom of that name → curated alias table
+  │                    → "<equipment> <movement>" / grip variants / movement (same equipment)
+  │                    → fuzzy word overlap (suggested only, never auto-certain)
+  ├─ review: doubtful rows first, matched rows folded away; each row:
+  │     the match / an alternative / "Pick another exercise…" / "Create as my own exercise"
+  │     (+ main muscle) / "Don't import"
+  └─ gym.import.commit { csv, weightUnit?, timeZone, mappings[] }   (5 per 10 min)
+        create customs (equipment + tracking inferred from the file; reuses one of the same name)
+        build COMPLETED docs: no routine (rotation never moves), wall-clock start placed in
+        the device's time zone, finishedAt = start + duration, every set ticked, warm-ups
+        kept, last working set's RPE → lastSetRir, ≤ 20 sets / 30 exercises (rest counted
+        as `trimmedSets`)
+        ids = UUIDv5(user | source | date+time | title) → WorkoutSessionService.importDocs:
+          a session id that already exists is never written (re-import = no-op; a session
+          edited since is never overwritten), `importSource` = STRONG | HEVY is set,
+          progression.recompute once at the end
+        → { imported, alreadyImported, skippedWorkouts, createdExercises, trimmedSets }
+     → "Imported 120 workouts from Strong." + links to history and progress;
+        event workout_import_completed { source, workoutsBucket, createdExercises, reimport }
+```
+
+`WorkoutSession.importSource` marks imported rows. Rewards (Chef XP, the Flame — gamification)
+skip them; nothing else treats them differently. A phone editing an imported session later writes
+through `upsertMany`, which leaves the marker as it is.
+
 ---
 
 ## 23. Weekly Emails & Notifications Flow (P2-5)

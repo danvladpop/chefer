@@ -490,6 +490,7 @@ function session(
     rotationAppliedAt: null,
     loggedById: null,
     bookingId: null,
+    importSource: null,
     workoutType: null,
     createdAt: startedAt,
     updatedAt: startedAt,

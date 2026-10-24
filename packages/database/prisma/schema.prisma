@@ -1554,6 +1554,10 @@ model WorkoutSession {
   loggedById        String?
   /// The booking it was coached in, if any (no FK: bookings are pruned with the coaching link).
   bookingId         String?
+  /// G2 workout import: the app the session came from (Strong / Hevy CSV);
+  /// null for everything logged in Chefer. Rewards (Chef XP, the Flame) skip
+  /// imported sessions; history, PRs and progression treat them as any other.
+  importSource      WorkoutImportSource?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -1564,6 +1568,12 @@ model WorkoutSession {
   @@index([userId, localDate])
   @@index([userId, status])
   @@map("workout_sessions")
+}
+
+/// G2: where an imported WorkoutSession came from.
+enum WorkoutImportSource {
+  STRONG
+  HEVY
 }
 
 model SessionExercise {
