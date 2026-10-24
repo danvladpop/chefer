@@ -207,6 +207,20 @@ _Avoid_: notifications setting
 A cook-mode session the user finished, stored on the server as a CookLog.
 _Avoid_: made it (the button), cooking session
 
+## Health sync
+
+**Health sync**:
+Chefer exchanging data with the phone's health store — Apple Health on iOS, Health Connect on Android — one data type at a time, each switched on by the user.
+_Avoid_: Health integration, HealthKit sync, Google Fit
+
+**Health store**:
+The phone's shared health database: Apple Health (HealthKit) or Health Connect.
+_Avoid_: Health app, health provider
+
+**Imported weigh-in**:
+A weigh-in read from the health store (a smart scale, another app). It is an ordinary weigh-in in Chefer, marked with its source; the same sample is never imported twice.
+_Avoid_: Synced weight, external weight
+
 ## Appearance
 
 **Appearance**:

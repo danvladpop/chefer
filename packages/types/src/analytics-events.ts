@@ -1,3 +1,4 @@
+import type { HealthPlatform, HealthSyncType } from './health-sync';
 import type { PremiumJobId, PremiumSource } from './plan-features';
 import type { PlanSlot } from './plan-shape';
 
@@ -221,6 +222,11 @@ export interface EventMap {
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
 
+  // ─── Health sync (C2, Apple Health / Health Connect) ─────────────────────────
+  /** A data type switched on or off on the "Connect health" screen. */
+  health_sync_toggled: { platform: HealthPlatform; type: HealthSyncType; on: boolean };
+  /** One import run: counts only, never weights. */
+  health_weights_imported: { platform: HealthPlatform; imported: number; skipped: number };
   // ─── Funnel (market review 2026-10, lane B) — counts and enums only ──────────
   /** Shopping items ticked as bought (`items` > 1 when a whole group is ticked); never on un-tick. */
   list_item_checked: { items: number };

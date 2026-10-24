@@ -53,6 +53,7 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  type ImportedWeightEntryData,
   ChefReviewRepository,
   chefReviewRepository,
   type IChefReviewRepository,
