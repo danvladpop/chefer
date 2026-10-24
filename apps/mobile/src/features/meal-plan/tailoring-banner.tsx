@@ -2,7 +2,14 @@ import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import type { PlanTailoring } from '@chefer/types';
-import { Button, colors, duration, ProgressBar, Text, useReducedMotion } from '@chefer/ui-mobile';
+import {
+  Button,
+  duration,
+  ProgressBar,
+  Text,
+  useReducedMotion,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   PLAN_TAILORING_COPY,
@@ -32,25 +39,25 @@ const TONE = {
     box: 'border-primary/20 bg-accent',
     title: 'text-primary',
     icon: 'restaurant-outline',
-    tint: colors.primary,
+    tint: 'brand',
   },
   done: {
-    box: 'border-emerald-200 bg-emerald-50',
-    title: 'text-emerald-800',
+    box: 'border-positive/30 bg-positive/10',
+    title: 'text-positive',
     icon: 'checkmark-circle-outline',
-    tint: colors.success,
+    tint: 'positive',
   },
   partial: {
-    box: 'border-amber-200 bg-amber-50',
-    title: 'text-amber-900',
+    box: 'border-attention/30 bg-attention/10',
+    title: 'text-attention',
     icon: 'sparkles-outline',
-    tint: colors.warning,
+    tint: 'attention',
   },
   failed: {
-    box: 'border-border bg-gray-50',
-    title: 'text-gray-800',
+    box: 'border-border bg-surface-sunken',
+    title: 'text-label',
     icon: 'sparkles-outline',
-    tint: colors.mutedForeground,
+    tint: 'labelTertiary',
   },
 } as const;
 
@@ -62,6 +69,7 @@ export function TailoringBanner({
 }: TailoringBannerProps) {
   // MO-13: a gentle fade on appearance; instant under Reduce Motion.
   const reducedMotion = useReducedMotion();
+  const colors = useThemeColors();
   const text = tailoringBannerText(tailoring);
   if (!text || !shouldShowTailoringBanner(tailoring, sawRunning)) return null;
   const tone = TONE[text.tone];
@@ -77,7 +85,7 @@ export function TailoringBanner({
       className={cn('mx-4 mb-2 gap-2 rounded-xl border px-3 py-3', tone.box)}
     >
       <View className="flex-row items-start gap-2">
-        <Ionicons name={tone.icon} size={16} color={tone.tint} style={{ marginTop: 2 }} />
+        <Ionicons name={tone.icon} size={16} color={colors[tone.tint]} style={{ marginTop: 2 }} />
         <View className="min-w-0 flex-1">
           <Text testID="plan-tailoring-title" className={cn('text-sm font-semibold', tone.title)}>
             {text.title}
@@ -88,7 +96,7 @@ export function TailoringBanner({
             ) : null}
           </Text>
           {text.tone !== 'running' ? (
-            <Text className="mt-0.5 text-xs text-gray-700">{text.detail}</Text>
+            <Text className="mt-0.5 text-xs text-label-secondary">{text.detail}</Text>
           ) : null}
         </View>
       </View>
@@ -100,7 +108,7 @@ export function TailoringBanner({
             accessibilityLabel={`${done} of ${total} days tailored`}
             className="h-1.5 bg-primary/10"
           />
-          <Text className="text-xs text-gray-600">{PLAN_TAILORING_COPY.runningHint}</Text>
+          <Text className="text-xs text-label-secondary">{PLAN_TAILORING_COPY.runningHint}</Text>
         </>
       ) : null}
       {action ? (
@@ -110,7 +118,7 @@ export function TailoringBanner({
           size="sm"
           loading={resuming}
           onPress={onResume}
-          className="self-start bg-white"
+          className="self-start bg-surface"
         >
           {action}
         </Button>
@@ -131,13 +139,14 @@ export function TailoringDayMark({
   state: TailoringDayState;
   selected: boolean;
 }) {
+  const colors = useThemeColors();
   if (state === 'tailored') {
     return (
       <Ionicons
         testID="tailor-mark-tailored"
         name="checkmark"
         size={12}
-        color={selected ? colors.primaryForeground : colors.success}
+        color={selected ? colors.onBrand : colors.positive}
       />
     );
   }
@@ -145,7 +154,7 @@ export function TailoringDayMark({
     return (
       <View
         testID="tailor-mark-tailoring"
-        className={cn('h-2 w-2 rounded-full', selected ? 'bg-white' : 'bg-primary')}
+        className={cn('h-2 w-2 rounded-full', selected ? 'bg-brand-on' : 'bg-primary')}
       />
     );
   }
@@ -155,7 +164,7 @@ export function TailoringDayMark({
         testID="tailor-mark-waiting"
         className={cn(
           'h-2 w-2 rounded-full border',
-          selected ? 'border-white/80' : 'border-primary/50',
+          selected ? 'border-brand-on/80' : 'border-primary/50',
         )}
       />
     );

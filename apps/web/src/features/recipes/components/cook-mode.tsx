@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { CookFinishedProgress, useFinishCook } from '@/features/progress/cook-finish';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import {
   handleRebalanceOutcome,
@@ -181,6 +182,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     finishedTracked.current = true;
     capture('cook_finished', {});
   }, [finished]);
+  // Kitchen progress: the cook is recorded once, for everyone (D1).
+  const finishCook = useFinishCook(recipeId, finished);
   // UX-COOK-05: the recipe page's chosen servings, when it passed any.
   const [servings, setServings] = useState<number | null>(() =>
     parseServingsParam(searchParams.get('servings')),
@@ -377,6 +380,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
               : t('cook.finish.logPrompt')}
           </p>
         </div>
+
+        {/* Kitchen progress: the receipt + Biscuit's line, only when it's on. */}
+        <CookFinishedProgress result={finishCook.data} />
 
         {!logged ? (
           <div

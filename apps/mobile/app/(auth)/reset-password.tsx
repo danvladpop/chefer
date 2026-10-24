@@ -5,7 +5,14 @@ import type { TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  PasswordInput,
+  Text,
+  useScrollFieldIntoView,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
 import { isResetLinkInvalidError } from '../../src/features/auth/errors';
@@ -71,6 +78,7 @@ function ResetPasswordForm({
   token: string;
   onStage: (stage: ResetStage) => void;
 }) {
+  const colors = useThemeColors();
   const { t } = useT();
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
@@ -117,7 +125,7 @@ function ResetPasswordForm({
     return (
       <Card className="gap-3" testID="reset-password-done">
         <View className="items-center" accessibilityElementsHidden>
-          <Ionicons name="checkmark-circle-outline" size={32} color="#944a00" />
+          <Ionicons name="checkmark-circle-outline" size={32} color={colors.brand} />
         </View>
         <Text className="text-center">{t('auth.reset.done')}</Text>
         <Button testID="reset-password-to-login" onPress={backToLogin}>

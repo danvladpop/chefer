@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
-import { duration, useReducedMotion } from '@chefer/ui-mobile';
+import { duration, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { PersonRow } from '../components/person-row';
 import { RelationButton } from '../components/relation-button';
 import { useDismissSuggestion } from './use-dismiss-suggestion';
@@ -32,6 +32,7 @@ export function suggestionReasonText(person: SuggestionRowData): string {
 }
 
 export function SuggestionRow({ person }: { person: SuggestionRowData }) {
+  const colors = useThemeColors();
   const dismiss = useDismissSuggestion();
   const reduced = useReducedMotion();
   return (
@@ -62,7 +63,7 @@ export function SuggestionRow({ person }: { person: SuggestionRowData }) {
               onPress={() => void dismiss(person)}
               className="h-11 w-11 items-center justify-center"
             >
-              <Ionicons name="close" size={18} color="#6b7280" />
+              <Ionicons name="close" size={18} color={colors.labelTertiary} />
             </Pressable>
           </View>
         }

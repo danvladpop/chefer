@@ -59,7 +59,7 @@ export function WeekOutlook({
         />
       ) : (
         <>
-          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             Weekly Outlook
           </Text>
           <ScrollView
@@ -78,13 +78,13 @@ export function WeekOutlook({
                   onPress={() => setSelectedDayIdx(isSelected ? null : day.idx)}
                   className={cn(
                     'w-[52px] items-center gap-1 rounded-xl py-3',
-                    isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-gray-50',
+                    isToday ? 'bg-primary' : isSelected ? 'bg-accent' : 'bg-surface-sunken',
                   )}
                 >
                   <Text
                     className={cn(
                       'text-xs font-semibold uppercase',
-                      isToday ? 'text-primary-foreground' : 'text-gray-600',
+                      isToday ? 'text-primary-foreground' : 'text-label-secondary',
                     )}
                   >
                     {day.label}
@@ -92,7 +92,7 @@ export function WeekOutlook({
                   <Text
                     className={cn(
                       'text-sm font-bold',
-                      isToday ? 'text-primary-foreground' : 'text-gray-700',
+                      isToday ? 'text-primary-foreground' : 'text-label-secondary',
                     )}
                   >
                     {day.num}
@@ -100,7 +100,7 @@ export function WeekOutlook({
                   <View
                     className={cn(
                       'h-1.5 w-1.5 rounded-full',
-                      !day.hasMeals ? 'bg-transparent' : isToday ? 'bg-white/70' : 'bg-primary',
+                      !day.hasMeals ? 'bg-transparent' : isToday ? 'bg-brand-on/70' : 'bg-primary',
                     )}
                   />
                 </Pressable>
@@ -112,31 +112,31 @@ export function WeekOutlook({
 
       {selected && (
         <View className="mt-4 border-t border-border pt-4">
-          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             {selectedDayIdx === todayIdx
               ? "Today's Meals"
               : `${selected.label} ${selected.num}${(selectedDayIdx ?? 0) < todayIdx ? ' — Past' : ' — Upcoming'}`}
           </Text>
           {selectedMeals.length === 0 ? (
-            <View className="rounded-xl bg-gray-50 px-4 py-3">
-              <Text className="text-sm text-gray-500">No meals planned for this day.</Text>
+            <View className="rounded-xl bg-surface-sunken px-4 py-3">
+              <Text className="text-sm text-label-tertiary">No meals planned for this day.</Text>
             </View>
           ) : (
             <View className="gap-2">
               {selectedMeals.map((meal) => (
                 <View
                   key={`${meal.mealType}-${meal.recipeId}`}
-                  className="flex-row items-center gap-3 rounded-xl border border-border bg-gray-50 p-2.5"
+                  className="flex-row items-center gap-3 rounded-xl border border-border bg-surface-sunken p-2.5"
                 >
                   <RecipeImage imageUrl={meal.imageUrl} className="h-12 w-12 rounded-lg" />
                   <View className="min-w-0 flex-1 gap-0.5">
                     <MealTypeBadge mealType={meal.mealType} />
-                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
                       {meal.recipeName}
                     </Text>
                   </View>
                   {meal.kcal > 0 && !proteinOnly && (
-                    <Text className="text-xs text-gray-500">{meal.kcal} kcal</Text>
+                    <Text className="text-xs text-label-tertiary">{meal.kcal} kcal</Text>
                   )}
                 </View>
               ))}

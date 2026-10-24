@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useId, useRef } from 'react';
 import { Platform, TextInput, type TextInputProps } from 'react-native';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { useScrollFieldIntoView } from './keyboard-aware-scroll-view';
 import { hasNoReturnKey, KeyboardDoneBar } from './numeric-return-bar';
 
@@ -55,6 +56,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   },
   ref,
 ) {
+  const placeholderColor = useThemeColors().labelTertiary;
   const innerRef = useRef<TextInput | null>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const setRef = useCallback(
@@ -81,7 +83,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
           'min-h-11 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground',
           className,
         )}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor={placeholderColor}
         onFocus={(event) => {
           scrollFieldIntoView(innerRef.current);
           onFocus?.(event);

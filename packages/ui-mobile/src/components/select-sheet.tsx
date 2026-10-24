@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { cn } from '@chefer/utils';
+import { useThemeColors } from '../hooks/use-theme-colors';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
 import { Sheet } from './sheet';
@@ -290,13 +291,14 @@ function OtherInput({
   testID?: string | undefined;
   accessibilityLabel?: string | undefined;
 }) {
+  const placeholderColor = useThemeColors().labelTertiary;
   return (
     <TextInput
       testID={testID}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#9ca3af"
+      placeholderTextColor={placeholderColor}
       accessibilityLabel={accessibilityLabel ?? placeholder}
       autoFocus={!placeholder}
       returnKeyType="done"

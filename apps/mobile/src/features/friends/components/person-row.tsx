@@ -56,7 +56,7 @@ export function PersonRow({
     <>
       <Avatar name={person.displayName} seed={person.id} imageUrl={person.imageUrl} size="md" />
       <View className="min-w-0 flex-1">
-        <Text className="font-semibold text-gray-900" numberOfLines={2}>
+        <Text className="font-semibold text-label" numberOfLines={2}>
           {person.displayName}
         </Text>
         <TrainerTag trainer={person.trainer} testID={`${testID}-trainer`} />

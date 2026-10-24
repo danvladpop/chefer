@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, colors, Text } from '@chefer/ui-mobile';
+import { Button, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   describeProteinSnack,
@@ -70,6 +70,7 @@ function OfferCard({
   onApplied,
   className,
 }: Omit<RebalanceOfferProps, 'planId'> & { offer: RebalancePreviewLike }) {
+  const colors = useThemeColors();
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // WP-08: protein-only mode shows the protein change only, never a calorie figure.
@@ -121,26 +122,26 @@ function OfferCard({
       className={cn('gap-2 rounded-2xl border border-primary/20 bg-accent p-3', className)}
     >
       <View className="flex-row items-start gap-2">
-        <Ionicons name="color-wand-outline" size={18} color={colors.primary} />
+        <Ionicons name="color-wand-outline" size={18} color={colors.brand} />
         <View className="min-w-0 flex-1 gap-1">
-          <Text className="text-sm font-semibold text-gray-900">Rebalance your week?</Text>
+          <Text className="text-sm font-semibold text-label">Rebalance your week?</Text>
           {headline !== '' && (
-            <Text testID="rebalance-offer-headline" className="text-sm text-gray-800">
+            <Text testID="rebalance-offer-headline" className="text-sm text-label">
               {headline}
             </Text>
           )}
           {canApply && (
-            <Text testID="rebalance-offer-text" className="text-sm text-gray-800">
+            <Text testID="rebalance-offer-text" className="text-sm text-label">
               {proteinOnly ? proteinOnlyOfferCopy(offer.swaps) : rebalanceOfferCopy(offer)}
             </Text>
           )}
           {offer.snacks.length > 0 && (
             <View testID="rebalance-offer-snacks" className="gap-0.5">
-              <Text className="text-sm text-gray-800">
+              <Text className="text-sm text-label">
                 {canApply ? 'Or add a protein snack:' : 'A protein snack would help:'}
               </Text>
               {offer.snacks.map((snack) => (
-                <Text key={snack.id} className="text-sm text-gray-700">
+                <Text key={snack.id} className="text-sm text-label-secondary">
                   {`• ${proteinOnly ? describeSnackProteinOnly(snack) : describeProteinSnack(snack)}`}
                 </Text>
               ))}
@@ -151,13 +152,13 @@ function OfferCard({
               <Text
                 key={`${swap.dayOfWeek}-${swap.mealType}-${swap.slotIndex ?? ''}`}
                 testID={`rebalance-offer-detail-${i}`}
-                className="text-xs text-gray-600"
+                className="text-xs text-label-secondary"
               >
                 {swapDetail(swap, proteinOnly)}
               </Text>
             ))}
           {notice !== null && (
-            <Text testID="rebalance-offer-error" className="text-xs text-red-600">
+            <Text testID="rebalance-offer-error" className="text-xs text-danger">
               {notice}
             </Text>
           )}
@@ -254,6 +255,7 @@ export function RebalanceMyWeek({
   controller?: RebalanceCheck;
   className?: string;
 }) {
+  const colors = useThemeColors();
   const own = useRebalanceCheck(planId);
   const { state, check } = controller ?? own;
   const offer = useRebalanceOffer();
@@ -271,7 +273,7 @@ export function RebalanceMyWeek({
           loading={state === 'loading'}
           onPress={() => void check()}
         >
-          <Ionicons name="color-wand-outline" size={14} color={colors.primary} />
+          <Ionicons name="color-wand-outline" size={14} color={colors.brand} />
           <Text className="text-sm font-medium text-foreground">Rebalance my week</Text>
         </Button>
       )}
@@ -281,7 +283,7 @@ export function RebalanceMyWeek({
         </Text>
       )}
       {state === 'error' && (
-        <Text testID="rebalance-my-week-error" className="px-1 text-xs text-red-600">
+        <Text testID="rebalance-my-week-error" className="px-1 text-xs text-danger">
           Couldn&apos;t check your week just now. Try again.
         </Text>
       )}

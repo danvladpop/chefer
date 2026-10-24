@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, Sheet, Text } from '@chefer/ui-mobile';
+import { Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, PLAN_WEEK_COPY } from '@chefer/utils';
 import type { RebalanceCheckState } from '../tracker/rebalance-offer';
 import { useAfterSheetExit } from './after-sheet-exit';
@@ -92,6 +92,7 @@ function OptionRow({
   busy: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -106,13 +107,13 @@ function OptionRow({
       )}
     >
       {busy ? (
-        <ActivityIndicator size="small" color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.brand} />
       ) : (
-        <Ionicons name={icon} size={20} color={colors.primary} />
+        <Ionicons name={icon} size={20} color={colors.brand} />
       )}
       <View className="min-w-0 flex-1 gap-0.5">
-        <Text className="text-base font-medium text-gray-900">{title}</Text>
-        <Text testID={`${testID}-description`} className="text-sm text-gray-600">
+        <Text className="text-base font-medium text-label">{title}</Text>
+        <Text testID={`${testID}-description`} className="text-sm text-label-secondary">
           {description}
         </Text>
       </View>
