@@ -267,3 +267,4 @@ export type ErrorCode =
   | 'BAD_REQUEST'
   | 'RATE_LIMIT_EXCEEDED'
   | 'SERVICE_UNAVAILABLE';
+export * from './packaged-product';

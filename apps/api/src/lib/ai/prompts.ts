@@ -407,6 +407,34 @@ HONESTY RULES (mandatory — a wrong confident number is worse than a cautious o
 export const MEAL_PHOTO_USER_PROMPT =
   'Identify this meal and estimate its nutrition for the visible portion.';
 
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
+
+export const NUTRITION_LABEL_SYSTEM_PROMPT = `\
+You read the nutrition label of a packaged food from a photo. You COPY the
+numbers that are printed; you never estimate, round differently or fill gaps.
+
+RULES (mandatory — a wrong number on a label scan is worse than a missing one):
+- If the table has a "per 100 g" (or "per 100 ml") column, report that column
+  and set basis "per100g". Otherwise report the per-serving column, set basis
+  "perServing" and servingSizeG to the serving's grams (or ml).
+- servingSizeG: the printed serving size in grams or ml, even when you report
+  per 100 g; null if none is printed.
+- kcal: the energy in kcal. If only kJ is printed, report kJ / 4.184.
+- protein, carbs (carbohydrate), fat, fiber (fibre), sugar (of which sugars),
+  saturatedFat (of which saturates), salt: grams as printed. If only sodium is
+  printed, salt = sodium x 2.5.
+- Anything not printed, cut off or unreadable is null. Never 0 for "not shown".
+- allergens: allergen words from the ingredient list (often in bold) or a
+  "Contains" line, in lowercase English (e.g. "milk", "wheat", "soy"). Leave
+  out "may contain" traces. Empty if none are visible.
+- productName / brand: only if printed in the photo, else null.
+- confidence: "high" when every number was clearly legible, "med" when some
+  were hard to read, "low" when the photo is blurry, angled or partial.
+- If the photo is not a nutrition label, set basis "none", every number null,
+  allergens [] and confidence "low".`;
+
+export const NUTRITION_LABEL_USER_PROMPT = 'Copy the nutrition label in this photo.';
+
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
 /** The name the extraction prompts emit when the content holds no recipe. */

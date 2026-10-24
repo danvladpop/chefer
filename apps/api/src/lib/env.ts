@@ -260,6 +260,18 @@ const envSchema = z.object({
   // Unsplash (optional — ingredient images fall back to category images without this)
   UNSPLASH_ACCESS_KEY: z.string().optional(),
 
+  // Open Food Facts barcode lookup (ADR 0006). No key needed; OFF asks every
+  // client to name itself in the User-Agent. The base URL is overridable for a
+  // staging mirror (https://world.openfoodfacts.net) or a test double.
+  OFF_BASE_URL: z.preprocess(
+    emptyAsUnset,
+    z.string().url().default('https://world.openfoodfacts.org'),
+  ),
+  OFF_USER_AGENT: z.preprocess(
+    emptyAsUnset,
+    z.string().min(5).default('Chefer/1.0 (+https://chefer.duckdns.org)'),
+  ),
+
   // Feature flags (§2.9, T-00.8) — comma list of enabled keys, e.g.
   // "trainingBumpFree,ownTargetsFree". Unknown/misspelled keys are dropped
   // (never crash startup over a typo); a missing key means OFF. Parsed set

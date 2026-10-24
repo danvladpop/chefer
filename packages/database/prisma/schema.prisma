@@ -273,6 +273,8 @@ model User {
   // Phase 1 guardrails: the ledger of photos this user uploaded
   uploadedFiles UploadedFile[]
 
+  // Packaged foods (ADR 0006): products this user read off a label or typed in
+  packagedProducts PackagedProduct[]
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2): the ledger, cook log, totals, badges and quest sets
   progressEvents    ProgressEvent[]
   cookLogs          CookLog[]
@@ -1061,6 +1063,60 @@ enum NutritionSource {
   LABEL
   USER
   ADMIN
+}
+
+// ─── Packaged products (docs/adr/0006-packaged-products.md) ───────────────────
+// Branded, barcoded foods, kept apart from the reviewed ingredient catalog:
+// their numbers come from Open Food Facts or from a label, never from Chefer's
+// review. OFF rows are a shared cache (ownerId null, one per barcode, the
+// partial unique index in ensure-indexes.sql); LABEL and USER rows are private
+// to their owner and win over the cache for that owner's lookups.
+
+enum PackagedProductSource {
+  /// Open Food Facts (ODbL) — shown with "Data from Open Food Facts"
+  OFF
+  /// Read off a nutrition-label photo (premium AI), reviewed by the owner
+  LABEL
+  /// Typed in by the owner
+  USER
+}
+
+model PackagedProduct {
+  id                  String                @id @default(cuid())
+  /// GTIN digits (EAN-13, EAN-8, UPC-A); null for a USER product typed without one
+  barcode             String?
+  name                String
+  brand               String?
+  /// Per 100 g. null = the source does not say (never guessed, never 0)
+  kcalPer100g         Float?
+  proteinPer100g      Float?
+  carbsPer100g        Float?
+  fatPer100g          Float?
+  fiberPer100g        Float?
+  sugarPer100g        Float?
+  saturatedFatPer100g Float?
+  saltPer100g         Float?
+  servingSizeG        Float?
+  /// Chefer allergy taxonomy ids the product contains (safety-taxonomy.ts)
+  allergenTags        String[]              @default([])
+  /// Taxonomy ids it "may contain" (OFF traces)
+  traceTags           String[]              @default([])
+  /// false = "allergens unknown": the source lists none and can't vouch there are none
+  allergensKnown      Boolean               @default(false)
+  imageUrl            String?
+  source              PackagedProductSource
+  fetchedAt           DateTime              @default(now())
+  /// null = the shared OFF cache; set = private to this user (LABEL / USER)
+  ownerId             String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, barcode])
+  @@index([barcode])
+  @@index([ownerId])
+  @@map("packaged_products")
 }
 
 enum NutritionStatus {

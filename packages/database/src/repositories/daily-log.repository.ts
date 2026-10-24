@@ -47,6 +47,12 @@ export interface LoggedMealEntry {
    * clients see an ordinary custom entry (same `mealType`) and total it.
    */
   replacesSlot?: SlotRefJson | undefined;
+  /**
+   * A CUSTOM entry logged from a packaged product (ADR 0006): which product
+   * and how many grams. The numbers above are already scaled; older clients
+   * see an ordinary custom entry and total it.
+   */
+  product?: { id: string; grams: number } | undefined;
 }
 
 /** A plan slot of one day: the meal type and its index in the day's `meals`. */

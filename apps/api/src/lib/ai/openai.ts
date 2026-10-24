@@ -26,6 +26,8 @@ import {
   MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_DAY_CHUNK_RULES,
   MEAL_PLAN_SYSTEM_PROMPT,
+  NUTRITION_LABEL_SYSTEM_PROMPT,
+  NUTRITION_LABEL_USER_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
@@ -39,6 +41,7 @@ import {
   generatedRecipeSchema,
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
+  parseNutritionLabelResponse,
   recipeLineRepairResponseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
@@ -57,6 +60,7 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  NutritionLabelReading,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
@@ -279,6 +283,11 @@ const STRICT_JSON_INSTRUCTION =
 
 const MEAL_PHOTO_SHAPE =
   '{"dishName":string,"confidence":"low"|"med"|"high","kcal":number,"protein":number,"carbs":number,"fat":number,"portionNote":string}';
+
+const NUTRITION_LABEL_SHAPE =
+  '{"productName":string|null,"brand":string|null,"basis":"per100g"|"perServing"|"none","servingSizeG":number|null,' +
+  '"kcal":number|null,"protein":number|null,"carbs":number|null,"fat":number|null,"fiber":number|null,' +
+  '"sugar":number|null,"saturatedFat":number|null,"salt":number|null,"allergens":string[],"confidence":"low"|"med"|"high"}';
 
 const DAY_PLAN_SHAPE =
   `{"dayOfWeek":number (0=Monday…6=Sunday),` +
@@ -927,6 +936,19 @@ export class OpenAICompatibleAIService implements IAIService {
     });
     // Same bounds + rounding gate as the Gemini client.
     return parseMealPhotoResponse(raw);
+  }
+
+  async readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {
+    const raw = await this.completeRaw({
+      label: 'readNutritionLabel',
+      system: NUTRITION_LABEL_SYSTEM_PROMPT,
+      user: this.visionContent(imageBase64, mimeType, NUTRITION_LABEL_USER_PROMPT),
+      shape: NUTRITION_LABEL_SHAPE,
+      temperature: 0, // copying, not estimating
+      maxTokens: MAX_TOKENS_PHOTO,
+      model: this.config.visionModel,
+    });
+    return parseNutritionLabelResponse(raw);
   }
 
   /** Text or photo sources; photos use the vision model. */

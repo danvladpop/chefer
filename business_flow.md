@@ -5147,8 +5147,10 @@ chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
 `per100g`). "Enter calories yourself" is the old calories-only form, kept as
 the fallback when nothing matches — gated by the macro sanity check above
 (`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
-Never a branded product or barcode (B-29, AC6): the Ingredients group is
-Chefer's own catalog only.
+The Ingredients group is Chefer's own reviewed catalog only. B-29 ("never a
+branded product or barcode") was superseded on 2026-10-22 by ADR 0006:
+packaged products are logged too, as their own search group and the "Scan
+barcode" view (below), and never enter the catalog.
 
 **Edit any entry, undo any delete (bug B-34, T-19.2, both platforms).** Every
 custom entry (quick-add, photo scan) is tappable → `edit-entry-sheet.tsx` /
@@ -5175,6 +5177,58 @@ sheet naming the previous day (`yesterday`, or a short date further back) and
 calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
 `Undo` calls the new `tracker.deleteEntries` with the returned
 `copiedEntryIds` — deleting exactly the copies, never the originals.
+
+**Packaged products: barcode + label scan (ADR 0006, lane A1, both platforms).**
+Free barcode logging; the label scan is premium. Kept outside the reviewed
+ingredient catalog (`PackagedProduct` table, §6 of infrastructure.md).
+
+```
+Log sheet → "Scan barcode"
+  ├─ photo of the barcode (mobile: expo-image-picker camera/library; web: file
+  │    input with capture) → shrunk on the device → products.lookupBarcodePhoto
+  │    (base64) → zxing-wasm decodes EAN-13 / EAN-8 / UPC-A on the server
+  │    └─ nothing readable → { status: 'unreadable' } ("Try again closer, or type it")
+  └─ typed number → barcodeSchema (digits, GTIN check digit) → products.lookupBarcode
+products.lookupBarcode({ barcode })          ← also what lane C's live scanner calls
+  ├─ UPC-A padded to EAN-13 (one canonical form)
+  ├─ the user's own product (LABEL / USER)        → found, origin 'own'
+  ├─ cached OFF row fetched < 30 days ago          → found, origin 'cache'
+  ├─ Open Food Facts v2 GET /api/v2/product/{code} (User-Agent "Chefer/1.0 …",
+  │    ≤ 60/min, misses remembered 24 h) → normalised (missing = null, kcal
+  │    from kJ only) → upsert the shared cache row      → found, origin 'off'
+  ├─ not on OFF → { status: 'not_found', barcode }
+  └─ OFF down / rate-limited → stale cache row (stale: true) or SERVICE_UNAVAILABLE
+found → product card: allergen WARNINGS (owner + household allergies, and
+  diets such as vegan / dairy-free; Shellfish covers crustaceans + molluscs;
+  traces = "may contain") — never a block · allergen line ("Allergens
+  unknown — check the pack" when OFF can't say) · grams or servings with a
+  live preview (scaleProduct, the same function the server logs with) ·
+  "Data from Open Food Facts · ODbL" link on OFF rows
+  └─ Log → tracker.logProduct({ date, productId, amount: {unit:'g',grams} |
+       {unit:'serving',servings}, mealType, replacesSlot?, rebalanceMode })
+       → server scales per-100 g values (unknown macros → 0 g + unknownMacros),
+         refuses > 5,000 kcal, no serving size for servings, or no kcal
+       → appends a custom entry "Brand Name, 2 servings (60 g)" (estimatedBy
+         'manual') + product: { id, grams } → Recents carry productId
+not_found →
+  ├─ "Photograph the label" (premium; free users get the snap-scan pitch)
+  │    → AI consent ('meal-scan' sheet) → products.scanLabel (aiConsentProcedure)
+  │    → reserveMealScan (the Snap-to-Log quota; refunded on capacity failure)
+  │    → aiService.readNutritionLabel (vision workload) → copied numbers, per
+  │      serving converted to per 100 g, allergen words → taxonomy ids
+  │    → the review form (every number editable, notes + confidence shown)
+  └─ "Enter it yourself" (free) → the same form, blank, barcode kept
+  → products.create({ source: 'LABEL' | 'USER', … }) → private row (wins
+    over the cache for its owner) → product card → log as above
+Log sheet search (≥ 2 chars) → products.search → "Packaged products" group:
+  cached OFF rows + the user's own, own first, with a warning icon on clashes
+```
+
+Analytics (no barcode, name or brand ever): `barcode_scan { via }`,
+`barcode_found { source, allergenWarning }`, `barcode_not_found { via }`,
+`label_scan_saved { edited }`, `packaged_product_created { source }`,
+`packaged_product_logged { unit, allergenWarning }`, plus `meal_logged`
+(`quick` / `replaced`).
 
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,

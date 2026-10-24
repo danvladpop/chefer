@@ -15,6 +15,7 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  NutritionLabelReading,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
@@ -227,6 +228,18 @@ export class MockAIService implements IAIService {
     // index 4 is the ~1620 kcal feast that trips the rebalance threshold.
     const scenario = MEAL_PHOTO_SCENARIOS[imageBase64.length % MEAL_PHOTO_SCENARIOS.length];
     return { ...(scenario ?? DEFAULT_MEAL_PHOTO_SCENARIO) };
+  }
+
+  /**
+   * Packaged products (ADR 0006): a fixed oat-biscuit label read per serving,
+   * so the per-100 g conversion and the review step are drivable in mock mode.
+   */
+  async readNutritionLabel(
+    _imageBase64: string,
+    _mimeType: string,
+  ): Promise<NutritionLabelReading> {
+    await delay(400);
+    return { ...MOCK_NUTRITION_LABEL, allergens: [...MOCK_NUTRITION_LABEL.allergens] };
   }
 
   /**
@@ -594,6 +607,23 @@ export class MockAIService implements IAIService {
 // fixture; index 4 is the rebalance-trigger feast: ±15% of a 2000 kcal/day
 // week is 2100 kcal, so a 2310 kcal log on top of an on-target day trips
 // `rebalanceWeek` while a normal meal never does.
+
+export const MOCK_NUTRITION_LABEL: NutritionLabelReading = {
+  productName: 'Oat & Honey Biscuits',
+  brand: 'Mock Bakery',
+  basis: 'perServing',
+  servingSizeG: 25,
+  kcal: 118,
+  protein: 1.8,
+  carbs: 16.5,
+  fat: 4.9,
+  fiber: 1.2,
+  sugar: 6,
+  saturatedFat: 2.1,
+  salt: 0.12,
+  allergens: ['wheat', 'oats', 'milk'],
+  confidence: 'high',
+};
 
 const DEFAULT_MEAL_PHOTO_SCENARIO: MealPhotoEstimate = {
   dishName: 'Grilled chicken with rice and vegetables',

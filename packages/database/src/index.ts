@@ -317,6 +317,12 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
+  // Packaged products (ADR 0006)
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
   ProgressEventRepository,
   progressEventRepository,
@@ -473,6 +479,8 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  // Packaged products (ADR 0006)
+  PackagedProduct,
 } from '@prisma/client';
 export {
   AiCallType,
@@ -482,6 +490,7 @@ export {
   IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
+  PackagedProductSource,
   UserRole,
   PostStatus,
   Prisma,

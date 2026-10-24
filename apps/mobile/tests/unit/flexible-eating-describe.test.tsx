@@ -41,6 +41,7 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
     },
+    products: { search: { useQuery: () => ({ data: [], isFetching: false, isError: false }) } },
     ingredients: {
       search: {
         useQuery: () => ({

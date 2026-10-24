@@ -148,6 +148,32 @@ export interface MealPhotoEstimate {
   portionNote: string;
 }
 
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
+
+/**
+ * The numbers printed on a packaged food's nutrition table, copied, not
+ * estimated. `basis` says which column they came from; null = not printed or
+ * unreadable. The product service converts per-serving values to per 100 g.
+ */
+export interface NutritionLabelReading {
+  productName: string | null;
+  brand: string | null;
+  /** `none`: the photo isn't a readable nutrition label. */
+  basis: 'per100g' | 'perServing' | 'none';
+  servingSizeG: number | null;
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  sugar: number | null;
+  saturatedFat: number | null;
+  salt: number | null;
+  /** Allergen words as printed ("milk", "wheat"), lowercase English. */
+  allergens: string[];
+  confidence: 'low' | 'med' | 'high';
+}
+
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
 /**
@@ -376,6 +402,12 @@ export interface IAIService {
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
   /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
   analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;
+  /**
+   * Packaged products (ADR 0006): copies a nutrition label's numbers into a
+   * draft the user reviews. Same `vision` workload and Snap-to-Log quota as
+   * analyzeMealPhoto. Additive.
+   */
+  readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading>;
   /**
    * F5 Cheferize — extraction from page text, pasted text or a photo.
    * URL sources are fetched/stripped by the recipe-import service first;
