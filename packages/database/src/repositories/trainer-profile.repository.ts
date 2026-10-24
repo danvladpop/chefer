@@ -61,6 +61,11 @@ export interface ITrainerProfileRepository {
     userId: string,
     data: DeactivateTrainerData,
   ): Promise<{ endedClientIds: string[]; declinedClientIds: string[] }>;
+  /** Lane K3: the weekly check-in config. Null when the trainer is not active. */
+  saveCheckInConfig(
+    userId: string,
+    data: { enabled: boolean; day: number; questions: string[] },
+  ): Promise<TrainerProfile | null>;
 }
 
 export class TrainerProfileRepository implements ITrainerProfileRepository {
@@ -92,6 +97,22 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
         activatedAt: new Date(),
       },
     });
+  }
+
+  /** Lane K3: the weekly check-in config. Null when the trainer is not active. */
+  async saveCheckInConfig(
+    userId: string,
+    data: { enabled: boolean; day: number; questions: string[] },
+  ): Promise<TrainerProfile | null> {
+    const res = await prisma.trainerProfile.updateMany({
+      where: { userId, disabledAt: null },
+      data: {
+        checkInEnabled: data.enabled,
+        checkInDay: data.day,
+        checkInQuestions: data.questions,
+      },
+    });
+    return res.count === 0 ? null : this.find(userId);
   }
 
   async updateName(

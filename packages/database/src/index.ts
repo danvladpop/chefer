@@ -239,6 +239,12 @@ export {
   friendRecipeRepository,
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
+  // Lane K3: weekly check-ins
+  CoachingCheckInRepository,
+  coachingCheckInRepository,
+  type ICoachingCheckInRepository,
+  type UpsertCheckInData,
+  type CheckInEmailRecipient,
   // Trainer coaching (docs/trainer-platform/spec.md §5)
   TrainerProfileRepository,
   trainerProfileRepository,
@@ -456,6 +462,7 @@ export type {
   Notification,
   // Trainer coaching (docs/trainer-platform/spec.md §5.1)
   TrainerProfile,
+  CoachingCheckIn,
   WorkoutTemplate,
   WorkoutTemplateExercise,
   Booking,

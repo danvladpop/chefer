@@ -214,4 +214,6 @@ export interface EventMap {
     on: boolean;
     where: 'join' | 'request' | 'settings';
   };
+  check_in_config_saved: { enabled: boolean; questions: number };
+  check_in_submitted: { questions: number; withNote: boolean; edit: boolean };
 }

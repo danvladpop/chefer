@@ -12,6 +12,7 @@ import { Icon } from '../../../components/icon';
 import { clientBookingHref } from '../../trainer-mode/open-booking';
 import { useCoachingNotices } from '../api/use-coaching-notices';
 import { UpcomingBookingCard } from '../bookings/upcoming-booking';
+import { CheckInPrompt } from '../check-in/check-in-prompt';
 import { COACHING_MOBILE_COPY } from '../copy';
 import { clearPendingJoin, joinHref, usePendingJoin } from '../pending-join';
 import { routineHref } from '../routes';
@@ -31,6 +32,7 @@ import { NoticeCard } from './notice-card';
 // one-time consent v2 notice, and the booking notices — "Ana booked you for Tue 21 Oct, 18:00" (", every
 // week" for a series), moved, cancelled (with the reason), "Ana logged a workout for you" — each with
 // View (the booking, or the logged workout).
+// Lane K3: "Ana's weekly check-in" while one is open and unanswered (CheckInPrompt).
 // Shown wherever the client's training is: the old Gym Today, Train and Today's Training section. Gated on
 // `coaching.availability`: with the flag off nothing renders and nothing but `availability` is asked.
 // Mirrors apps/web/src/features/coaching/components/CoachingNotices.tsx.
@@ -92,6 +94,7 @@ export function CoachingNotices() {
     <>
       <UpcomingBookingCard />
       <ConsentUpdateNotice />
+      <CheckInPrompt />
     </>
   );
   if (cards.length === 0 && !joiningCode) return upcoming;

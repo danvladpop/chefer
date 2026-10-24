@@ -234,6 +234,8 @@ export default function RootLayout() {
                       <Stack.Screen name="coaching/bookings/[id]" />
                       {/* PRD 2026-10 §4.1: Find a trainer and a trainer's card ("Ask to coach me"). */}
                       <Stack.Screen name="coaching/find" />
+                      {/* Lane K3: the trainer's weekly check-in. */}
+                      <Stack.Screen name="coaching/check-in" />
                       <Stack.Screen name="coaching/trainers/[trainerId]" />
                     </Stack.Protected>
                     <Stack.Protected guard={token === null}>

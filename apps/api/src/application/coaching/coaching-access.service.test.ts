@@ -45,6 +45,9 @@ function setup(world: World) {
     activatedAt: new Date('2026-10-01T00:00:00Z'),
     gymLine: null,
     disabledAt: null,
+    checkInEnabled: false,
+    checkInDay: 6,
+    checkInQuestions: [],
   };
   const link: CoachingLink = {
     id: 'link1',

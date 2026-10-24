@@ -7,6 +7,8 @@
 // Tone (docs/gym/programming-research.md §4.3, applied to food too): never
 // guilt copy. A quiet week gets an encouraging line, not a scolding one.
 
+import { CHECK_IN_COPY } from '@chefer/types';
+
 export interface RenderedEmail {
   subject: string;
   text: string;
@@ -357,6 +359,45 @@ export function renderVerifyEmail(data: VerifyEmailData): RenderedEmail {
       preheader: 'One tap to get your weekly plan by email.',
       bodyHtml,
       footerHtml: "If you didn't create a Chefer account, ignore this email.",
+    }),
+  };
+}
+
+// ─── Lane K3: a trainer's weekly check-in ─────────────────────────────────────
+
+export interface CheckInEmailData {
+  firstName: string | null;
+  trainerName: string;
+  /** Where to answer (the web Today; the app opens it as a universal link when installed). */
+  answerUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** "Ana's weekly check-in": no question or answer in the email itself, only the way in. */
+export function renderCheckInEmail(data: CheckInEmailData): RenderedEmail {
+  const copy = CHECK_IN_COPY.email;
+  const body = copy.body(data.trainerName);
+  const text = [
+    greeting(data.firstName),
+    '',
+    body,
+    '',
+    `${copy.cta}: ${data.answerUrl}`,
+    '',
+    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+  ].join('\n');
+  const bodyHtml = [
+    paragraph(escapeHtml(greeting(data.firstName))),
+    paragraph(escapeHtml(body)),
+    `<p style="margin:0 0 16px;">${button(copy.cta, data.answerUrl)}</p>`,
+  ].join('');
+  return {
+    subject: copy.subject(data.trainerName),
+    text,
+    html: layout({
+      preheader: copy.preheader,
+      bodyHtml,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
     }),
   };
 }

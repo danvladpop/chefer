@@ -33,6 +33,9 @@ function setup(
         activatedAt: NOW,
         gymLine: gymLine ?? null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
       };
       return profile;
     }),
@@ -42,6 +45,7 @@ function setup(
       return profile;
     }),
     deactivate: vi.fn(async () => ({ endedClientIds: ['c1', 'c2'], declinedClientIds: ['c3'] })),
+    saveCheckInConfig: vi.fn(),
   };
   let following = opts.following ?? true;
   const socialProfiles = {
@@ -80,6 +84,9 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: 'Iron Gym, Cluj',
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
       },
       clients: 3,
     });
@@ -160,6 +167,9 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
       },
     });
     expect((await on.service.updateProfile(ME, { displayName: 'Ana P.' })).displayName).toBe(
@@ -198,6 +208,9 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
       },
     });
     await service.deactivate(ME.id, 'web', { accountDeleted: true });
@@ -214,6 +227,9 @@ describe('TrainerProfileService', () => {
       activatedAt: NOW,
       gymLine: null,
       disabledAt: null,
+      checkInEnabled: false,
+      checkInDay: 6,
+      checkInQuestions: [],
     };
 
     it('turns trainer tools off for an active trainer who is no longer listed', async () => {

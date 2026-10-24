@@ -115,9 +115,27 @@ function setup(opts: Opts = {}) {
     trainers: {
       find: vi.fn(async (id: string) =>
         id === TRAINER
-          ? { userId: id, displayName: 'Ana', activatedAt: NOW, gymLine: null, disabledAt: null }
+          ? {
+              userId: id,
+              displayName: 'Ana',
+              activatedAt: NOW,
+              gymLine: null,
+              disabledAt: null,
+              checkInEnabled: false,
+              checkInDay: 6,
+              checkInQuestions: [],
+            }
           : id === OTHER
-            ? { userId: id, displayName: 'Ion', activatedAt: NOW, gymLine: null, disabledAt: null }
+            ? {
+                userId: id,
+                displayName: 'Ion',
+                activatedAt: NOW,
+                gymLine: null,
+                disabledAt: null,
+                checkInEnabled: false,
+                checkInDay: 6,
+                checkInQuestions: [],
+              }
             : null,
       ),
       findMany: vi.fn(),

@@ -49,6 +49,13 @@ export function trainerHandlers(overrides: Handlers = {}): Handlers {
     'user.me': () => ({ name: 'Ana Ionescu' }),
     // Lane K2: the client screen's "Last 7 days" card (nothing shared by default).
     'trainer.client.weekSummary': () => weekSummary(),
+    // Lane K3: weekly check-ins (off by default).
+    'trainer.client.checkIns': () => ({ enabled: false, current: null, items: [] }),
+    'trainer.checkIns.config': () => ({
+      enabled: false,
+      day: 6,
+      questions: ['ENERGY', 'HUNGER', 'SLEEP', 'ADHERENCE'],
+    }),
     ...overrides,
   };
 }

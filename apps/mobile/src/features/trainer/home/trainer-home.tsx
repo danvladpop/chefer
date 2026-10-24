@@ -17,6 +17,7 @@ import { ClientRow } from '../components/client-row';
 import { CoachingCard } from '../components/coaching-card';
 import { TrainerFeedbackLink } from '../components/trainer-feedback-link';
 import { TrainerHeader } from '../components/trainer-header';
+import { CheckInSettingsCard } from './check-in-settings-card';
 import { RequestsSection } from './requests-section';
 import { TrainerNotices } from './trainer-notices';
 import { TrainerProfileCard } from './trainer-profile-card';
@@ -85,6 +86,7 @@ export function TrainerHome() {
         )}
 
         <TrainerProfileCard />
+        <CheckInSettingsCard />
 
         <CoachingCard className="mt-4 gap-2">
           <Text testID="trainer-home-turn-off-body" className="text-subhead text-label-secondary">

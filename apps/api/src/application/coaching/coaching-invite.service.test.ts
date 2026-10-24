@@ -29,6 +29,9 @@ const trainer = (over: Partial<TrainerProfile> = {}): TrainerProfile => ({
   activatedAt: NOW,
   gymLine: null,
   disabledAt: null,
+  checkInEnabled: false,
+  checkInDay: 6,
+  checkInQuestions: [],
   ...over,
 });
 const link = (trainerId: string): CoachingLink => ({
