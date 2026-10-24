@@ -88,7 +88,7 @@ setup('authenticate', async ({ page }) => {
     }),
   ]);
 
-  await expect(page.getByRole('navigation', { name: 'Primary' }).first()).toBeAttached();
+  await expect(page.getByTestId('primary-nav').first()).toBeAttached();
 
   await page.context().storageState({ path: AUTH_FILE });
 });

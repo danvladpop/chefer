@@ -26,6 +26,7 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
+import { useT } from '../../../lib/i18n';
 import { buildTrainerLines } from '../../coaching/logger-lines';
 import { LivePrBanner, useLivePrBanner } from '../../progress/live-pr-banner';
 import { useProgressEnabled } from '../../progress/use-progress';
@@ -38,20 +39,14 @@ import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localDate, newId } from '../offline/ids';
-import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
+import { exerciseCapReason, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
 import { NumberSheet } from './number-sheet';
 import { ElapsedTime, RestTimerBar } from './rest-timer-bar';
 import type { SetRowHandlers } from './set-row';
 import { useIsOnline } from './use-is-online';
-import {
-  ROUTINE_SUPERSET_NOTICE,
-  ROUTINE_SWAP_NOTICE,
-  ROUTINE_UNGROUP_NOTICE,
-  useRoutineEdit,
-  useRoutineSwap,
-} from './use-routine-swap';
+import { routineNotice, useRoutineEdit, useRoutineSwap } from './use-routine-swap';
 import { useWeightedBodyweightOffer } from './use-weighted-offer';
 import {
   byPosition,
@@ -95,11 +90,6 @@ type SheetState =
   | { kind: 'superset'; seId: string | null }
   | { kind: 'ungroup'; seId: string; label: string };
 
-const ROUTINE_OFFLINE_REASON =
-  'Changing your routine needs a connection. This applies to today only.';
-const COACHED_ROUTINE_REASON =
-  'Changes here apply to today only. Edit their routine from their profile.';
-
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
 const SCROLL_SETTLE_MS = 120;
@@ -124,6 +114,9 @@ function leaveWorkout(): void {
 }
 
 export function WorkoutScreen() {
+  const { t } = useT();
+  const ROUTINE_OFFLINE_REASON = t('gym.workout.logger.screen.routineOffline');
+  const COACHED_ROUTINE_REASON = t('gym.workout.logger.screen.coachedRoutine');
   // Trainer mode M3: the same logger runs a coached client's workout (workout-source.tsx).
   const {
     session,
@@ -378,8 +371,10 @@ export function WorkoutScreen() {
         dispatch({ type: 'removeSet', seId, setId });
         haptics.warning();
         snackbar.show({
-          message: `Removed ${label?.toLowerCase() ?? 'set'}`,
-          actionLabel: 'Undo',
+          message: t('gym.workout.view.removedSet', {
+            label: label?.toLowerCase() ?? t('gym.workout.view.setFallback'),
+          }),
+          actionLabel: t('gym.workout.view.undo'),
           durationMs: 8000,
           onAction: () => {
             dispatch({ type: 'restoreSet', seId, set, index });
@@ -387,7 +382,7 @@ export function WorkoutScreen() {
         });
       },
     }),
-    [openSheet, snackbar, offerWeighted, lookup, profile, getDoc, dispatch, isCoached, showLivePr],
+    [openSheet, snackbar, offerWeighted, lookup, profile, getDoc, dispatch, isCoached, t],
   );
 
   // ── Expansion + auto-scroll to the current exercise ────────────────────────
@@ -649,13 +644,13 @@ export function WorkoutScreen() {
         newSetIds: Array.from({ length: warmups.length + prescription.sets }, () => newId()),
       });
       if (request.scope === 'routine' && se.routineExerciseId) {
-        setNotice('Updating your routine…');
+        setNotice(t('gym.workout.logger.routineNotice.updating'));
         void swapRoutine(se.routineExerciseId, picked.id, params).then((result) =>
-          setNotice(ROUTINE_SWAP_NOTICE[result]),
+          setNotice(routineNotice('swap', result)),
         );
       }
     },
-    [closeSheet, swapRoutine, getDoc, dispatch],
+    [closeSheet, swapRoutine, getDoc, dispatch, t],
   );
 
   // ── Supersets made in the workout (plan-library-supersets S2) ─────────────
@@ -676,13 +671,13 @@ export function WorkoutScreen() {
       });
       haptics.success();
       if (slotIds) {
-        setNotice('Updating your routine…');
+        setNotice(t('gym.workout.logger.routineNotice.updating'));
         void editRoutine((base) => routineWithSuperset(base, slotIds)).then((result) =>
-          setNotice(ROUTINE_SUPERSET_NOTICE[result]),
+          setNotice(routineNotice('superset', result)),
         );
       }
     },
-    [closeSheet, editRoutine, getDoc, dispatch],
+    [closeSheet, editRoutine, getDoc, dispatch, t],
   );
 
   const applyUngroup = useCallback(
@@ -703,13 +698,13 @@ export function WorkoutScreen() {
       haptics.tick();
       const anchor = slotIds?.[0];
       if (anchor) {
-        setNotice('Updating your routine…');
+        setNotice(t('gym.workout.logger.routineNotice.updating'));
         void editRoutine((base) => routineWithoutSuperset(base, anchor)).then((result) =>
-          setNotice(ROUTINE_UNGROUP_NOTICE[result]),
+          setNotice(routineNotice('ungroup', result)),
         );
       }
     },
-    [closeSheet, editRoutine, getDoc, dispatch],
+    [closeSheet, editRoutine, getDoc, dispatch, t],
   );
 
   // Ungroup is immediate unless the routine has the same superset — then a
@@ -746,9 +741,13 @@ export function WorkoutScreen() {
         {finishing ? null : (
           <EmptyState
             testID="workout-empty"
-            title="No workout in progress"
-            description="Start one from Today."
-            action={{ label: 'Back to Today', onPress: leave, testID: 'workout-empty-back' }}
+            title={t('gym.workout.logger.screen.emptyTitle')}
+            description={t('gym.workout.logger.screen.emptyBody')}
+            action={{
+              label: t('gym.workout.view.backToToday'),
+              onPress: leave,
+              testID: 'workout-empty-back',
+            }}
           />
         )}
       </Screen>
@@ -773,11 +772,11 @@ export function WorkoutScreen() {
   const routineBlockedReason = isCoached
     ? COACHED_ROUTINE_REASON
     : !contentSe?.routineExerciseId
-      ? 'This exercise isn’t in your routine, so a swap applies to today only.'
+      ? t('gym.workout.logger.screen.notInRoutine')
       : !bootstrap?.activeRoutine
-        ? 'No active routine to update. This swap applies to today only.'
+        ? t('gym.workout.logger.screen.noRoutine')
         : !online
-          ? 'Changing your routine needs a connection. This swap applies to today only.'
+          ? t('gym.workout.logger.screen.swapOffline')
           : null;
   // WP-04: a freestyle session (no routine) or an exercise outside the routine
   // has no "routine" to change, so Swap skips the scope page ("Just today").
@@ -808,7 +807,7 @@ export function WorkoutScreen() {
           <Pressable
             testID="workout-minimise"
             accessibilityRole="button"
-            accessibilityLabel="Minimise workout"
+            accessibilityLabel={t('gym.workout.logger.screen.minimiseA11y')}
             onPress={leave}
             className="h-11 w-11 items-center justify-center rounded-full bg-surface-sunken"
           >
@@ -826,11 +825,11 @@ export function WorkoutScreen() {
               <ElapsedTime startedAt={session.startedAt} testID="workout-elapsed" />
               <Text
                 testID="workout-progress"
-                accessibilityLabel={`${done} of ${planned} sets done`}
+                accessibilityLabel={t('gym.workout.view.setsDoneAria', { done, planned })}
                 className="text-subhead text-label-secondary"
                 style={{ fontVariant: ['tabular-nums'] }}
               >
-                · {done}/{planned} sets
+                · {t('gym.workout.exerciseCard.progress', { done, total: planned })}
               </Text>
             </View>
           </View>
@@ -842,7 +841,7 @@ export function WorkoutScreen() {
             onPress={onFinishPress}
             loading={finishing}
           >
-            Finish
+            {t('gym.workout.view.finish')}
           </Button>
         </View>
       )}
@@ -867,7 +866,7 @@ export function WorkoutScreen() {
       >
         {exercises.length === 0 ? (
           <Text className="px-2 py-6 text-center text-callout text-label-secondary">
-            Add your first exercise to get going.
+            {t('gym.workout.logger.screen.emptyList')}
           </Text>
         ) : null}
         {exercises.map((se, index) => {
@@ -900,14 +899,16 @@ export function WorkoutScreen() {
               className="-mb-1 flex-row items-center gap-2 px-2"
             >
               <View className="h-4 w-1 rounded-full bg-brand" />
-              <Text className="text-subhead font-semibold text-brand">Superset {slot.label}</Text>
+              <Text className="text-subhead font-semibold text-brand">
+                {t('gym.workout.view.supersetHeading', { label: slot.label })}
+              </Text>
               <Text className="min-w-0 flex-1 text-caption text-label-secondary" numberOfLines={2}>
-                {restSec} s rest after each round
+                {t('gym.workout.view.supersetRest', { sec: restSec })}
               </Text>
               <Pressable
                 testID={`superset-${slot.label}-ungroup`}
                 accessibilityRole="button"
-                accessibilityLabel={`Ungroup superset ${slot.label}`}
+                accessibilityLabel={t('gym.workout.view.ungroupAria', { label: slot.label })}
                 onPress={() => onUngroupPress(se.id)}
                 className="min-h-11 justify-center px-2"
               >
@@ -922,7 +923,7 @@ export function WorkoutScreen() {
         {shellV2 ? (
           <WorkoutActions
             addDisabled={isAtExerciseCap(exercises.length)}
-            addReason={isAtExerciseCap(exercises.length) ? EXERCISE_CAP_REASON : null}
+            addReason={isAtExerciseCap(exercises.length) ? exerciseCapReason() : null}
             supersetDisabled={pickable.length < 2}
             supersetTitle={SUPERSET_COPY.title}
             onAdd={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
@@ -939,22 +940,22 @@ export function WorkoutScreen() {
               disabled={isAtExerciseCap(exercises.length)}
               onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
             >
-              + Add exercise
+              {t('gym.workout.logger.screen.addExercisePlus')}
             </Button>
             {isAtExerciseCap(exercises.length) ? (
               <Text
                 testID="workout-add-exercise-reason"
                 className="text-center text-subhead text-label-secondary"
               >
-                {EXERCISE_CAP_REASON}
+                {exerciseCapReason()}
               </Text>
             ) : null}
             <Button
               testID="workout-superset"
               variant="outline"
               disabled={pickable.length < 2}
-              accessibilityLabel="Superset"
-              accessibilityHint="Pick exercises to do back to back"
+              accessibilityLabel={t('gym.shared.superset.title')}
+              accessibilityHint={t('gym.workout.logger.screen.supersetA11yHint')}
               onPress={() => openSheet({ kind: 'superset', seId: null })}
             >
               <View className="flex-row items-center gap-1">
@@ -970,19 +971,21 @@ export function WorkoutScreen() {
               loading={finishing}
               onPress={onFinishPress}
             >
-              Finish workout
+              {t('gym.workout.logger.screen.finishWorkout')}
             </Button>
             {/* UX-36 (3), T-36.3: bottom actions become Finish · Save for later ·
                 Discard — a cut-short workout is never just finish-or-bin (CI-49). */}
             <Button testID="workout-save-for-later" variant="outline" onPress={onSaveForLater}>
-              Save for later
+              {t('gym.workout.logger.screen.saveForLater')}
             </Button>
             <Button
               testID="workout-discard"
               variant="ghost"
               onPress={() => openSheet({ kind: 'discard' })}
             >
-              <Text className="text-callout font-semibold text-danger">Discard workout</Text>
+              <Text className="text-callout font-semibold text-danger">
+                {t('gym.workout.view.discardWorkout')}
+              </Text>
             </Button>
           </>
         )}
@@ -1029,8 +1032,10 @@ export function WorkoutScreen() {
             dispatch({ type: 'removeExercise', seId: exercise.id });
             haptics.warning();
             snackbar.show({
-              message: `Removed ${contentMeta?.name ?? 'exercise'}`,
-              actionLabel: 'Undo',
+              message: t('gym.workout.view.removedExercise', {
+                name: contentMeta?.name ?? t('gym.workout.view.removedExerciseFallback'),
+              }),
+              actionLabel: t('gym.workout.view.undo'),
               durationMs: 8000,
               onAction: () => {
                 dispatch({ type: 'restoreExercise', exercise, index: contentIndex });
@@ -1078,7 +1083,7 @@ export function WorkoutScreen() {
           return {
             key: se.id,
             name: lookup(se.exerciseId).name,
-            detail: slot ? `In superset ${slot.label}` : null,
+            detail: slot ? t('gym.shared.superset.inSuperset', { label: slot.label }) : null,
           };
         })}
         initialKeys={content?.kind === 'superset' && content.seId ? [content.seId] : []}
@@ -1093,18 +1098,22 @@ export function WorkoutScreen() {
         visible={active?.kind === 'ungroup'}
         onClose={closeSheet}
         testID="workout-ungroup-sheet"
-        title={`Ungroup superset ${content?.kind === 'ungroup' ? content.label : ''}`}
+        title={t('gym.workout.view.ungroupAria', {
+          label: content?.kind === 'ungroup' ? content.label : '',
+        })}
         body={
           online
-            ? 'You’ll rest after each set again.'
-            : `You’ll rest after each set again. ${ROUTINE_OFFLINE_REASON}`
+            ? t('gym.workout.logger.screen.ungroupBody')
+            : t('gym.workout.logger.screen.ungroupBodyOffline', {
+                reason: ROUTINE_OFFLINE_REASON,
+              })
         }
         options={
           online
             ? [
                 {
                   label: SUPERSET_COPY.alsoRoutine,
-                  detail: 'Next time these are separate too.',
+                  detail: t('gym.workout.logger.screen.ungroupDetail'),
                   value: ungroupAlsoRoutine,
                   onChange: setUngroupAlsoRoutine,
                 },
@@ -1112,7 +1121,7 @@ export function WorkoutScreen() {
             : undefined
         }
         confirmLabel={SUPERSET_COPY.ungroup}
-        cancelLabel="Keep superset"
+        cancelLabel={t('gym.workout.logger.screen.keepSuperset')}
         onConfirm={() => {
           if (content?.kind === 'ungroup') {
             applyUngroup(content.seId, online && ungroupAlsoRoutine);
@@ -1139,7 +1148,13 @@ export function WorkoutScreen() {
           onClose={closeSheet}
           kind={content?.kind === 'reps' ? 'reps' : 'weight'}
           value={content?.kind === 'reps' ? contentSet.reps : contentSet.weightKg}
-          title={`${contentMeta.name} · ${content?.kind === 'reps' ? (contentMeta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
+          title={`${contentMeta.name} · ${
+            content?.kind === 'reps'
+              ? contentMeta.isTimed
+                ? t('gym.workout.logger.setRow.stepperSeconds')
+                : t('gym.workout.logger.setRow.stepperReps')
+              : t('gym.workout.logger.setRow.stepperWeight')
+          }`}
           unit={unit}
           meta={contentMeta}
           profile={loggingProfile(contentMeta, profile)}
@@ -1158,7 +1173,11 @@ export function WorkoutScreen() {
         onClose={closeSheet}
         onPick={onPick}
         library={bootstrap?.library ?? []}
-        title={content?.kind === 'picker' && content.mode === 'add' ? 'Add exercise' : 'Swap for'}
+        title={
+          content?.kind === 'picker' && content.mode === 'add'
+            ? t('gym.workout.view.addExercise')
+            : t('gym.workout.logger.screen.pickerSwap')
+        }
         preferSwapGroup={
           content?.kind === 'picker' && content.mode === 'swap' ? contentMeta?.swapGroup : null
         }
@@ -1173,15 +1192,15 @@ export function WorkoutScreen() {
         testID="workout-finish-sheet"
         title={
           unstarted.length > 0 && session.routineDayId
-            ? `${unstarted.length} ${unstarted.length === 1 ? 'exercise' : 'exercises'} not started`
-            : 'Finish workout?'
+            ? t('gym.workout.logger.screen.notStarted', { count: unstarted.length })
+            : t('gym.workout.view.finishTitle')
         }
         body={
           unstarted.length > 0 && session.routineDayId
             ? unstarted.map((e) => lookup(e.exerciseId).name).join(', ')
             : done === 0
-              ? 'You haven’t logged any sets yet. Only ticked sets count.'
-              : `${unticked} ${unticked === 1 ? 'set isn’t' : 'sets aren’t'} ticked. Only ticked sets count.`
+              ? t('gym.workout.logger.screen.noneLogged')
+              : t('gym.workout.logger.screen.unticked', { count: unticked })
         }
         // UX-36 (3): "Move them to your next session" (T-36.3) — only offered
         // when whole exercises were never started AND it's a routine day
@@ -1190,8 +1209,8 @@ export function WorkoutScreen() {
           unstarted.length > 0 && session.routineDayId
             ? [
                 {
-                  label: 'Move them to your next session',
-                  detail: 'Turn off to finish now and skip them this time.',
+                  label: t('gym.workout.logger.screen.moveUnstarted'),
+                  detail: t('gym.workout.logger.screen.moveUnstartedDetail'),
                   value: moveUnstarted,
                   onChange: setMoveUnstarted,
                 },
@@ -1199,19 +1218,21 @@ export function WorkoutScreen() {
             : undefined
         }
         confirmLabel={
-          unstarted.length > 0 && session.routineDayId ? 'Finish workout' : 'Finish anyway'
+          unstarted.length > 0 && session.routineDayId
+            ? t('gym.workout.logger.screen.finishWorkout')
+            : t('gym.workout.view.finishAnyway')
         }
-        cancelLabel="Keep going"
+        cancelLabel={t('gym.workout.view.keepGoing')}
         onConfirm={onFinishConfirm}
       />
       <ConfirmSheet
         visible={active?.kind === 'discard'}
         onClose={closeSheet}
         testID="workout-discard-sheet"
-        title="Discard this workout?"
-        body="The sets you logged today won’t be saved. This can’t be undone."
-        confirmLabel="Discard workout"
-        cancelLabel="Keep going"
+        title={t('gym.workout.view.discardTitle')}
+        body={t('gym.workout.logger.screen.discardBody')}
+        confirmLabel={t('gym.workout.view.discardWorkout')}
+        cancelLabel={t('gym.workout.view.keepGoing')}
         destructive
         onConfirm={onDiscardConfirm}
       />
@@ -1219,10 +1240,10 @@ export function WorkoutScreen() {
         visible={active?.kind === 'minimise'}
         onClose={closeSheet}
         testID="workout-minimise-sheet"
-        title="Minimise workout?"
-        body="Your workout keeps running. Resume it from Today."
-        confirmLabel="Minimise"
-        cancelLabel="Keep going"
+        title={t('gym.workout.logger.screen.minimiseTitle')}
+        body={t('gym.workout.logger.screen.minimiseBody')}
+        confirmLabel={t('gym.workout.logger.screen.minimise')}
+        cancelLabel={t('gym.workout.view.keepGoing')}
         onConfirm={() => {
           closeSheet();
           leave();

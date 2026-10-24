@@ -5,10 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { SessionOptionsMenu } from '@/features/gym/history/SessionOptionsMenu';
 import { useDeleteWorkout } from '@/features/gym/history/use-delete-workout';
 import { cardioSetText, isCardioExercise, profileDistanceUnit } from '@/features/gym/shared/cardio';
+import { weekdayDateLabelT } from '@/features/gym/shared/format';
 import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { BOOKING_COPY } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
@@ -22,17 +24,16 @@ import {
   toSessionSummary,
 } from '@chefer/utils';
 
-const RIR_LABEL: Record<number, string> = { 0: '0 RIR', 1: '1 RIR', 2: '2 RIR', 3: '3+ RIR' };
-
-function durationLabel(startedAt: string, finishedAt: string | null): string | null {
+function durationMinutes(startedAt: string, finishedAt: string | null): number | null {
   if (!finishedAt) return null;
   const mins = Math.round(
     (new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 60_000,
   );
-  return mins > 0 ? `${mins} min` : null;
+  return mins > 0 ? mins : null;
 }
 
 export default function GymHistoryDetailPage() {
+  const { t, date } = useT();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const router = useRouter();
@@ -72,7 +73,7 @@ export default function GymHistoryDetailPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10" data-testid="gym-history-detail-error">
         <ErrorState
-          title="Couldn’t load this workout"
+          title={t('gym.session.loadError')}
           onRetry={() => void refetch()}
           retrying={isRefetching}
         />
@@ -83,18 +84,20 @@ export default function GymHistoryDetailPage() {
   if (error || !session) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <p className="text-sm text-neutral-500">Session not found.</p>
+        <p className="text-sm text-neutral-500">{t('gym.session.notFound')}</p>
         <Link
           href="/gym/exercises"
           className="mt-2 inline-block text-sm text-[#944a00] hover:underline"
         >
-          Back to exercises
+          {t('gym.session.backToExercises')}
         </Link>
       </div>
     );
   }
 
-  const duration = durationLabel(session.startedAt, session.finishedAt);
+  const durationMin = durationMinutes(session.startedAt, session.finishedAt);
+  const duration = durationMin !== null ? t('common.counts.minutes', { count: durationMin }) : null;
+  const sessionDate = parseISO(session.localDate);
   // Trainer mode M3: a coached workout ("Logged by Ana"). `session.get` carries it for any
   // date; the bootstrap summary (12-week window) is the fallback.
   const loggedBy = session.loggedBy ?? bootstrap?.recentSessions.find((s) => s.id === id)?.loggedBy;
@@ -112,14 +115,14 @@ export default function GymHistoryDetailPage() {
         className="mb-4 flex min-h-11 w-fit items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back
+        {t('common.actions.back')}
       </button>
 
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-bold text-neutral-900">{session.name}</h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
-            {format(parseISO(session.localDate), 'EEEE, d MMMM yyyy')}
+            {`${date(sessionDate, 'weekday-long')}, ${date(sessionDate, 'full')}`}
             {duration && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
@@ -128,7 +131,7 @@ export default function GymHistoryDetailPage() {
             )}
             {session.isDeload && (
               <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
-                Deload
+                {t('gym.workout.view.deload')}
               </span>
             )}
           </p>
@@ -140,7 +143,7 @@ export default function GymHistoryDetailPage() {
         </div>
         <SessionOptionsMenu
           testId="gym-history-options"
-          label={`${session.name}, ${format(parseISO(session.localDate), 'EEE d MMM')}`}
+          label={`${session.name}, ${weekdayDateLabelT(session.localDate, t)}`}
           onDelete={() =>
             askDelete(
               bootstrap?.recentSessions.find((s) => s.id === id) ?? toSessionSummary(session),
@@ -162,7 +165,9 @@ export default function GymHistoryDetailPage() {
             </p>
             {activityEffort !== undefined && (
               <p className="mt-1 text-sm text-neutral-500">
-                {`Effort: ${effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`}`}
+                {t('gym.session.effort', {
+                  value: effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`,
+                })}
               </p>
             )}
           </div>
@@ -184,7 +189,7 @@ export default function GymHistoryDetailPage() {
                 </Link>
                 {ex.skipped && (
                   <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                    Skipped
+                    {t('gym.session.skipped')}
                   </span>
                 )}
               </div>
@@ -207,13 +212,14 @@ export default function GymHistoryDetailPage() {
                 <>
                   {warmups.length > 0 && (
                     <p className="mb-1.5 text-xs text-neutral-400">
-                      Warm-up:{' '}
-                      {warmups
-                        .map(
-                          (s) =>
-                            `${formatLoad(s.weightKg, unit, meta?.loadType, { each: meta?.perHand })}×${s.reps}`,
-                        )
-                        .join(', ')}
+                      {t('gym.session.warmupLine', {
+                        sets: warmups
+                          .map(
+                            (s) =>
+                              `${formatLoad(s.weightKg, unit, meta?.loadType, { each: meta?.perHand })}×${s.reps}`,
+                          )
+                          .join(', '),
+                      })}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-1.5">
@@ -230,7 +236,11 @@ export default function GymHistoryDetailPage() {
                         {set.reps}
                         {i === working.length - 1 && ex.lastSetRir !== null && (
                           <span className="ml-1 text-xs text-neutral-400">
-                            ({RIR_LABEL[ex.lastSetRir]})
+                            (
+                            {t('gym.session.rir', {
+                              value: ex.lastSetRir >= 3 ? '3+' : String(ex.lastSetRir),
+                            })}
+                            )
                           </span>
                         )}
                       </span>

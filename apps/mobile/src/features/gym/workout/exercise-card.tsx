@@ -1,6 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import type { Translator } from '@chefer/i18n';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
@@ -23,11 +24,12 @@ import {
 } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import type { TrainerLines } from '../../coaching/logger-lines';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
 import { TrainerNoteLine } from '../routine/attribution';
-import { isAtSetCap, SET_CAP_REASON } from './caps';
+import { isAtSetCap, setCapReason } from './caps';
 import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
@@ -111,9 +113,9 @@ export interface ExerciseCardProps {
   ctx: WorkoutContext;
 }
 
-function bannerChip(s: Suggestion, unit: WeightUnit): string {
-  if (s.kind === 'deload') return '↓ Deload';
-  if (s.kind === 'start') return 'New';
+function bannerChip(s: Suggestion, unit: WeightUnit, t: Translator['t']): string {
+  if (s.kind === 'deload') return t('gym.workout.logger.card.deload');
+  if (s.kind === 'start') return t('gym.workout.logger.card.new');
   const dir = directionOf(s);
   const delta = Math.abs(s.deltaKg);
   if (dir === 'same' || delta < 0.005) return DIRECTION_ICON[dir];
@@ -130,6 +132,7 @@ function ExerciseCardImpl({
   focusSetId = null,
   ctx,
 }: ExerciseCardProps) {
+  const { t } = useT();
   const colors = useThemeColors();
   const base = `exercise-${index}`;
   const atSetCap = isAtSetCap(se.sets.length);
@@ -167,11 +170,11 @@ function ExerciseCardImpl({
   // AC1: a cardio card never shows kg/sets/RIR — just done/not-done.
   const subtitle = cardio
     ? working[0] && isDone(working[0])
-      ? 'Logged'
-      : 'Not logged yet'
+      ? t('gym.workout.logger.card.logged')
+      : t('gym.workout.logger.card.notLoggedYet')
     : logging
       ? `${working.length} × ${range}${meta.isTimed ? ' s' : ''}`
-      : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${done}/${working.length} done`;
+      : `${working.length} × ${range}${meta.isTimed ? ' s' : ''} · ${t('gym.workout.logger.card.doneCount', { done, total: working.length })}`;
   const imageUri = exerciseImageUrl(meta);
   const calibrating = isCalibrating(se.prescription);
   const editing = ctx.mode === 'edit' || logging;
@@ -193,7 +196,7 @@ function ExerciseCardImpl({
         <Pressable
           testID={`${base}-thumb`}
           accessibilityRole="button"
-          accessibilityLabel={`Technique for ${meta.name}`}
+          accessibilityLabel={t('gym.workout.logger.card.technique', { name: meta.name })}
           onPress={() => ctx.onSheet({ kind: 'technique', seId: se.id })}
           className="overflow-hidden rounded-control"
         >
@@ -220,7 +223,10 @@ function ExerciseCardImpl({
               <View className="rounded-inner bg-brand-tint px-1.5 py-0.5">
                 <Text
                   testID={`${base}-superset`}
-                  accessibilityLabel={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
+                  accessibilityLabel={t('gym.workout.exerciseCard.supersetChip', {
+                    label: supersetLabel,
+                    n: supersetIndex + 1,
+                  })}
                   className="text-caption font-bold text-brand"
                 >
                   {supersetLabel}
@@ -241,8 +247,8 @@ function ExerciseCardImpl({
             numberOfLines={2}
             className="text-subhead text-label-secondary"
           >
-            {se.skipped ? 'Skipped' : subtitle}
-            {pr ? ' · PR' : ''}
+            {se.skipped ? t('gym.session.skipped') : subtitle}
+            {pr ? ` · ${t('gym.workout.logger.card.pr')}` : ''}
           </Text>
           {trainerNote && ctx.trainer ? (
             <TrainerNoteLine
@@ -257,14 +263,14 @@ function ExerciseCardImpl({
               numberOfLines={2}
               className="text-subhead text-label-secondary"
             >
-              Last time: {lastNote}
+              {t('gym.workout.setRow.lastTime', { value: lastNote })}
             </Text>
           ) : null}
         </Pressable>
         <Pressable
           testID={`${base}-menu`}
           accessibilityRole="button"
-          accessibilityLabel={`More options for ${meta.name}`}
+          accessibilityLabel={t('gym.workout.logger.card.moreOptions', { name: meta.name })}
           onPress={() => ctx.onSheet({ kind: 'menu', seId: se.id })}
           className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-sunken"
         >
@@ -275,7 +281,7 @@ function ExerciseCardImpl({
       {se.skipped ? (
         <View className="flex-row items-center justify-between px-3 pb-2">
           <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
-            Skipped today. It won&apos;t count as a miss.
+            {t('gym.workout.logger.card.skippedBody')}
           </Text>
           <Pressable
             testID={`${base}-unskip`}
@@ -283,7 +289,9 @@ function ExerciseCardImpl({
             onPress={() => ctx.onSkip(se.id, false)}
             className="min-h-11 justify-center px-2"
           >
-            <Text className="text-callout font-semibold text-brand">Undo</Text>
+            <Text className="text-callout font-semibold text-brand">
+              {t('gym.workout.view.undo')}
+            </Text>
           </Pressable>
         </View>
       ) : expanded && cardio ? (
@@ -301,7 +309,7 @@ function ExerciseCardImpl({
           />
           {se.notes ? (
             <Text testID={`${base}-note`} className="px-1 text-subhead text-label-secondary">
-              Note: {se.notes}
+              {t('gym.workout.logger.card.note', { note: se.notes })}
             </Text>
           ) : null}
         </View>
@@ -317,7 +325,7 @@ function ExerciseCardImpl({
             >
               <View className="rounded-inner bg-surface px-2 py-1">
                 <Text testID={`${base}-direction`} className="text-caption font-bold text-brand">
-                  {bannerChip(se.prescription, ctx.unit)}
+                  {bannerChip(se.prescription, ctx.unit, t)}
                 </Text>
               </View>
               {stackSuggestion ? (
@@ -333,11 +341,13 @@ function ExerciseCardImpl({
               <Pressable
                 testID={`${base}-why`}
                 accessibilityRole="button"
-                accessibilityLabel="Why this target?"
+                accessibilityLabel={t('gym.workout.logger.card.whyA11y')}
                 onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
                 className="-my-2 min-h-11 justify-center px-2"
               >
-                <Text className="text-callout font-semibold text-brand">Why?</Text>
+                <Text className="text-callout font-semibold text-brand">
+                  {t('gym.workout.exerciseCard.why')}
+                </Text>
               </Pressable>
               {stackSuggestion ? (
                 <Text
@@ -360,12 +370,16 @@ function ExerciseCardImpl({
                 className="min-h-11 flex-row items-center justify-between px-1"
               >
                 <Text className="text-subhead text-label-secondary">
-                  {warmups.length} warm-up {warmups.length === 1 ? 'set' : 'sets'}
-                  {warmupsDone > 0 ? ` · ${warmupsDone} done` : ''}
+                  {t('gym.workout.exerciseCard.warmups', { count: warmups.length })}
+                  {warmupsDone > 0
+                    ? ` · ${t('gym.workout.logger.card.warmupsDone', { count: warmupsDone })}`
+                    : ''}
                 </Text>
                 <View className="flex-row items-center gap-1">
                   <Text className="text-subhead font-semibold text-brand">
-                    {showWarmups ? 'Hide' : 'Show'}
+                    {showWarmups
+                      ? t('gym.workout.logger.card.hide')
+                      : t('gym.workout.logger.card.show')}
                   </Text>
                   <Icon
                     name={showWarmups ? 'chevronUp' : 'chevronDown'}
@@ -380,7 +394,7 @@ function ExerciseCardImpl({
                       key={s.id}
                       seId={se.id}
                       set={s}
-                      label={`Warm-up ${i + 1}`}
+                      label={t('gym.workout.setName.warmup', { n: i + 1 })}
                       last={null}
                       meta={meta}
                       profile={ctx.profile}
@@ -408,7 +422,7 @@ function ExerciseCardImpl({
               <SetRow
                 seId={se.id}
                 set={s}
-                label={`Set ${i + 1}`}
+                label={t('gym.workout.setName.set', { n: i + 1 })}
                 last={lastSets[i] ?? null}
                 meta={meta}
                 profile={ctx.profile}
@@ -435,22 +449,22 @@ function ExerciseCardImpl({
                 <View className="flex-row items-start justify-between gap-2">
                   <View className="min-w-0 flex-1">
                     <Text className="text-callout font-medium text-label">
-                      How many more reps could you have done?
+                      {t('gym.workout.logger.card.rirQuestion')}
                     </Text>
                     {calibrating ? (
                       <Text testID={`${base}-rir-calibrating`} className="text-caption text-brand">
-                        Helps us find your weight
+                        {t('gym.workout.logger.card.rirHelp')}
                       </Text>
                     ) : (
                       <Text className="text-caption text-label-secondary">
-                        Optional, on your last set
+                        {t('gym.workout.logger.card.rirOptional')}
                       </Text>
                     )}
                   </View>
                   <Pressable
                     testID={`${base}-rir-hide`}
                     accessibilityRole="button"
-                    accessibilityLabel="Hide reps-left question"
+                    accessibilityLabel={t('gym.workout.logger.card.rirHideA11y')}
                     onPress={() => {
                       setRirOpen(false);
                       ctx.onRirDismiss(se.id);
@@ -458,7 +472,9 @@ function ExerciseCardImpl({
                     className="-my-2 min-h-11 justify-center px-2"
                   >
                     <Text className="text-subhead font-semibold text-label-secondary">
-                      {se.lastSetRir === null ? 'Not now' : 'Done'}
+                      {se.lastSetRir === null
+                        ? t('gym.workout.logger.rest.notNow')
+                        : t('common.actions.done')}
                     </Text>
                   </Pressable>
                 </View>
@@ -487,11 +503,15 @@ function ExerciseCardImpl({
               >
                 <Text className="min-w-0 flex-1 text-callout text-label">
                   {se.lastSetRir === null
-                    ? 'Reps left on the last set (optional)'
-                    : `Reps left on the last set: ${se.lastSetRir === 3 ? '3+' : String(se.lastSetRir)}`}
+                    ? t('gym.workout.logger.card.rirSummaryEmpty')
+                    : t('gym.workout.logger.card.rirSummary', {
+                        value: se.lastSetRir === 3 ? '3+' : String(se.lastSetRir),
+                      })}
                 </Text>
                 <Text className="text-callout font-semibold text-brand">
-                  {se.lastSetRir === null ? 'Add' : 'Change'}
+                  {se.lastSetRir === null
+                    ? t('gym.workout.logger.card.add')
+                    : t('gym.workout.logger.card.change')}
                 </Text>
               </Pressable>
             )
@@ -499,7 +519,7 @@ function ExerciseCardImpl({
 
           {se.notes ? (
             <Text testID={`${base}-note`} className="px-1 text-subhead text-label-secondary">
-              Note: {se.notes}
+              {t('gym.workout.logger.card.note', { note: se.notes })}
             </Text>
           ) : null}
 
@@ -511,14 +531,16 @@ function ExerciseCardImpl({
               accessible
               accessibilityRole="button"
               accessibilityState={{ disabled: true }}
-              accessibilityLabel={`Add set, unavailable. ${SET_CAP_REASON}`}
+              accessibilityLabel={t('gym.workout.logger.card.addSetUnavailable', {
+                reason: setCapReason(),
+              })}
               className="min-h-12 items-center justify-center rounded-control border border-dashed border-separator px-3 py-2 opacity-60"
             >
               <Text numberOfLines={1} className="text-callout font-semibold text-label-secondary">
-                Add set
+                {t('gym.workout.view.addSet')}
               </Text>
               <Text testID={`${base}-add-set-reason`} className="text-subhead text-label-secondary">
-                {SET_CAP_REASON}
+                {setCapReason()}
               </Text>
             </View>
           ) : (
@@ -534,7 +556,7 @@ function ExerciseCardImpl({
                   "set" wrapped onto a second line the 1-line box clips —
                   "Add" (seen after a rotation). One line can't wrap. */}
               <Text numberOfLines={1} className="text-callout font-semibold text-brand">
-                Add set
+                {t('gym.workout.view.addSet')}
               </Text>
             </Pressable>
           )}

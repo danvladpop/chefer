@@ -1,8 +1,10 @@
 import { useEffect, useId, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Translator } from '@chefer/i18n';
 import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text, useThemeColors } from '@chefer/ui-mobile';
 import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
+import { getTranslator, useT } from '../../../lib/i18n';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long
 // it took — nothing else. Replaces the day-chip grid + clock-time picker that
@@ -12,10 +14,49 @@ import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 /** Longest session the field accepts (10 h). */
 export const MAX_DURATION_MIN = 600;
-export function whenDateLabel(date: string, today: string): string {
-  if (date === today) return `Today · ${weekdayDateLabel(date)}`;
-  if (date === addDaysLocal(today, -1)) return `Yesterday · ${weekdayDateLabel(date)}`;
-  return weekdayDateLabel(date);
+/** Enabled / disabled chevrons — Ionicons takes a colour, not a class. */
+
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+] as const;
+
+/**
+ * "Thu 24 Sep" in the UI language, from a local date, through the fixed
+ * `common` tables (`weekdayDateLabel` in @chefer/utils is English only).
+ */
+export function weekdayDateLabelT(
+  localDate: string,
+  t: Translator['t'] = getTranslator().t,
+): string {
+  const [y, m, d] = localDate.split('-').map(Number);
+  if (!y || !m || !d) return localDate;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const weekday = WEEKDAY_KEYS[(date.getUTCDay() + 6) % 7] ?? 'mon';
+  const month = MONTH_KEYS[date.getUTCMonth()] ?? 'jan';
+  return `${t(`common.weekdaysShort.${weekday}`)} ${date.getUTCDate()} ${t(`common.monthsShort.${month}`)}`;
+}
+
+export function whenDateLabel(
+  date: string,
+  today: string,
+  t: Translator['t'] = getTranslator().t,
+): string {
+  const label = weekdayDateLabelT(date, t);
+  if (date === today) return t('gym.session.edit.today', { date: label });
+  if (date === addDaysLocal(today, -1)) return t('gym.session.edit.yesterday', { date: label });
+  return label;
 }
 
 function StepButton({
@@ -60,13 +101,14 @@ export interface DateStepperProps {
 
 /** The ‹ date › stepper on its own (also used by the activity quick-log sheet). */
 export function DateStepper({ localDate, minDate, today, onChangeDate, testID }: DateStepperProps) {
+  const { t } = useT();
   return (
     <View className="gap-1">
-      <Text variant="label">Date</Text>
+      <Text variant="label">{t('gym.session.edit.date')}</Text>
       <View className="min-h-12 flex-row items-center rounded-xl bg-muted px-1">
         <StepButton
           testID={`${testID}-date-prev`}
-          label="Previous day"
+          label={t('gym.session.edit.prevDay')}
           icon="chevron-back"
           disabled={localDate <= minDate}
           onPress={() => onChangeDate(addDaysLocal(localDate, -1))}
@@ -77,11 +119,11 @@ export function DateStepper({ localDate, minDate, today, onChangeDate, testID }:
           className="min-w-0 flex-1 text-center text-base font-semibold"
           numberOfLines={1}
         >
-          {whenDateLabel(localDate, today)}
+          {whenDateLabel(localDate, today, t)}
         </Text>
         <StepButton
           testID={`${testID}-date-next`}
-          label="Next day"
+          label={t('gym.session.edit.nextDay')}
           icon="chevron-forward"
           disabled={localDate >= today}
           onPress={() => onChangeDate(addDaysLocal(localDate, 1))}
@@ -114,6 +156,7 @@ export function SessionWhenFields({
   testID,
   className,
 }: SessionWhenFieldsProps) {
+  const { t } = useT();
   const barId = `${testID}-numeric-bar-${useId()}`;
   // The text is local so the field can be cleared while typing; only a valid
   // number reaches the parent.
@@ -141,12 +184,12 @@ export function SessionWhenFields({
       />
       <View className="gap-1">
         <Text variant="label" nativeID={`${testID}-duration-label`}>
-          Duration
+          {t('gym.summary.duration')}
         </Text>
         <View className="flex-row items-center gap-2">
           <Input
             testID={`${testID}-duration`}
-            accessibilityLabel="Duration in minutes"
+            accessibilityLabel={t('gym.session.edit.durationA11y')}
             accessibilityLabelledBy={`${testID}-duration-label`}
             aria-invalid={invalid}
             keyboardType="number-pad"
@@ -160,13 +203,13 @@ export function SessionWhenFields({
             selectTextOnFocus
             className="w-24 text-center"
           />
-          <Text variant="muted">min</Text>
+          <Text variant="muted">{t('gym.summary.unitMin')}</Text>
         </View>
         {/* UX-GYM-34: the number pad has no Return key on iOS. */}
         <NumericReturnBar
           nativeID={barId}
           testID={`${testID}-numeric-bar`}
-          label="Done"
+          label={t('common.actions.done')}
           onPress={() => Keyboard.dismiss()}
         />
       </View>

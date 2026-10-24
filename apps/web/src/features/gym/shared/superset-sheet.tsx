@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Button, Sheet } from '@chefer/ui';
-import { cn } from '@chefer/utils';
-import { canGroupPicks, isPickLocked, SUPERSET_SHEET_HINT, togglePick } from './superset-pick';
+import { cn, MAX_SUPERSET_SIZE } from '@chefer/utils';
+import { canGroupPicks, isPickLocked, MIN_SUPERSET_SIZE, togglePick } from './superset-pick';
 
 // "Superset" sheet (plan-library-supersets S3, web twin of the phone's S2
 // sheet): the day's / workout's exercises as checkboxes; 2 to
@@ -39,6 +40,7 @@ export function SupersetSheet({
   routineOption,
   onGroup,
 }: SupersetSheetProps) {
+  const { t } = useT();
   // Keep the last list while the sheet animates out (callers clear it on close).
   const lastItems = useRef(liveItems);
   if (open) lastItems.current = liveItems;
@@ -63,20 +65,23 @@ export function SupersetSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Superset"
-      description={SUPERSET_SHEET_HINT}
+      title={t('gym.shared.superset.title')}
+      description={t('gym.shared.superset.hint', {
+        min: MIN_SUPERSET_SIZE,
+        max: MAX_SUPERSET_SIZE,
+      })}
       size="sm"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button
             disabled={!ready}
             onClick={() => onGroup(ordered, showRoutine && alsoRoutine)}
             data-testid="superset-group"
           >
-            Group as superset
+            {t('gym.shared.superset.group')}
           </Button>
         </div>
       }
@@ -122,7 +127,7 @@ export function SupersetSheet({
               className="h-5 w-5 shrink-0 accent-[#944a00]"
               data-testid="superset-also-routine"
             />
-            <span className="min-w-0 flex-1">Also change my routine</span>
+            <span className="min-w-0 flex-1">{t('gym.shared.superset.alsoRoutine')}</span>
           </label>
         )}
       </div>
