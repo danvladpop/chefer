@@ -4819,7 +4819,9 @@ Profile → Privacy & data → Your data → "Download my data" (web /profile, m
                           target-changes.csv  meal-plans.csv (weeks + saved weeks)
                           recipes.csv (yours + saved)  shopping-lists.csv
                           workouts.csv  routines.csv  personal-records.csv
-                          following.csv  coaching.csv      (UTF-8 BOM, CRLF, formulas neutralised)
+                          following.csv  coaching.csv
+                          kitchen-progress.csv  achievements.csv  cooking.csv
+                                                           (UTF-8 BOM, CRLF, formulas neutralised)
         Built synchronously: 3 years of logs + 600 workouts zips in well under a second
         to < 2 MB (export-archive.test.ts), so there is no background job.
         A new data type (e.g. body measurements) = rows in collectAccountData + one
