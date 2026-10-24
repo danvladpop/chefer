@@ -2342,7 +2342,7 @@ New table `recipe_translations` (`RecipeTranslation`), one row per recipe and la
 translation whose `sourceHash` no longer matches the English is ignored until the pipeline redoes it.
 
 Deploy applies it with `prisma db push` (a new table and enum, so there is no data-loss prompt). The named migration
-is `packages/database/prisma/migrations/20261023120000_recipe_translations/`.
+is `packages/database/prisma/migrations/20261024120500_recipe_translations/`.
 
 ## 7. API Layer
 
