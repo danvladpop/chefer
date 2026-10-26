@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import {
+  bodyMeasurementValuesSchema,
   FOOD_TEXT_LIMITS,
   foodTextLogItemSchema,
   foodTextSchema,
+  HEALTH_WEIGHT_IMPORT_MAX,
+  healthPlatformSchema,
   productAmountSchema,
 } from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN, QUICK_ADD_MEAL_TYPES } from '@chefer/utils';
+import { bodyMeasurementService } from '../application/body/body-measurement.service.js';
 import { trackerService } from '../application/tracker/tracker.service.js';
 import {
   aiConsentProcedure,
@@ -220,6 +224,14 @@ export const trackerRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { date, ...slot } = input;
       return trackerService.unskipSlot(ctx.user.id, date, slot);
+    }),
+
+  // Lane D2: mark a day as partly logged so the weekly review leaves it out
+  // of its averages. Additive — shipped clients never call it.
+  setDayIncomplete: protectedProcedure
+    .input(z.object({ date: logDateSchema, incomplete: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.setDayIncomplete(ctx.user.id, input.date, input.incomplete);
     }),
 
   // The tracker's untick (T-19.4, one-save model): removes the planned-recipe
@@ -443,6 +455,31 @@ export const trackerRouter = router({
       return trackerService.logWeight(ctx.user.id, input.weightKg, input.date);
     }),
 
+  /**
+   * C2 health sync: weigh-ins read from Apple Health / Health Connect, in pages
+   * of up to HEALTH_WEIGHT_IMPORT_MAX. A sample already imported (same
+   * externalId) is skipped. Same consent gate as a typed weigh-in.
+   */
+  importWeights: protectedProcedure
+    .input(
+      z.object({
+        source: healthPlatformSchema,
+        entries: z
+          .array(
+            z.object({
+              externalId: z.string().min(1).max(200),
+              weightKg: bodyWeightKgSchema,
+              date: weightDateSchema,
+            }),
+          )
+          .max(HEALTH_WEIGHT_IMPORT_MAX),
+      }),
+    )
+    .use(requireHealthConsent())
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.importWeights(ctx.user.id, input.source, input.entries);
+    }),
+
   // Correct or remove a weigh-in (audit F-DASH-3-1). Owner-scoped: someone
   // else's entry id answers NOT_FOUND.
   updateWeight: protectedProcedure
@@ -462,6 +499,33 @@ export const trackerRouter = router({
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return trackerService.deleteWeight(ctx.user.id, input.id);
+    }),
+
+  // Lane D3: body measurements (free). Lengths in cm, body fat in %; one
+  // entry per local day, measures merge. Health data, so writes need consent
+  // like weigh-ins. Additive — shipped clients never call these.
+  bodyMeasurements: protectedProcedure
+    .input(z.object({ days: z.number().int().min(1).max(730).default(365) }))
+    .query(async ({ ctx, input }) => {
+      return bodyMeasurementService.list(ctx.user.id, input.days);
+    }),
+
+  logBodyMeasurement: protectedProcedure
+    .input(
+      bodyMeasurementValuesSchema.extend({
+        date: calendarDateSchema.refine(notFuture, "A measurement can't be in the future"),
+      }),
+    )
+    .use(requireHealthConsent())
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...values } = input;
+      return bodyMeasurementService.log(ctx.user.id, date, values);
+    }),
+
+  deleteBodyMeasurement: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return bodyMeasurementService.delete(ctx.user.id, input.id);
     }),
 
   weightHistory: protectedProcedure

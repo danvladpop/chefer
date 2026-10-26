@@ -97,6 +97,13 @@ export const cheferizedRecipeSchema = z.object({
   ),
 });
 
+/** rewriteRecipeProse's response (curated ingest). */
+export const rewrittenProseSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  instructions: z.array(z.string().min(1)),
+});
+
 export const ingredientPriceEstimateSchema = z.object({
   ingredientName: z.string(),
   pricePer100gEur: z.number().nullable(),
