@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useT } from '@/lib/i18n';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@chefer/utils';
 
@@ -18,6 +19,8 @@ export function Stepper({
   onValueChange,
   label,
   valueLabel,
+  decreaseLabel,
+  increaseLabel,
   disabled = false,
   canDecrement = true,
   canIncrement = true,
@@ -41,12 +44,16 @@ export function Stepper({
   label: string;
   /** Accessible name for the value button. */
   valueLabel?: string;
+  /** Accessible names for the − / + buttons; default to "Decrease {label}" / "Increase {label}". */
+  decreaseLabel?: string;
+  increaseLabel?: string;
   disabled?: boolean;
   canDecrement?: boolean;
   canIncrement?: boolean;
   className?: string;
   testId?: string;
 }) {
+  const { t } = useT();
   return (
     <div
       className={cn(
@@ -59,7 +66,7 @@ export function Stepper({
       <RepeatButton
         onStep={onDecrement}
         disabled={disabled || !canDecrement}
-        ariaLabel={`Decrease ${label}`}
+        ariaLabel={decreaseLabel ?? t('gym.shared.stepper.decrease', { label })}
       >
         <Minus className="h-4 w-4" aria-hidden="true" />
       </RepeatButton>
@@ -98,7 +105,7 @@ export function Stepper({
       <RepeatButton
         onStep={onIncrement}
         disabled={disabled || !canIncrement}
-        ariaLabel={`Increase ${label}`}
+        ariaLabel={increaseLabel ?? t('gym.shared.stepper.increase', { label })}
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
       </RepeatButton>

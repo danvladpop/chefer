@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Search, X } from 'lucide-react';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
@@ -47,7 +48,7 @@ export function ExercisePickerSheet({
   onClose,
   onPick,
   library,
-  title = 'Choose an exercise',
+  title,
   preferSwapGroup = null,
   excludeIds,
 }: {
@@ -60,6 +61,7 @@ export function ExercisePickerSheet({
   preferSwapGroup?: string | null;
   excludeIds?: readonly string[];
 }) {
+  const { t } = useT();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<LibraryFilterGroup | null>(null);
 
@@ -73,10 +75,10 @@ export function ExercisePickerSheet({
   }, [library, query, group, excludeIds, preferSwapGroup]);
 
   return (
-    <Sheet open={open} onClose={onClose} title={title} size="lg">
+    <Sheet open={open} onClose={onClose} title={title ?? t('gym.shared.picker.title')} size="lg">
       <div className="sticky top-0 z-10 space-y-3 bg-white px-5 pb-3">
         <label className="relative block">
-          <span className="sr-only">Search exercises</span>
+          <span className="sr-only">{t('gym.shared.picker.search')}</span>
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden="true"
@@ -85,14 +87,14 @@ export function ExercisePickerSheet({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search exercises"
+            placeholder={t('gym.shared.picker.search')}
             className={cn('h-11 pl-9', query && 'pr-9')}
             data-testid="exercise-picker-search"
           />
           {query ? (
             <button
               type="button"
-              aria-label="Clear search"
+              aria-label={t('gym.shared.picker.clearSearch')}
               onClick={() => setQuery('')}
               className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-gray-400 hover:text-gray-600"
             >
@@ -100,7 +102,11 @@ export function ExercisePickerSheet({
             </button>
           ) : null}
         </label>
-        <div role="group" aria-label="Muscle group" className="scroll-rail -mx-5 gap-1.5 px-5">
+        <div
+          role="group"
+          aria-label={t('gym.shared.picker.muscleGroup')}
+          className="scroll-rail -mx-5 gap-1.5 px-5"
+        >
           {GROUPS.map((g) => {
             const on = group === g;
             return (
@@ -153,8 +159,8 @@ export function ExercisePickerSheet({
                   <span className="block truncate text-xs text-gray-500">
                     {item.primaryMuscles.map((m) => MUSCLE_LABELS[m]).join(', ')} ·{' '}
                     {item.equipment.toLowerCase().replace('_', ' ')}
-                    {similar ? ' · similar' : ''}
-                    {item.ownerId ? ' · custom' : ''}
+                    {similar ? ` · ${t('gym.shared.picker.similar')}` : ''}
+                    {item.ownerId ? ` · ${t('gym.shared.picker.custom')}` : ''}
                   </span>
                 </span>
               </button>
@@ -163,7 +169,7 @@ export function ExercisePickerSheet({
         })}
         {rows.length === 0 && (
           <li className="px-5 py-8 text-center text-sm text-gray-500">
-            No exercises match. Try another search.
+            {t('gym.shared.picker.empty')}
             {/* UX-GYM-21: nothing matched — offer to create it, pre-filled. */}
             {canOfferCreate(query) ? (
               <Link
@@ -171,7 +177,7 @@ export function ExercisePickerSheet({
                 data-testid="exercise-picker-create-from-search"
                 className="mt-3 flex min-h-11 items-center justify-center font-medium text-[#944a00] hover:underline"
               >
-                {`Create “${query.trim()}”`}
+                {t('gym.shared.picker.create', { query: query.trim() })}
               </Link>
             ) : null}
           </li>

@@ -34,6 +34,8 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
   return (
     <nav
       aria-label={t('nav.primary')}
+      // The accessible name is translated; tests find the shell by this id.
+      data-testid="primary-nav"
       className={cn(
         'fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-white/80',
         className,

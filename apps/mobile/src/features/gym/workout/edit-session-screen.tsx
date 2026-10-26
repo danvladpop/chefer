@@ -21,6 +21,7 @@ import {
   toSessionSummary,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { useT } from '../../../lib/i18n';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { captureGymEvent } from '../analytics';
 import { openCreateExercise } from '../library/create-exercise-href';
@@ -29,7 +30,7 @@ import { newId } from '../offline/ids';
 import { deleteSessionWithUndo, saveEditedSession } from '../offline/session-corrections';
 import { saveLoggedSession } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
-import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
+import { exerciseCapReason, isAtExerciseCap } from './caps';
 import { EditSessionHeader } from './edit-session-header';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { NumberSheet } from './number-sheet';
@@ -74,7 +75,6 @@ type SheetState =
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
-const NO_ROUTINE_REASON = 'Edit mode never changes your routine.';
 
 function leave(): void {
   if (router.canGoBack()) router.back();
@@ -92,6 +92,7 @@ export function LogSessionScreen(params: LogSessionParams) {
 }
 
 function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log' }) {
+  const { t } = useT();
   const logging = mode === 'log';
   const { data: bootstrap } = useGymBootstrap();
   const queryClient = useQueryClient();
@@ -112,10 +113,10 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
   // dirty). The draft itself is kept on disk (`session-draft-store.ts`), so a
   // crash or a "Discard" is the only way it is lost.
   const guard = useUnsavedGuard(dirty, {
-    title: logging ? 'Discard this workout?' : 'Discard your edits?',
-    message: logging ? 'Nothing will be saved.' : 'Your workout stays as it was.',
-    discardLabel: logging ? 'Discard' : 'Discard edits',
-    keepLabel: 'Keep editing',
+    title: logging ? t('gym.workout.view.discardTitle') : t('gym.session.edit.discardEditsTitle'),
+    message: logging ? t('gym.session.edit.logMessage') : t('gym.session.edit.editMessage'),
+    discardLabel: logging ? t('gym.workout.view.discard') : t('gym.session.edit.discardEdits'),
+    keepLabel: t('gym.session.edit.keepEditing'),
   });
   const { release: releaseGuard } = guard;
   const { discardDraft } = edit;
@@ -130,8 +131,8 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
   const restored = ready?.restored ?? false;
   const showSnackbar = snackbar.show;
   useEffect(() => {
-    if (restored) showSnackbar({ message: 'Restored your unsaved changes.' });
-  }, [restored, showSnackbar]);
+    if (restored) showSnackbar({ message: t('gym.session.edit.restored') });
+  }, [restored, showSnackbar, t]);
 
   // ── Derived, memoised context ──────────────────────────────────────────────
   const unit = unitOf(bootstrap);
@@ -276,14 +277,16 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         dispatch({ type: 'removeSet', seId, setId });
         haptics.warning();
         snackbar.show({
-          message: `Removed ${label?.toLowerCase() ?? 'set'}`,
-          actionLabel: 'Undo',
+          message: t('gym.workout.view.removedSet', {
+            label: label?.toLowerCase() ?? t('gym.workout.view.setFallback'),
+          }),
+          actionLabel: t('gym.workout.view.undo'),
           durationMs: 8000,
           onAction: () => dispatch({ type: 'restoreSet', seId, set, index }),
         });
       },
     }),
-    [dispatch, getDraft, logging, lookup, offerWeighted, openSheet, profile, snackbar, tickAt],
+    [dispatch, getDraft, logging, lookup, offerWeighted, openSheet, profile, snackbar, tickAt, t],
   );
 
   const [expandOverride, setExpandOverride] = useState<Record<string, boolean>>({});
@@ -333,14 +336,14 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
     if (!doc || !ready) return;
     if (logging) {
       if (!hasLoggableSet(doc, isCardio)) {
-        snackbar.show({ message: 'Add at least one exercise with a set to save.' });
+        snackbar.show({ message: t('gym.session.edit.addAtLeast') });
         return;
       }
       setSaving(true);
       try {
         await saveLoggedSession(queryClient, doc, isCardio);
         haptics.success();
-        snackbar.show({ message: 'Workout logged', tone: 'success' });
+        snackbar.show({ message: t('gym.session.edit.logged'), tone: 'success' });
         exit();
       } finally {
         setSaving(false);
@@ -359,12 +362,12 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
     try {
       await saveEditedSession({ queryClient, original: ready.original, draft: doc });
       haptics.success();
-      snackbar.show({ message: 'Workout updated', tone: 'success' });
+      snackbar.show({ message: t('gym.session.edit.updated'), tone: 'success' });
       exit();
     } finally {
       setSaving(false);
     }
-  }, [exit, getDraft, isCardio, logging, openSheet, queryClient, ready, snackbar]);
+  }, [exit, getDraft, isCardio, logging, openSheet, queryClient, ready, snackbar, t]);
 
   // Cancel just leaves: while there are unsaved edits the guard holds the
   // navigation and opens its confirm (`guard.sheetProps`, rendered below).
@@ -439,7 +442,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         {edit.state.status === 'loading' ? (
           <View className="flex-1 items-center justify-center">
             <Text testID="edit-session-loading" variant="muted">
-              Loading…
+              {t('common.states.loading')}
             </Text>
           </View>
         ) : (
@@ -447,15 +450,19 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
             testID="edit-session-unavailable"
             title={
               edit.state.status === 'unavailable' && edit.state.offline
-                ? 'Needs a connection'
-                : 'Workout not found'
+                ? t('gym.session.edit.needsConnection')
+                : t('gym.session.edit.notFound')
             }
             description={
               edit.state.status === 'unavailable' && edit.state.offline
-                ? 'Connect to load older workouts.'
-                : 'It may have been deleted.'
+                ? t('gym.session.edit.connectToLoadOlder')
+                : t('gym.session.mayBeDeleted')
             }
-            action={{ label: 'Back', onPress: leave, testID: 'edit-session-unavailable-back' }}
+            action={{
+              label: t('common.actions.back'),
+              onPress: leave,
+              testID: 'edit-session-unavailable-back',
+            }}
           />
         )}
       </Screen>
@@ -507,9 +514,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
-            {logging
-              ? 'Add the exercises you did, with their sets and weights.'
-              : 'No exercises left. Add one, or delete this workout from its menu.'}
+            {logging ? t('gym.session.edit.emptyLog') : t('gym.session.edit.emptyEdit')}
           </Text>
         ) : null}
         {exercises.map((se, index) => (
@@ -529,7 +534,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
           disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null })}
         >
-          + Add exercise
+          {t('gym.workout.logger.screen.addExercisePlus')}
         </Button>
         {isAtExerciseCap(exercises.length) ? (
           <Text
@@ -537,7 +542,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
             variant="muted"
             className="text-center text-sm"
           >
-            {EXERCISE_CAP_REASON}
+            {exerciseCapReason()}
           </Text>
         ) : null}
       </ScrollView>
@@ -551,7 +556,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         name={contentMeta?.name ?? ''}
         isFirst={contentIndex === 0}
         isLast={contentIndex === exercises.length - 1}
-        routineBlockedReason={NO_ROUTINE_REASON}
+        routineBlockedReason={t('gym.session.edit.noRoutine')}
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
@@ -600,7 +605,13 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
           onClose={closeSheet}
           kind={content?.kind === 'reps' ? 'reps' : 'weight'}
           value={content?.kind === 'reps' ? contentSet.reps : contentSet.weightKg}
-          title={`${contentMeta.name} · ${content?.kind === 'reps' ? (contentMeta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
+          title={`${contentMeta.name} · ${
+            content?.kind === 'reps'
+              ? contentMeta.isTimed
+                ? t('gym.workout.logger.setRow.stepperSeconds')
+                : t('gym.workout.logger.setRow.stepperReps')
+              : t('gym.workout.logger.setRow.stepperWeight')
+          }`}
           unit={unit}
           meta={contentMeta}
           profile={loggingProfile(contentMeta, profile)}
@@ -619,7 +630,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         onClose={closeSheet}
         onPick={onPick}
         library={pickerLibrary}
-        title={replacing ? 'Replace with' : 'Add exercise'}
+        title={replacing ? t('gym.session.edit.replaceWith') : t('gym.workout.view.addExercise')}
         preferSwapGroup={replacing ? contentMeta?.swapGroup : null}
         excludeIds={replacing && contentSe ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging && !replacing}
@@ -635,10 +646,10 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         visible={active?.kind === 'nothing'}
         onClose={closeSheet}
         testID="edit-session-nothing-sheet"
-        title="Nothing is ticked. Delete this workout?"
-        body="A workout with no ticked sets can’t be saved. Deleting it works your targets out again."
-        confirmLabel="Delete workout"
-        cancelLabel="Keep editing"
+        title={t('gym.session.edit.nothingTitle')}
+        body={t('gym.session.edit.nothingBody')}
+        confirmLabel={t('gym.session.deleteWorkout')}
+        cancelLabel={t('gym.session.edit.keepEditing')}
         destructive
         onConfirm={onDeleteInstead}
       />

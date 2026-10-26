@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import type { Translator } from '@chefer/i18n';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -20,7 +21,8 @@ import {
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
-import { nextLoad, PR_LABELS, type WeightMode } from './workout-model';
+import { useT } from '../../../lib/i18n';
+import { nextLoad, prLabel, type WeightMode } from './workout-model';
 
 // One set: `label | last time (muted) | [− weight +] | [− reps +] | ✓`
 // (gym_plan.md §1.3). Memoised: ticking one set re-renders that row only —
@@ -61,14 +63,14 @@ const MAX_REPS = 100;
 const MAX_SECONDS = 3600;
 const TIMED_STEP = 5;
 
-function weightCaption(meta: ExerciseMeta, unit: WeightUnit): string {
+function weightCaption(meta: ExerciseMeta, unit: WeightUnit, t: Translator['t']): string {
   if (meta.loadType === 'ASSISTED' || meta.equipment === 'ASSISTED')
-    return `${unitLabel(unit)} assist`;
+    return t('gym.workout.logger.setRow.assist', { unit: unitLabel(unit) });
   if (meta.loadType === 'BODYWEIGHT_PLUS' || meta.equipment === 'BODYWEIGHT') {
     return `+${unitLabel(unit)}`;
   }
   // UX-GYM-19: one dumbbell's weight, not the pair.
-  if (meta.perHand) return `${unitLabel(unit)} each`;
+  if (meta.perHand) return t('gym.workout.logger.setRow.each', { unit: unitLabel(unit) });
   return unitLabel(unit);
 }
 
@@ -87,10 +89,11 @@ function SetRowImpl({
   handlers,
   testID,
 }: SetRowProps) {
+  const { t } = useT();
   const colors = useThemeColors();
   const done = set.completedAt !== null;
   const timed = meta.isTimed;
-  const repsCaption = timed ? 's' : 'reps';
+  const repsCaption = timed ? 's' : t('gym.workout.setRow.reps');
 
   const nextWeight = useCallback(
     (kg: number, direction: 1 | -1) => nextLoad(kg, direction, meta, profile),
@@ -118,11 +121,23 @@ function SetRowImpl({
   const longPress = useCallback(() => onLongPress(seId, set.id), [onLongPress, seId, set.id]);
 
   const loadText = formatLoad(set.weightKg, unit, meta.loadType, { each: meta.perHand });
-  const summary = `${label}: ${loadText}, ${set.reps} ${repsCaption}`;
+  const summary = timed
+    ? t('gym.workout.logger.setRow.summarySeconds', {
+        label,
+        load: loadText,
+        reps: String(set.reps),
+      })
+    : t('gym.workout.logger.setRow.summaryReps', {
+        label,
+        load: loadText,
+        reps: String(set.reps),
+      });
   const lastText = last
-    ? `Last ${weightMode === 'none' ? '' : `${formatLoadNumber(last.weightKg, unit)} × `}${last.reps}${timed ? ' s' : ''}`
+    ? t('gym.workout.logger.setRow.last', {
+        value: `${weightMode === 'none' ? '' : `${formatLoadNumber(last.weightKg, unit)} × `}${last.reps}${timed ? ' s' : ''}`,
+      })
     : set.isWarmup
-      ? 'Warm-up'
+      ? t('gym.workout.logger.setRow.warmup')
       : '';
 
   return (
@@ -168,7 +183,7 @@ function SetRowImpl({
             <PopIn shine>
               <View className="rounded-full bg-attention/10 px-2 py-0.5">
                 <Text testID={`${testID}-pr`} className="text-caption font-bold text-attention">
-                  {PR_LABELS[prKind]}
+                  {prLabel(prKind)}
                 </Text>
               </View>
             </PopIn>
@@ -180,7 +195,7 @@ function SetRowImpl({
           <Pressable
             testID={`${testID}-menu`}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${label}`}
+            accessibilityLabel={t('gym.workout.view.removeSet', { label })}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={longPress}
             className="h-11 w-11 items-center justify-center"
@@ -198,7 +213,7 @@ function SetRowImpl({
                 testID={`${testID}-weight-value`}
                 className="text-title2 font-semibold text-label"
               >
-                BW
+                {t('gym.workout.setRow.bodyweight')}
               </Text>
             </View>
           ) : (
@@ -206,12 +221,12 @@ function SetRowImpl({
               className="flex-1"
               testID={`${testID}-weight`}
               variant="grouped"
-              name="Weight"
+              name={t('gym.workout.logger.setRow.stepperWeight')}
               value={set.weightKg}
               next={nextWeight}
               onChange={setWeight}
               format={formatWeight}
-              caption={weightCaption(meta, unit)}
+              caption={weightCaption(meta, unit, t)}
               onPressValue={openWeight}
               done={done}
             />
@@ -220,7 +235,11 @@ function SetRowImpl({
             className="flex-1"
             testID={`${testID}-reps`}
             variant="grouped"
-            name={timed ? 'Seconds' : 'Reps'}
+            name={
+              timed
+                ? t('gym.workout.logger.setRow.stepperSeconds')
+                : t('gym.workout.logger.setRow.stepperReps')
+            }
             value={set.reps}
             next={nextReps}
             onChange={setReps}
@@ -234,7 +253,11 @@ function SetRowImpl({
               testID={`${testID}-check`}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: done }}
-              accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
+              accessibilityLabel={
+                done
+                  ? t('gym.workout.logger.setRow.loggedUndo', { summary })
+                  : t('gym.workout.logger.setRow.log', { summary })
+              }
               onPress={() => onTick(seId, set.id)}
               // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
               // used with a barbell in hand. MO-16: the disc fills and the

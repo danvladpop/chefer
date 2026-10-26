@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EquipmentProfile, ExerciseDto, GymBootstrap } from '@chefer/types';
 import { useSnackbar } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { addsUnsuggestedLoad } from './workout-model';
@@ -16,6 +17,7 @@ export function useWeightedBodyweightOffer(): (
   profile: EquipmentProfile,
   kg: number,
 ) => void {
+  const { t } = useT();
   const snackbar = useSnackbar();
   const queryClient = useQueryClient();
   const asked = useRef(false);
@@ -24,7 +26,7 @@ export function useWeightedBodyweightOffer(): (
       queryClient.setQueryData(gymBootstrapQueryKey, (prev: GymBootstrap | undefined) =>
         prev ? { ...prev, profile } : prev,
       );
-      snackbar.show({ message: 'Weighted sets on — change it in Gym settings.', tone: 'success' });
+      snackbar.show({ message: t('gym.workout.logger.weighted.on'), tone: 'success' });
     },
   });
   const mutate = save.mutate;
@@ -34,12 +36,12 @@ export function useWeightedBodyweightOffer(): (
       if (asked.current || !addsUnsuggestedLoad(meta, profile, kg)) return;
       asked.current = true;
       snackbar.show({
-        message: `Added weight on ${meta.name}. Suggest weighted sets next time?`,
-        actionLabel: 'Yes',
+        message: t('gym.workout.logger.weighted.offer', { name: meta.name }),
+        actionLabel: t('gym.workout.logger.weighted.yes'),
         durationMs: 8000,
         onAction: () => mutate({ hasDipBelt: true }),
       });
     },
-    [mutate, snackbar],
+    [mutate, snackbar, t],
   );
 }
