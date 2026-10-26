@@ -355,6 +355,39 @@ export {
   type WeightParseResult,
 } from './weight';
 export {
+  TREND_DAILY_ALPHA,
+  TREND_WEIGHT_EXPLAINER,
+  summarizeWeightTrend,
+  trendChangeText,
+  weightTrendSeries,
+  type TrendPoint,
+  type WeighIn,
+  type WeightTrendOptions,
+  type WeightTrendSummary,
+  type WeightTrendSummaryOptions,
+} from './weight-trend';
+export {
+  COACH_WHY_TITLE,
+  coachExplanationText,
+  PARTLY_LOGGED_COPY,
+  type CoachExplanationText,
+} from './coach-explanation';
+export {
+  bodyLengthUnit,
+  formatMeasure,
+  measureChangeText,
+  measuredMeasures,
+  measureInUnit,
+  measureSeries,
+  measureUnit,
+  MEASUREMENTS_COPY,
+  parseMeasure,
+  parseMeasurementForm,
+  type MeasurementFormResult,
+  type MeasureParseResult,
+  type MeasurePoint,
+} from './body-measurements';
+export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
@@ -431,6 +464,7 @@ export {
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
   goalWording,
+  goalGetsTrainingBump,
   hasTrainingDayBump,
   isLifter,
   isRunKind,
@@ -909,3 +943,10 @@ export * from './onboarding-v4';
 export * from './day-fit-copy';
 export * from './packaged-product';
 export * from './saved-meals';
+export { escapeCsvField, parseCsv, sniffCsvDelimiter, toCsv, type CsvCell } from './csv';
+export {
+  DATA_EXPORT_COPY,
+  exportErrorMessage,
+  exportSizeBucket,
+  type ExportSizeBucket,
+} from './data-export';

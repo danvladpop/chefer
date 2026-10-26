@@ -17,10 +17,12 @@ import type {
   MealPlanDayRequest,
   MealPlanInput,
   NutritionLabelReading,
+  ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RewrittenProse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -255,6 +257,11 @@ export class ChainAIService implements IAIService {
 
   generateReviewText(input: CoachReviewInput): Promise<string> {
     return this.run('generateReviewText', 'review', (s) => s.generateReviewText(input), input);
+  }
+
+  // Curated ingest: quality-sensitive prose, so it rides the cheferize chain.
+  rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse> {
+    return this.run('rewriteRecipeProse', 'cheferize', (s) => s.rewriteRecipeProse(input), input);
   }
 }
 

@@ -147,7 +147,11 @@ describe('ProgressBackfillService.backfillUser', () => {
     const { world, service } = setup(['s1']);
     await service.backfillUser(USER, { today: '2026-10-22' });
     expect(world.ledger.ofKind('WORKOUT_COMPLETED').map((r) => r.sourceId)).toEqual(['s1']);
-    expect(scorableSessionWhere(USER)).toMatchObject({ userId: USER, status: 'COMPLETED' });
+    expect(scorableSessionWhere(USER)).toEqual({
+      userId: USER,
+      status: 'COMPLETED',
+      importSource: null,
+    });
   });
 
   it('a dry run builds the events and writes nothing', async () => {

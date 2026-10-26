@@ -10,6 +10,7 @@ import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { EditEntrySheet } from '@/features/tracker/components/EditEntrySheet';
 import { EditRecipeEntrySheet } from '@/features/tracker/components/EditRecipeEntrySheet';
 import { MealActionsSheet } from '@/features/tracker/components/MealActionsSheet';
+import { PartlyLoggedToggle } from '@/features/tracker/components/PartlyLoggedToggle';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
@@ -865,6 +866,10 @@ export default function TrackerPage() {
                   ))}
                 </div>
               </div>
+            )}
+            {/* Lane D2: a half-logged day can be left out of the weekly review. */}
+            {(data.log?.loggedMeals.length ?? 0) > 0 && (
+              <PartlyLoggedToggle date={dateStr} incomplete={data.incomplete ?? false} />
             )}
           </>
         )}
