@@ -29,7 +29,10 @@
       android:textSize="17sp"
       android:textStyle="bold" />
 
-  <View
+  <!-- Spacer. A FrameLayout, not a View: RemoteViews only inflates the
+       classes it allows, and a plain View makes the launcher show
+       "Couldn't add widget". -->
+  <FrameLayout
       android:layout_width="match_parent"
       android:layout_height="0dp"
       android:layout_weight="1" />
