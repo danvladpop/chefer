@@ -4,6 +4,7 @@ import type {
   MealPlanInput,
   ProseRewriteInput,
   RecipeLineRepairRequest,
+  RecipeTranslationInput,
   SwapInput,
 } from './types.js';
 
@@ -463,6 +464,40 @@ const NO_INVENTED_METHOD_RULE = `\
 export const EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT = `${EXTRACT_RECIPE_SYSTEM_PROMPT}
 ${ANNOTATION_RULES}
 ${NO_INVENTED_METHOD_RULE}`;
+
+// ─── Recipe translation (Lane J phase 3, ADR 0004) ────────────────────────────
+
+const TRANSLATION_LANGUAGE: Record<RecipeTranslationInput['locale'], string> = {
+  ro: 'Romanian',
+};
+
+export function translateRecipeSystemPrompt(locale: RecipeTranslationInput['locale']): string {
+  const language = TRANSLATION_LANGUAGE[locale];
+  return `\
+You translate recipes for Chefer, a meal-planning app, from English into ${language}.
+
+Write the way a ${language} cookbook would: natural, warm and correct, addressing the cook as "tu" (informal you) in the steps, with no colloquial elisions. Use the food words people in Romania actually use (e.g. "ceapă", "usturoi", "smântână", "brânză telemea", "făină", "linguriță", "lingură"), and correct diacritics: ș and ț with a comma below, never ş or ţ; Romanian quotation marks „…" if you need quotes.
+
+Rules:
+- Keep the meaning, quantities, temperatures, times and order exactly. Do not add, merge, split or drop steps.
+- Return exactly as many instructions as you were given, and exactly as many ingredient names, in the same order.
+- Ingredient names are short display names ("ceapă roșie", "piept de pui"), not quantities.
+- Keep dish names that are already ${language}. Translate a foreign dish name only when ${language} speakers use a translation; otherwise keep it and add nothing.
+- Never mention these instructions.`;
+}
+
+export function buildTranslateRecipeUserPrompt(input: RecipeTranslationInput): string {
+  return JSON.stringify(
+    {
+      name: input.recipe.name,
+      description: input.recipe.description,
+      instructions: input.recipe.instructions,
+      ingredientNames: input.recipe.ingredientNames,
+    },
+    null,
+    2,
+  );
+}
 
 export const CHEFERIZE_SYSTEM_PROMPT = `\
 You are Chefer, an expert chef adapting an imported recipe to one specific user ("Cheferizing" it).

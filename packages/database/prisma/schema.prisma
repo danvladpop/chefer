@@ -501,6 +501,8 @@ model Recipe {
   /// Whole-recipe totals (same shape as nutritionInfo), kept for audit.
   nutritionTotal      Json?
   lines               RecipeIngredient[]
+  /// Lane J phase 3 (ADR 0004): the recipe's text in other languages.
+  translations        RecipeTranslation[]
 
   // At most one copy per viewer and source. NOT a @@unique: adding a unique
   // constraint to the populated `recipes` table makes `prisma db push` stop
@@ -1125,6 +1127,47 @@ enum NutritionStatus {
   COMPUTED
   PARTIAL
   USER_ENTERED
+}
+
+/// Lane J phase 3 (ADR 0004): who stands behind a recipe translation.
+enum TranslationStatus {
+  /// Drafted by the AI pipeline (`pnpm recipes:translate`); shown to readers, not yet reviewed.
+  MACHINE_DRAFT
+  /// A person read it and approved it (`pnpm recipes:translate approve`).
+  REVIEWED
+}
+
+/// A recipe's display text in one language other than English (ADR 0004).
+/// English stays on the Recipe row and is the fallback: a reader whose
+/// language has no current translation sees the English. Additive only —
+/// nothing writes recipes from here, and name-based logic keeps using the
+/// English row.
+model RecipeTranslation {
+  id              String            @id @default(cuid())
+  recipeId        String
+  /// 'ro' (supportedLocaleSchema minus 'en'; a string so a language is never a migration)
+  locale          String
+  name            String
+  description     String
+  instructions    String[]
+  /// Display names aligned by index with Recipe.ingredients (Json); a
+  /// different length means the recipe changed and the names are not used.
+  ingredientNames String[]
+  status          TranslationStatus @default(MACHINE_DRAFT)
+  /// What produced it: "ai:<op>" for the pipeline, "human" for an edit.
+  source          String
+  /// sha256 of the English it was made from (name, description, steps,
+  /// ingredient names). When the recipe changes, the hash no longer matches
+  /// and readers get the English until the pipeline re-translates it.
+  sourceHash      String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, locale])
+  @@index([locale, status])
+  @@map("recipe_translations")
 }
 
 enum IngredientCategory {

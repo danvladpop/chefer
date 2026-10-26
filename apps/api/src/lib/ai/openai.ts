@@ -17,6 +17,7 @@ import {
   buildReviewUserPrompt,
   buildRewriteProseUserPrompt,
   buildSwapUserPrompt,
+  buildTranslateRecipeUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
@@ -31,6 +32,7 @@ import {
   REVIEW_SYSTEM_PROMPT,
   REWRITE_PROSE_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
+  translateRecipeSystemPrompt,
 } from './prompts.js';
 import { retryAfterFrom, TokenRateState } from './rate-limit.js';
 import {
@@ -42,6 +44,7 @@ import {
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
   recipeLineRepairResponseSchema,
+  recipeTranslationDraftSchema,
   rewrittenProseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
@@ -65,6 +68,8 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RecipeTranslationDraft,
+  RecipeTranslationInput,
   RewrittenProse,
   SwapInput,
   WeekPlanResponse,
@@ -267,6 +272,7 @@ const WEEK_PLAN_SHAPE =
 
 const ANNOTATED_EXTRACTION_SHAPE = `{"recipe":${EXTRACTED_RECIPE_SHAPE},"confidence":"high"|"medium"|"low","assumptions":[string]}`;
 
+const RECIPE_TRANSLATION_SHAPE = `{"name":string,"description":string,"instructions":[string],"ingredientNames":[string]}`;
 const CHEFERIZED_SHAPE = `{"adapted":${EXTRACTED_RECIPE_SHAPE},"changes":[{"kind":"allergen"|"restriction"|"dislike"|"servings"|"other","description":string}]}`;
 
 const REWRITTEN_PROSE_SHAPE = '{"name":string,"description":string,"instructions":[string]}';
@@ -1087,5 +1093,16 @@ export class OpenAICompatibleAIService implements IAIService {
     const text = response.choices?.[0]?.message?.content?.trim();
     if (!text) throw new Error('OpenAICompatibleAIService: empty review text');
     return text;
+  }
+  async translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft> {
+    return this.completeJson({
+      label: 'translateRecipe',
+      system: translateRecipeSystemPrompt(input.locale),
+      user: buildTranslateRecipeUserPrompt(input),
+      shape: RECIPE_TRANSLATION_SHAPE,
+      schema: recipeTranslationDraftSchema,
+      temperature: 0.3,
+      maxTokens: MAX_TOKENS_DEFAULT,
+    });
   }
 }

@@ -188,6 +188,29 @@ export interface RecipeChange {
 }
 
 /**
+ * Lane J phase 3 (ADR 0004): one curated recipe's English text, to be written
+ * in `locale`. The output keeps the same number of steps and ingredient names,
+ * in the same order — the service rejects anything else.
+ */
+export interface RecipeTranslationInput {
+  /** A shipped language other than English ('ro'). */
+  locale: 'ro';
+  recipe: {
+    name: string;
+    description: string;
+    instructions: string[];
+    ingredientNames: string[];
+  };
+}
+
+export interface RecipeTranslationDraft {
+  name: string;
+  description: string;
+  instructions: string[];
+  ingredientNames: string[];
+}
+
+/**
  * Curated ingest (market review F1): the facts of an extracted recipe, whose
  * prose is rewritten in Chefer's own words before it can enter the shared pool.
  */
@@ -421,6 +444,12 @@ export interface IAIService {
    * directly, outside the interface and the provider chain).
    */
   generateReviewText(input: CoachReviewInput): Promise<string>;
+  /**
+   * Lane J phase 3 (ADR 0004): a curated recipe's display text in another
+   * language, for `pnpm recipes:translate` only (never on a user request).
+   * Routed with the `cheferize` workload (recipe rewriting, quality first).
+   */
+  translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft>;
 }
 
 /** Inputs for the weekly coach review prose. */

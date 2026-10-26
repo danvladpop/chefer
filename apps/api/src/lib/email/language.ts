@@ -1,20 +1,13 @@
-import { createTranslator, resolveLocale, type Translator } from '@chefer/i18n';
-import { supportedLocaleSchema, type SupportedLocale } from '@chefer/types';
+import { createTranslator, type Translator } from '@chefer/i18n';
+import { userLocale } from '../user-locale.js';
 
 // ─── The language an email goes out in (ADR 0004) ─────────────────────────────
-// The Settings choice, else the language the user's device last reported,
-// else English. The columns are plain strings, so anything unknown is unset.
-
-function parse(value: string | null | undefined): SupportedLocale | null {
-  const parsed = supportedLocaleSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
-}
+// The recipient's language (lib/user-locale.ts): the Settings choice, else the
+// language their device last reported, else English.
 
 export function emailTranslator(user: {
   locale?: string | null;
   deviceLocale?: string | null;
 }): Translator {
-  return createTranslator(
-    resolveLocale({ choice: parse(user.locale), deviceLocale: parse(user.deviceLocale) }),
-  );
+  return createTranslator(userLocale(user));
 }
