@@ -42,6 +42,7 @@ const log = (date: string, over: Partial<DailyLog> = {}): DailyLog => ({
   id: `log-${date}`,
   userId: 'client1',
   date: new Date(`${date}T00:00:00Z`),
+  incomplete: false,
   loggedMeals: [
     {
       entryId: 'e1',
@@ -95,12 +96,16 @@ function setup(opts: { numbersMode?: string | null; logs?: DailyLog[] } = {}) {
           id: 'w1',
           userId: 'client1',
           weightKg: 80.4,
+          source: 'MANUAL' as const,
+          externalId: null,
           recordedAt: new Date('2026-10-20T07:00:00Z'),
         },
         {
           id: 'w2',
           userId: 'client1',
           weightKg: 80.1,
+          source: 'MANUAL' as const,
+          externalId: null,
           recordedAt: new Date('2026-10-22T07:00:00Z'),
         },
       ]),

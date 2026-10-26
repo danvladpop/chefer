@@ -67,6 +67,7 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  NutritionLabelReading,
   ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,

@@ -11,6 +11,7 @@ import {
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import { parseStoredNumbersMode, SAVED_MEALS_COPY } from '@chefer/types';
 import type {
+  FoodTextLogItem,
   HealthPlatform,
   NumbersMode,
   NutritionTargets,
