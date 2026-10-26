@@ -217,6 +217,7 @@ model User {
   favouriteRecipes     FavouriteRecipe[]
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
+  shareCards           ShareCard[]
   weightEntries        WeightEntry[]
   bodyMeasurements     BodyMeasurement[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
@@ -644,6 +645,25 @@ model MealRating {
   @@unique([userId, recipeId])
   @@index([userId])
   @@map("meal_ratings")
+}
+
+// Lane E2 (market review 2026-10): a share card the user chose to share — a
+// snapshot of ONLY what the card shows (shareCardPayload, @chefer/types:
+// never allergies, weight, logged meals, notes or names). Public by its
+// unguessable id at /s/<id>; deleted with the account.
+model ShareCard {
+  id        String   @id
+  userId    String
+  // 'recipe' | 'cook' | 'workout' | 'recap' (SHARE_CARD_KINDS) — a string, so
+  // a new kind is never a migration.
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("share_cards")
 }
 
 model DailyLog {

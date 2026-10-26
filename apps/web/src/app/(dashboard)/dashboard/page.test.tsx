@@ -3,6 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardPage from './page';
 
+// Lane E2: the Monday recap card has its own suite (recap-dashboard-card.test.tsx).
+vi.mock('@/features/recap/recap-dashboard-card', () => ({ RecapDashboardCard: () => null }));
+
 // WP-08: Today in protein-only mode. The ring is a protein ring with the
 // per-meal guide, the macro bars and every kcal caption are gone, and the
 // meal lists, notes and the week's chart speak in protein. Switching back to

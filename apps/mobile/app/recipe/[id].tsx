@@ -55,6 +55,7 @@ import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
+import { useShareCard } from '../../src/features/share/share-card';
 import { BoardCard, SectionTitle } from '../../src/features/shell/today/parts';
 import { TrainButton } from '../../src/features/shell/train/train-button';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
@@ -104,6 +105,7 @@ type OverflowChoice =
   | 'week'
   | 'shopping'
   | 'share'
+  | 'share-card'
   | 'edit'
   | 'duplicate'
   | 'delete';
@@ -190,6 +192,7 @@ export default function RecipeDetailScreen() {
   const [addToWeekOpen, setAddToWeekOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const snackbar = useSnackbar();
+  const { share: shareCard } = useShareCard();
   const deleteMine = trpc.recipe.deleteMine.useMutation({ meta: { silent: true } });
   const addShopping = trpc.shoppingList.addCustomItems.useMutation({ meta: { silent: true } });
   const { scaledMembers } = useHousehold();
@@ -358,6 +361,10 @@ export default function RecipeDetailScreen() {
         break;
       case 'share':
         shareRecipe();
+        break;
+      case 'share-card':
+        // Lane E2: an image card (title, photo, time) + the app link; no nutrition by default.
+        void shareCard({ kind: 'recipe', recipeId: recipe.id, showNutrition: false }, recipe.name);
         break;
       case 'edit':
         router.push({ pathname: '/recipe-form', params: { id: recipe.id } });
@@ -839,6 +846,13 @@ export default function RecipeDetailScreen() {
             title="Share"
             accessory="none"
             onPress={() => chooseOverflow('share')}
+          />
+          <ListRow
+            testID="recipe-overflow-share-card"
+            icon={<MenuIcon name="images" />}
+            title="Share as a card"
+            accessory="none"
+            onPress={() => chooseOverflow('share-card')}
           />
           {isOwner ? (
             <ListRow
