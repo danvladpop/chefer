@@ -9,10 +9,11 @@ import type { Href } from 'expo-router';
 
 export type LegalDoc = 'terms' | 'privacy';
 
-export const LEGAL_TITLES: Record<LegalDoc, string> = {
-  terms: 'Terms of Service',
-  privacy: 'Privacy Policy',
-};
+/** The catalog key of each document's title (`t(LEGAL_TITLE_KEYS[doc])`). */
+export const LEGAL_TITLE_KEYS = {
+  terms: 'legal.common.termsOfService',
+  privacy: 'legal.common.privacyPolicy',
+} as const satisfies Record<LegalDoc, string>;
 
 /** The route param → a known document, or null (also for `['terms']` array params). */
 export function legalDocFor(raw: string | string[] | undefined): LegalDoc | null {

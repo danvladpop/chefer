@@ -1,12 +1,16 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { ResetPasswordForm } from '@/features/auth/components/reset-password-form';
+import { getServerTranslator } from '@/lib/i18n/server';
 
-export const metadata: Metadata = {
-  title: 'Reset Password',
-  description: 'Choose a new password',
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return {
+    title: t('auth.reset.metaTitle'),
+    description: t('auth.reset.metaDescription'),
+    robots: { index: false },
+  };
+}
 
 export default function ResetPasswordPage() {
   return (

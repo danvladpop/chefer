@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
 import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
+import { useT } from '../../lib/i18n';
 import { useFriendsMe } from '../friends/api/use-friends-me';
 import { AccountDataCard } from '../profile/account-data-card';
 import { AiConsentCard } from '../profile/ai-consent-card';
@@ -25,18 +26,21 @@ const ROW =
   'min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4';
 
 function GymSettingsRow() {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <PressableScale
       pressScale="card"
       testID="profile-gym-settings"
       accessibilityRole="button"
-      accessibilityLabel="Gym settings"
+      accessibilityLabel={t('consent.section.gymSettings')}
       onPress={() => router.push('/gym/settings')}
       className={ROW}
     >
       <Icon name="barbell" size={22} color={colors.brand} />
-      <Text className="min-w-0 flex-1 text-body text-label">Gym settings</Text>
+      <Text className="min-w-0 flex-1 text-body text-label">
+        {t('consent.section.gymSettings')}
+      </Text>
       <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>
   );
@@ -84,6 +88,7 @@ function ProfileVisibilityRow() {
 }
 
 export function PrivacySection() {
+  const { t } = useT();
   return (
     <View testID="profile-privacy-section" className="gap-4">
       {/* A dedicated testID on the (small) heading, not the whole section —
@@ -94,7 +99,7 @@ export function PrivacySection() {
         accessibilityRole="header"
         className="text-title3 font-bold text-label"
       >
-        Privacy & data
+        {t('consent.section.heading')}
       </Text>
       <HealthConsentCard />
       <AiConsentCard />

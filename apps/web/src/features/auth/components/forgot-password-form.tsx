@@ -1,23 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import type { Translator } from '@chefer/i18n';
 import { userFacingErrorMessage } from '@chefer/utils';
 
-const forgotSchema = z.object({
-  // UX-ACC-07: trimmed before validation.
-  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
-});
+const makeForgotSchema = (t: Translator['t']) =>
+  z.object({
+    // UX-ACC-07: trimmed before validation.
+    email: z
+      .string()
+      .trim()
+      .min(1, t('auth.validation.emailRequired'))
+      .email(t('auth.validation.emailInvalid')),
+  });
 
-type ForgotFormValues = z.infer<typeof forgotSchema>;
+type ForgotFormValues = z.infer<ReturnType<typeof makeForgotSchema>>;
 
 const INPUT_CLASSES =
   'flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function ForgotPasswordForm() {
+  const { t } = useT();
+  const forgotSchema = useMemo(() => makeForgotSchema(t), [t]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
@@ -42,10 +51,7 @@ export function ForgotPasswordForm() {
         <span className="text-3xl" aria-hidden="true">
           📬
         </span>
-        <p className="text-sm">
-          If an account exists for that address, a reset link is on its way. It expires in one hour
-          — check your spam folder too.
-        </p>
+        <p className="text-sm">{t('auth.forgot.sent')}</p>
       </div>
     );
   }
@@ -70,7 +76,7 @@ export function ForgotPasswordForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="email" className="block text-sm font-medium">
-          Email address
+          {t('auth.fields.email')}
           <span className="ml-1 text-destructive" aria-hidden="true">
             *
           </span>
@@ -82,7 +88,7 @@ export function ForgotPasswordForm() {
           autoFocus
           disabled={requestMutation.isPending}
           className={INPUT_CLASSES}
-          placeholder="you@example.com"
+          placeholder={t('auth.placeholders.email')}
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email')}
@@ -99,7 +105,7 @@ export function ForgotPasswordForm() {
         disabled={requestMutation.isPending}
         className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
       >
-        {requestMutation.isPending ? 'Sending…' : 'Send reset link'}
+        {requestMutation.isPending ? t('auth.forgot.sending') : t('auth.forgot.submit')}
       </button>
     </form>
   );

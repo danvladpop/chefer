@@ -7,20 +7,25 @@ import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 import { nextQuery, safeNextPath } from '@/features/coaching/lib/next-path';
 import { RegisterV4 } from '@/features/onboarding-v4/register-v4';
+import { getServerTranslator } from '@/lib/i18n/server';
 import { serverClient } from '@/lib/trpc-server';
 
-export const metadata: Metadata = {
-  ...smartAppBanner(),
-  title: 'Create Account',
-  description: 'Create your Chefer account',
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return {
+    ...smartAppBanner(),
+    title: t('auth.register.metaTitle'),
+    description: t('auth.register.metaDescription'),
+    robots: { index: false },
+  };
+}
 
 export default async function RegisterPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
+  const { t } = await getServerTranslator();
   // WP-18: only a coaching join path is honoured (see the login page).
   const next = safeNextPath((await searchParams).next);
   // Validate the session rather than trusting the cookie's presence — see
@@ -55,7 +60,7 @@ export default async function RegisterPage({
             <span>Chefer</span>
           </Link>
           <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
-            Create your account
+            {t('auth.register.title')}
           </h1>
           {/* UX-25 (T-25.2, "only what works on the free tier" rule): the old
               copy ("Start your personal chef journey today") mentioned only
@@ -63,9 +68,7 @@ export default async function RegisterPage({
               does workouts." The Terms/Privacy/16+ disclaimer that used to
               live here as static text is now the explicit checkboxes inside
               RegisterForm (T-39.1/T-26.5) — kept in one place, not both. */}
-          <p className="mt-2 text-sm text-muted-foreground">
-            Free workout log and weekly meal plans.
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">{t('auth.register.subtitle')}</p>
         </div>
 
         {/* Register Form Card */}
@@ -79,12 +82,12 @@ export default async function RegisterPage({
 
         {/* Footer Links */}
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
+          {t('auth.register.haveAccount')}{' '}
           <Link
             href={`/login${nextQuery(next)}`}
             className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
-            Sign in
+            {t('auth.register.signIn')}
           </Link>
         </p>
       </div>

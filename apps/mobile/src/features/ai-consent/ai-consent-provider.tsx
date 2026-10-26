@@ -9,16 +9,13 @@ import {
   useState,
 } from 'react';
 import { View } from 'react-native';
-import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
+import type { AiConsentFeature } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import {
-  aiConsentBackupLine,
-  aiConsentIntro,
-  needsAiDataConsent,
-  onAiConsentRequired,
-} from '@chefer/utils';
+import { needsAiDataConsent, onAiConsentRequired } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { openLegal } from '../legal/open-legal';
+import { aiConsentBackupLine, aiConsentFeatureLines, aiConsentIntro } from './ai-consent-copy';
 import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
@@ -235,50 +232,51 @@ export function AiConsentHost() {
 }
 
 function AiConsentSheet({ state }: { state: ConsentState }) {
+  const { t } = useT();
   const { feature } = state;
   const providers = useAiProviderDisclosure();
-  const backupLine = aiConsentBackupLine(providers);
+  const backupLine = aiConsentBackupLine(t, providers);
   return (
     <Sheet
       visible={state.open}
       onClose={state.dismiss}
       onExited={state.onExited}
-      title={AI_CONSENT_COPY.title}
+      title={t('consent.ai.title')}
       testID="ai-consent"
       footer={
         <View className="gap-2">
           <Button testID="ai-consent-allow" size="lg" loading={state.saving} onPress={state.allow}>
-            {AI_CONSENT_COPY.allow}
+            {t('consent.ai.allow')}
           </Button>
           <Button testID="ai-consent-not-now" size="lg" variant="outline" onPress={state.dismiss}>
-            {AI_CONSENT_COPY.notNow}
+            {t('consent.ai.notNow')}
           </Button>
         </View>
       }
     >
-      <Text className="text-base text-label">{aiConsentIntro(feature, providers)}</Text>
+      <Text className="text-base text-label">{aiConsentIntro(t, feature, providers)}</Text>
       <View className="gap-1">
-        <Text className="text-sm font-semibold text-label">{AI_CONSENT_COPY.sentHeading}</Text>
-        {AI_CONSENT_FEATURE_DATA[feature].data.map((line) => (
+        <Text className="text-sm font-semibold text-label">{t('consent.ai.sentHeading')}</Text>
+        {aiConsentFeatureLines(t, feature).map((line) => (
           <View key={line} className="flex-row gap-2">
             <Text className="text-sm text-label-secondary">•</Text>
             <Text className="min-w-0 flex-1 text-sm text-label-secondary">{line}</Text>
           </View>
         ))}
       </View>
-      <Text className="text-sm font-medium text-label">{AI_CONSENT_COPY.noTraining}</Text>
+      <Text className="text-sm font-medium text-label">{t('consent.ai.noTraining')}</Text>
       {backupLine && (
         <Text variant="muted" className="text-sm">
           {backupLine}
         </Text>
       )}
       <Text variant="muted" className="text-sm">
-        {AI_CONSENT_COPY.control}
+        {t('consent.ai.control')}
       </Text>
       <Button testID="ai-consent-privacy" variant="ghost" onPress={state.openPrivacy}>
-        {AI_CONSENT_COPY.privacyLabel}
+        {t('consent.ai.privacyLabel')}
       </Button>
-      {state.saveFailed && <Text className="text-sm text-danger">{AI_CONSENT_COPY.saveError}</Text>}
+      {state.saveFailed && <Text className="text-sm text-danger">{t('consent.ai.saveError')}</Text>}
     </Sheet>
   );
 }
