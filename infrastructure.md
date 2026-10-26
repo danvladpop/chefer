@@ -2346,7 +2346,7 @@ and `deviceLocale` (the supported language a client last resolved from the devic
 `supportedLocaleSchema` (`@chefer/types`) at the API boundary — a string, not an enum, so a new language is never a
 migration; unknown stored values read as unset. Server-sent copy (emails) uses `locale ?? deviceLocale ?? 'en'`.
 Applied by `prisma db push` on deploy (two nullable columns, no data-loss prompt); the named migration is
-`packages/database/prisma/migrations/20261024120400_user_locale/`.
+`packages/database/prisma/migrations/20261024130100_user_locale/`.
 
 ### Curated recipe ingest schema (market review F1, 2026-10-22, additive only)
 
