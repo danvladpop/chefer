@@ -42,6 +42,9 @@ Chefer is a meal-planning and strength-training app. An account is required beca
 DEMO ACCOUNT
 The account above already has a meal plan, recipes and a logged workout. Premium features are enabled on it. Premium is included at no cost for everyone: the "Turn on Premium" button (More → Profile → the "Your plan" card → "See what Premium adds", or the same sheet any locked feature opens) just switches the account's tier, and no payment is taken or asked for anywhere in the app. There are no in-app purchases.
 
+BUSINESS MODEL
+Chefer has no paid content, subscriptions or services. Nothing can be bought in the app, on the website or anywhere else, and we store no payment details. "Premium" is a free tier any user can turn on. "Find a trainer" and "Trainer tools" are free: trainers share routines with clients, and the app shows no rates and handles no payments between them. Amounts in euros or dollars on the Shop tab are estimated grocery costs, not charges. Any future paid feature will use In-App Purchase on iOS and come in a new version submitted for review.
+
 WHERE THINGS ARE
 - Food mode (default): Today, Plan, Shop, Cookbook, More tabs.
 - Gym mode: use the Food/Gym switch in the header of the Food tabs. Gym works offline.
@@ -71,6 +74,9 @@ The app contains a 'Following' feature (following other users) that is switched 
 > (Health information, AI & your data, Usage analytics, Consent history, Gym settings, Your data with
 > Export · Sign out · Delete account) and the Plan tab's "Week options" sheet all exist. Re-check them on
 > the TestFlight build before pasting.
+>
+> BUSINESS MODEL was added after App Review asked the 2.1(b) business-model questions on 1.0.1 (8)
+> (24 Oct 2026). It answers them up front so the next version is not held for them.
 
 ## Attachment (optional but helps)
 
