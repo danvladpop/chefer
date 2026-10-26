@@ -9,8 +9,9 @@ import {
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
+import { gymStatsService } from '../gym/gym-stats.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
-import { deleteAccount, exportAccountData } from './account-data.service.js';
+import { collectAccountData, deleteAccount, exportAccountData } from './account-data.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 // Each delegate records the call and returns a tagged "operation", so the test
@@ -74,6 +75,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       householdMember: { findMany: emptyFindMany() },
       dailyLog: { findMany: emptyFindMany() },
       weightEntry: { findMany: emptyFindMany() },
+      bodyMeasurement: { findMany: emptyFindMany() },
       favouriteRecipe: { findMany: emptyFindMany() },
       mealRating: { findMany: emptyFindMany() },
       pantryItem: { findMany: emptyFindMany() },
@@ -91,6 +93,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       coachingInvite: { findMany: emptyFindMany() },
       coachingNote: { findMany: emptyFindMany() },
       authIdentity: { findMany: emptyFindMany() },
+      targetChange: { findMany: emptyFindMany() },
       // Kitchen progress: the export reads these; deleteAccount must NOT touch them (cascade).
       progressState: { findUnique: vi.fn(async () => null) },
       progressEvent: { findMany: emptyFindMany() },
@@ -118,6 +121,10 @@ vi.mock('../auth/social-auth.service.js', () => ({
     identitiesForDeletion: vi.fn(async () => []),
     revokeAppleGrants: vi.fn(async () => undefined),
   },
+}));
+
+vi.mock('../gym/gym-stats.service.js', () => ({
+  gymStatsService: { prs: vi.fn(async () => []) },
 }));
 
 vi.mock('../../infrastructure/analytics/posthog-admin.js', () => ({
@@ -353,6 +360,49 @@ describe('exportAccountData (T-39.5, bug B-53)', () => {
     vi.mocked(prisma.aiCallLog.findMany).mockResolvedValue([
       { callType: 'MEAL_PLAN', provider: 'gemini', createdAt: new Date('2026-09-01') },
     ] as never);
+  });
+
+  it('G1: saved recipes carry the recipe itself, and PRs and routines name their exercises', async () => {
+    vi.mocked(prisma.favouriteRecipe.findMany)
+      .mockResolvedValueOnce([]) // favourites (ids)
+      .mockResolvedValueOnce([
+        { savedAt: new Date('2026-10-01'), recipe: { id: 'r1', name: 'Overnight oats' } },
+      ] as never);
+    vi.mocked(gymStatsService.prs).mockResolvedValueOnce([
+      {
+        exerciseId: 'barbell-squat',
+        kind: 'weight',
+        weightKg: 100,
+        reps: 5,
+        e1rmKg: null,
+        localDate: '2026-10-02',
+        sessionId: 's2',
+        isFirst: false,
+      },
+      {
+        exerciseId: 'barbell-squat',
+        kind: 'e1rm',
+        weightKg: 90,
+        reps: 5,
+        e1rmKg: 105,
+        localDate: '2026-10-01',
+        sessionId: 's1',
+        isFirst: true,
+      },
+    ]);
+    vi.mocked(prisma.exercise.findMany)
+      .mockResolvedValueOnce([]) // customExercises
+      .mockResolvedValueOnce([{ id: 'barbell-squat', name: 'Back Squat' }] as never);
+    const data = await collectAccountData('u1');
+    expect(data.food.savedRecipes).toEqual([
+      { savedAt: new Date('2026-10-01'), id: 'r1', name: 'Overnight oats' },
+    ]);
+    // Oldest first (the in-app timeline is newest first).
+    expect(data.gym.personalRecords.map((pr) => [pr.localDate, pr.exercise])).toEqual([
+      ['2026-10-01', 'Back Squat'],
+      ['2026-10-02', 'Back Squat'],
+    ]);
+    expect(data.gym.exerciseNames).toEqual({ 'barbell-squat': 'Back Squat' });
   });
 
   it('throws NOT_FOUND for an unknown user', async () => {

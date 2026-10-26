@@ -10,13 +10,25 @@ const metrics = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
-// T-39.5 (bug B-53): a real, named export file (`chefer-export-YYYY-MM-DD.json`)
-// shared through shareExportFile, confirmed with the "Your export is ready."
-// snackbar — not an unnamed text blob in the share sheet.
+// T-39.5 (bug B-53): a real, named export file shared through
+// shareExportFile, confirmed with the "Your export is ready." snackbar — not an
+// unnamed text blob in the share sheet. G1: the file is the ZIP from
+// `user.exportArchive`; a binary that can't share files keeps the JSON.
 
 const mockShareExportFile = jest.fn(
-  (_filename: string, _contents: string): Promise<boolean> => Promise.resolve(true),
+  (_filename: string, _contents: string, _mime?: string, _encoding?: string): Promise<boolean> =>
+    Promise.resolve(true),
 );
+let mockCanShareBinary = true;
+const mockExportArchive = jest.fn(() =>
+  Promise.resolve({ filename: 'chefer-export-2026-10-22.zip', base64: 'UEs=', bytes: 2 }),
+);
+const mockTrack = jest.fn((_event: string, _props: unknown): void => undefined);
+jest.mock('../../src/lib/analytics', () => ({
+  track: (event: string, props: unknown) => {
+    mockTrack(event, props);
+  },
+}));
 const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
 const mockDeleteMutate = jest.fn();
@@ -33,7 +45,10 @@ let mockResetState: { isSuccess: boolean; isPending: boolean } = {
 // arrow defers reading `mockShareExportFile` until the mocked function is
 // actually invoked, by which point it's initialized.
 jest.mock('../../src/lib/share-file', () => ({
-  shareExportFile: (filename: string, contents: string) => mockShareExportFile(filename, contents),
+  shareExportFile: (filename: string, contents: string, mime?: string, encoding?: string) =>
+    mockShareExportFile(filename, contents, mime, encoding),
+  canShareBinaryFiles: () => mockCanShareBinary,
+  ZIP_MIME: 'application/zip',
 }));
 
 jest.mock('@chefer/ui-mobile', () => ({
@@ -65,6 +80,9 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
     user: {
+      exportArchive: {
+        useMutation: () => ({ mutateAsync: mockExportArchive, isPending: false }),
+      },
       deleteSelf: {
         useMutation: (options?: { onSuccess?: () => Promise<void>; onError?: () => void }) => {
           mockDeleteOptions = options;
@@ -94,6 +112,9 @@ beforeEach(() => {
   mockShareExportFile.mockClear();
   mockShow.mockClear();
   mockExportFetch.mockClear();
+  mockExportArchive.mockClear();
+  mockTrack.mockClear();
+  mockCanShareBinary = true;
   mockDeleteMutate.mockClear();
   mockLogoutMutate.mockClear();
   mockSignOut.mockClear();
@@ -115,39 +136,71 @@ function renderCard() {
   );
 }
 
-describe('mobile AccountDataCard export (T-39.5)', () => {
-  it('shares a file named chefer-export-YYYY-MM-DD.json and shows the ready snackbar', async () => {
+describe('mobile AccountDataCard export (T-39.5, G1)', () => {
+  it('G1: shares the ZIP as base64 bytes under its server name and shows the ready snackbar', async () => {
     await renderCard();
 
-    await fireEvent.press(screen.getByText('Export my data'));
+    await fireEvent.press(screen.getByText('Download my data'));
+
+    await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
+    expect(mockShareExportFile).toHaveBeenCalledWith(
+      'chefer-export-2026-10-22.zip',
+      'UEs=',
+      'application/zip',
+      'base64',
+    );
+    expect(mockExportFetch).not.toHaveBeenCalled();
+    expect(mockShow).toHaveBeenCalledWith({ message: 'Your export is ready.', tone: 'success' });
+    expect(mockTrack).toHaveBeenCalledWith('data_export_downloaded', {
+      format: 'zip',
+      sizeBucket: '<100kb',
+    });
+  });
+
+  it('G1: a binary that cannot share files keeps the named JSON export', async () => {
+    mockCanShareBinary = false;
+    await renderCard();
+
+    await fireEvent.press(screen.getByText('Download my data'));
 
     await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
     const [filename] = mockShareExportFile.mock.calls.at(0) ?? [];
     expect(filename).toMatch(/^chefer-export-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(mockExportArchive).not.toHaveBeenCalled();
     expect(mockShow).toHaveBeenCalledWith({ message: 'Your export is ready.', tone: 'success' });
   });
 
-  it('UX-ACC-22: a cancelled share sheet gets no "ready" snackbar and no error', async () => {
+  it('UX-ACC-22: a cancelled share sheet gets no "ready" snackbar, no event and no error', async () => {
     mockShareExportFile.mockResolvedValueOnce(false);
     await renderCard();
 
-    await fireEvent.press(screen.getByText('Export my data'));
+    await fireEvent.press(screen.getByText('Download my data'));
 
     await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
     expect(mockShow).not.toHaveBeenCalled();
+    expect(mockTrack).not.toHaveBeenCalled();
     expect(screen.queryByText(/Couldn't prepare your data/)).toBeNull();
   });
 
-  it('shows an error and no snackbar when the export fetch fails', async () => {
-    mockExportFetch.mockRejectedValueOnce(new Error('network'));
+  it('shows an error and no snackbar when the export fails', async () => {
+    mockExportArchive.mockRejectedValueOnce(new Error('network'));
     await renderCard();
 
-    await fireEvent.press(screen.getByText('Export my data'));
+    await fireEvent.press(screen.getByText('Download my data'));
 
     await waitFor(() =>
       expect(screen.getByText("Couldn't prepare your data. Please try again.")).toBeTruthy(),
     );
     expect(mockShow).not.toHaveBeenCalled();
+  });
+
+  it('G1: says when to try again after the rate limit', async () => {
+    mockExportArchive.mockRejectedValueOnce({ data: { code: 'TOO_MANY_REQUESTS' } });
+    await renderCard();
+
+    await fireEvent.press(screen.getByText('Download my data'));
+
+    await waitFor(() => expect(screen.getByText(/Try again in 15 minutes/)).toBeTruthy());
   });
 });
 
