@@ -21,6 +21,7 @@ import {
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
+import { MealReminderHost } from '../src/features/notifications/use-meal-reminders';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
@@ -185,6 +186,7 @@ export default function RootLayout() {
                       <Stack.Screen name="import-recipe" />
                       <Stack.Screen name="household" />
                       <Stack.Screen name="my-weeks" />
+                      <Stack.Screen name="recap" />
                       <Stack.Screen name="recipe-form" />
                       {/* Gym stack routes (placeholders until wave G2 fills them). */}
                       <Stack.Screen name="gym/setup" />
@@ -253,6 +255,8 @@ export default function RootLayout() {
               <PendingJoinHost signedIn={token !== null} />
               {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
               <FoodNudgeHost signedIn={token !== null} />
+              {/* Lane E1: keeps the opt-in meal-time reminders scheduled. */}
+              <MealReminderHost signedIn={token !== null} />
               {/* Kitchen progress: retries unsent cook finishes, shows the inbox (snackbars, level-up) and
                 keeps the gentle reminder set. Gated inside; the cook retry runs for everyone. */}
               <ProgressHost signedIn={token !== null} />

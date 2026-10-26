@@ -75,11 +75,23 @@ type UnlockRow = {
 };
 
 /** The shelf: every achievement with its tier, progress and next target. */
+/**
+ * Lane E3: the achievements a numbers mode leaves off the shelf. "Hide numbers"
+ * drops the protein reward, as it already drops the protein quest and receipt.
+ */
+export function hiddenAchievements(
+  numbersMode: string | null | undefined,
+): readonly AchievementId[] {
+  return numbersMode === 'NONE' ? ['PROTEIN_PRO'] : [];
+}
+
 export function buildAchievements(
   counters: ProgressCounters,
   unlocks: UnlockRow[],
+  hidden: readonly AchievementId[] = [],
 ): AchievementsDto {
-  const items: AchievementItem[] = ACHIEVEMENTS.map((a) => {
+  const shown = ACHIEVEMENTS.filter((a) => !hidden.includes(a.id));
+  const items: AchievementItem[] = shown.map((a) => {
     const copy = ACHIEVEMENT_COPY[a.id];
     const progress = Math.floor(counters[a.metric]);
     const mine = unlocks.filter((u) => u.achievementId === a.id);

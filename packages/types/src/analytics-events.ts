@@ -282,4 +282,13 @@ export interface EventMap {
   // ─── Typed "I ate…" logging (lane A4) — counts only, never the sentence ─────
   food_text_parsed: { itemCount: number; estimated: number };
   food_text_logged: { itemCount: number; edited: boolean };
+  // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
+  /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
+  meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
+  /** E1: a Settings change (either platform); `meals` = meals with a reminder. */
+  meal_reminders_changed: { enabled: boolean; meals: number; surface: 'mobile' | 'web' };
+  /** E2: a share card was created and the share sheet shown; `completed` = not dismissed. */
+  share_card_shared: { kind: 'recipe' | 'cook' | 'workout' | 'recap'; completed: boolean };
+  /** E2: the weekly recap screen opened. */
+  weekly_recap_viewed: { from: 'today' | 'link' | 'menu'; empty: boolean };
 }

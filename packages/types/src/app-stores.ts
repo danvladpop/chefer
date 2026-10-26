@@ -28,7 +28,8 @@ export type StoreCampaign =
   | 'landing-footer'
   | 'support'
   | 'coaching-invite'
-  | 'switch-mealime';
+  | 'switch-mealime'
+  | 'share-card';
 
 const PLAY_UTM_SOURCE = 'chefer-web';
 const PLAY_UTM_MEDIUM = 'badge';

@@ -4,6 +4,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CookMode } from './cook-mode';
 
+// Lane E2: the share-card button has its own suite (share-card-button.test.tsx).
+vi.mock('@/features/share/share-card-button', () => ({ ShareCardButton: () => null }));
+
 // Audit F-REC-6-5: cook mode is keyboard-drivable on desktop.
 
 const RECIPE = {

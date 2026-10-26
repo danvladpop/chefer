@@ -19,6 +19,7 @@ export type OnboardingV4Step =
   | 'safety'
   | 'building'
   | 'ready'
+  | 'reminders'
   | 'premium'
   | 'train';
 
@@ -35,13 +36,19 @@ const PLAN_JOBS: readonly OnboardingJob[] = ['PLAN_MEALS', 'HOUSEHOLD'];
 /** Jobs that need the allergy question. */
 const FOOD_JOBS: readonly OnboardingJob[] = ['PLAN_MEALS', 'HOUSEHOLD', 'TRACK'];
 
-/** The ordered steps for these answers. Premium users skip the Premium step. */
+/**
+ * The ordered steps for these answers. Premium users skip the Premium step.
+ * `offerReminders` (lane E1) adds "Remind me at mealtimes?" for food jobs —
+ * the phone only: web can't send local notifications, so it never asks.
+ */
 export function onboardingV4Steps({
   jobs,
   isPremium,
+  offerReminders = false,
 }: {
   jobs: readonly OnboardingJob[];
   isPremium: boolean;
+  offerReminders?: boolean;
 }): OnboardingV4Step[] {
   const food = jobs.some((j) => FOOD_JOBS.includes(j));
   const plans = jobs.some((j) => PLAN_JOBS.includes(j));
@@ -51,6 +58,7 @@ export function onboardingV4Steps({
     'aboutYou',
     ...(food ? (['safety'] as const) : []),
     ...(plans ? (['building', 'ready'] as const) : []),
+    ...(food && offerReminders ? (['reminders'] as const) : []),
     ...(isPremium ? [] : (['premium'] as const)),
     ...(jobs.includes('TRAIN') ? (['train'] as const) : []),
   ];
@@ -74,6 +82,7 @@ export const ONBOARDING_V4_STEP_ORDER: readonly OnboardingV4Step[] = [
   'safety',
   'building',
   'ready',
+  'reminders',
   'premium',
   'train',
 ];
@@ -93,7 +102,7 @@ export function onboardingV4ResumeStep(
   let from = saved;
   if (saved === 'building' || saved === 'ready') {
     if (!planBuilt && steps.includes('building')) return 'building';
-    from = 'premium';
+    from = 'reminders';
   }
   if (steps.includes(from)) return from;
   const after = ONBOARDING_V4_STEP_ORDER.indexOf(from);

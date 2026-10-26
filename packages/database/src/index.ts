@@ -122,6 +122,11 @@ export {
   trainingPauseRepository,
   type ITrainingPauseRepository,
   type CreateTrainingPauseData,
+  // Lane E2: share-card snapshots
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
   // Weekly emails (audit P2-5)
   WeeklyEmailRepository,
   weeklyEmailRepository,

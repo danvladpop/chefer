@@ -2,6 +2,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import CookModeScreen from '../../app/cook/[id]';
 
+// Lane E2: the cook-finish share button has its own suite (share-card.test.ts).
+jest.mock('../../src/features/share/share-card', () => ({
+  useShareCard: () => ({ share: jest.fn(), sharing: null }),
+}));
+
 // Backlog P2-3 / P1-1 / UX-REC-02: cook mode starts at the whole table's
 // servings — the user's own plan portion PLUS each household member's portion
 // (owner 2× + Mia ½ + Noah 1 = 3½), never the owner's portion multiplied

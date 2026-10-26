@@ -32,6 +32,7 @@ import { setupLocalDate, workoutForDay } from '../../gym/today/today-helpers';
 import { useActiveWorkout } from '../../gym/use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { supersetsOf } from '../../gym/workout/workout-model';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { LogWorkoutSheet } from '../log-workout-sheet';
 import { BurnTile } from '../train/burn-tile';
 import { ActionButton, BoardCard, SectionTitle } from './parts';
@@ -62,6 +63,8 @@ export function TrainingSection() {
   const { startPlanned, conflictSheet } = useStartGuard();
   const flags = useFlags();
   const simpleStart = useSimpleStart(bootstrap);
+  // WP-08 / lane E3: calories burned are a calorie figure too.
+  const { proteinOnly } = useNumbersMode();
   const [logOpen, setLogOpen] = useState(false);
   const [logType, setLogType] = useState<WorkoutType | undefined>(undefined);
 
@@ -164,7 +167,7 @@ export function TrainingSection() {
             unit="min"
             label="Duration"
           />
-          {done.burn ? (
+          {done.burn && !proteinOnly ? (
             <BurnTile testID="today-training-kcal" copy={sessionKcalCopy(done.burn)} />
           ) : (
             <StatTile

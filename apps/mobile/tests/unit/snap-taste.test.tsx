@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 
@@ -67,6 +68,21 @@ describe('Snap to log on a free plan (B-35)', () => {
     expect(openPremium).toHaveBeenCalledWith('snap-scan');
     // The taste is static: it asks no AI consent because it sends nothing.
     expect(mockRequestAiConsent).not.toHaveBeenCalled();
+  });
+
+  // Lane E3: found on the simulator — the example kept its kcal in "Hide numbers".
+  it.each([
+    ['PROTEIN_ONLY', '~40 g protein'],
+    ['NONE', 'Chicken Caesar salad · 1 portion'],
+  ])('the example follows the numbers mode (%s)', async (mode, line) => {
+    await render(
+      <NumbersModeProvider mode={mode}>
+        <ScanMealCard date="2026-09-29" onLogged={jest.fn()} />
+      </NumbersModeProvider>,
+    );
+    expect(screen.getByText(line)).toBeOnTheScreen();
+    expect(screen.queryByText(/kcal/)).toBeNull();
+    if (mode === 'NONE') expect(screen.queryByText(/\d+ g protein/)).toBeNull();
   });
 
   it('a gym-only user never sees it', async () => {

@@ -53,6 +53,36 @@ describe('onboardingV4Steps', () => {
     ]);
   });
 
+  it('the phone offers mealtime reminders to food jobs, after the reveal (lane E1)', () => {
+    expect(
+      onboardingV4Steps({ jobs: ['PLAN_MEALS', 'TRAIN'], isPremium: false, offerReminders: true }),
+    ).toEqual([
+      'jobs',
+      'goal',
+      'aboutYou',
+      'safety',
+      'building',
+      'ready',
+      'reminders',
+      'premium',
+      'train',
+    ]);
+    expect(onboardingV4Steps({ jobs: ['TRACK'], isPremium: true, offerReminders: true })).toEqual([
+      'jobs',
+      'goal',
+      'aboutYou',
+      'safety',
+      'reminders',
+    ]);
+    // Training only: nothing to remind about. Web never passes offerReminders.
+    expect(
+      onboardingV4Steps({ jobs: ['TRAIN'], isPremium: false, offerReminders: true }),
+    ).not.toContain('reminders');
+    expect(onboardingV4Steps({ jobs: ['PLAN_MEALS'], isPremium: false })).not.toContain(
+      'reminders',
+    );
+  });
+
   it('premium users skip the Premium step', () => {
     expect(onboardingV4Steps({ jobs: ['HOUSEHOLD'], isPremium: true })).not.toContain('premium');
   });
@@ -79,6 +109,16 @@ describe('onboardingV4ResumeStep', () => {
     expect(onboardingV4ResumeStep('building', all, false)).toBe('building');
     expect(onboardingV4ResumeStep('ready', all, false)).toBe('building');
     expect(onboardingV4ResumeStep('ready', all, true)).toBe('premium');
+  });
+
+  it('a built plan resumes at the reminders offer when the phone asks it', () => {
+    const phone = onboardingV4Steps({
+      jobs: ['PLAN_MEALS'],
+      isPremium: false,
+      offerReminders: true,
+    });
+    expect(onboardingV4ResumeStep('ready', phone, true)).toBe('reminders');
+    expect(onboardingV4ResumeStep('reminders', phone, true)).toBe('reminders');
   });
 
   it('moves past a step that left the flow', () => {

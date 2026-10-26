@@ -88,7 +88,7 @@ export function WeekSummarySheet({
 }: WeekSummarySheetProps) {
   const colors = useThemeColors();
   const { show: showSnackbar } = useSnackbar();
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const trainingChip = trainingDaysChip(days.filter((d) => d.training).length);
 
   // T-13.2: plain text through the OS share sheet — not an AI call, so no
@@ -151,21 +151,23 @@ export function WeekSummarySheet({
             {plannedDays}/7 days planned
           </Text>
         </View>
-        {proteinOnly
-          ? weekProtein > 0 && (
-              <View className="rounded-full bg-surface-sunken px-3 py-1">
-                <Text className="text-xs font-medium text-label-secondary">
-                  ~{Math.round(weekProtein / Math.max(plannedDays, 1))} g protein/day
-                </Text>
-              </View>
-            )
-          : weekKcal > 0 && (
-              <View className="rounded-full bg-surface-sunken px-3 py-1">
-                <Text className="text-xs font-medium text-label-secondary">
-                  ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
-                </Text>
-              </View>
-            )}
+        {noNumbers
+          ? null
+          : proteinOnly
+            ? weekProtein > 0 && (
+                <View className="rounded-full bg-surface-sunken px-3 py-1">
+                  <Text className="text-xs font-medium text-label-secondary">
+                    ~{Math.round(weekProtein / Math.max(plannedDays, 1))} g protein/day
+                  </Text>
+                </View>
+              )
+            : weekKcal > 0 && (
+                <View className="rounded-full bg-surface-sunken px-3 py-1">
+                  <Text className="text-xs font-medium text-label-secondary">
+                    ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
+                  </Text>
+                </View>
+              )}
         {trainingChip !== null && (
           <View testID="week-summary-training-chip" className="rounded-full bg-accent px-3 py-1">
             <Text className="text-xs font-medium text-primary">{trainingChip}</Text>
@@ -228,17 +230,19 @@ export function WeekSummarySheet({
               )}
             </View>
             <View className="flex-row items-center gap-1.5">
-              {proteinOnly
-                ? (d.totalProtein ?? 0) > 0 && (
-                    <Text variant="muted" className="text-xs">
-                      {d.totalProtein} g protein
-                    </Text>
-                  )
-                : d.totalKcal > 0 && (
-                    <Text variant="muted" className="text-xs">
-                      {d.totalKcal} kcal
-                    </Text>
-                  )}
+              {noNumbers
+                ? null
+                : proteinOnly
+                  ? (d.totalProtein ?? 0) > 0 && (
+                      <Text variant="muted" className="text-xs">
+                        {d.totalProtein} g protein
+                      </Text>
+                    )
+                  : d.totalKcal > 0 && (
+                      <Text variant="muted" className="text-xs">
+                        {d.totalKcal} kcal
+                      </Text>
+                    )}
               <Ionicons name="chevron-forward" size={14} color={colors.labelTertiary} />
             </View>
           </Pressable>

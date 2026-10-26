@@ -909,6 +909,8 @@ export {
   describeSwapProteinOnly,
   estimateKcalFromProtein,
   nutritionLabel,
+  metaLine,
+  portionLabel,
   proteinAverageText,
   proteinLabel,
   proteinOnlyHeadline,
@@ -953,3 +955,37 @@ export * from './packaged-product';
 export * from './saved-meals';
 export * from './hidden-fat';
 export * from './food-text';
+// ─── Meal-time reminders + engagement copy (market review 2026-10, lane E1) ──
+export {
+  MEAL_REMINDER_DAYS,
+  activeReminderSlots,
+  defaultMealReminders,
+  loggedMealSlots,
+  mealReminderMoments,
+  parseStoredMealReminders,
+  type MealReminderMoment,
+} from './meal-reminders';
+export {
+  ENGAGEMENT_COPY,
+  RECAP_COPY,
+  recapFoodLines,
+  recapGymLines,
+  recapShareMessage,
+  HIDE_NUMBERS_COPY,
+  onPlanLine,
+  MEAL_REMINDER_NOTIFICATION,
+  mealReminderLabel,
+  type EngagementCopyKey,
+} from './engagement-copy';
+
+// ─── Weekly recap + share cards (market review 2026-10, lane E2) ─────────────
+export {
+  lastCompletedWeekStart,
+  mondayOf,
+  recapFoodCounts,
+  weekLabel,
+  type RecapFoodCounts,
+  type RecapLogDay,
+  type RecapPlanDay,
+} from './weekly-recap';
+export { shareCardLines, type ShareCardLines } from './share-card-lines';

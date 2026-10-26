@@ -1,4 +1,9 @@
-import { effectiveNumbersMode, type OnboardingIntent, type OnboardingJob } from '@chefer/types';
+import {
+  effectiveNumbersMode,
+  type NumbersMode,
+  type OnboardingIntent,
+  type OnboardingJob,
+} from '@chefer/types';
 
 // Mirror of the Prisma enums — kept here so client components don't need
 // to import @chefer/database (which pulls in the Prisma server runtime).
@@ -43,7 +48,7 @@ export interface WizardData {
   cuisinePreferences: string[];
   mealsPerDay: number;
   // WP-08: "What do you want to keep an eye on?" — saved with the rest at Finish.
-  numbersMode: 'FULL' | 'PROTEIN_ONLY';
+  numbersMode: NumbersMode;
 }
 
 export const TOTAL_STEPS = 4;
