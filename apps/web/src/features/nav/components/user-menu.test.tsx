@@ -35,6 +35,7 @@ describe('UserMenu (F-X-5-2 / F-AUTH-2-5)', () => {
       'Profile',
       'Preferences',
       'Admin · Users',
+      'Admin · Curated recipes',
       'Sign out',
     ]);
     expect(document.activeElement).toBe(items[0]);
@@ -59,7 +60,7 @@ describe('UserMenu (F-X-5-2 / F-AUTH-2-5)', () => {
     expect(document.activeElement).toBe(items[1]);
     fireEvent.keyDown(menu, { key: 'ArrowUp' });
     fireEvent.keyDown(menu, { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(items[3]);
+    expect(document.activeElement).toBe(items[items.length - 1]);
   });
 
   it('closes on an outside pointerdown and signs out from the menu', () => {

@@ -44,6 +44,7 @@ vi.mock('../application/household/household.service.js', async (importOriginal) 
 });
 const tracker = vi.hoisted(() => ({
   logWeight: vi.fn().mockResolvedValue({ id: 'w1' }),
+  importWeights: vi.fn().mockResolvedValue({ imported: 1, skipped: 0 }),
   updateWeight: vi.fn().mockResolvedValue({ id: 'w1' }),
 }));
 vi.mock('../application/tracker/tracker.service.js', async (importOriginal) => {
@@ -209,5 +210,16 @@ describe('the other health-write procedures under declared, new client, no conse
     await expect(
       trackerRouter.createCaller(ctxAt(noHeader)).logWeight({ weightKg: 70 }),
     ).resolves.toBeDefined();
+  });
+
+  it('tracker.importWeights (C2) is health data too: same gate as a typed weigh-in', async () => {
+    const input = {
+      source: 'APPLE_HEALTH' as const,
+      entries: [{ externalId: 'hk-1', weightKg: 70, date: new Date().toISOString().slice(0, 10) }],
+    };
+    await expect(trackerRouter.createCaller(ctxAt(NEW)).importWeights(input)).rejects.toMatchObject(
+      { message: 'HEALTH_CONSENT_REQUIRED' },
+    );
+    expect(tracker.importWeights).not.toHaveBeenCalled();
   });
 });
