@@ -133,6 +133,7 @@ describe('trackerService.getDay — two ACTIVE plans in adjacent weeks (UX-FOOD-
       totalProtein: 0,
       totalCarbs: 0,
       totalFat: 0,
+      incomplete: false,
       updatedAt: new Date(),
     });
     const day = await trackerService.getDay('u1', '2026-10-02');

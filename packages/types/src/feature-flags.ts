@@ -62,6 +62,10 @@ export const featureFlagsSchema = z
      *  the shared week and live shopping list. Off by default; with it off no
      *  invite can be made or redeemed and every entry point stays hidden. */
     householdSharing: z.boolean(),
+    /** Apple Health / Health Connect sync (C2): the "Connect health" screen and
+     *  every read/write. Needs a binary with the native modules; off by
+     *  default (dark launch). */
+    healthSync: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

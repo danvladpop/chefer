@@ -8,7 +8,7 @@ import {
   type SessionExerciseWithSets,
 } from '@chefer/database';
 import type { WeightUnit } from '@chefer/types';
-import { formatLoadNumber, unitLabel } from '@chefer/utils';
+import { escapeCsvField, formatLoadNumber, unitLabel } from '@chefer/utils';
 
 // ─── gym.export.csv (gym_plan.md §4.2, research §5.2 #5) ─────────────────────
 // "Offer CSV export of the full history from day one" — a blocking-modal /
@@ -46,6 +46,12 @@ const HEADER = (unit: WeightUnit): string[] => [
   'Distance (m)',
   'Effort (RPE)',
   'Notes',
+  // G3: the rest of what a cardio entry stores — machine level, treadmill
+  // incline and the calorie estimate. Appended, so every existing column
+  // keeps its position for spreadsheets built on the old layout.
+  'Level',
+  'Incline (%)',
+  'Calories (kcal)',
 ];
 
 export class GymExportService {
@@ -120,6 +126,9 @@ function exerciseRows(
     set.distanceM !== null ? String(set.distanceM) : '',
     set.intensityRpe !== null ? String(set.intensityRpe) : '',
     index === 0 ? (exercise.notes ?? '') : '',
+    set.resistanceLevel !== null ? String(set.resistanceLevel) : '',
+    set.inclinePct !== null ? String(set.inclinePct) : '',
+    set.caloriesKcal !== null ? String(Math.round(set.caloriesKcal)) : '',
   ]);
 }
 
@@ -130,20 +139,6 @@ function formatRir(rir: number | null): string {
 
 function exportFilename(): string {
   return `chefer-gym-history-${new Date().toISOString().slice(0, 10)}.csv`;
-}
-
-/**
- * RFC 4180 escaping (quote a field containing a comma, quote or newline),
- * plus formula neutralising: a text field starting with = + - @ is prefixed
- * with ' so spreadsheets don't execute it (audit F-GYM-11-4). Plain numbers
- * are left alone.
- */
-function escapeCsvField(raw: string): string {
-  const value = /^[=+\-@]/.test(raw) && !/^-?\d+(\.\d+)?$/.test(raw) ? `'${raw}` : raw;
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }
 
 export const gymExportService = new GymExportService();

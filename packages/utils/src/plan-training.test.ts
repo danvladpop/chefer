@@ -66,8 +66,19 @@ describe('buildPlanTrainingDays', () => {
   });
 
   it('a goal without the bump keeps the marker with zero kcal (non-goal user)', () => {
-    const [d] = buildPlanTrainingDays({ ...input, goal: 'MAINTAIN', days: week({ 1: lift() }) });
+    const [d] = buildPlanTrainingDays({ ...input, goal: 'LOSE_WEIGHT', days: week({ 1: lift() }) });
     expect(d).toMatchObject({ kcalBonus: 0, proteinBonus: 0, applied: false });
+  });
+
+  it('a MAINTAIN lifter gets the same bump as GAIN_MUSCLE (2026-10-22)', () => {
+    const [gain] = buildPlanTrainingDays({ ...input, days: week({ 1: lift() }) });
+    const [maintain] = buildPlanTrainingDays({
+      ...input,
+      goal: 'MAINTAIN',
+      days: week({ 1: lift() }),
+    });
+    expect(maintain?.kcalBonus).toBeGreaterThan(0);
+    expect(maintain).toEqual(gain);
   });
 
   it('AC0: a Saturday long run is a marker with the Friday snack idea — no target change (Q-3)', () => {
@@ -121,7 +132,7 @@ describe('copy', () => {
   const [lifted] = buildPlanTrainingDays({ ...input, days: week({ 2: lift('Upper A') }) });
   const [noNumbers] = buildPlanTrainingDays({
     ...input,
-    goal: 'MAINTAIN',
+    goal: 'LOSE_WEIGHT',
     days: week({ 2: lift('Upper A') }),
   });
   const [runDay] = buildPlanTrainingDays({

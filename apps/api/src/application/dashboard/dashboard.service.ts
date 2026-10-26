@@ -238,7 +238,7 @@ export interface DashboardSummary {
     carbs: { planned: number; targetG: number; eaten: number };
     fat: { planned: number; targetG: number; eaten: number };
     /**
-     * GAIN_MUSCLE lifters only (set-up gym profile, bodyweight known —
+     * GAIN_MUSCLE and MAINTAIN lifters only (set-up gym profile, bodyweight known —
      * audit P2-4): today's training-day adjustment. Additive; the fields
      * above keep meaning the BASE targets, so older clients are unchanged.
      */
