@@ -1,4 +1,5 @@
 import { router, type Href } from 'expo-router';
+import type { HealthPlatform } from '@chefer/types';
 import {
   CountPill,
   KeyboardAwareScrollView,
@@ -15,6 +16,8 @@ import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
+import { HEALTH_PLATFORM_NAME, HEALTH_ROW_COPY } from '../health/health-copy';
+import { useHealthAvailability } from '../health/use-health-sync';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
 import { ChefCard } from '../progress/chef-card';
@@ -96,6 +99,16 @@ const SETTINGS_ROWS: readonly Row[] = [
   },
 ];
 
+function healthRow(platform: HealthPlatform): Row {
+  return {
+    title: HEALTH_PLATFORM_NAME[platform],
+    subtitle: HEALTH_ROW_COPY.subtitle,
+    href: '/settings/health',
+    icon: 'heartOutline',
+    testID: 'you-health',
+  };
+}
+
 /** "You + Ana", "You + Ana, Ben", "You + 3"; nothing while it's just you. */
 export function householdSummary(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
@@ -117,6 +130,7 @@ export function YouScreen() {
   const household = householdSummary(members.map((m) => m.name));
   // Kitchen progress (gamification flag + revamp shell + availability): extra rows, the Chef card.
   const progressOn = useProgressEnabled();
+  const health = useHealthAvailability();
 
   const row = (item: Row) => (
     <ListRow
@@ -155,6 +169,8 @@ export function YouScreen() {
             {(progressOn ? [REWARDS_ROW, ...SETTINGS_ROWS] : SETTINGS_ROWS)
               .filter((r) => r.testID !== 'you-account')
               .map(row)}
+            {/* C2: only with the healthSync flag, on a binary and phone that have a health store. */}
+            {health.status === 'available' ? row(healthRow(health.store.platform)) : null}
             {/* Night mode: Automatic · Day · Night, just above Account. */}
             <AppearanceRow />
             {SETTINGS_ROWS.filter((r) => r.testID === 'you-account').map(row)}

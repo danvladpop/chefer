@@ -226,6 +226,14 @@ const config = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    // C2: Health Connect, one permission per data type the user can opt into.
+    permissions: [
+      'android.permission.health.READ_WEIGHT',
+      'android.permission.health.READ_STEPS',
+      'android.permission.health.READ_ACTIVE_CALORIES_BURNED',
+      'android.permission.health.WRITE_EXERCISE',
+      'android.permission.health.WRITE_NUTRITION',
+    ],
   },
   plugins: [
     // FIRST on purpose: mods run in reverse registration order, so this one
@@ -260,6 +268,24 @@ const config = {
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
     withPhonePortraitAtLaunch,
+    // C2 Health sync (Apple Health / Health Connect). Arguments are LITERALS:
+    // they are part of the runtime fingerprint. iOS: the HealthKit entitlement
+    // and the two usage strings; no background delivery (sync runs while the
+    // app is open). Android: Health Connect needs API 26 and one permission
+    // per data type; its "privacy policy" intents are handled by the local
+    // chefer-health module (not the library's plugin, which only routes them
+    // to MainActivity without showing the policy).
+    [
+      '@kingstinct/react-native-healthkit',
+      {
+        NSHealthShareUsageDescription:
+          'Chefer reads your weight, steps and active energy from Apple Health when you turn it on, so your weight trend and your day stay up to date.',
+        NSHealthUpdateUsageDescription:
+          'Chefer saves your workouts and the food you log to Apple Health when you turn it on.',
+        background: false,
+      },
+    ],
+    ['expo-build-properties', { android: { minSdkVersion: 26 } }],
     // C1: iOS app extensions live in targets/ (the WidgetKit extension with the
     // rest Live Activity). The plugin also registers the extension's bundle id
     // (<app id>.widgets) for EAS credentials.

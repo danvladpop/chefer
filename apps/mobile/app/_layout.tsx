@@ -18,6 +18,7 @@ import {
   applyGymQueryDefaults,
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
+import { HealthSyncHost } from '../src/features/health/use-health-sync';
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
@@ -176,6 +177,7 @@ export default function RootLayout() {
                       <Stack.Screen name="profile" />
                       <Stack.Screen name="preferences" />
                       <Stack.Screen name="settings/index" />
+                      <Stack.Screen name="settings/health" />
                       <Stack.Screen name="chat" />
                       <Stack.Screen name="history/index" />
                       <Stack.Screen name="history/[planId]" />
@@ -253,6 +255,8 @@ export default function RootLayout() {
               <PendingJoinHost signedIn={token !== null} />
               {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
               <FoodNudgeHost signedIn={token !== null} />
+              {/* C2: weigh-ins in, food out — only the Apple Health / Health Connect types turned on. */}
+              <HealthSyncHost signedIn={token !== null} />
               {/* Kitchen progress: retries unsent cook finishes, shows the inbox (snackbars, level-up) and
                 keeps the gentle reminder set. Gated inside; the cook retry runs for everyone. */}
               <ProgressHost signedIn={token !== null} />
