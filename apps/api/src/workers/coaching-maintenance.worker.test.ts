@@ -42,6 +42,7 @@ function setup() {
   return {
     worker: new CoachingMaintenanceWorker({
       invites,
+      householdInvites: { deleteExpiredInvitesBefore: vi.fn(async () => 0) },
       notes,
       links,
       requests,

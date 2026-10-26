@@ -12,7 +12,12 @@ export type ConflictPayload =
   /** `trainer.templates.save` (trainer mode M2): the template as stored now. */
   | { kind: 'template'; current: WorkoutTemplateDto }
   /** `trainer.bookings.update` (trainer mode M3): the booking as stored now. */
-  | { kind: 'booking'; current: TrainerBookingDto };
+  | { kind: 'booking'; current: TrainerBookingDto }
+  /**
+   * ADR 0003: a shared week's slot changed since the client loaded it (the
+   * other person swapped it). `recipeId` is what the slot holds now (null = gone).
+   */
+  | { kind: 'mealSlot'; current: { dayOfWeek: number; mealType: string; recipeId: string | null } };
 
 export class ConflictCause extends Error {
   constructor(readonly payload: ConflictPayload) {

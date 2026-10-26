@@ -224,6 +224,12 @@ model User {
   aiUsageEvents        AiUsageEvent[]
   chefReviews          ChefReview[]
   householdMembers     HouseholdMember[]
+  // Household sharing (ADR 0003): invites this owner made / redeemed, and the
+  // partner links on both sides.
+  householdInvitesMade HouseholdInvite[]     @relation("HouseholdInvitesMade")
+  householdInvitesUsed HouseholdInvite[]     @relation("HouseholdInvitesUsed")
+  householdAsOwner     HouseholdLink[]       @relation("HouseholdAsOwner")
+  householdAsPartner   HouseholdLink[]       @relation("HouseholdAsPartner")
   pantryItems          PantryItem[]
   feedback             Feedback[]
   customExercises      Exercise[]
@@ -780,6 +786,9 @@ model HouseholdMember {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  invites HouseholdInvite[]
+  links   HouseholdLink[]
+
   @@index([userId])
   @@map("household_members")
 }
@@ -1276,6 +1285,10 @@ model ShoppingList {
   items       Json // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
   checkedKeys String[] @default([]) // synced check-off state (P1-5)
+  /// Household sharing (ADR 0003): per key `{ by: userId, at: ISO, checked }` — the
+  /// last toggle of each item, ticks AND unticks, so offline replays reconcile by time
+  /// and the list can say who ticked it. `checkedKeys` stays the source of truth.
+  checkedMeta Json     @default("{}")
   customItems Json     @default("[]") // user-added items overlaying the derived list (chat tool + manual add)
   updatedAt   DateTime @updatedAt
 
@@ -1727,6 +1740,12 @@ enum NotificationKind {
   COACHING_BOOKING_CHANGED // payload = { bookingId, startsAt, timeZone }
   COACHING_BOOKING_CANCELLED // payload = { bookingId, startsAt, timeZone, reason }
   COACHING_WORKOUT_LOGGED // payload = { workoutSessionId }
+  // Household sharing (ADR 0003). Never listed by friends.activity or coaching.notices;
+  // read through household.notices. payload = { name } (the other person's first name).
+  HOUSEHOLD_PARTNER_JOINED // owner ← a partner joined
+  HOUSEHOLD_PARTNER_LEFT // owner ← a partner left
+  HOUSEHOLD_REMOVED // partner ← the owner removed them
+  HOUSEHOLD_ENDED // partner ← the owner deleted their account (actor = the partner, so it survives)
 }
 
 enum ReportReason {
@@ -2330,4 +2349,65 @@ model ProgressQuestDay {
 
   @@id([userId, localDate])
   @@map("progress_quest_days")
+}
+
+// ─── Household sharing (ADR 0003, market review MUST 5) ──────────────────────
+// Additive only. A partner with their own account joins the OWNER's household by
+// claiming one of the owner's member profiles. The owner's plans and lists are the
+// household's; access is decided ONLY from ACTIVE links (householdAccess.scope).
+
+/// Single-use invite for one member profile. The code is the only secret: 10 chars,
+/// Crockford base32, from crypto random (the coaching invite generator).
+model HouseholdInvite {
+  code      String    @id
+  ownerId   String
+  memberId  String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime // createdAt + 14 days
+  usedAt    DateTime?
+  usedById  String?
+  revokedAt DateTime?
+
+  owner  User            @relation("HouseholdInvitesMade", fields: [ownerId], references: [id], onDelete: Cascade)
+  member HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  usedBy User?           @relation("HouseholdInvitesUsed", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+  @@index([memberId])
+  @@map("household_invites")
+}
+
+enum HouseholdLinkStatus {
+  ACTIVE
+  ENDED
+}
+
+/// SYSTEM = the owner deleted their account, or the profile was deleted
+enum HouseholdEndedBy {
+  OWNER
+  PARTNER
+  SYSTEM
+}
+
+/// The owner <-> partner relationship. Raw-SQL partial unique indexes (ensure-indexes.sql):
+///   household_links_one_active_partner (partnerId) WHERE status = 'ACTIVE'
+///   household_links_one_active_member  (memberId)  WHERE status = 'ACTIVE'
+model HouseholdLink {
+  id         String              @id @default(cuid())
+  ownerId    String
+  partnerId  String
+  memberId   String? // the claimed profile; SetNull if the owner deletes it (the link ends first)
+  status     HouseholdLinkStatus @default(ACTIVE)
+  inviteCode String? // provenance, no FK (invites are pruned)
+  startedAt  DateTime            @default(now())
+  endedAt    DateTime?
+  endedBy    HouseholdEndedBy?
+
+  owner   User             @relation("HouseholdAsOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  partner User             @relation("HouseholdAsPartner", fields: [partnerId], references: [id], onDelete: Cascade)
+  member  HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, status])
+  @@index([partnerId, status])
+  @@map("household_links")
 }
