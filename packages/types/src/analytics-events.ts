@@ -256,4 +256,7 @@ export interface EventMap {
   // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
+  // Lane D4: on-device progress photos (never the photo, never a count of them).
+  progress_photo_added: { source: 'camera' | 'library' };
+  progress_photos_compared: Record<string, never>;
 }
