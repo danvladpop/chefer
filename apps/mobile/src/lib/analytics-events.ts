@@ -8,11 +8,23 @@ import { track } from './analytics';
 // "Send anonymous usage counts" switch and the no-key no-op apply unchanged.
 
 type MealLoggedSource = EventMap['meal_logged']['source'];
+export type MealLogMethod = NonNullable<EventMap['meal_logged']['method']>;
 
-/** `meal_logged` — `mealType` is sent only when it is one of the four plan slots. */
-export function trackMealLogged(source: MealLoggedSource, mealType: string | undefined): void {
+/**
+ * `meal_logged` — `mealType` is sent only when it is one of the four plan
+ * slots; `method` (how the food was entered) only when the caller knows it.
+ */
+export function trackMealLogged(
+  source: MealLoggedSource,
+  mealType: string | undefined,
+  method?: MealLogMethod,
+): void {
   const slot = planSlotSchema.safeParse(mealType);
-  track('meal_logged', slot.success ? { source, mealType: slot.data } : { source });
+  track('meal_logged', {
+    source,
+    ...(slot.success && { mealType: slot.data }),
+    ...(method && { method }),
+  });
 }
 
 type PlanWithMeals = { days: readonly { meals: readonly unknown[] }[] };
@@ -29,6 +41,13 @@ export function trackOnboardingCompleted(
   trainingStyles: readonly string[],
 ): void {
   track('onboarding_completed', trainingStyles.length > 0 ? { jobs, trainingStyles } : { jobs });
+}
+
+/** `list_item_checked` — after `shoppingList.toggleItems` succeeds; un-ticking sends nothing. */
+export function trackListToggled(toggle: { keys: readonly string[]; checked: boolean }): void {
+  if (toggle.checked && toggle.keys.length > 0) {
+    track('list_item_checked', { items: toggle.keys.length });
+  }
 }
 
 type SharingWhere = EventMap['coaching_sharing_changed']['where'];

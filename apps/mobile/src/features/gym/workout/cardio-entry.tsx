@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import type { ExerciseDto, SessionExerciseDoc, SessionSummaryDto, WeightUnit } from '@chefer/types';
+import type {
+  DistanceUnit,
+  ExerciseDto,
+  SessionExerciseDoc,
+  SessionSummaryDto,
+  WeightUnit,
+} from '@chefer/types';
 import { Button, SegmentedControl, Text, ValueStepper } from '@chefer/ui-mobile';
 import {
   cardioNextTime,
@@ -8,6 +14,7 @@ import {
   distanceUnitFor,
   formatDistance,
   formatDurationClock,
+  profileDistanceUnit,
   toMetres,
   type CardioDistanceUnit,
 } from '@chefer/utils';
@@ -39,12 +46,22 @@ export interface CardioEntryProps {
   se: SessionExerciseDoc;
   meta: ExerciseDto;
   unit: WeightUnit;
+  /** G3: the Training settings choice; omitted = the one that goes with `unit`. */
+  distanceUnit?: DistanceUnit | undefined;
   prior: SessionSummaryDto[];
   onLogIt: (fields: CardioLogFields) => void;
   testID: string;
 }
 
-export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEntryProps) {
+export function CardioEntry({
+  se,
+  meta,
+  unit,
+  distanceUnit: profileUnit,
+  prior,
+  onLogIt,
+  testID,
+}: CardioEntryProps) {
   const [mode, setMode] = useState<'timer' | 'enter'>('timer');
   const [enterMin, setEnterMin] = useState<number | null>(null);
   const [distanceDisplay, setDistanceDisplay] = useState<number | null>(null);
@@ -54,8 +71,10 @@ export function CardioEntry({ se, meta, unit, prior, onLogIt, testID }: CardioEn
   const preset = cardioPresetsFor(meta.id);
   const showDistance = preset?.metrics.includes('distance') ?? false;
   const showLevel = preset?.metrics.includes('resistance') ?? false;
-  const profileDistanceUnit = unit === 'LB' ? 'MI' : 'KM';
-  const distanceUnit: CardioDistanceUnit = distanceUnitFor(meta.id, profileDistanceUnit);
+  const distanceUnit: CardioDistanceUnit = distanceUnitFor(
+    meta.id,
+    profileDistanceUnit({ unit, distanceUnit: profileUnit }),
+  );
 
   const timerState = useCardioTimer();
   const isThisTimer = timerState?.seId === se.id;

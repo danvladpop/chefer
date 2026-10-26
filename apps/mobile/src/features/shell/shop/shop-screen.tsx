@@ -45,6 +45,7 @@ import { useIsOnline } from '../../../hooks/use-is-online';
 import { useIsPremium } from '../../../hooks/use-is-premium';
 import { useUnits } from '../../../hooks/use-units';
 import { track } from '../../../lib/analytics';
+import { trackListToggled } from '../../../lib/analytics-events';
 import { trpc } from '../../../lib/trpc';
 import { LockedFeatureCard } from '../../premium/locked-feature-card';
 import { LabelCaveat } from '../../safety/label-caveat';
@@ -143,6 +144,7 @@ export function ShopScreen() {
       );
       return { previous };
     },
+    onSuccess: (_data, vars) => trackListToggled(vars),
     onError: (_err, _vars, context) => {
       if (context?.previous)
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);

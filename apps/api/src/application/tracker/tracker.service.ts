@@ -9,6 +9,7 @@ import {
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import { parseStoredNumbersMode } from '@chefer/types';
 import type {
+  HealthPlatform,
   NumbersMode,
   NutritionTargets,
   ProteinGuide,
@@ -169,6 +170,11 @@ export interface DayTrackerData {
    */
   numbersMode?: NumbersMode;
   proteinGuide?: ProteinGuide;
+  /**
+   * Lane D2: the user marked this day as partly logged, so the weekly review
+   * leaves it out of its averages. Additive: older clients ignore it.
+   */
+  incomplete?: boolean;
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -176,7 +182,7 @@ export interface DayTrackerData {
     fatG: number;
   };
   /**
-   * GAIN_MUSCLE lifters only: this day's training-day adjustment — the same
+   * GAIN_MUSCLE and MAINTAIN lifters only: this day's training-day adjustment — the same
    * payload `dashboard.summary.nutrition.trainingDay` carries (audit P2-4
    * follow-up). Additive; `targets` above keeps meaning the BASE targets.
    */
@@ -396,6 +402,7 @@ export const trackerService = {
           }
         : null,
       skippedSlots,
+      incomplete: log?.incomplete ?? false,
       numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
       proteinGuide: buildProteinGuide(proteinG, plannedMeals.length),
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
@@ -637,6 +644,19 @@ export const trackerService = {
   },
 
   /** Undo of `skipSlot`. A no-op when the slot is not skipped (a retried Undo). */
+  /**
+   * Lane D2: "Partly logged day". The day still counts as logged, but the
+   * Adaptive Chef leaves it out of its intake average and complete-days rule.
+   */
+  async setDayIncomplete(
+    userId: string,
+    dateStr: string,
+    incomplete: boolean,
+  ): Promise<{ date: string; incomplete: boolean }> {
+    const stored = await dailyLogRepository.setIncomplete(userId, dayDate(dateStr), incomplete);
+    return { date: dateStr, incomplete: stored };
+  },
+
   async unskipSlot(
     userId: string,
     dateStr: string,
@@ -1004,6 +1024,29 @@ export const trackerService = {
   async logWeight(userId: string, weightKg: number, dateStr?: string) {
     const recordedAt = dateStr ? new Date(dateStr) : new Date();
     return weightEntryRepository.create({ userId, weightKg, recordedAt });
+  },
+
+  /**
+   * C2: weigh-ins read from Apple Health / Health Connect. Stored like a typed
+   * weigh-in (the LOCAL day at UTC midnight, so trend weight and history treat
+   * them the same) with their source and sample id; a sample already imported
+   * is skipped, so the phone can re-send overlapping windows safely.
+   */
+  async importWeights(
+    userId: string,
+    source: HealthPlatform,
+    entries: { externalId: string; weightKg: number; date: string }[],
+  ): Promise<{ imported: number; skipped: number }> {
+    const imported = await weightEntryRepository.importMany(
+      userId,
+      source,
+      entries.map((e) => ({
+        externalId: e.externalId,
+        weightKg: e.weightKg,
+        recordedAt: new Date(e.date),
+      })),
+    );
+    return { imported, skipped: entries.length - imported };
   },
 
   async updateWeight(userId: string, id: string, weightKg: number, dateStr?: string) {

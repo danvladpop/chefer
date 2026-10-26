@@ -10,6 +10,7 @@ import {
 import { Button, ErrorState, IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { track } from '../../../lib/analytics';
 import { trackSharingChosen } from '../../../lib/analytics-events';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
 import { trpc } from '../../../lib/trpc';
@@ -146,6 +147,7 @@ function JoinFlow({ code }: { code: string }) {
   const join = trpc.coaching.join.useMutation({
     meta: { silent: true },
     onSuccess: (status, vars) => {
+      track('coaching_joined', {});
       clearPendingJoin();
       trackSharingChosen(vars.share, 'join');
       void utils.coaching.status.invalidate();

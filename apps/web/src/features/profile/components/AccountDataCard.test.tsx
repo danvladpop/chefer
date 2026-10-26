@@ -3,10 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountDataCard } from './AccountDataCard';
 
-// T-39.5 (bug B-53): the download is a NAMED file (`chefer-export-YYYY-MM-DD.json`,
-// not the old `chefer-data-...`), and confirms with "Your export is ready."
+// T-39.5 (bug B-53): the download is a NAMED file, and confirms with "Your
+// export is ready." G1: it is the ZIP from `user.exportArchive`
+// (`chefer-export-YYYY-MM-DD.zip`), decoded from base64 into real bytes.
 
-const mockExportData = vi.hoisted(() => vi.fn());
+const mockExportArchive = vi.hoisted(() => vi.fn());
+const mockCapture = vi.hoisted(() => vi.fn());
+const mockCreateObjectURL = vi.hoisted(() => vi.fn((_blob: Blob) => 'blob:mock'));
+vi.mock('@/lib/analytics', () => ({ capture: mockCapture }));
 const mockResetMutate = vi.hoisted(() => vi.fn());
 const mockDeleteMutate = vi.hoisted(() => vi.fn());
 // WP-22: what auth.linkedIdentities / auth.socialAvailability answer.
@@ -28,8 +32,10 @@ vi.mock('@/features/auth/hooks/use-auth', () => ({ useAuth: () => ({ logout: moc
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
-    useUtils: () => ({ user: { exportData: { fetch: mockExportData } } }),
     user: {
+      exportArchive: {
+        useMutation: () => ({ mutateAsync: mockExportArchive, isPending: false }),
+      },
       deleteSelf: {
         useMutation: (opts?: { onSuccess?: () => void }) => {
           mockDeleteState.onSuccess = opts?.onSuccess;
@@ -63,10 +69,15 @@ beforeEach(() => {
   mockDeleteMutate.mockReset();
   mockAuth.linked = { hasPassword: true, identities: [] };
   mockAuth.availability = undefined;
-  mockExportData.mockReset().mockResolvedValue({ user: { id: 'u1' } });
+  // "PK" — the first two bytes of every ZIP.
+  mockExportArchive
+    .mockReset()
+    .mockResolvedValue({ filename: 'chefer-export-2026-10-22.zip', base64: 'UEs=', bytes: 2 });
+  mockCapture.mockReset();
+  mockCreateObjectURL.mockClear();
   vi.stubGlobal('URL', {
     ...URL,
-    createObjectURL: vi.fn(() => 'blob:mock'),
+    createObjectURL: mockCreateObjectURL,
     revokeObjectURL: vi.fn(),
   });
 });
@@ -89,7 +100,7 @@ describe('AccountDataCard sign out (FB7-02)', () => {
 });
 
 describe('AccountDataCard export (T-39.5)', () => {
-  it('downloads a file named chefer-export-YYYY-MM-DD.json', async () => {
+  it('G1: downloads the ZIP under its server name, as real bytes', async () => {
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => undefined);
@@ -119,7 +130,16 @@ describe('AccountDataCard export (T-39.5)', () => {
     fireEvent.click(screen.getByText('Download my data'));
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalled());
-    expect(capturedFilename).toMatch(/^chefer-export-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(capturedFilename).toBe('chefer-export-2026-10-22.zip');
+    const blob = mockCreateObjectURL.mock.calls[0]?.[0];
+    if (!blob) throw new Error('no blob was created');
+    expect(blob.type).toBe('application/zip');
+    // Two decoded bytes ("PK"), not the four base64 characters.
+    expect(blob.size).toBe(2);
+    expect(mockCapture).toHaveBeenCalledWith('data_export_downloaded', {
+      format: 'zip',
+      sizeBucket: '<100kb',
+    });
 
     createElementSpy.mockRestore();
     clickSpy.mockRestore();
@@ -134,7 +154,7 @@ describe('AccountDataCard export (T-39.5)', () => {
   });
 
   it('shows an error and no toast when the export fails', async () => {
-    mockExportData.mockRejectedValue(new Error('network'));
+    mockExportArchive.mockRejectedValue(new Error('network'));
     render(<AccountDataCard />);
     fireEvent.click(screen.getByText('Download my data'));
 
@@ -142,6 +162,15 @@ describe('AccountDataCard export (T-39.5)', () => {
       expect(screen.getByText("Couldn't prepare your data. Please try again.")).toBeTruthy(),
     );
     expect(screen.queryByText('Your export is ready.')).toBeNull();
+  });
+
+  it('G1: says when to try again after the rate limit', async () => {
+    mockExportArchive.mockRejectedValue({ data: { code: 'TOO_MANY_REQUESTS' } });
+    render(<AccountDataCard />);
+    fireEvent.click(screen.getByText('Download my data'));
+
+    await waitFor(() => expect(screen.getByText(/Try again in 15 minutes/)).toBeTruthy());
+    expect(mockCapture).not.toHaveBeenCalled();
   });
 });
 
