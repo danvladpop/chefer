@@ -19,6 +19,7 @@
     "clean": "rm -rf .expo .expo-export-check dist"
   },
   "dependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@chefer/api": "workspace:^",
     "@chefer/tokens": "workspace:*",
     "@chefer/types": "workspace:*",
