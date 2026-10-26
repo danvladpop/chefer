@@ -200,3 +200,96 @@ export function coachingConsentLabel(event: {
   }
   return COACHING_CONSENT_LABELS[event.granted ? 'granted' : 'withdrawn'];
 }
+
+// ─── Lane K2: the trainer's views (client detail) ─────────────────────────────
+
+/** `trainer.client.weekSummary`: the 7 days ending `today` (the trainer's device-local date). */
+export const clientWeekSummaryInputSchema = z.object({
+  clientId: coachingClientIdSchema,
+  today: localDateSchema,
+});
+export type ClientWeekSummaryInput = z.infer<typeof clientWeekSummaryInputSchema>;
+
+/** The food part of the weekly card: only when the client shares their food log. */
+export interface ClientWeekFoodDto {
+  numbers: TrainerNumbersView;
+  /** Days with at least one logged entry, of 7. */
+  daysLogged: number;
+  mealsLogged: number;
+  /** Averages over the logged days; null when hidden by the numbers view or nothing was logged. */
+  avgKcal: number | null;
+  avgProteinG: number | null;
+  /** The average daily target over the 7 days, in the same view. */
+  targetKcal: number | null;
+  targetProteinG: number | null;
+  /** Planned meals eaten as planned ÷ planned meals, 0–1; null with nothing planned. */
+  planAdherence: number | null;
+}
+
+/** The weight part of the weekly card: only when the client shares their weight. */
+export interface ClientWeekWeightDto {
+  /** The latest weigh-in in the last 90 days, or null. */
+  latest: ClientWeightEntryDto | null;
+  /** The latest weigh-in minus the last one on or before 7 days ago (kg, one decimal); null without both. */
+  changeKg: number | null;
+}
+
+/** `trainer.client.weekSummary` (scope `read`): training always, food / weight only when shared. */
+export interface ClientWeekSummaryDto {
+  /** `YYYY-MM-DD`, 7 days: `from` … `to` (= today). */
+  from: string;
+  to: string;
+  /** Completed workouts in the 7 days against the weekly goal. */
+  workouts: { done: number; goal: number };
+  sharing: ClientSharingDto;
+  /** Null unless the client shares their food log. */
+  food: ClientWeekFoodDto | null;
+  /** Null unless the client shares their weight. */
+  weight: ClientWeekWeightDto | null;
+}
+
+/** Trainer-side copy (web and mobile). Numbers are formatted by the app and passed in. */
+export const COACHING_DATA_COPY = {
+  week: {
+    title: 'Last 7 days',
+    workouts: (done: number, goal: number) =>
+      goal > 0 ? `${done} of ${goal} workouts` : `${done} ${done === 1 ? 'workout' : 'workouts'}`,
+    daysLogged: (days: number) => `Food logged ${days} of 7 days`,
+    avgKcal: (avg: string, target: string | null) =>
+      target ? `${avg} of ${target} kcal a day` : `${avg} kcal a day`,
+    avgProtein: (avg: string, target: string | null) =>
+      target ? `${avg} of ${target} g protein a day` : `${avg} g protein a day`,
+    plan: (pct: number) => `${pct}% of planned meals eaten as planned`,
+    noPlan: 'No meal plan this week',
+    weightLatest: (weight: string, date: string) => `${weight} · ${date}`,
+    weightChange: (change: string) => `${change} in 7 days`,
+    weightSteady: 'Steady over 7 days',
+    noWeighIn: 'No weigh-in yet',
+    notShared: (client: string) => `${client} doesn’t share food or weight with you.`,
+    notSharedHint: 'Clients choose this in Your trainer. Ask them if it would help.',
+    numbersHidden: (client: string) => `${client} hides numbers in Chefer, so you see meals only.`,
+    caloriesHidden: (client: string) => `${client} hides calories in Chefer.`,
+  },
+  tab: 'Food',
+  food: {
+    heading: 'Food log',
+    sharedSince: (date: string) => `Shared since ${date}`,
+    nothingLogged: 'Nothing logged',
+    meals: (n: number) => `${n} ${n === 1 ? 'meal' : 'meals'}`,
+    kcal: (kcal: number, target: number | null) =>
+      target !== null
+        ? `${kcal.toLocaleString('en-GB')} / ${target.toLocaleString('en-GB')} kcal`
+        : `${kcal.toLocaleString('en-GB')} kcal`,
+    protein: (g: number, target: number | null) =>
+      target !== null ? `${g} / ${target} g protein` : `${g} g protein`,
+    plan: (eaten: number, planned: number) => `${eaten} of ${planned} planned`,
+    onPlan: 'From the plan',
+    notShared: (client: string) => `${client} doesn’t share their food log.`,
+  },
+  weight: {
+    heading: 'Weight',
+    notShared: (client: string) => `${client} doesn’t share their weight.`,
+    empty: 'No weigh-ins in the last 3 months.',
+    // TODO(lane D1): "Trend" once the trend weight is on master.
+  },
+} as const;

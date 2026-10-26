@@ -4,9 +4,13 @@
 // or every number, never has them shown to their trainer either.
 
 import {
+  COACHING_DATA_COPY,
   COACHING_DATA_LIMITS,
   type ClientFoodDayDto,
   type ClientFoodEntryDto,
+  type ClientWeekFoodDto,
+  type ClientWeekSummaryDto,
+  type ClientWeekWeightDto,
   type ClientWeightEntryDto,
   type TrainerNumbersView,
 } from '@chefer/types';
@@ -134,4 +138,126 @@ export function weighInsByDay(
 export function dbDateKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+/**
+ * The weekly card's food part from the 7 day rows (`ClientWeekFoodDto`).
+ * Averages are over the LOGGED days (an unlogged day is unknown, not zero);
+ * targets are averaged over all 7.
+ */
+export function summarizeFoodWeek(
+  days: readonly ClientFoodDayDto[],
+  numbers: TrainerNumbersView,
+): ClientWeekFoodDto {
+  const logged = days.filter((d) => d.mealsLogged > 0);
+  const avg = (values: (number | null)[]) => {
+    const known = values.filter((v): v is number => v !== null);
+    return known.length === 0 ? null : Math.round(known.reduce((a, b) => a + b, 0) / known.length);
+  };
+  return {
+    numbers,
+    daysLogged: logged.length,
+    mealsLogged: days.reduce((sum, d) => sum + d.mealsLogged, 0),
+    avgKcal: avg(logged.map((d) => d.kcal)),
+    avgProteinG: avg(logged.map((d) => d.proteinG)),
+    targetKcal: avg(days.map((d) => d.targetKcal)),
+    targetProteinG: avg(days.map((d) => d.targetProteinG)),
+    planAdherence: planAdherence(days),
+  };
+}
+
+/**
+ * The weekly card's weight part: the latest weigh-in, and its change since the
+ * last weigh-in on or before `since` (7 days ago). Entries oldest first.
+ */
+export function weekWeight(
+  entries: readonly ClientWeightEntryDto[],
+  since: string,
+): ClientWeekWeightDto {
+  const latest = entries.at(-1) ?? null;
+  const before = [...entries].reverse().find((e) => e.date <= since) ?? null;
+  return {
+    latest,
+    changeKg:
+      latest && before && before.date !== latest.date
+        ? Math.round((latest.weightKg - before.weightKg) * 10) / 10
+        : null,
+  };
+}
+
+/** The weekly card as plain lines, so web and mobile read the same (`COACHING_DATA_COPY.week`). */
+export interface WeekSummaryLines {
+  workouts: string;
+  /** Null when food is not shared. */
+  food: string[] | null;
+  /** Null when weight is not shared. */
+  weight: string[] | null;
+  /** Shown when neither is shared. */
+  notShared: { title: string; hint: string } | null;
+}
+
+export function weekSummaryLines(
+  summary: ClientWeekSummaryDto,
+  client: string,
+  format: {
+    weightKg: (kg: number, signed?: boolean) => string;
+    date: (localDate: string) => string;
+  },
+): WeekSummaryLines {
+  const copy = COACHING_DATA_COPY.week;
+  const n = (v: number) => v.toLocaleString('en-GB');
+  let food: string[] | null = null;
+  if (summary.food) {
+    const f = summary.food;
+    food = [copy.daysLogged(f.daysLogged)];
+    if (f.numbers === 'NONE') food.push(copy.numbersHidden(client));
+    if (f.avgKcal !== null) {
+      food.push(copy.avgKcal(n(f.avgKcal), f.targetKcal !== null ? n(f.targetKcal) : null));
+    } else if (f.numbers === 'PROTEIN_ONLY') {
+      food.push(copy.caloriesHidden(client));
+    }
+    if (f.avgProteinG !== null) {
+      food.push(
+        copy.avgProtein(n(f.avgProteinG), f.targetProteinG !== null ? n(f.targetProteinG) : null),
+      );
+    }
+    food.push(
+      f.planAdherence !== null ? copy.plan(Math.round(f.planAdherence * 100)) : copy.noPlan,
+    );
+  }
+  let weight: string[] | null = null;
+  if (summary.weight) {
+    const w = summary.weight;
+    weight = w.latest
+      ? [
+          copy.weightLatest(format.weightKg(w.latest.weightKg), format.date(w.latest.date)),
+          ...(w.changeKg === null
+            ? []
+            : Math.abs(w.changeKg) < 0.05
+              ? [copy.weightSteady]
+              : [copy.weightChange(format.weightKg(w.changeKg, true).replace('-', '−'))]),
+        ]
+      : [copy.noWeighIn];
+  }
+  return {
+    workouts: copy.workouts(summary.workouts.done, summary.workouts.goal),
+    food,
+    weight,
+    notShared:
+      !summary.sharing.food && !summary.sharing.weight
+        ? { title: copy.notShared(client), hint: copy.notSharedHint }
+        : null,
+  };
+}
+
+/** One Food-tab day as parts ("3 meals", "1,850 / 2,000 kcal", "110 / 125 g protein", "2 of 3 planned"). */
+export function foodDayParts(day: ClientFoodDayDto): string[] {
+  const copy = COACHING_DATA_COPY.food;
+  if (day.mealsLogged === 0) return [copy.nothingLogged];
+  return [
+    copy.meals(day.mealsLogged),
+    ...(day.kcal !== null ? [copy.kcal(day.kcal, day.targetKcal)] : []),
+    ...(day.proteinG !== null ? [copy.protein(day.proteinG, day.targetProteinG)] : []),
+    ...(day.plan ? [copy.plan(day.plan.eaten, day.plan.planned)] : []),
+  ];
 }
