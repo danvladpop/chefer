@@ -271,8 +271,10 @@ const config = {
     // C2 Health sync (Apple Health / Health Connect). Arguments are LITERALS:
     // they are part of the runtime fingerprint. iOS: the HealthKit entitlement
     // and the two usage strings; no background delivery (sync runs while the
-    // app is open). Android: Health Connect needs API 26, the permission-
-    // rationale activity (the plugin) and one permission per data type.
+    // app is open). Android: Health Connect needs API 26 and one permission
+    // per data type; its "privacy policy" intents are handled by the local
+    // chefer-health module (not the library's plugin, which only routes them
+    // to MainActivity without showing the policy).
     [
       '@kingstinct/react-native-healthkit',
       {
@@ -283,7 +285,6 @@ const config = {
         background: false,
       },
     ],
-    'react-native-health-connect',
     ['expo-build-properties', { android: { minSdkVersion: 26 } }],
     // C1: iOS app extensions live in targets/ (the WidgetKit extension with the
     // rest Live Activity). The plugin also registers the extension's bundle id

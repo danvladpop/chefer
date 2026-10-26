@@ -7,6 +7,7 @@ import { useFlags } from '../../hooks/use-flags';
 import { track } from '../../lib/analytics';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import type { TodayActivity } from './health-model';
+import { useHealthPrivacyRequests } from './health-privacy-request';
 import { getHealthStore, type HealthStore } from './health-store';
 import { mealsFromDay, runWeightImport, syncNutritionDay, useHealthSettings } from './health-sync';
 
@@ -125,9 +126,10 @@ export function useHealthSyncJobs(signedIn: boolean): void {
   }, [nutritionOn, utils, queryClient]);
 }
 
-/** Renders nothing; mounts `useHealthSyncJobs` inside the tRPC provider. */
+/** Renders nothing; mounts the health jobs inside the tRPC provider. */
 export function HealthSyncHost({ signedIn }: { signedIn: boolean }): null {
   useHealthSyncJobs(signedIn);
+  useHealthPrivacyRequests();
   return null;
 }
 

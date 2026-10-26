@@ -641,6 +641,23 @@ null)` stores Today's snapshot (built in JS, `src/features/widget/today-widget-s
   (`requireOptionalNativeModule('CheferWidgets')`; no-op on older binaries; writes only on change), called from both
   Today screens and cleared by `signOut`. Also in this binary: `userInterfaceStyle: 'light'` (UX-X-07) with
   `expo-system-ui` (57.0.4) so Android applies it.
+- **Apple Health / Health Connect sync (C2, next store build): `react-native-health-connect` 4.1.3 (Android, its config
+  plugin declares the permissions) and `@kingstinct/react-native-healthkit` 16.2.0 + `react-native-nitro-modules` 0.37.1
+  (iOS, HealthKit entitlement + usage strings from its plugin, no background delivery).** `expo-build-properties`
+  (57.0.22) raises Android `minSdkVersion` to 26 (Health Connect's floor). Permissions: Android
+  `health.READ_WEIGHT`, `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `WRITE_EXERCISE`, `WRITE_NUTRITION`; iOS read body
+  mass, step count, active energy; share workouts + dietary energy/protein/carbs/fat (food correlation). New native code
+  → new runtime fingerprint (§11). JS: `src/features/health/` — `health-store.ts` (one `HealthStore` interface;
+  `getHealthStore()` requires the platform store lazily in a try/catch, so an older binary gets `null`),
+  `health-connect-store.ts` / `healthkit-store.ts` (upserts by `clientRecordId` / `HKMetadataKeySyncIdentifier`),
+  `health-model.ts` (pure, unit-tested), `health-sync.ts` (settings in KV `health.sync`, wiped on sign-out; the jobs),
+  `use-health-sync.ts` (`HealthSyncHost` in the root layout, `useHealthAvailability`, `useTodayActivity`) and the
+  `/settings/health` screen. Business flow §43. Health Connect's "privacy policy" link (a Play requirement) is handled by
+  the local Android-only module `modules/chefer-health`: `HealthRationaleActivity` takes
+  `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE` (≤ Android 13) and, through the `ViewPermissionUsageActivity`
+  alias guarded by `START_VIEW_PERMISSION_USAGE`, `VIEW_PERMISSION_USAGE` / `HEALTH_PERMISSIONS` (Android 14+); it
+  brings Chefer forward and `health-privacy-request.ts` opens `/legal/privacy`. The library's own config plugin is not
+  used (it routes those intents to MainActivity without showing the policy).
 - **Store rating prompt (ASO plan §5.1, ships in the 1.0.2 binary).** `expo-store-review` (`~57.0.3`, no config
   plugin) asks the OS for its native rating sheet — the **only** path: no "Rate us" button, no "Enjoying Chefer?"
   pre-prompt (both stores forbid gating). Code in `src/features/review/`: `review-eligibility.ts` (the pure rule),
@@ -834,6 +851,7 @@ enforced by the drift guard) built on the shared data hooks:
 | `/settings`                                                                                                                     | `shell/you/account-screen.tsx`         | "Account" in the new shell (You, Account, Legal + shortened disclaimer); legacy hub unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/preferences`                                                                                                                  | `app/preferences.tsx` branch           | "Goals & diet": Goal & body first, then food safety; `?section=` links unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `/achievements`, `/kitchen-recap/[week]`, `/settings/rewards`                                                                   | `src/features/progress/*`              | **new routes (Kitchen progress, flag `gamification`, revamp shell only)**: the achievements shelf, the weekly recap story, Rewards & motivation (celebrations, show XP, show flame, Biscuit, goal, pause, gentle reminder)                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `/settings/health`                                                                                                              | `src/features/health/*`                | **new route (C2 health sync, flag `healthSync`, next store build)**: one switch per Apple Health / Health Connect data type; the You row (and old-shell Settings › Account row) shows only where `useHealthAvailability` says so — business_flow §43                                                                                                                                                                                                                                                                                                                                                                                                |
 
 **Kitchen progress on mobile (`src/features/progress/`, flag `gamification` + the revamp shell; `docs/gamification-2026-10/`).**
 `useProgressEnabled()` = flag && `useShellV2()` && `progress.availability`. With the gate off nothing renders and

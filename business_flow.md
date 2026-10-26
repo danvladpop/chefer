@@ -5798,7 +5798,8 @@ ordinary weigh-in on its local day (`WeightEntry.source` APPLE_HEALTH / HEALTH_C
 sending the same sample again is skipped, so overlapping sync windows never double a weigh-in. Which data types are on is
 logged separately: every change on the "Connect health" screen writes a `HEALTH_SYNC` consent event
 (`privacy.recordHealthSync`; Consent history shows e.g. "Health Connect: weight, steps" or "Apple Health: turned off").
-Withdrawing health consent deletes imported weigh-ins along with typed ones. Dark behind the `healthSync` flag.
+Withdrawing health consent deletes imported weigh-ins along with typed ones. Dark behind the `healthSync` flag. The phone
+side is §43.
 
 ## 34. Following: follow, see, save (`docs/friends/`, F1.D)
 
@@ -6680,3 +6681,41 @@ Sign-out → the snapshot is cleared (src/lib/sign-out.ts).
 - Sizes: iOS small + medium, Android 2×2 resizable to 4×2. Light-only, in the app's colours.
 - Kept minimal on purpose — a home screen is public: no weight, allergies or account details.
 - Web: not applicable (no home-screen widget).
+
+## 43. Apple Health / Health Connect Sync (mobile, C2)
+
+Binaries built after 1.0.2 (native: `infrastructure.md` §4 mobile), dark behind the `healthSync` flag. On an older
+binary, without the flag, or on a phone without the store (Health Connect not installed), the entry never shows and
+nothing runs. Owner decisions 2026-10-23: one switch per data type; steps and active energy stay on the device.
+
+```
+You › Settings › "Health Connect" / "Apple Health"   (also Settings › Account in the old shell)
+  → /settings/health: one switch per type             src/features/health/health-sync-screen.tsx
+      Into Chefer   Weigh-ins · Steps · Active energy
+      From Chefer   Workouts · Food
+  Switch on
+    Weigh-ins → the health consent sheet first (§33; "Don't save it" leaves the switch off)
+    → the OS sheet for that one type
+        refused → switch stays off, "Open Health Connect / Apple Health" link
+        allowed → privacy.recordHealthSync({ platform, types now on })   HEALTH_SYNC consent event
+                  → stored on the device (KV `health.sync`) → health_sync_toggled { platform, type, on }
+        record failed (offline) → switch stays off, "Couldn't save that"
+  Switch off → stops at once on the device; recordHealthSync best-effort (the OS grant stays until the user
+               removes it in Health Connect / the Health app, as the footer says)
+
+Jobs (HealthSyncHost in the root layout, only the types on):
+  Weigh-ins   launch + every foreground → samples since the cursor (first run: 90 days back), minus Chefer's own,
+              implausible values and repeated ids → tracker.importWeights in pages of 500 → weight history refreshes;
+              the cursor moves only after every page went through → health_weights_imported { imported, skipped }
+  Workouts    finishWorkout / log mode's Save → one ExerciseSession / HKWorkout (sync id chefer-workout-<id>,
+              type from the workout type, strength by default)
+  Food        every tracker.getDay that loads with a change → one Nutrition record / HKCorrelation food per
+              logged entry (sync id chefer-food-<entryId>, name, kcal/protein/carbs/fat), typed by meal and
+              timed at the slot's usual hour (breakfast 08:00, lunch 13:00, snack 16:00, dinner 19:00, 30 min);
+              an entry deleted since the last sync is removed. Same id + a newer version = update, never a duplicate.
+  Steps / active energy   Today shows "6,240 steps · 312 kcal active" (read on the device each time; never sent to
+              Chefer, never added to food targets)
+Sign-out → the device forgets every switch and cursor (the next account starts with health sync off).
+```
+
+- Web: not applicable (no health store on the web).
