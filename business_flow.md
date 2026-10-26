@@ -6742,6 +6742,93 @@ Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (To
 
 ---
 
+### 37.12 Coaching data: food and weight sharing (lane K, market review 2026-10)
+
+Owner decision 2026-10-22: a client opts in **per coaching** to share their food log and / or weight. Both are
+**off** by default, offered on the consent screen and in Your trainer, revocable at any time, every change logged.
+
+```
+Consent screen (invite join / "Ask to coach me")       Your trainer → "What you share with Ana"
+  "You choose what else to share"                        the same two switches, live (coaching.setSharing)
+  [ ] Share my food log   [ ] Share my weight            on  → snackbar "Ana can now see your food log"
+  coaching.join / requestCoaching { share }              off → "Ana can no longer see your food log"
+        │                                                       │
+        ▼                                                       ▼
+CoachingLink.shareFoodAt / shareWeightAt  ◄── one COACHING_SHARING event per change (providers ['FOOD'] / ['WEIGHT'])
+        │   (a request: logged when SENT, contextId = the request; applied when the trainer accepts)
+        ▼
+trainer.client.food / trainer.client.weight  (requireCoachingAccess('food' | 'weight'))
+   ACTIVE link AND the switch on → the data; anything else → the uniform NOT_FOUND "This client isn't available"
+   revoke → denied on the trainer's NEXT request (access is never cached across requests)
+   coaching ends (client leaves, trainer removes, trainer tools off, a switch to another trainer)
+        → withdrawn events for every switch that was on, switches cleared; a new coaching starts with both off
+```
+
+- **What the food log shows the trainer:** per day the meals logged, kcal and protein against the day's targets, and
+  plan adherence (eaten as planned / ate something else / skipped), with the entries' names. From the last 4 weeks.
+  **Weight:** one weigh-in per day for the last 3 months (raw weight; trend weight when lane D1 lands).
+- **Never shared:** allergies, diet settings, body measurements, photos, notes, carbs and fat.
+- **Hide numbers:** the trainer sees the numbers the client chose to see (`trainerNumbersView`): Protein only hides
+  calories, "no numbers" (`numbersMode = NONE`, lane E3) hides every number; meals and adherence stay.
+- **Store privacy labels (owner action):** food and weight are now _shared with another user_ (the trainer) when the
+  client opts in. App Store "Data used to track / linked" stays as is, but the Health & Fitness and "Other user
+  content" disclosures and Google Play's Data safety "Data shared" section need the trainer case, and the privacy
+  policy needs the paragraph (bump `LEGAL_VERSIONS.privacy`).
+- Analytics: `coaching_sharing_changed { data: food | weight, on, where: join | request | settings }`.
+
+**Trainer views (K2).** Client detail (trainer tools and trainer mode, web + mobile):
+
+```
+trainer.client.weekSummary { clientId, today }   (scope read: every ACTIVE client)
+  "Last 7 days"   2 of 3 workouts                         always
+                  Food logged 5 of 7 days · 1,850 of 2,000 kcal a day · 110 of 125 g protein a day
+                  · 70% of planned meals eaten as planned  only while food is shared
+                  64.2 kg · Thu 23 Oct · −0.4 kg in 7 days only while weight is shared
+                  "Maria doesn't share food or weight with you."  when neither is
+Food tab (only while something is shared)
+  trainer.client.food { days: 7 }    per day: meals, kcal / protein vs target, "2 of 3 planned", entry names
+  trainer.client.weight              sparkline + the last 5 weigh-ins
+  revoke → the tab disappears on the next load (both reads answer NOT_FOUND), the card says "doesn't share"
+```
+
+The card's wording is `weekSummaryLines` / `foodDayParts` (`@chefer/utils`), so both apps say the same.
+Mobile shows kg (like every trainer screen); web uses the trainer's own gym unit.
+
+**Weekly check-ins (K3).**
+
+```
+Trainer settings → "Weekly check-in"   off by default; day (Mon…Sun, default Sun); up to 6 of
+                                       Energy · Hunger · Sleep · Stress · Sticking to the plan · Soreness · Mood
+        │ trainer.checkIns.saveConfig
+        ▼
+Client, on that weekday (own calendar), from the first one after the coaching started:
+  Today / Train card "Ana's weekly check-in" — Answer → /coaching/check-in · Later (hides it until tomorrow)
+  email (08:00 UTC that day, once per period, one-click unsubscribe)
+  /coaching/check-in: each question 1–5 + optional note → coaching.checkIn.submit
+        open until the next one opens; answering again changes the answers
+        ▼
+Trainer, the client's page → "Check-ins": newest first, "Energy 3/5 · Sleep 4/5", the note,
+  "This week's check-in is waiting for Maria" (trainer.client.checkIns, ACTIVE coaching only)
+```
+
+The questions are a fixed catalogue (no free text from the trainer in a client's inbox); the client's note is opaque
+text, never sent to AI or analytics. Analytics: `check_in_config_saved { enabled, questions }`,
+`check_in_submitted { questions, withNote, edit }`.
+
+**"Client went quiet" (K4).**
+
+```
+Trainer settings → "Client alerts"   Tell me when a client goes quiet after [1·2·3·5·7·14] days (default 3)
+                                     [ ] Email me a daily summary
+quiet = no workout logged, and no food logged for clients who SHARE their food log, for N days
+        (a client who doesn't share food is never judged by food: the trainer learns nothing from it)
+  Clients list   "Nothing logged for 4 days" badge (trainer.clients.list → quiet / quietDays)
+  Today          "Quiet clients" stat ("3+ days with nothing logged") and the rows under Needs attention
+  badge          Today tab (mobile trainer mode) / Today nav item (web): quiet since the trainer last
+                 opened Today; opening Today calls trainer.quiet.markSeen
+  email          07:00 UTC, once a day, only when someone is quiet: names and days, nothing else
+```
+
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
 
 Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.

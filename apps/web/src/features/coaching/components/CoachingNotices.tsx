@@ -6,6 +6,7 @@ import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
 import { clearAllPendingJoins, readPendingJoinPath } from '../lib/pending-join';
 import { useCoachingAvailability } from '../use-coaching-availability';
+import { CheckInPrompt } from './CheckInPrompt';
 import { UpcomingBookingCard } from './ClientBookings';
 import { NoticeCard, useCoachingNoticeViews } from './CoachingNoticeList';
 import { ConsentUpdateNotice } from './ConsentUpdateNotice';
@@ -34,6 +35,7 @@ export function CoachingNotices() {
     <>
       <ConsentUpdateNotice className="mb-2" />
       <UpcomingBookingCard className="mb-4" />
+      <CheckInPrompt />
     </>
   );
   if (views.length === 0 && !joiningPath) return extras;

@@ -1,5 +1,9 @@
 import { TRPCError } from '@trpc/server';
-import { weeklyEmailRepository, type IWeeklyEmailRepository } from '@chefer/database';
+import {
+  trainerProfileRepository,
+  weeklyEmailRepository,
+  type IWeeklyEmailRepository,
+} from '@chefer/database';
 import { emailService, type IEmailService } from '../../lib/email/index.js';
 import { renderVerifyEmail } from '../../lib/email/templates.js';
 import {
@@ -51,6 +55,11 @@ export class EmailPreferencesService {
     private readonly repo: IWeeklyEmailRepository = weeklyEmailRepository,
     private readonly email: IEmailService = emailService,
     private readonly verifyUrl: (userId: string, email: string) => string = verifyEmailUrl,
+    /** Lane K4: the trainer digest switch (TrainerProfile.quietDigestEmail). */
+    private readonly setQuietDigest: (userId: string, on: boolean) => Promise<boolean> = (
+      userId,
+      on,
+    ) => trainerProfileRepository.setQuietDigestEmail(userId, on),
   ) {}
 
   async get(userId: string): Promise<EmailPreferencesDto> {
@@ -131,10 +140,28 @@ export class EmailPreferencesService {
   ): Promise<{ scope: UnsubscribeScope; weekReady: boolean; weeklyRecap: boolean }> {
     const payload = readUnsubscribeToken(token);
     if (!payload) throw new TRPCError({ code: 'BAD_REQUEST', message: INVALID_LINK });
-    const prefs = await this.repo.setPreferences(payload.userId, {
-      ...(payload.scope !== 'WEEKLY_RECAP' && { weeklyEmailReady: resubscribe }),
-      ...(payload.scope !== 'WEEK_READY' && { weeklyEmailRecap: resubscribe }),
-    });
+    // Lane K4: a trainer's digest link only touches the digest (on the TrainerProfile).
+    if (payload.scope === 'COACHING_QUIET_DIGEST') {
+      const ok = await this.setQuietDigest(payload.userId, resubscribe);
+      const current = ok ? await this.repo.getPreferences(payload.userId) : null;
+      if (!current) throw new TRPCError({ code: 'BAD_REQUEST', message: INVALID_LINK });
+      return {
+        scope: payload.scope,
+        weekReady: current.weeklyEmailReady,
+        weeklyRecap: current.weeklyEmailRecap,
+      };
+    }
+    // Lane K3: a check-in email's link only ever touches check-in emails.
+    const checkIn = payload.scope === 'COACHING_CHECK_IN';
+    const prefs = await this.repo.setPreferences(
+      payload.userId,
+      checkIn
+        ? { coachingCheckInEmail: resubscribe }
+        : {
+            ...(payload.scope !== 'WEEKLY_RECAP' && { weeklyEmailReady: resubscribe }),
+            ...(payload.scope !== 'WEEK_READY' && { weeklyEmailRecap: resubscribe }),
+          },
+    );
     // A deleted account: nothing left to email, so the outcome is the same.
     if (!prefs) throw new TRPCError({ code: 'BAD_REQUEST', message: INVALID_LINK });
     // Never echo the address: whoever holds the link may not be the owner.

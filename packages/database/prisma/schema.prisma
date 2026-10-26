@@ -140,6 +140,9 @@ enum ConsentKind {
   // Trainer coaching (docs/trainer-platform/spec.md §5.2): written on join
   // (granted) and on leave / remove / trainer tools off (withdrawn), with the
   // CoachingLink id in `contextId`. Filtered out for clients below API level 6.
+  // `providers` names what the event is about: [] = the coaching itself;
+  // ['FOOD'] / ['WEIGHT'] = the client's opt-in to share that data with the
+  // trainer (lane K1), `contextId` = the link (or the request it was asked in).
   COACHING_SHARING
   // Apple Health / Health Connect sync (C2): every change to the data types the
   // user turned on, as `providers` (e.g. ["HEALTH_CONNECT", "weight", "steps"]);
@@ -188,6 +191,10 @@ model User {
   // tracked by emailDefaultsNoticeAt below.
   weeklyEmailReady         Boolean   @default(false)
   weeklyEmailRecap         Boolean   @default(false)
+  // Lane K3: "your trainer's weekly check-in" emails (confirmed address only).
+  // On by default (the client joined a trainer who turned check-ins on);
+  // the email's one-click unsubscribe turns it off.
+  coachingCheckInEmail     Boolean   @default(true)
   // AI data consent (App Store 5.1.2(i)): when the user allowed Chefer to send
   // their data to the third-party AI provider. Null = not asked yet / revoked;
   // clients show the consent sheet before the first AI action. User-initiated
@@ -283,6 +290,9 @@ model User {
   sessionsLoggedFor      WorkoutSession[]  @relation("SessionsLoggedFor")
   coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
   coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
+  // Lane K3: weekly check-ins (answered by the client, read by the trainer)
+  checkInsAnswered       CoachingCheckIn[] @relation("CheckInsAnswered")
+  checkInsReceived       CoachingCheckIn[] @relation("CheckInsReceived")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
 
   // Phase 1 guardrails: the ledger of photos this user uploaded
@@ -2010,11 +2020,23 @@ model Notification {
 
 /// One row = the user turned trainer tools on. No row = cannot invite or coach.
 model TrainerProfile {
-  userId      String    @id
-  displayName String // shown to clients ("Ana"); word-filtered like Following names
-  gymLine     String? // optional "Gym / city" line under the name (PRD §4.1), word-filtered, max 60
-  activatedAt DateTime  @default(now())
-  disabledAt  DateTime? // turned off: every link ENDED, invites revoked
+  userId           String    @id
+  displayName      String // shown to clients ("Ana"); word-filtered like Following names
+  gymLine          String? // optional "Gym / city" line under the name (PRD §4.1), word-filtered, max 60
+  activatedAt      DateTime  @default(now())
+  disabledAt       DateTime? // turned off: every link ENDED, invites revoked
+  /// Lane K3: the weekly check-in every client of this trainer is asked. Off until the trainer
+  /// turns it on. `checkInDay` 0 = Monday … 6 = Sunday (the client's own calendar);
+  /// `checkInQuestions` are CHECK_IN_QUESTIONS keys (@chefer/types), in the trainer's order.
+  checkInEnabled   Boolean   @default(false)
+  checkInDay       Int       @default(6)
+  checkInQuestions String[]  @default([])
+  /// Lane K4: a client "goes quiet" after this many days with nothing logged (no workout, and
+  /// no food log when they share it). `quietDigestEmail`: a daily email listing quiet clients.
+  /// `quietSeenAt`: the trainer last looked at Today; the badge counts clients quiet since.
+  quietAfterDays   Int       @default(3)
+  quietDigestEmail Boolean   @default(false)
+  quietSeenAt      DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2069,6 +2091,12 @@ model CoachingLink {
   /// The coaching consent copy version the client agreed to (COACHING_CONSENT_COPY_VERSION).
   /// Older links read 1 and get a one-time "what's new" notice (trainer-mode.md §10).
   consentCopyVersion Int                @default(1)
+  /// Lane K1 (market review 2026-10): the client shares their food log / body weight with
+  /// this trainer since then; null = not shared (the default). Separate opt-ins, revocable
+  /// at any time. Every change writes a COACHING_SHARING consent event with providers
+  /// ['FOOD'] or ['WEIGHT']. Cleared (with a withdrawn event) when the coaching ends.
+  shareFoodAt        DateTime?
+  shareWeightAt      DateTime?
 
   trainer User @relation("CoachingAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
   client  User @relation("CoachingAsClient", fields: [clientId], references: [id], onDelete: Cascade)
@@ -2099,6 +2127,8 @@ model CoachingRequest {
   expiresAt   DateTime // createdAt + 14 days
   respondedAt DateTime? // accepted / declined / cancelled / expired
   startedOn   String? // the client's device-local YYYY-MM-DD when asking; anchors the coaching's start if accepted
+  shareFood   Boolean               @default(false) // Lane K1: chosen on the consent screen; applied to the link on accept
+  shareWeight Boolean               @default(false)
 
   client  User @relation("CoachingRequestsMade", fields: [clientId], references: [id], onDelete: Cascade)
   trainer User @relation("CoachingRequestsGot", fields: [trainerId], references: [id], onDelete: Cascade)
@@ -2342,6 +2372,32 @@ model CuratedRecipeDraft {
   @@index([status, submittedAt])
   @@index([submittedAt])
   @@map("curated_recipe_drafts")
+}
+
+// ─── Lane K3: weekly check-ins (market review 2026-10) ────────────────────────
+
+/// One client's answers to their trainer's weekly check-in. One row per
+/// (trainer, client, period): `periodStart` is the client-local date the
+/// check-in opened (the trainer's check-in weekday). `questions` is a snapshot
+/// of what was asked, so a later config change never re-labels old answers.
+/// `answers` = { [questionKey]: 1..5 }. Shown to the trainer only while the
+/// coaching is ACTIVE; deleted with the ended link by coaching-maintenance.
+model CoachingCheckIn {
+  id          String   @id @default(cuid())
+  trainerId   String
+  clientId    String
+  periodStart String // "YYYY-MM-DD"
+  questions   String[]
+  answers     Json
+  note        String? // ≤ 500, never sent to AI or analytics
+  submittedAt DateTime @default(now())
+
+  trainer User @relation("CheckInsReceived", fields: [trainerId], references: [id], onDelete: Cascade)
+  client  User @relation("CheckInsAnswered", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerId, clientId, periodStart])
+  @@index([trainerId, clientId, periodStart])
+  @@map("coaching_check_ins")
 }
 
 // ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───

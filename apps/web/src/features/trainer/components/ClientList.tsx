@@ -1,9 +1,16 @@
 import Link from 'next/link';
 import { formatDayWithWeekday, formatShortDay } from '@/features/coaching/lib/dates';
 import { ChevronRight } from 'lucide-react';
-import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
+import { COACHING_COPY, type ClientRowDto } from '@chefer/types';
 import { Badge, pressCard } from '@chefer/ui';
-import { clientRowNextBooking, cn, deviceTimeZone, todayIn } from '@chefer/utils';
+import {
+  clientRowNextBooking,
+  cn,
+  deviceTimeZone,
+  isQuietClient,
+  quietDaysOf,
+  todayIn,
+} from '@chefer/utils';
 import { firstName } from '../format';
 
 // ─── Clients (spec §2.4) ──────────────────────────────────────────────────────
@@ -41,7 +48,8 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
       </div>
       <ul className="flex flex-col gap-2" aria-label={copy.clients}>
         {clients.map((client) => {
-          const quiet = client.inactiveDays >= COACHING_LIMITS.inactiveDays;
+          // Lane K4: the server's verdict by the trainer's own N (food included while shared).
+          const quiet = isQuietClient(client);
           return (
             <li key={client.clientId}>
               <Link
@@ -84,7 +92,7 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                   </span>
                   {quiet && (
                     <Badge variant="secondary" data-testid="trainer-client-quiet">
-                      {copy.quiet(client.inactiveDays)}
+                      {copy.quiet(quietDaysOf(client))}
                     </Badge>
                   )}
                 </span>

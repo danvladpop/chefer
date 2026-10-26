@@ -311,4 +311,12 @@ export interface EventMap {
   household_left: { by: 'partner' | 'owner' };
   shared_list_synced: { remoteChanges: number };
   shared_plan_conflict: Record<string, never>;
+  // ─── Coaching data (lane K, market review 2026-10) — no PII, enums only ───────
+  coaching_sharing_changed: {
+    data: 'food' | 'weight';
+    on: boolean;
+    where: 'join' | 'request' | 'settings';
+  };
+  check_in_config_saved: { enabled: boolean; questions: number };
+  check_in_submitted: { questions: number; withNote: boolean; edit: boolean };
 }

@@ -33,7 +33,19 @@ function setup(existing: Notification | null = null, listed: Notification[] = []
     notifications,
     trainers: {
       findMany: vi.fn(async () => [
-        { userId: TRAINER, displayName: 'Ana', gymLine: null, activatedAt: NOW, disabledAt: null },
+        {
+          userId: TRAINER,
+          displayName: 'Ana',
+          gymLine: null,
+          activatedAt: NOW,
+          disabledAt: null,
+          checkInEnabled: false,
+          checkInDay: 6,
+          checkInQuestions: [],
+          quietAfterDays: 3,
+          quietDigestEmail: false,
+          quietSeenAt: null,
+        },
       ]),
     },
     users: {

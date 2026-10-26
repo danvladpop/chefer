@@ -359,6 +359,15 @@ export {
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
 
+// Lane K3: weekly check-ins
+export {
+  CoachingCheckInRepository,
+  coachingCheckInRepository,
+  type ICoachingCheckInRepository,
+  type UpsertCheckInData,
+  type CheckInEmailRecipient,
+} from './coaching-check-in.repository';
+
 // Trainer coaching (docs/trainer-platform/spec.md §5)
 export {
   TrainerProfileRepository,
@@ -383,6 +392,9 @@ export {
   type JoinLinkData,
   type JoinLinkResult,
   type EndLinkData,
+  type SetSharingData,
+  type ShareChoice,
+  endSharingTx,
   type CoachingTx,
   type StartLinkData,
   startLinkTx,
