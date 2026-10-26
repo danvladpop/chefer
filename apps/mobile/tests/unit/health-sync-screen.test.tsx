@@ -123,6 +123,20 @@ describe('HealthSyncScreen', () => {
     );
   });
 
+  it('says the store failed (not the connection) when the OS request throws', async () => {
+    const { requestAccess } = fakeStore((types) => [...types]);
+    requestAccess.mockImplementationOnce(() => Promise.reject(new Error('disallowed')));
+    await renderWithTrpc(<HealthSyncScreen />, {
+      'profile.flags': flagsOn,
+      'privacy.recordHealthSync': () => ({ ok: true }),
+    });
+    await fireEvent(await screen.findByTestId('health-nutrition'), 'valueChange', true);
+    expect(await screen.findByTestId('health-save-error')).toHaveTextContent(
+      'Health Connect couldn’t turn that on. Try again in a moment.',
+    );
+    expect(readHealthSettings()).toBeNull();
+  });
+
   it('shows nothing to switch without the healthSync flag', async () => {
     fakeStore((types) => [...types]);
     await renderWithTrpc(<HealthSyncScreen />, { 'profile.flags': () => ALL_FEATURE_FLAGS_OFF });

@@ -69,7 +69,7 @@ function HealthSyncBody({ store }: { store: HealthStore }) {
   const on = new Set(settings?.platform === store.platform ? settings.types : []);
   const [busy, setBusy] = useState<HealthSyncType | null>(null);
   const [denied, setDenied] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [failure, setFailure] = useState<'store' | 'save' | null>(null);
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const record = trpc.privacy.recordHealthSync.useMutation({ meta: { silent: true } });
 
@@ -83,18 +83,27 @@ function HealthSyncBody({ store }: { store: HealthStore }) {
   const turnOn = async (type: HealthSyncType) => {
     setBusy(type);
     setDenied(false);
-    setSaveFailed(false);
+    setFailure(null);
     try {
-      const granted = await store.requestAccess([type]);
+      let granted: HealthSyncType[];
+      try {
+        granted = await store.requestAccess([type]);
+      } catch {
+        setFailure('store');
+        return;
+      }
       if (!granted.includes(type)) {
         setDenied(true);
         return;
       }
       const types = withHealthType(readHealthSettings(), store.platform, type, true).types;
-      await record.mutateAsync({ platform: store.platform, types });
+      try {
+        await record.mutateAsync({ platform: store.platform, types });
+      } catch {
+        setFailure('save');
+        return;
+      }
       apply(type, true);
-    } catch {
-      setSaveFailed(true);
     } finally {
       setBusy(null);
     }
@@ -103,7 +112,7 @@ function HealthSyncBody({ store }: { store: HealthStore }) {
   const change = (type: HealthSyncType, next: boolean) => {
     if (!next) {
       setDenied(false);
-      setSaveFailed(false);
+      setFailure(null);
       const updated = apply(type, false);
       record.mutate({ platform: store.platform, types: updated.types });
       return;
@@ -155,9 +164,9 @@ function HealthSyncBody({ store }: { store: HealthStore }) {
           </Pressable>
         </View>
       )}
-      {saveFailed && (
+      {failure && (
         <Text testID="health-save-error" className="text-subhead text-danger">
-          {copy.saveError}
+          {failure === 'store' ? copy.storeError : copy.saveError}
         </Text>
       )}
       <Text className="text-footnote text-label-tertiary">{copy.footer}</Text>

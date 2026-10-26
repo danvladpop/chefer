@@ -21,8 +21,9 @@ const READ: Partial<Record<HealthSyncType, QuantityTypeIdentifier>> = {
 };
 const SHARE: Partial<Record<HealthSyncType, SampleTypeIdentifierWriteable[]>> = {
   workouts: ['HKWorkoutTypeIdentifier'],
+  // Not the Food correlation itself: HealthKit refuses to authorize correlation
+  // types; saving one needs only its nutrient types.
   nutrition: [
-    'HKCorrelationTypeIdentifierFood',
     'HKQuantityTypeIdentifierDietaryEnergyConsumed',
     'HKQuantityTypeIdentifierDietaryProtein',
     'HKQuantityTypeIdentifierDietaryCarbohydrates',

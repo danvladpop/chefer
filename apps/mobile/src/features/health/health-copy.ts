@@ -49,6 +49,7 @@ export function healthScreenCopy(platform: HealthPlatform) {
     denied: `${name} didn’t allow it. You can change that in ${name}.`,
     openSettings: `Open ${name}`,
     saveError: 'Couldn’t save that. Check your connection and try again.',
+    storeError: `${name} couldn’t turn that on. Try again in a moment.`,
     footer:
       platform === 'APPLE_HEALTH'
         ? 'Turning a switch off stops Chefer syncing it. To remove Chefer’s access completely, open the Health app › Sharing › Apps › Chefer.'
