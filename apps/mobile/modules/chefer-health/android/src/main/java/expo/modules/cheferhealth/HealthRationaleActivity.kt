@@ -13,6 +13,7 @@ class HealthRationaleActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     HealthRationale.pending = true
+    CheferHealthModule.notifyPrivacyRequest()
     packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
       launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
       startActivity(launch)

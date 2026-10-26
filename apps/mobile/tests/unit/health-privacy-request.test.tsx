@@ -10,6 +10,7 @@ jest.mock('expo', () => ({
   requireOptionalNativeModule: () =>
     mockHasModule
       ? {
+          addListener: () => ({ remove: () => undefined }),
           consumePrivacyRequest: () => {
             const pending = mockPending;
             mockPending = false;
