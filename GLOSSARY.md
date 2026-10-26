@@ -4,6 +4,14 @@ Chefer helps people eat well and train: a meal plan and food tracking on one sid
 people they follow and trainers who coach them. This glossary holds the words the product and code settle on; add a
 term the moment it is agreed.
 
+## Engagement
+
+**Mealtime reminder**:
+An opt-in local phone notification at the time of one planned meal ("Lunch time", 12:30), skipped once that meal is
+logged or ticked. Stored on the account; only the phone sends it.
+_Avoid_: nudge (the dinner / plan-Sunday food nudges are a separate, device-only feature), push notification (nothing
+is sent from the server)
+
 ## Premium
 
 **Tier**:

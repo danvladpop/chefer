@@ -256,4 +256,10 @@ export interface EventMap {
   // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
+
+  // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
+  /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
+  meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
+  /** E1: a Settings change (either platform); `meals` = meals with a reminder. */
+  meal_reminders_changed: { enabled: boolean; meals: number; surface: 'mobile' | 'web' };
 }

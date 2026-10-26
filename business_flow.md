@@ -4453,6 +4453,40 @@ onboarding saved → NudgeStep (2 switches) → on: ensureGymReminderPermission 
 FoodNudgeHost (root) ← KV change / foreground / today's tracker.getDay → syncFoodNudges
 ```
 
+### Mealtime reminders (market review 2026-10, lane E1)
+
+One opt-in LOCAL notification per planned meal at the user's time — "Breakfast
+time" 08:00, "Lunch time" 12:30, "Snack time" 16:00, "Dinner time" 18:30 by
+default, pre-filled for the meals in the user's plan shape (`planSlots`, legacy =
+breakfast/lunch/dinner) and only on planned weekdays (`planDays`). Copy is warm
+and never reports what didn't happen (`engagement-copy.ts`, lint-scanned).
+
+- **Stored on the server**, unlike the food nudges: `ChefProfile.mealReminders`
+  `{ enabled, times: { breakfast|lunch|dinner|snack: "HH:MM" | null } }`, null =
+  never chosen. `notifications.getMealReminders` returns it (or the defaults) with
+  `chosen`, `planSlots` and `planDays`; `notifications.setMealReminders` saves it.
+- **Offered in onboarding V4 on the phone** as "Remind me at mealtimes?" for food
+  jobs (after the plan reveal, or after Can't-eat for Track-only), before Premium.
+  "Yes, remind me" asks the OS permission and saves `enabled: true`; "Not now" (or
+  a refused permission) saves `enabled: false`, so the answer is recorded. Web never
+  asks (`onboardingV4Steps({ offerReminders })` is false there).
+- **Settings → Notifications** (mobile) has the master switch, a switch and a time
+  per meal (shared `TimePicker`, quarter hours). **Web Preferences** shows and edits
+  the same value and says the reminders arrive on the phone — web sends nothing.
+- **Scheduling (phone only):** `MealReminderHost` keeps a rolling window of
+  one-shot notifications for the next 4 days (`MEAL_REMINDER_DAYS`), re-planned on
+  launch, on foreground, when the choice changes and when today's log changes.
+  **A meal that is already logged or ticked today gets no reminder** (ticking a
+  planned meal logs it; `loggedMealSlots(tracker.getDay.log.loggedMeals)`).
+  Without OS permission nothing is scheduled. Tap → `/tracker`. Sign-out cancels
+  them (the choice stays on the account).
+
+```
+onboarding V4 'reminders' → ensureGymReminderPermission → notifications.setMealReminders
+MealReminderHost (root) ← getMealReminders / foreground / today's tracker.getDay → syncMealReminders
+web Preferences → MealRemindersSection → notifications.setMealReminders (no push)
+```
+
 ### Manual trigger (ops / live verification)
 
 No API procedure. From `apps/api`:
