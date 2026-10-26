@@ -7,7 +7,12 @@ import {
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
 import { bodyMeasurementService } from '../application/body/body-measurement.service.js';
 import { trackerService } from '../application/tracker/tracker.service.js';
-import { protectedProcedure, requireHealthConsent, router } from '../lib/trpc.js';
+import {
+  aiConsentProcedure,
+  protectedProcedure,
+  requireHealthConsent,
+  router,
+} from '../lib/trpc.js';
 
 // Planned recipes carry recipeId; custom entries (photo scans, quick-adds —
 // F4) carry `custom` instead. Exactly one of the two must be present.
@@ -178,6 +183,25 @@ export const trackerRouter = router({
       return trackerService.logCustomMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
     }),
 
+  // Packaged products (ADR 0006): log grams or servings of a product the user
+  // can see. FREE. The server scales the numbers; the entry is a custom entry
+  // with an additive `product: { id, grams }`. Additive procedure.
+  logProduct: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        productId: z.string().min(1).max(40),
+        amount: productAmountSchema,
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        replacesSlot: slotRefSchema.optional(),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logProduct(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
   // WP-06 "Skipped it": the slot is neither eaten nor remaining. Idempotent;
   // CONFLICT when that slot is already logged. Additive — shipped clients
   // never call it and never see the day's separate `skippedSlots` list.
@@ -321,6 +345,66 @@ export const trackerRouter = router({
         input.toDate,
         input.rebalanceMode ?? 'auto',
       );
+    }),
+
+  // Lane A4: a typed "I ate…" sentence → items to review (nothing logged).
+  // AI-consent gated; free 10 a day, premium unlimited (reserveFoodText).
+  parseFoodText: aiConsentProcedure
+    .input(z.object({ text: foodTextSchema }))
+    .mutation(async ({ ctx, input }) => {
+      // Loaded on first use: keeps the AI client (and its provider env) out of
+      // every other tracker procedure's import graph.
+      const { foodTextService } = await import('../application/food-text/food-text.service.js');
+      return foodTextService.parse(ctx.user, input.text);
+    }),
+
+  // Lane A4: log the reviewed items in one go. FREE (no AI). Returns `entryIds`
+  // for the snackbar's Undo (deleteEntries).
+  logItems: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        mealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        items: z.array(foodTextLogItemSchema).min(1).max(FOOD_TEXT_LIMITS.maxItems),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logItems(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
+  // Lane A2: log a saved meal in one tap (its items as fresh entries). FREE,
+  // additive. Returns `entryIds` for the snackbar's Undo (deleteEntries).
+  logSavedMeal: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        savedMealId: z.string().min(1).max(40),
+        mealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logSavedMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
+  // Lane A2: copy one meal of a day to another day and/or meal (copyDay,
+  // narrowed). FREE, additive. Returns `copiedEntryIds` for Undo.
+  copyMeal: protectedProcedure
+    .input(
+      z.object({
+        fromDate: calendarDateSchema,
+        fromMealType: z.string().min(1).max(20),
+        toDate: logDateSchema,
+        toMealType: z.enum(QUICK_ADD_MEAL_TYPES),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { rebalanceMode, ...copy } = input;
+      return trackerService.copyMeal(ctx.user, copy, rebalanceMode ?? 'auto');
     }),
 
   // Search-first Log sheet (T-19.1): the last 15 distinct things logged,

@@ -949,3 +949,7 @@ export {
   exportSizeBucket,
   type ExportSizeBucket,
 } from './data-export';
+export * from './packaged-product';
+export * from './saved-meals';
+export * from './hidden-fat';
+export * from './food-text';

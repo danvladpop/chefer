@@ -229,6 +229,27 @@ describe('ScanMealCard', () => {
       );
     });
 
+    // Lane A3: photos can't see oil or butter; the user's answer adds it on top.
+    it('asks about oil or butter and adds the hidden fat to what is logged', async () => {
+      const user = await scanOnePhoto();
+      expect(screen.getByTestId('scan-hidden-fat-none')).toBeOnTheScreen();
+      expect(screen.queryByTestId('scan-hidden-fat-added')).not.toBeOnTheScreen();
+
+      await user.press(screen.getByTestId('scan-hidden-fat-a-lot'));
+      expect(screen.getByTestId('scan-hidden-fat-added')).toHaveTextContent(
+        '+315 kcal and 35 g fat for the oil or butter (estimate)',
+      );
+      expect(screen.getByTestId('scan-log')).toHaveTextContent('Log 815 kcal');
+      expect(screen.getByTestId('scan-macros')).toHaveTextContent('40g P · 50g C · 45g F');
+
+      await user.press(screen.getByTestId('scan-hidden-fat-a-little'));
+      expect(screen.getByTestId('scan-log')).toHaveTextContent('Log 626 kcal');
+      await user.press(screen.getByTestId('scan-log'));
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ estimatedBy: 'vision', kcal: 626, fat: 24 }),
+      );
+    });
+
     // WP-06 "Ate something else" → Snap: the estimate replaces the slot, which decides the meal.
     it("aimed at a plan slot, logs the estimate as that slot's replacement with no meal picker", async () => {
       jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({

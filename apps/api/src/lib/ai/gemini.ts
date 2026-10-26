@@ -5,6 +5,7 @@ import type { ChatToolParamSchema } from './chat-tools.js';
 import {
   buildCheferizeUserPrompt,
   buildExtractRecipeUserPrompt,
+  buildFoodTextPrompt,
   buildIngredientPricesPrompt,
   buildMealPlanDayChunkPrompt,
   buildMealPlanUserPrompt,
@@ -16,12 +17,15 @@ import {
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  FOOD_TEXT_SYSTEM_PROMPT,
   INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_DAY_CHUNK_RULES,
   MEAL_PLAN_SYSTEM_PROMPT,
+  NUTRITION_LABEL_SYSTEM_PROMPT,
+  NUTRITION_LABEL_USER_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
   REWRITE_PROSE_SYSTEM_PROMPT,
@@ -34,7 +38,9 @@ import {
   extractedRecipeSchema,
   generatedRecipeSchema,
   ingredientPricesResponseSchema,
+  parseFoodTextResponse,
   parseMealPhotoResponse,
+  parseNutritionLabelResponse,
   recipeLineRepairResponseSchema,
   rewrittenProseSchema,
   weekPlanResponseSchema,
@@ -49,6 +55,7 @@ import type {
   DayPlan,
   EstimateIngredientPricesOptions,
   ExtractedRecipe,
+  FoodTextParseItem,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
@@ -337,6 +344,77 @@ const MEAL_PHOTO_SCHEMA: Schema = {
     portionNote: { type: Type.STRING },
   },
   required: ['dishName', 'confidence', 'kcal', 'protein', 'carbs', 'fat', 'portionNote'],
+};
+
+const nullableNumber = { type: Type.NUMBER, nullable: true };
+
+const NUTRITION_LABEL_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    productName: { type: Type.STRING, nullable: true },
+    brand: { type: Type.STRING, nullable: true },
+    basis: { type: Type.STRING, enum: ['per100g', 'perServing', 'none'] },
+    servingSizeG: nullableNumber,
+    kcal: nullableNumber,
+    protein: nullableNumber,
+    carbs: nullableNumber,
+    fat: nullableNumber,
+    fiber: nullableNumber,
+    sugar: nullableNumber,
+    saturatedFat: nullableNumber,
+    salt: nullableNumber,
+    allergens: { type: Type.ARRAY, items: { type: Type.STRING } },
+    confidence: { type: Type.STRING, enum: ['low', 'med', 'high'] },
+  },
+  required: [
+    'productName',
+    'brand',
+    'basis',
+    'servingSizeG',
+    'kcal',
+    'protein',
+    'carbs',
+    'fat',
+    'fiber',
+    'sugar',
+    'saturatedFat',
+    'salt',
+    'allergens',
+    'confidence',
+  ],
+};
+
+const FOOD_TEXT_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING },
+          food: { type: Type.STRING },
+          grams: { type: Type.NUMBER },
+          count: { type: Type.NUMBER, nullable: true },
+          kcalPer100g: { type: Type.NUMBER },
+          proteinPer100g: { type: Type.NUMBER },
+          carbsPer100g: { type: Type.NUMBER },
+          fatPer100g: { type: Type.NUMBER },
+        },
+        required: [
+          'text',
+          'food',
+          'grams',
+          'count',
+          'kcalPer100g',
+          'proteinPer100g',
+          'carbsPer100g',
+          'fatPer100g',
+        ],
+      },
+    },
+  },
+  required: ['items'],
 };
 
 // ─── Chat tool schema conversion ─────────────────────────────────────────────
@@ -701,6 +779,72 @@ export class GeminiAIService implements IAIService {
     if (!raw) throw new Error('GeminiAIService: empty response from analyzeMealPhoto');
 
     return parseMealPhotoResponse(raw);
+  }
+
+  /** Lane A4: a typed "I ate…" sentence → foods with amounts. */
+  async parseFoodText(text: string): Promise<FoodTextParseItem[]> {
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: [{ role: 'user', parts: [{ text: buildFoodTextPrompt(text) }] }],
+        config: {
+          systemInstruction: FOOD_TEXT_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: FOOD_TEXT_SCHEMA,
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'parseFoodText',
+    );
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read food text response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!raw) throw new Error('GeminiAIService: empty response from parseFoodText');
+    return parseFoodTextResponse(raw);
+  }
+
+  /** Packaged products (ADR 0006): copies a nutrition label into a reviewable draft. */
+  async readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType, data: imageBase64 } },
+              { text: NUTRITION_LABEL_USER_PROMPT },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: NUTRITION_LABEL_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: NUTRITION_LABEL_SCHEMA,
+          temperature: 0, // copying, not estimating
+          maxOutputTokens: 512,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'readNutritionLabel',
+    );
+    let raw: string | null | undefined;
+    try {
+      raw = response.text;
+    } catch (err) {
+      throw new Error(
+        `GeminiAIService: could not read nutrition label response — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!raw) throw new Error('GeminiAIService: empty response from readNutritionLabel');
+    return parseNutritionLabelResponse(raw);
   }
 
   /**

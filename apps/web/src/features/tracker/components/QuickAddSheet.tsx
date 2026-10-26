@@ -2,9 +2,27 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
-import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
+import {
+  AlertTriangle,
+  Barcode,
+  Bookmark,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  PencilLine,
+  Plus,
+  Search,
+} from 'lucide-react';
+import {
+  FOOD_TEXT_COPY,
+  PACKAGED_PRODUCT_COPY,
+  SAVED_MEALS_COPY,
+  type PackagedProductView,
+  type ProductAllergenWarning,
+} from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
@@ -16,9 +34,11 @@ import {
   formatQuickAddGrams,
   nutritionLabel,
   parseQuickAdd,
+  productDisplayName,
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  savedMealSummary,
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
@@ -30,14 +50,18 @@ import {
   REBALANCE_PREVIEW,
   type DayFitLike,
 } from '../lib/rebalance-storage';
+import { FoodTextFlow } from './FoodTextFlow';
+import { ProductFlow } from './products/ProductFlow';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
 // Your recipes → Ingredients (per 100 g), in that order; "Enter calories
 // yourself" is the old calories-only form, now gated by the macro sanity
-// check (bug B-39, T-19.5). Never branded products or barcodes (B-29, AC6).
+// check (bug B-39, T-19.5). Packaged products (ADR 0006, which replaced B-29)
+// are a separate search group and the "Scan barcode" view.
 
 type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
+type ProductStart = { product: PackagedProductView; warnings: ProductAllergenWarning[] };
 
 export interface PlannedLogMeal {
   recipeId: string;
@@ -75,6 +99,14 @@ interface QuickAddSheetProps {
   /** `dayFit`: today's open meals resized to absorb the log (the caller's toast says so). */
   onLoggedEntry?:
     | ((entry: { entryId: string; name: string; dayFit?: DayFitLike | null | undefined }) => void)
+    | undefined;
+  /** Lane A2: after a saved meal is logged — its new entry ids, for an Undo toast. */
+  onLoggedEntries?:
+    | ((logged: {
+        entryIds: string[];
+        name: string;
+        dayFit?: DayFitLike | null | undefined;
+      }) => void)
     | undefined;
 }
 
@@ -118,6 +150,7 @@ export function QuickAddSheet({
   onOpenChange,
   hideTrigger = false,
   onLoggedEntry,
+  onLoggedEntries,
 }: QuickAddSheetProps) {
   // WP-08: protein-only mode asks protein first and shows no calorie figure.
   const { proteinOnly } = useNumbersMode();
@@ -135,7 +168,9 @@ export function QuickAddSheet({
     replacesSlot
       ? { ...entry, replacesSlot, ...REBALANCE_PREVIEW }
       : { ...entry, ...REBALANCE_PREVIEW };
-  const [view, setView] = useState<'search' | 'manual'>('search');
+  const [view, setView] = useState<'search' | 'manual' | 'product' | 'text'>('search');
+  // The product a "Packaged products" row opens on; undefined = the barcode start.
+  const [productStart, setProductStart] = useState<ProductStart | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
   const [mealType, setMealType] = useState<QuickAddMealType>(() =>
@@ -171,6 +206,11 @@ export function QuickAddSheet({
   }, [trimmedQuery]);
 
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: open });
+  // Lane A2: one-tap saved meals. Not offered when replacing a plan slot (a
+  // slot is replaced by one entry; a saved meal is several).
+  const savedMealsQuery = trpc.savedMeals.list.useQuery(undefined, {
+    enabled: open && !replacesSlot,
+  });
   const recipesQuery = trpc.recipe.list.useQuery(
     { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
     { enabled: open && debouncedQuery.length > 0, placeholderData: (previous) => previous },
@@ -179,12 +219,20 @@ export function QuickAddSheet({
     { query: debouncedQuery, ...(ingredientLimit > INGREDIENT_PAGE && { limit: ingredientLimit }) },
     { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
+  const productsQuery = trpc.products.search.useQuery(
+    { query: debouncedQuery, limit: 5 },
+    { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
+  );
   const searchSettling =
-    debouncedQuery !== trimmedQuery || recipesQuery.isFetching || ingredientsQuery.isFetching;
+    debouncedQuery !== trimmedQuery ||
+    recipesQuery.isFetching ||
+    ingredientsQuery.isFetching ||
+    productsQuery.isFetching;
   const searchFailed = recipesQuery.isError || ingredientsQuery.isError;
 
   const reset = () => {
     setView('search');
+    setProductStart(undefined);
     setQuery('');
     setIngredientLimit(INGREDIENT_PAGE);
     setExpandedKey(null);
@@ -212,7 +260,11 @@ export function QuickAddSheet({
   const utils = trpc.useUtils();
 
   const onLoggedCommon = (
-    data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
+    data:
+      | RouterOutputs['tracker']['logRecipe']
+      | RouterOutputs['tracker']['logCustomMeal']
+      | RouterOutputs['tracker']['logProduct']
+      | RouterOutputs['tracker']['logItems'],
     options: { announceDayFit?: boolean } = {},
   ) => {
     handleRebalanceOutcome(data, options);
@@ -259,7 +311,28 @@ export function QuickAddSheet({
       }
     },
   });
-  const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
+  const logSavedMutation = trpc.tracker.logSavedMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: (data, vars) => {
+      const meal = savedMealsQuery.data?.find((m) => m.id === vars.savedMealId);
+      capture('saved_meal_logged', { itemCount: data.entryIds.length });
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      void utils.savedMeals.list.invalidate();
+      onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
+      onLoggedEntries?.({
+        entryIds: data.entryIds,
+        name: meal?.name ?? 'saved meal',
+        dayFit: data.dayFit,
+      });
+    },
+  });
+  const isPending =
+    logRecipeMutation.isPending || logCustomMutation.isPending || logSavedMutation.isPending;
+  const savedMeals = replacesSlot
+    ? []
+    : (savedMealsQuery.data ?? [])
+        .filter((m) => !searching || m.name.toLowerCase().includes(trimmedQuery.toLowerCase()))
+        .slice(0, searching ? undefined : 5);
 
   const recents = (recentsQuery.data ?? []).filter(
     (r) => !searching || r.name.toLowerCase().includes(trimmedQuery.toLowerCase()),
@@ -273,10 +346,12 @@ export function QuickAddSheet({
       );
 
   const hasSearchResults =
+    savedMeals.length > 0 ||
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
-    (ingredientsQuery.data?.length ?? 0) > 0;
+    (ingredientsQuery.data?.length ?? 0) > 0 ||
+    (productsQuery.data?.length ?? 0) > 0;
 
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
@@ -450,9 +525,13 @@ export function QuickAddSheet({
             ? proteinOnly
               ? 'Enter protein yourself'
               : 'Enter calories yourself'
-            : replacesSlot
-              ? 'Ate something else'
-              : 'Log something'
+            : view === 'product'
+              ? PACKAGED_PRODUCT_COPY.scanBarcode
+              : view === 'text'
+                ? FOOD_TEXT_COPY.entry
+                : replacesSlot
+                  ? 'Ate something else'
+                  : 'Log something'
         }
         size="sm"
         footer={
@@ -533,6 +612,34 @@ export function QuickAddSheet({
               />
             </label>
 
+            {/* ADR 0006: next to the search, where it is seen first. */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid="log-sheet-scan-barcode"
+                onClick={() => {
+                  setProductStart(undefined);
+                  setView('product');
+                }}
+                className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
+              >
+                <Barcode className="h-4 w-4" aria-hidden />
+                {PACKAGED_PRODUCT_COPY.scanBarcode}
+              </button>
+              {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
+              {!replacesSlot && (
+                <button
+                  type="button"
+                  data-testid="log-sheet-type-it"
+                  onClick={() => setView('text')}
+                  className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
+                >
+                  <PencilLine className="h-4 w-4" aria-hidden />
+                  {FOOD_TEXT_COPY.entry}
+                </button>
+              )}
+            </div>
+
             {(logRecipeMutation.isError || logCustomMutation.isError) && (
               <p data-testid="log-sheet-api-error" role="alert" className="text-sm text-red-600">
                 Couldn&apos;t log that:{' '}
@@ -540,6 +647,51 @@ export function QuickAddSheet({
                   logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
                 )}
               </p>
+            )}
+
+            {logSavedMutation.isError && (
+              <p data-testid="log-sheet-saved-error" role="alert" className="text-sm text-red-600">
+                Couldn&apos;t log that: {userFacingErrorMessage(logSavedMutation.error)}
+              </p>
+            )}
+
+            {savedMeals.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {SAVED_MEALS_COPY.groupTitle}
+                </p>
+                {savedMeals.map((meal) => (
+                  <div
+                    key={meal.id}
+                    className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5"
+                  >
+                    <Bookmark className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-800">{meal.name}</p>
+                      <p className="truncate text-xs text-neutral-500">
+                        {savedMealSummary(meal.items, proteinOnly)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid={`log-sheet-saved-add-${meal.id}`}
+                      aria-label={`Log ${meal.name} to ${mealType}`}
+                      disabled={isPending}
+                      onClick={() =>
+                        logSavedMutation.mutate({
+                          ...REBALANCE_PREVIEW,
+                          date,
+                          savedMealId: meal.id,
+                          mealType,
+                        })
+                      }
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#944a00] hover:bg-neutral-100 disabled:opacity-50"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
 
             {recents.length > 0 && (
@@ -748,6 +900,47 @@ export function QuickAddSheet({
               </div>
             )}
 
+            {searching && (productsQuery.data?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {PACKAGED_PRODUCT_COPY.packagedGroup}
+                </p>
+                {(productsQuery.data ?? []).map(({ product, warnings }) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    data-testid={`log-sheet-product-${product.id}`}
+                    aria-label={`${productDisplayName(product)}${warnings.length > 0 ? ', allergen warning' : ''}`}
+                    onClick={() => {
+                      setProductStart({ product, warnings });
+                      setView('product');
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 text-left hover:bg-neutral-50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-800">
+                        {productDisplayName(product)}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {product.per100g.kcal === null
+                          ? 'No calories yet'
+                          : proteinOnly
+                            ? product.per100g.protein === null
+                              ? 'Protein not stated'
+                              : `${Math.round(product.per100g.protein)} g protein / 100 g`
+                            : `${Math.round(product.per100g.kcal)} kcal / 100 g`}
+                        {product.isOwn ? ' · yours' : ''}
+                      </p>
+                    </div>
+                    {warnings.length > 0 && (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+                    )}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                  </button>
+                ))}
+              </div>
+            )}
+
             {searching && (ingredientsQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
@@ -925,6 +1118,94 @@ export function QuickAddSheet({
                 {proteinOnly ? 'Enter protein yourself' : 'Enter calories yourself'}
               </button>
             </div>
+          </div>
+        ) : view === 'text' ? (
+          <div className="space-y-4 px-5 pb-4">
+            <button
+              type="button"
+              data-testid="log-sheet-text-back"
+              onClick={() => setView('search')}
+              className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
+            >
+              ← Back to search
+            </button>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+              {MEAL_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  data-testid={`log-sheet-text-meal-${o.value}`}
+                  onClick={() => setMealType(o.value)}
+                  className={chipBtn(mealType === o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <FoodTextFlow
+              date={date}
+              mealType={mealType}
+              proteinOnly={proteinOnly}
+              onLogged={(data, count) => {
+                trackMealLogged(quickAddSource({ mealType }, false), mealType);
+                onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
+                onLoggedEntries?.({
+                  entryIds: data.entryIds,
+                  name: `${count} ${count === 1 ? 'item' : 'items'}`,
+                  dayFit: data.dayFit,
+                });
+              }}
+            />
+          </div>
+        ) : view === 'product' ? (
+          <div className="space-y-4 px-5 pb-4">
+            <button
+              type="button"
+              data-testid="log-sheet-product-back"
+              onClick={() => setView('search')}
+              className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
+            >
+              ← Back to search
+            </button>
+            {!replacesSlot && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+                {MEAL_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    data-testid={`log-sheet-product-meal-${o.value}`}
+                    onClick={() => setMealType(o.value)}
+                    className={chipBtn(mealType === o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <ProductFlow
+              key={productStart?.product.id ?? 'start'}
+              date={date}
+              mealType={replacesSlot ? toQuickAddMealType(replacesSlot.mealType) : mealType}
+              replacesSlot={replacesSlot}
+              proteinOnly={proteinOnly}
+              initial={productStart}
+              onLogged={(data, productName) => {
+                const loggedMealType = replacesSlot ? replacesSlot.mealType : mealType;
+                trackMealLogged(
+                  quickAddSource({ mealType: loggedMealType }, false),
+                  loggedMealType,
+                );
+                const ownToast = Boolean(data.entryId && onLoggedEntry);
+                onLoggedCommon(data, { announceDayFit: !ownToast });
+                if (data.entryId) {
+                  onLoggedEntry?.({
+                    entryId: data.entryId,
+                    name: productName,
+                    dayFit: data.dayFit,
+                  });
+                }
+              }}
+            />
           </div>
         ) : (
           <div className="space-y-4 px-5 pb-4">
