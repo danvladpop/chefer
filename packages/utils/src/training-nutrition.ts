@@ -28,9 +28,11 @@ import { formatKcal } from './format';
 //      EAT_HEALTHIER 1.6 g/kg — at maintenance calories the plateau point
 //                    of Morton et al. is enough; the 20–25% splits gave
 //                    lifters ~1.2–1.5 g/kg.
-// 2. Training day — GAIN_MUSCLE lifters only (a surplus goal; eating back
-//    training calories would erode a cut's deficit). Premium applies it,
-//    free sees a locked preview: on a day with a completed or scheduled
+// 2. Training day — GAIN_MUSCLE and MAINTAIN lifters (owner decision
+//    2026-10-22: a surplus or maintenance goal can fuel the session; eating
+//    back training calories would erode a cut's deficit, so LOSE_WEIGHT and
+//    every other goal stay flat; see `goalGetsTrainingBump`). On a day with
+//    a completed or scheduled
 //    workout, protein rises to 2.2 g/kg and calories by 10% of the base
 //    target (rounded to 10, kept within 150–300 kcal); the kcal not covered
 //    by the extra protein goes to carbs.
@@ -124,18 +126,30 @@ export function lifterProteinGPerKg(goal: string | null | undefined): number | n
 }
 
 /**
+ * Goals that get the training-day bump: GAIN_MUSCLE, and MAINTAIN since the
+ * owner decision of 2026-10-22. Weight-loss goals stay flat (no "eat back
+ * exercise" — a cut keeps its deficit), as does everything else.
+ */
+const TRAINING_BUMP_GOALS: ReadonlySet<string> = new Set(['GAIN_MUSCLE', 'MAINTAIN']);
+
+/** Whether this goal gets the training-day calorie/protein bump at all. */
+export function goalGetsTrainingBump(goal: string | null | undefined): boolean {
+  return !!goal && TRAINING_BUMP_GOALS.has(goal);
+}
+
+/**
  * Whether a user with this goal gets the training-day bump on a day of this
- * kind: GAIN_MUSCLE lift days only. Owner decision 2026-09-30 (Q-3): run and
- * long-run days are markers only — they never change calorie or protein
- * targets, and the bump is not widened to other goals. `widened` is kept for
- * call-site compatibility and ignored.
+ * kind: lift days of a goal that `goalGetsTrainingBump`. Owner decision
+ * 2026-09-30 (Q-3): run and long-run days are markers only — they never
+ * change calorie or protein targets. `widened` is kept for call-site
+ * compatibility and ignored.
  */
 export function hasTrainingDayBump(
   goal: string | null | undefined,
   kind: DayKind = 'lift',
   _widened = false,
 ): boolean {
-  return kind === 'lift' && goal === 'GAIN_MUSCLE';
+  return kind === 'lift' && goalGetsTrainingBump(goal);
 }
 
 /** `run` and `long_run` — the carb-led kinds. */

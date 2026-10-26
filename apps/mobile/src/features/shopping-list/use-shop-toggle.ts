@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
+import { trackListToggled } from '../../lib/analytics-events';
 import { trpc } from '../../lib/trpc';
 import { shopOutbox, withPendingToggles, type ShopOutboxEntry } from './shop-outbox';
 
@@ -60,6 +61,8 @@ export function useShopToggle(weekOffset: number) {
           : old,
       );
       shopOutbox.enqueue({ planId, keys, checked, at: new Date().toISOString() });
+      // Funnel (lane B): a tick counts when the user makes it, whether or not it is sent yet.
+      trackListToggled({ keys, checked });
       void flushWith(utils);
     },
     [utils, weekOffset],

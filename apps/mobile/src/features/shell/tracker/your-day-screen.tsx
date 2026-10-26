@@ -29,6 +29,7 @@ import { DayFitNote } from '../../tracker/day-fit-note';
 import { EditEntrySheet } from '../../tracker/edit-entry-sheet';
 import { EditRecipeEntrySheet } from '../../tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../../tracker/invalidate';
+import { PartlyLoggedRow } from '../../tracker/partly-logged-row';
 import { QuickAddSheet } from '../../tracker/quick-add-sheet';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
 import { RebalanceOffer } from '../../tracker/rebalance-offer';
@@ -506,6 +507,11 @@ export function YourDayScreen() {
                   autoPick={snap === '1'}
                   onAutoPicked={() => router.setParams({ snap: undefined })}
                 />
+              ) : null}
+
+              {/* Lane D2: a half-logged day can be left out of the weekly review. */}
+              {!isFuture && data && (data.log?.loggedMeals.length ?? 0) > 0 ? (
+                <PartlyLoggedRow date={dateStr} incomplete={data.incomplete ?? false} />
               ) : null}
             </ScrollView>
           )}

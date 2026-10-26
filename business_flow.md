@@ -44,8 +44,10 @@
 36. [Tester feedback 2026-10-07 — food, account](#36-tester-feedback-2026-10-07--food-account-wp-24)
 37. [Trainer Coaching (1:1)](#37-trainer-coaching-11-docstrainer-platform-wp-18)
 38. [Store Rating Prompt Flow (mobile)](#38-store-rating-prompt-flow-mobile-aso-plan-51)
+
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
+41. [Curated Recipe Ingest & Pool Coverage (admin)](#41-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
 
 ---
 
@@ -92,6 +94,24 @@ the web-install measurement. The App Store badge, its trademark notice and
 Safari's Smart App Banner (on every public page) stay hidden until
 `APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
 `SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
+
+**Switch page: `/switch/mealime` (market review 2026-10, lane L, 2026-10-22).**
+Mealime closed on 2026-10-21, and its closing notice says personal data is
+deleted with no export. This public page, linked from the shared public footer
+(`PublicFooter`, also on `/`), is for people looking for a replacement. It is an
+honest comparison. "What carries over" covers weekly plans, the aisle-sorted
+list, cook mode and diet filters. "What Chefer adds" covers household-wide
+allergy safety, EUR/RON prices, link/video import, the free gym log and free
+data export. A four-step guide shows how to bring recipes over with the
+existing import (Cookbook → Import → Link / Paste / Photo / Video). Rules for
+the copy: claims are about Chefer only, or are quoted from Mealime's own notice
+(with a link); the title says "A Mealime alternative"; and a line in the hero
+says Chefer is not affiliated with Mealime or Albertsons Companies. The page
+carries store badges (campaign `switch-mealime`) and a `WebPage` +
+`SoftwareApplication` + `FAQPage` JSON-LD graph. On view it sends
+`switch_page_viewed { source: 'mealime' }`. It is static, with no session
+check, so signed-in readers see it too. Web only by nature: the native app
+has no marketing pages.
 
 ```
 1. User fills in RegisterForm at /(auth)/register
@@ -1793,13 +1813,15 @@ reads live in `trainingNutritionService` (API).
 **Who is a lifter:** a set-up gym profile (`GymProfile.setupCompletedAt`),
 a goal, and a known bodyweight (latest `WeightEntry`, else
 `ChefProfile.weightKg`). Every goal has a g/kg protein base (follow-up,
-2026-09-26); only `GAIN_MUSCLE` lifters get the training-day rules.
+2026-09-26); only `GAIN_MUSCLE` and `MAINTAIN` lifters get the training-day rules
+(`MAINTAIN` added by owner decision 2026-10-22; weight-loss goals stay flat —
+no "eat back exercise" — and so does every other goal).
 
 | Rule              | Value                                                                                                                                                                                                                          | Tier                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged                 | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
 | Training day      | a workout of **any workout type** **completed** that day (a logged yoga class counts like a lifting session — F-1, 2026-10-17, both training styles), else a routine day **planned** for that weekday outside a training pause | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
+| Training-day bump | GAIN_MUSCLE and MAINTAIN only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                   | **every tier** applies it (free since WP-07: no AI)                                                                                         |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                                               | premium                                                                                                                                     |
 | Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                                   | free                                                                                                                                        |
@@ -1811,7 +1833,7 @@ dashboard.summary / tracker.getDay (lifter)
   ├─ resolveDailyTargets(profile, bw) → base targets (protein g/kg by goal)
   │    — the existing nutrition fields keep carrying the BASE targets,
   │      so shipped clients see no change in meaning
-  ├─ GAIN_MUSCLE only: trainingDayFor(localDate, weekday)
+  ├─ GAIN_MUSCLE / MAINTAIN only: trainingDayFor(localDate, weekday)
   │    → COMPLETED | SCHEDULED | rest
   └─ trainingDay { isTrainingDay, reason, workoutName,
        kcalBonus, proteinBonus, applied, basis }            (optional)
@@ -1860,7 +1882,7 @@ stored kind. `TrainingNutritionService.trainingWeek` resolves them for the
 plan week.
 
 **Bumps by kind (deterministic, no AI).** `lift` keeps the protein-led bump
-(§10.1) for GAIN_MUSCLE lifters only. `run` and `long_run` are **markers only**:
+(§10.1) for GAIN_MUSCLE and MAINTAIN lifters only. `run` and `long_run` are **markers only**:
 they show a glyph, a header and the Explain sheet but never change calorie or
 protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
 no run-day numbers). A long run still adds an evening-before carb snack idea
@@ -1872,7 +1894,7 @@ targets is **free for every tier** (`trainingDayTargets` and `trainingNutrition`
 are `free: true`; the old `trainingBumpFree` flag is redundant and kept only
 until it is removed). What stays premium is the AI-built week: "Fit meals to my
 training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
-through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
+through `aiMealPlans`. A free GAIN_MUSCLE or MAINTAIN lifter with a training day today sees
 the applied targets, not a locked preview.
 
 **"Fit meals to training days" is a saved choice (2026-10-10).** It used to be a
@@ -2215,15 +2237,21 @@ the adjusted target must shape next week's budget)
   │         ├─ <3 logged days → no review ("log more days" is itself the coach)
   │         ├─ metrics (application/coach/review.service.ts — pure, unit-tested):
   │         │    adherence = logged days / 7; avg kcal (and protein) over
-  │         │    logged days;
-  │         │    weight trend = EWMA (α=0.25) over ≤28 days of WeightEntry
-  │         │    rows, null unless ≥5 points spanning ≥10 days
-  │         ├─ adjustment policy (deterministic, conservative):
-  │         │    adherence <50% → nothing, coach the habit;
+  │         │    COMPLETE logged days (lane D2: days marked "partly logged"
+  │         │    still count as logged but stay out of the averages);
+  │         │    weight trend = the trend weight's rate over the last 28
+  │         │    days (lane D1, see "Trend weight" below), fed by 56 days of
+  │         │    WeightEntry rows; null unless ≥5 weigh-in days span ≥10 days
+  │         ├─ adjustment policy (deterministic, conservative; lane D2:
+  │         │    `decideAdjustment` returns the kcal AND the rule's reason,
+  │         │    and runs for every tier — only premium gets a proposal):
+  │         │    goal without a direction → nothing; under-18 LOSE → nothing;
+  │         │    complete days <4 (50 %) → nothing, coach the habit;
   │         │    LOSE plateau (trend ≥ −0.1 kg/wk) for 2 CONSECUTIVE reviews
   │         │    → −100 kcal (floor BMR×1.1, partial clamp);
   │         │    GAIN stall (trend ≤ +0.05) → +100 kcal (ceiling TDEE+500);
-  │         │    free tier: policy skipped entirely (adjustmentKcal = 0)
+  │         │    free tier: nothing proposed (adjustmentKcal = 0); the
+  │         │    explanation is stored with `suggestedKcal: null`
   │         ├─ §2.11, T-35.4 (rev 2): the coach PROPOSES, it no longer writes
   │         │    ChefProfile.targetAdjustmentKcal itself. The adjustment is
   │         │    stored on ChefReview.proposedAdjustmentKcal and surfaced as a
@@ -2306,12 +2334,13 @@ the adjusted target must shape next week's budget)
   row with 0 kcal and no longer inflates "Days logged"). The weight card is
   rendered outside the calorie summary's error branch, so a failed summary
   does not hide it (UX-FOOD-28). Weight chart over the range (`tracker.weightHistory`)
-  with current weight and change. The change is coloured by goal via the
-  shared `weightChangeTone` (`@chefer/utils`): gaining is green for
-  GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
-  (audit F-TRK-4-1). Reads ignore
-  future-dated rows, and the coach's EWMA trend drops jumps over 3 kg/day,
-  so a single typo can't swing the weekly adjustment (audit F-DASH-3-1).
+  with the last weigh-in, the trend weight and the trend's change over the
+  range (lane D1). A change toward the goal is green via the shared
+  `weightChangeTone` (`@chefer/utils`; gaining for GAIN_MUSCLE, losing for
+  LOSE_WEIGHT, audit F-TRK-4-1); anything else stays neutral — never red
+  (adherence-neutral). Reads ignore future-dated rows, and the trend drops
+  jumps over 3 kg/day, so a single typo can't swing the chart or the weekly
+  adjustment (audit F-DASH-3-1).
   **T-21.1 (§2.12) bug fix:** the web page parsed each day's `YYYY-MM-DD`
   with `date-fns` `parseISO`, which reads a date-only string as UTC
   midnight — formatting it back in a browser west of Greenwich showed the
@@ -2319,6 +2348,97 @@ the adjusted target must shape next week's budget)
 matching mobile's `progress.tsx` `shortDate`, which already did this.
 - Chat tool `getMyReview`: the model can quote the latest review; free users
   get the teaser line + an upgrade suggestion.
+
+### Explained coach (lane D2, 2026-10-22)
+
+MacroFactor-style honesty: the user can see exactly why the coach suggested
+what it did, and a half-logged day can't make it think they ate less.
+
+- **Partly logged day.** A switch under a day's log on both platforms (app
+  Your day and legacy tracker, web `/tracker`; shown on days with something
+  logged, never in the future) → `tracker.setDayIncomplete({ date,
+incomplete })` → `DailyLog.incomplete`. `tracker.getDay` returns the flag.
+  The day still counts as logged (adherence, the ≥3-day review threshold);
+  the review's intake average and its complete-days rule leave it out.
+  Analytics: `day_incomplete_set { incomplete }`.
+- **The why.** Every review stores `ChefReview.explanation`
+  (`coachExplanationSchema`, `@chefer/types`), built deterministically by
+  `buildCoachExplanation` (no AI): the rule that decided (`COACH_REASONS`:
+  `plateau`, `plateau_watch`, `on_track`, `gain_stall`, `few_complete_days`,
+  `no_trend`, `at_floor`, `at_ceiling`, `under_18`, `no_body_metrics`,
+  `no_direction`), the suggested kcal, the trend window (from/to trend
+  weight, span, weigh-ins, kg/week), the previous review's rate, and the
+  intake (average over complete days, complete and partly logged counts, the
+  target). Clients render it with `coachExplanationText` (`@chefer/utils`)
+  in the user's units — e.g. "Your trend weight held steady, from 82.4 kg to
+  82.4 kg over 3 weeks. Your 5 complete days averaged 1,850 kcal, with a
+  target of 1,900 kcal. 1 partly logged day was left out. Your trend hasn't
+  moved down for two weekly reviews in a row, so I'd suggest −100 kcal a day for
+  next week." — plus a table of the numbers used. Protein-only mode drops
+  every calorie line.
+- **Gating unchanged.** The adjustment stays premium. The explanation is
+  free: `coach.currentReview` sends it in the `teaser` too, with
+  `suggestedKcal: null`, and the copy says "With Premium, your chef turns
+  that into a budget suggestion". Surfaces: a collapsed "Why this
+  suggestion" block in the web banner (teaser and full-review sheet), the
+  app's legacy banner and the Stats review line. Analytics:
+  `coach_why_viewed { tier, reason }`.
+- **Safety rails unchanged:** the BMR×1.1 / sex-specific floor, the TDEE+500
+  ceiling, maintenance for under-18s, one 100 kcal step. The copy is
+  adherence-neutral (a unit test sweeps every reason for forbidden or judging
+  words: missed, failed, cheat, compensate, make up…).
+
+### Body measurements (lane D3, 2026-10-23)
+
+Free for everyone, next to the weight chart: web `/progress` ("Body
+measurements" section), the app's Stats (under Weight) and the legacy
+Progress screen.
+
+- **Measures:** waist, hips, chest, upper arm, thigh (cm) and body fat (%),
+  every one optional (`BODY_MEASURES`, `@chefer/types`). One entry per local
+  calendar day: both platforms save today's entry, and saving again the same
+  day fills in or corrects it (the API merges). Typed and shown in the user's
+  units — IMPERIAL types inches — with the same parser and messages on both
+  platforms (`parseMeasurementForm`, `@chefer/utils`); the API takes cm.
+- **Charts:** one measure at a time, picked with chips (only measures with
+  data). The change line is a direction, never a verdict ("−2.0 cm since your
+  first entry", `measureChangeText`). One value asks for another entry
+  instead of drawing a dot. The latest entries are listed with a labelled
+  delete.
+- **Health data:** saving asks for the health-data consent once, like a
+  weigh-in (`requireHealthConsent` on `tracker.logBodyMeasurement`). Withdrawing
+  consent deletes the measurements; the data export includes them
+  (`food.bodyMeasurements`); account deletion cascades them (§24, the delete
+  sheet lists them).
+- **Analytics:** `body_measurement_logged { measures, units }` — which
+  measures, never the values.
+
+### Trend weight (lane D1, 2026-10-22)
+
+One smoothing for every surface, in `@chefer/utils` `weight-trend.ts`, so the
+web chart, the app's chart and the Sunday review always agree:
+
+- `weightTrendSeries(entries)` → one point per calendar day (several weigh-ins
+  on one day count as their mean), oldest first, each with the day's reading
+  and the **trend weight** after it. The trend is an exponentially smoothed
+  average with α = 0.1 per day (`TREND_DAILY_ALPHA`). A gap of n days uses
+  `1 − 0.9ⁿ`, so the step after two weeks away closes most of the distance
+  (the old trend is stale) while daily weigh-ins each move it by a tenth.
+  A reading more than 3 kg/day from the last kept one is marked `outlier`:
+  it still shows as a dot, but the trend carries on without it.
+- `summarizeWeightTrend(series, { windowDays, asOf?, minWeighIns?, minSpanDays? })`
+  → where the trend started and ended inside the window, the change and the
+  kg/week rate between those ends. Weigh-ins before the window only warm the
+  trend up. The coach uses 28 days, ≥5 weigh-in days, ≥10-day span; the
+  charts use the selected range.
+- Charts (web `WeightTrendSection`, app Stats and legacy Progress): the
+  readings are faint dots, the trend is the bold line, captioned with
+  `TREND_WEIGHT_EXPLAINER`. The header shows the last weigh-in and "Trend
+  81.9 kg"; the change line is `trendChangeText` ("Trend −0.6 kg over 30
+  days" / "Trend steady over 7 days"). The clients fetch at least 90 days of
+  weigh-ins, so the line has warmed up before the 1W/1M range starts. No API
+  change: both platforms compute it from `tracker.weightHistory`.
+- Copy is adherence-neutral: directions, never verdicts, no red numbers.
 
 ---
 
@@ -3586,7 +3706,7 @@ gets "Track my progress" (`isSimpleTraining(profile, flags)` is the one gate). S
   Cardio machines, Running, Walking, Swimming, Cycling; Classes — Yoga, Pilates, Spin, HIIT, Dance, Other class;
   Other. One list for live workouts, logged workouts and My week. **Every type counts** toward the weekly goal and
   streak, as **done today**, and as a **nutrition training day** — in both styles (F-1). The training-day bump is
-  unchanged (fixed +10%, GAIN_MUSCLE only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
+  unchanged (fixed +10%, GAIN_MUSCLE and MAINTAIN only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
 - **Log a workout** (replaces "Log an activity" in both styles): workout type (strength focuses only shown with the
   flag), duration, day, optional "calories from your watch" and effort. Stored the WP-20 way — a finished session
   with ONE `DURATION` entry (the type's catalogue row, `other-activity` for strength/other types) **plus**
@@ -4170,7 +4290,7 @@ from a 3-week streak to 2" before the delete is even sent.
 
 ### 22.2 Cardio delivery (UX-42 minimal slice, T-42.1/T-42.2)
 
-12 catalogue entries (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
+12 catalogue entries — 20 since WP-20's `DURATION` activities (`packages/types/src/gym/cardio-catalog.ts` + the `cardio()` builder in
 `exercise-catalog.ts`) ship through the same sync/bootstrap machinery as strength exercises — a
 cardio `SessionSet` is one row (`weightKg: 0, reps: 0, isWarmup: false`) carrying `durationSec` /
 `distanceM` / `intensityRpe` instead. The only new behaviour is what a client is SENT: `gym
@@ -4192,10 +4312,99 @@ gained an optional `CardioSetFields` intersection for this). History (`session-d
 renders time/distance/effort for a cardio exercise instead of `0 kg × 0`. The custom exercise
 form's "How do you track it?" chips (`trackingType`, replacing the old `isTimed`-only checkbox) and
 a `Cardio` filter chip (exercise picker + Exercises tab) are also behind the flag. The mobile bundle
-sends `x-chefer-api-level: 3` as of this change (Δ2.1) — bumped in the same commit as this UI, per
+sends `x-chefer-api-level: 3` as of this change (Δ2.1; it sends 8 today) — bumped in the same commit as this UI, per
 the rule that a level is only ever sent by a bundle that implements it. **Not done this wave:** web
 rendering/logging at all (T-42.5, tracked as a reverse `mobile_parity_backlog.md` row), the
 mixed-session `{done}/{planned}` header, and Stats/PR views for a cardio exercise (W5's T-42.8).
+
+#### Turning `cardioLogging` on (G3 readiness, 2026-10-23)
+
+> The flag is **off** in prod. Flipping it is an **owner action**; nothing in code changes.
+
+**What changes when it is on.** `effectiveLevel()` stops capping the client's level at 2. Mobile
+bundles send level 8, so they receive the 12 W2 cardio rows and render them as cardio entries. They
+also get the "Cardio" filter chips, the "How do you track it?" choice on custom exercises and the
+distance-unit setting. The 8 WP-20 `DURATION` activities (yoga, Pilates…) and the two `DURATION` W2
+rows (spin class, stair climber) are visible at every level already, by design. Older bundles
+(level ≤ 2, App Store 1.0.0 (5)) still receive nothing cardio-typed. Web (level 6) renders cardio in
+history and summaries but cannot log it yet (`mobile_parity_backlog.md`, "web cardio entry").
+
+**Checked for readiness (G3):**
+
+- `gym-cardio.contract.test.ts` passes against an API running `FEATURE_FLAGS=cardioLogging`
+  (CI only runs it with the flag off): levels 0–2 see no cardio row, level 3+ sees the catalogue,
+  a mixed bench + bike session round-trips its cardio fields, progression skips cardio.
+- **One distance-unit rule.** `profileDistanceUnit()` (`@chefer/utils` gym/cardio.ts) — the
+  Training settings choice, else miles for lb and km for kg. The mobile cardio entry and session
+  history used to read only the weight unit, so a kg-and-miles user logged and saw kilometres.
+  Past workouts defaulted to km for lb users. All mobile sites and web now share the helper.
+- **CSV export** (`gym.export.csv`, and `workouts.csv` in the data export) appends `Level`,
+  `Incline (%)` and `Calories (kcal)` after `Notes`, so existing columns keep their positions.
+- Curated timed holds (plank, wall sit…) are stored as `WEIGHT_REPS` with `isTimed`, so they keep
+  the seconds set rows. Only the bundled-catalogue fallback would read them as `DURATION`, and the
+  workout screens always use the server library.
+
+**Known gaps, not blockers (follow-ups):** web cardio logging; incline/pace are never captured
+or shown; the mobile workout summary has no cardio row; no cardio Stats/PRs; the mixed-session
+`{done}/{planned}` header; `gym-cardio-row.flow.yaml` (Maestro) uses the old shell ids and is not
+in `run-suite.sh`. The flag is global — there is no per-user allowlist, so it reaches every user
+on the next `profile.flags` read.
+
+**Owner action — turn it on in prod** (from the Mac):
+
+```
+ssh chefer 'cd ~/chefer && grep ^FEATURE_FLAGS= .env.production'
+ssh chefer 'cd ~/chefer && ./infrastructure/scripts/env.sh set FEATURE_FLAGS "<the list above>,cardioLogging" && ./infrastructure/scripts/env.sh apply'
+```
+
+Keep every flag already in the list (e.g. `mobileShellV2,onboardingV4,trainerMode`); `set`
+replaces the whole value. To turn it off again, set the list without `cardioLogging` and `apply`.
+Clients cache `profile.flags`, so phones pick it up on their next app start.
+
+### 22.3 Workout import from Strong / Hevy (G2, market review 2026-10)
+
+> **Status:** web, 2026-10-23. Mobile needs a file picker the current binary lacks
+> (`expo-document-picker`, lane C) — `mobile_parity_backlog.md`.
+
+Importing a Strong export is how lifters switch apps. Imported workouts are ordinary COMPLETED
+sessions, so PRs, e1RM charts, progression, history and the CSV export all see them.
+
+```
+Gym settings → "Import workouts" → /gym/import
+  │  choose the CSV (read in the browser, ≤ 5 MB of text)
+  ├─ gym.import.preview { csv, weightUnit? }          (30 per 10 min)
+  │     parseWorkoutCsv (@chefer/utils, pure): Strong A/B/C or Hevy, by header
+  │       Strong "Set Order": 1..N / W warm-up / D drop / F failure kept;
+  │       "Rest Timer" rows dropped; "Note" rows → the exercise's notes
+  │       weights → kg (header unit, per-row unit, or the user's answer)
+  │     → needs_unit   older Strong file with no unit anywhere → "kg or lb?" → preview again
+  │     → invalid      empty / not a Strong or Hevy export / no workouts
+  │     → ready        counts, date range, alreadyImported, one review row per exercise name:
+  │                    matched (certain) | suggested (best guess) | unmatched
+  │                    ImportExerciseMatcher: own custom of that name → curated alias table
+  │                    → "<equipment> <movement>" / grip variants / movement (same equipment)
+  │                    → fuzzy word overlap (suggested only, never auto-certain)
+  ├─ review: doubtful rows first, matched rows folded away; each row:
+  │     the match / an alternative / "Pick another exercise…" / "Create as my own exercise"
+  │     (+ main muscle) / "Don't import"
+  └─ gym.import.commit { csv, weightUnit?, timeZone, mappings[] }   (5 per 10 min)
+        create customs (equipment + tracking inferred from the file; reuses one of the same name)
+        build COMPLETED docs: no routine (rotation never moves), wall-clock start placed in
+        the device's time zone, finishedAt = start + duration, every set ticked, warm-ups
+        kept, last working set's RPE → lastSetRir, ≤ 20 sets / 30 exercises (rest counted
+        as `trimmedSets`)
+        ids = UUIDv5(user | source | date+time | title) → WorkoutSessionService.importDocs:
+          a session id that already exists is never written (re-import = no-op; a session
+          edited since is never overwritten), `importSource` = STRONG | HEVY is set,
+          progression.recompute once at the end
+        → { imported, alreadyImported, skippedWorkouts, createdExercises, trimmedSets }
+     → "Imported 120 workouts from Strong." + links to history and progress;
+        event workout_import_completed { source, workoutsBucket, createdExercises, reimport }
+```
+
+`WorkoutSession.importSource` marks imported rows. Rewards (Chef XP, the Flame — gamification)
+skip them; nothing else treats them differently. A phone editing an imported session later writes
+through `upsertMany`, which leaves the marker as it is.
 
 ---
 
@@ -4336,7 +4545,8 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
   │
   └─ Sheet (ACCOUNT_DELETION_COPY, shared): "This permanently deletes your Chefer
      account. It can't be undone." + the list of what goes (profile/preferences/
-     body metrics; plans, shopping lists, logs, weights, pantry; own + imported
+     body metrics; plans, shopping lists, logs, weights, body measurements,
+     pantry; own + imported
      recipes, favourites, ratings; workouts, routines, custom exercises;
      household, feedback, sign-in on every device) + "Backup copies age out
      within about 30 days."
@@ -4585,15 +4795,28 @@ T-12.2), not the PostHog SDK: no native module, no runtime-fingerprint change.
 
 ```
 app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + background flush
-                     track('app_opened', {})
+  │                 (a no-op unless EXPO_PUBLIC_POSTHOG_KEY + _HOST were set at
+  │                  bundle time — the OTA job's repo variables, §13)
+  │
+SessionUserHost (src/components/session-user-host.tsx, mounted once the token is read)
+  ├─ signed out ─────────────────► setCurrentUserId(null)
+  ├─ signed in, user.me resolves ► setCurrentUserId(me.id)   (also Sentry's user)
+  ├─ sign-out (signOut())  ──────► resetAnalyticsOnSignOut(): id null, "linked" OFF
+  ├─ another account's id arrives without a sign-out ► "linked" OFF
+  └─ identity settled (signed out / me answered / me failed / 5 s offline cap)
+        └─► app_opened { from: 'launch' }   once per cold start
+     AppState: back to the foreground after 30+ min in the background
+        └─► app_opened { from: 'resume' }   (D1/D7/D30 retention)
   │
   distinct_id = a random session id, generated once per cold start,
-                NEVER written to storage (AC1)
+                NEVER written to storage (AC1); such events carry
+                $process_person_profile: false → no PostHog person
   │
   consent (device-local, default { anonymous: true, linked: false } — Q-8):
     anonymous off  → track() queues nothing, fetch is never called (AC3)
     linked on + signed in → distinct_id becomes the account id on the very
-                             next event (AC2); off → sign-out resets it to off
+                             next event (AC2), with a PostHog person;
+                             sign-out or an account switch resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   rendered only when the transport is enabled (PostHog key + host set at
@@ -4602,6 +4825,13 @@ Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
+
+**What this means for the numbers (2026-10-22, Q18 reversed).** Event counts and
+same-launch funnels cover everyone who leaves anonymous counts on. Per-person
+retention and multi-day funnels cover only users who turned linking on, because
+an unlinked id lasts one cold start. `docs/beta-dashboard.sql` gives everyone's
+retention from our own tables. The events and the PostHog dashboard spec are in
+`docs/analytics-funnel.md`.
 
 The choice is stored per account/device only (another browser, another phone,
 or a new device starts at the Q-8 defaults). The card links to
@@ -4869,18 +5099,56 @@ every non-null `User.aiDataConsentAt` gets a `source: migration` AI
 `ConsentEvent` with the ORIGINAL timestamp, idempotently, so the log is the
 source of truth even for pre-existing accounts.
 
-### Data export (bug B-53)
+### Data export (bug B-53; G1 full export, market review 2026-10)
+
+> **G1 (2026-10-22):** "Download my data" is a ZIP on web and on mobile — the same
+> JSON, plus spreadsheet CSVs and a README. Free for everyone. `user.exportData`
+> stays for shipped binaries and for the fallback below.
 
 ```
+Profile → Privacy & data → Your data → "Download my data" (web /profile, mobile Privacy section)
+  │
+  └─ user.exportArchive (mutation; 5 per 15 min per user → "Try again in 15 minutes.")
+        └─ buildExportArchive(userId)                     export-archive.service.ts
+              collectAccountData(userId)  ← the exportData object below (typed)
+              gym.export.csv              ← reused as csv/workouts.csv
+              recipe names for the ids in plans and logs
+              └─ buildArchive() (pure, export-archive.ts, fflate)
+                    chefer-export-YYYY-MM-DD.zip
+                      README.txt          what each file is
+                      chefer-data.json    everything (= user.exportData)
+                      csv/food-log.csv  weights.csv  profile-and-targets.csv
+                          target-changes.csv  meal-plans.csv (weeks + saved weeks)
+                          recipes.csv (yours + saved)  shopping-lists.csv
+                          workouts.csv  routines.csv  personal-records.csv
+                          following.csv  coaching.csv
+                          kitchen-progress.csv  achievements.csv  cooking.csv
+                                                           (UTF-8 BOM, CRLF, formulas neutralised)
+        Built synchronously: 3 years of logs + 600 workouts zips in well under a second
+        to < 2 MB (export-archive.test.ts), so there is no background job.
+        A new data type (e.g. body measurements) = rows in collectAccountData + one
+        CSV_SECTIONS entry; the README lists it automatically.
+  │
+  ├─ web:    base64 → Blob (application/zip) → download, Toast "Your export is ready."
+  ├─ mobile: shareExportFile(filename, base64, ZIP_MIME, 'base64') → share sheet,
+  │          Snackbar "Your export is ready." (only when shared, UX-ACC-22)
+  │          An Android binary without expo-sharing (canShareBinaryFiles() false)
+  │          can't share a binary file → the JSON export below, as before.
+  └─ event data_export_downloaded { format: zip|json, sizeBucket }
+
+Before G1, and still on that fallback:
 Profile → Your data → "Download my data" / "Export my data"
   │
   └─ user.exportData ──► exportAccountData(userId)
         food (chefProfile, dietaryPreferences, householdMembers, mealPlans,
-              dailyLogs, weightEntries, favourites, ratings, pantryItems,
+              dailyLogs, weightEntries, bodyMeasurements, favourites, ratings, pantryItems,
               recipes, chefReviews, shoppingLists — resolved through the
               user's own meal-plan ids, since ShoppingList has no userId)
         gym  (gymProfile, routines, workoutSessions, exerciseProgressions,
-              trainingPauses, customExercises)
+              trainingPauses, customExercises; G1: personalRecords — the PR
+              timeline, oldest first — and exerciseNames, id → name)
+        food, G1 additive: savedRecipes (the recipes behind favourites),
+              targetChanges (§29)
         feedback
         privacy (consentHistory — every ConsentEvent; emailPreferences;
                  aiCallLog — type/provider/time only, never model output)
@@ -5567,7 +5835,7 @@ installed builds show the wave-3 OTA) and stays there — `all` is not planned.
 
 **5. Withdraw (Profile › Privacy & data › Health information).** Shows `Allowed on {date}`; `Withdraw and delete` →
 confirm (`Delete your health information?`) → `privacy.withdrawHealthData({ confirm: 'WITHDRAW' })`: one transaction
-deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, target-change history, blanks
+deletes allergies/diets/dislikes (owner + household), goal/metrics/own targets, weigh-ins, body measurements (lane D3), target-change history, blanks
 the allergy snapshot in safety reports, clears the consent cache and logs the withdrawal (AC3). The account and the
 household people stay. Plans stop showing `Checked for` because the rules are gone. Then all caches are invalidated. Not
 allowed → the row offers `Allow health information`.
@@ -5578,6 +5846,15 @@ the safety regression report per commit; `SafetyReport` rows; one `safety.filter
 Analytics (counts only): `health_consent_answered { allowed }`, `health_consent_withdrawn {}`.
 
 ---
+
+**Health sync imports (C2, server side; the phone side ships with the next store build).** Weigh-ins read from Apple
+Health / Health Connect are health information too: `tracker.importWeights` sits behind the same `requireHealthConsent`
+gate as a typed weigh-in, so the phone asks this consent (the sheet above) before the first import. Each sample becomes an
+ordinary weigh-in on its local day (`WeightEntry.source` APPLE_HEALTH / HEALTH_CONNECT, `externalId` = the sample's id);
+sending the same sample again is skipped, so overlapping sync windows never double a weigh-in. Which data types are on is
+logged separately: every change on the "Connect health" screen writes a `HEALTH_SYNC` consent event
+(`privacy.recordHealthSync`; Consent history shows e.g. "Health Connect: weight, steps" or "Apple Health: turned off").
+Withdrawing health consent deletes imported weigh-ins along with typed ones. Dark behind the `healthSync` flag.
 
 ## 34. Following: follow, see, save (`docs/friends/`, F1.D)
 
@@ -6297,6 +6574,8 @@ success moment ──► maybeRequestReview(trigger)
 Any failure on the way (no native module on an older binary, storage, the native call) is a
 silent no-op. Code: `apps/mobile/src/features/review/`; details in infrastructure.md §4.3.
 
+---
+
 ## 39. Kitchen progress (gamification P1, `docs/gamification-2026-10/`)
 
 Behind the `gamification` flag + `GAMIFICATION_ALLOWLIST` (emails, `*` = everyone); mobile on the revamp shell only,
@@ -6385,3 +6664,48 @@ Mobile only for now (owner, 2026-10-22); web stays light — `mobile_parity_back
    not the phone's. Fixed exceptions: the coaching-invite QR code stays dark-on-light, photo
    overlays and brand marks keep their colours, and the launch splash is brand-brown in both.
 5. **Product rules unchanged at night:** numbers are never red; over target is amber (`attention`).
+
+---
+
+## 41. Curated Recipe Ingest & Pool Coverage (admin, market review F1/F2)
+
+Web admin only (`/admin/recipes`, every procedure `adminProcedure`). Free users never see a draft:
+only approval creates the CURATED recipe the free pool serves. Code: `CuratedIngestService`
+(infrastructure.md §7).
+
+```
+Admin pastes a link (/admin/recipes) ──► curatedAdmin.ingest
+  │   normalise URL · already in the queue/pool? → CONFLICT
+  │   today's links ≥ CURATED_INGEST_DAILY_CAP? → TOO_MANY_REQUESTS ("cap used up, resets at midnight UTC")
+  └─► draft row EXTRACTING ──► background extraction (queue polls every 4 s)
+        │ video link → captions → subtitles → Whisper (VideoRecipeService)
+        │ web link   → page text (SSRF-guarded) → annotated extraction (no invented method)
+        │ → rewriteRecipeProse (Chefer's voice, facts kept)   fail → prose stays ORIGINAL + checklist line
+        │ → match lines to GLOBAL catalog slugs · guess meal type from the name
+        ├─ provider quota / 429 → FAILED "The AI provider's quota is used up…" (Try again later)
+        ├─ other failure / duplicate canonical link → FAILED with the reason
+        └─ DRAFT ("Needs review")
+
+Admin reviews (/admin/recipes/[id]) ──► curatedAdmin.get (live review)
+  │   edit name, description, times, servings, meal slots, tags, lines (catalog match / candidates), steps
+  │   "Rewrite in Chefer's voice" → curatedAdmin.rewriteProse   · Save → curatedAdmin.update
+  │   hand-edited prose → EDITED
+  ├─ Reject (+ reason) → REJECTED (the link may be pasted again later)
+  └─ Approve → curatedAdmin.approve
+        gates: complete · prose not ORIGINAL · every line on a global catalog row · amounts convert to grams
+               · no line name hiding an allergen its catalog row reveals
+        fail → BAD_REQUEST listing every blocker
+        pass → diet tags derived from the ingredients (claimed diet tags replaced)
+             → ONE transaction: CURATED recipe (sourceUrl, no creator, no creator image, PENDING image)
+               + catalog lines + computed nutrition, draft → APPROVED
+             → image worker generates the picture · pool slice reloads
+             → the recipe is now drawn for free plans, swaps, Discover — safety-filtered like any curated recipe
+
+In the pool ──► "Take out of the pool" → curatedAdmin.unpublish → UNPUBLISHED
+                (no new plans draw it; plans that already hold it keep it)
+
+Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAdmin.coverage
+    counts by meal type × diet (as served) / allergen-free / prep+cook band / cuisine,
+    the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
+    red = that household repeats a recipe within 2 weeks, amber = within 4
+```

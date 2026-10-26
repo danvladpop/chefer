@@ -5,7 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Theme } from 'expo-
 import { StatusBar } from 'expo-status-bar';
 import { colorsFor, type ColorScheme } from '@chefer/tokens';
 import { Snackbar, SnackbarTouchBoundary, useResolvedScheme } from '@chefer/ui-mobile';
-import { CrashReportingUserHost } from '../src/components/crash-reporting-user-host';
+import { SessionUserHost } from '../src/components/session-user-host';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
 import { applyStoredAppearance } from '../src/features/appearance/appearance-store';
 import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
@@ -30,7 +30,7 @@ import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { ShopOutboxHost } from '../src/features/shopping-list/use-shop-toggle';
 import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
-import { initAnalytics, track } from '../src/lib/analytics';
+import { initAnalytics } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { initCrashReporting } from '../src/lib/crash-reporting';
@@ -64,8 +64,8 @@ installQueryConnectivity();
 
 // Usage analytics (T-12.2, §5.10): starts the JS transport's 30s flush timer
 // and background-flush listener. A no-op when no PostHog key is configured.
+// `app_opened` is fired by SessionUserHost once the account is known.
 initAnalytics();
-track('app_opened', {});
 
 // Store rating prompt (ASO §5.1): counts today as an active day and opens the
 // session the prompt's "not the first session / nothing failed" rule reads.
@@ -270,8 +270,9 @@ export default function RootLayout() {
               <ShellFlagHost signedIn={token !== null} />
               {/* Trainer mode §5.1: caches "available" for the next cold start, falls back to personal. */}
               <TrainerModeHost signedIn={token !== null} />
-              {/* M1-6: crash reports carry the account id (not name/email). */}
-              <CrashReportingUserHost signedIn={token !== null} />
+              {/* M1-6 + analytics: crash reports and (when linked) usage events carry
+                  the account id, never name/email; also fires `app_opened`. */}
+              <SessionUserHost signedIn={token !== null} />
               {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
               <HealthConsentLaunchPrompt signedIn={token !== null} />
