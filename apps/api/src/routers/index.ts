@@ -2,6 +2,7 @@ import { mergeRouters, router } from '../lib/trpc.js';
 import { authRouter } from './auth.router.js';
 import { coachRouter } from './coach.router.js';
 import { coachingRouter } from './coaching.router.js';
+import { curatedAdminRouter } from './curated-admin.router.js';
 import { dashboardRouter } from './dashboard.router.js';
 import { feedbackRouter } from './feedback.router.js';
 import { friendsRouter } from './friends/index.js';
@@ -32,6 +33,8 @@ export const appRouter = router({
   // Trainer coaching (docs/trainer-platform/spec.md §7) — dark behind the `coaching`
   // flag + COACHING_ALLOWLIST. `trainer.*` is the trainer side, `coaching.*` the client side.
   coaching: coachingRouter,
+  // Curated recipe ingest + pool coverage (market review F1/F2) — admin only.
+  curatedAdmin: curatedAdminRouter,
   dashboard: dashboardRouter,
   feedback: feedbackRouter,
   // Following (docs/friends/implementation-plan.md §4.1) — dark behind the

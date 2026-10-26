@@ -15,6 +15,7 @@ import {
   buildMealPlanUserPrompt,
   buildRepairLinesPrompt,
   buildReviewUserPrompt,
+  buildRewriteProseUserPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
@@ -30,6 +31,7 @@ import {
   NUTRITION_LABEL_USER_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
+  REWRITE_PROSE_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import { retryAfterFrom, TokenRateState } from './rate-limit.js';
@@ -43,6 +45,7 @@ import {
   parseMealPhotoResponse,
   parseNutritionLabelResponse,
   recipeLineRepairResponseSchema,
+  rewrittenProseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
@@ -61,10 +64,12 @@ import type {
   MealPlanDayRequest,
   MealPlanInput,
   NutritionLabelReading,
+  ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RewrittenProse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -267,6 +272,8 @@ const WEEK_PLAN_SHAPE =
 const ANNOTATED_EXTRACTION_SHAPE = `{"recipe":${EXTRACTED_RECIPE_SHAPE},"confidence":"high"|"medium"|"low","assumptions":[string]}`;
 
 const CHEFERIZED_SHAPE = `{"adapted":${EXTRACTED_RECIPE_SHAPE},"changes":[{"kind":"allergen"|"restriction"|"dislike"|"servings"|"other","description":string}]}`;
+
+const REWRITTEN_PROSE_SHAPE = '{"name":string,"description":string,"instructions":[string]}';
 
 const INGREDIENT_PRICES_SHAPE =
   '{"items":[{"ingredientName":string,"pricePer100gEur":number|null,"pricePer100mlEur":number|null,' +
@@ -1014,6 +1021,18 @@ export class OpenAICompatibleAIService implements IAIService {
       shape: CHEFERIZED_SHAPE,
       schema: cheferizedRecipeSchema,
       temperature: 0.4,
+      maxTokens: MAX_TOKENS_DEFAULT,
+    });
+  }
+
+  async rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse> {
+    return this.completeJson({
+      label: 'rewriteRecipeProse',
+      system: REWRITE_PROSE_SYSTEM_PROMPT,
+      user: buildRewriteProseUserPrompt(input),
+      shape: REWRITTEN_PROSE_SHAPE,
+      schema: rewrittenProseSchema,
+      temperature: 0.6,
       maxTokens: MAX_TOKENS_DEFAULT,
     });
   }
