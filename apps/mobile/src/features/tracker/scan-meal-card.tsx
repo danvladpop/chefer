@@ -112,7 +112,14 @@ function SnapTaste() {
   const colors = useThemeColors();
   const { isPremium } = useEntitlement('mealScansPerDay');
   const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  // Lane E3: the example's figures follow the numbers mode too.
+  const { show } = useNumbersMode();
   if (!showSnapTaste({ isPremium, jobs: data?.jobs ?? [] })) return null;
+  const example = show.kcal
+    ? PREMIUM_PITCH_COPY.snapTasteExampleMacros
+    : show.protein
+      ? PREMIUM_PITCH_COPY.snapTasteExampleProtein
+      : PREMIUM_PITCH_COPY.snapTasteExampleNoNumbers;
   return (
     <Card testID="scan-taste" className="gap-3">
       <Text variant="heading">{PREMIUM_PITCH_COPY.snapTasteTitle}</Text>
@@ -121,7 +128,7 @@ function SnapTaste() {
       </Text>
       <View
         testID="scan-taste-example"
-        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${PREMIUM_PITCH_COPY.snapTasteExampleMacros}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
+        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${example}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
         className="flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-muted p-3"
       >
         <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface">
@@ -133,9 +140,7 @@ function SnapTaste() {
               {PREMIUM_PITCH_COPY.snapTasteExampleLabel}
             </Text>
           </View>
-          <Text className="text-sm font-semibold text-label">
-            {PREMIUM_PITCH_COPY.snapTasteExampleMacros}
-          </Text>
+          <Text className="text-sm font-semibold text-label">{example}</Text>
           <Text variant="muted" className="text-xs">
             {PREMIUM_PITCH_COPY.snapTasteExampleNote}
           </Text>
@@ -156,7 +161,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
   const colors = useThemeColors();
   const snackbar = useSnackbar();
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -380,7 +385,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          {proteinOnly ? (
+          {noNumbers ? null : proteinOnly ? (
             <Text testID="scan-protein" className="text-sm font-semibold text-label">
               {`≈ ${proteinLabel(logged.protein)}`}
             </Text>

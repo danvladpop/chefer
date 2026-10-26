@@ -1247,10 +1247,11 @@ describe('Tracker — protein-only mode (WP-08)', () => {
     expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
   });
 
-  it('NONE is reserved (WP-16) and reads as the full numbers', () => {
+  it('lane E3 "Hide numbers" (NONE): no kcal, no protein figure — the day as planned meals eaten', () => {
     proteinDay('NONE');
     render(<TrackerPage />);
-    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+    expect(document.body.textContent).not.toMatch(/kcal|g protein/i);
+    expect(screen.getByTestId('tracker-on-plan')).toBeTruthy();
   });
 
   it('"Ate something else" shows the protein range only, and still logs the slot', async () => {

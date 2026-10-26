@@ -1,17 +1,19 @@
 'use client';
 
 import { useId } from 'react';
-import { BarChart3, Check, Dumbbell } from 'lucide-react';
+import { BarChart3, Check, Dumbbell, EyeOff } from 'lucide-react';
 import type { NumbersMode } from '@chefer/types';
 import { cn, NUMBERS_MODE_COPY } from '@chefer/utils';
 
-// "What do you want to keep an eye on?" (WP-08): the two numbers modes a user can
-// pick today. Controlled, so it serves both the onboarding goal step (saved with
-// the rest of setup) and the Preferences card (saved at once). NONE is reserved
-// for WP-16 and is not offered. Mirrors apps/mobile .../numbers-mode-choice.tsx;
-// the words are shared (NUMBERS_MODE_COPY in @chefer/utils).
+// "What do you want to keep an eye on?" (WP-08): the numbers modes a user can
+// pick. Controlled, so it serves both the onboarding goal step (saved with the
+// rest of setup) and the Preferences card (saved at once). Lane E3 adds "Hide
+// numbers" (NONE) as an equal third option. Mirrors apps/mobile
+// .../numbers-mode-choice.tsx; the words are shared (NUMBERS_MODE_COPY).
 
-export type NumbersModeChoiceValue = Extract<NumbersMode, 'FULL' | 'PROTEIN_ONLY'>;
+export type NumbersModeChoiceValue = NumbersMode;
+
+const TEST_ID = { FULL: 'full', PROTEIN_ONLY: 'protein', NONE: 'none' } as const;
 
 const OPTIONS = [
   {
@@ -25,6 +27,12 @@ const OPTIONS = [
     title: NUMBERS_MODE_COPY.proteinTitle,
     detail: NUMBERS_MODE_COPY.proteinDetail,
     Icon: Dumbbell,
+  },
+  {
+    value: 'NONE' as const,
+    title: NUMBERS_MODE_COPY.noneTitle,
+    detail: NUMBERS_MODE_COPY.noneDetail,
+    Icon: EyeOff,
   },
 ];
 
@@ -52,7 +60,7 @@ export function NumbersModeChoice({
       <p id={labelId} className="text-sm font-semibold text-foreground">
         {NUMBERS_MODE_COPY.question}
       </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {OPTIONS.map(({ value: v, title, detail, Icon }) => {
           const selected = value === v;
           return (
@@ -62,7 +70,7 @@ export function NumbersModeChoice({
               role="radio"
               aria-checked={selected}
               disabled={disabled}
-              data-testid={`${testIdPrefix}-${v === 'FULL' ? 'full' : 'protein'}`}
+              data-testid={`${testIdPrefix}-${TEST_ID[v]}`}
               onClick={() => onChange(v)}
               className={cn(
                 'flex min-h-11 w-full min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',

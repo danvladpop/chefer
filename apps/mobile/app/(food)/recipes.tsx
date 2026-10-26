@@ -16,6 +16,7 @@ import {
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { NutritionStatusTag } from '../../src/features/ingredients/nutrition-provenance';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { recipeCardMeta } from '../../src/features/recipes/recipe-actions';
 import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
@@ -166,6 +167,8 @@ export default function RecipesScreen() {
   );
   const { data: table } = trpc.safety.getTable.useQuery();
   const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
+  // WP-08 / lane E3: no calories without full numbers, no macros at all in "Hide numbers".
+  const { proteinOnly, noNumbers } = useNumbersMode();
 
   const utils = trpc.useUtils();
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
@@ -408,17 +411,23 @@ export default function RecipesScreen() {
                         {recipe.prepTimeMins + recipe.cookTimeMins}m
                       </Text>
                     </View>
-                    <View className="flex-row items-center gap-1">
-                      <Ionicons name="flame-outline" size={12} color={colors.brand} />
-                      <Text className="text-xs text-label-tertiary">{n.calories} kcal</Text>
-                      <NutritionStatusTag
-                        status={recipe.nutritionStatus}
-                        testID={`recipe-card-status-${recipe.id}`}
-                      />
-                    </View>
-                    <Text className="text-xs text-label-tertiary">
-                      P {n.protein}g · C {n.carbs}g · F {n.fat}g
-                    </Text>
+                    {proteinOnly ? null : (
+                      <View className="flex-row items-center gap-1">
+                        <Ionicons name="flame-outline" size={12} color={colors.brand} />
+                        <Text className="text-xs text-label-tertiary">{n.calories} kcal</Text>
+                        <NutritionStatusTag
+                          status={recipe.nutritionStatus}
+                          testID={`recipe-card-status-${recipe.id}`}
+                        />
+                      </View>
+                    )}
+                    {noNumbers ? null : (
+                      <Text className="text-xs text-label-tertiary">
+                        {proteinOnly
+                          ? `${n.protein} g protein`
+                          : `P ${n.protein}g · C ${n.carbs}g · F ${n.fat}g`}
+                      </Text>
+                    )}
                   </View>
                   {meta ? (
                     <Text

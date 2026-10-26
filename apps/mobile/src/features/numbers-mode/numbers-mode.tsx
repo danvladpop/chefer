@@ -1,11 +1,16 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { effectiveNumbersMode } from '@chefer/types';
+import { effectiveNumbersMode, numbersVisibility, type EffectiveNumbersMode } from '@chefer/types';
 import { trpc } from '../../lib/trpc';
 
-// WP-08 protein-only mode. ONE predicate for every surface: `useNumbersMode()`.
-// Never test the stored string at a call site. `effectiveNumbersMode` maps
-// null / NONE (reserved for WP-16) / unknown values to FULL, so the screens
-// only ever see 'FULL' | 'PROTEIN_ONLY'.
+// WP-08 protein-only mode, and lane E3's "Hide numbers" (NONE). ONE predicate
+// for every surface: `useNumbersMode()`. Never test the stored string at a call
+// site. `effectiveNumbersMode` maps null / unknown values to FULL.
+//
+// `proteinOnly` means "no calories here" and is true for NONE too: every
+// surface WP-08 made kcal-free is kcal-free in NONE as well. `noNumbers`
+// additionally hides the protein figures those surfaces show — they switch
+// to portions, "on plan" ticks and qualitative progress. Number displays use
+// `<NutritionNumber>` or check these flags (guarded by numbers-guard.test.ts).
 //
 // The value arrives two ways, both through `NumbersModeProvider`:
 //  - the root `NumbersModeHost` reads `preferences.get` once for the whole app
@@ -15,7 +20,7 @@ import { trpc } from '../../lib/trpc';
 //    protein-only user before `preferences.get` has answered.
 // Switching the setting invalidates the queries, and every consumer re-renders.
 
-export type EffectiveNumbersMode = 'FULL' | 'PROTEIN_ONLY';
+export type { EffectiveNumbersMode };
 
 const NumbersModeContext = createContext<EffectiveNumbersMode>('FULL');
 
@@ -42,11 +47,23 @@ export function NumbersModeProvider({
  */
 export function useNumbersMode(payloadMode?: string | null): {
   mode: EffectiveNumbersMode;
+  /** No calories or carbs/fat (PROTEIN_ONLY and NONE). */
   proteinOnly: boolean;
+  /** No nutrition numbers at all, protein included (NONE, lane E3). */
+  noNumbers: boolean;
+  show: { kcal: boolean; macros: boolean; protein: boolean };
 } {
   const inherited = useContext(NumbersModeContext);
   const mode = payloadMode === undefined ? inherited : effectiveNumbersMode(payloadMode);
-  return useMemo(() => ({ mode, proteinOnly: mode === 'PROTEIN_ONLY' }), [mode]);
+  return useMemo(
+    () => ({
+      mode,
+      proteinOnly: mode !== 'FULL',
+      noNumbers: mode === 'NONE',
+      show: numbersVisibility(mode),
+    }),
+    [mode],
+  );
 }
 
 /** Mounted once in the root layout: feeds the whole app from `preferences.get`. */

@@ -4,6 +4,7 @@ import {
   conflictText,
   formatPortion,
   planMealNutritionLabel,
+  portionLabel,
   slotPortion,
   weekdayLongName,
   weekdayShortName,
@@ -104,13 +105,25 @@ export function mealTileLabel(mealType: string, isSide: boolean): string {
  * "920 kcal · 1½× portion · 20 min", "480 kcal · leftovers". A side names the
  * meal it belongs to: "Dinner · 120 kcal". Protein-only mode shows protein.
  */
-export function mealTileMeta(meal: TileMeal, isSide: boolean, proteinOnly: boolean): string {
-  const nutrition = planMealNutritionLabel(meal.recipe.nutritionInfo, meal.portion, proteinOnly);
-  if (isSide) return `${mealTypeLabel(meal.type)} · ${nutrition}`;
+export function mealTileMeta(
+  meal: TileMeal,
+  isSide: boolean,
+  proteinOnly: boolean,
+  /** Lane E3 "Hide numbers": no nutrition figure, the portion always shows. */
+  noNumbers = false,
+): string {
+  const nutrition = noNumbers
+    ? null
+    : planMealNutritionLabel(meal.recipe.nutritionInfo, meal.portion, proteinOnly);
+  if (isSide) return [mealTypeLabel(meal.type), nutrition].filter(Boolean).join(' · ');
   const portion = slotPortion(meal.portion);
   const minutes = Math.max(0, Math.round(meal.recipe.prepTimeMins + meal.recipe.cookTimeMins));
   const tail = meal.pinned ? 'pinned' : meal.leftoverOf ? 'leftovers' : `${minutes} min`;
-  return [nutrition, portion !== 1 ? `${formatPortion(portion)} portion` : null, tail]
+  return [
+    nutrition,
+    noNumbers ? portionLabel(portion) : portion !== 1 ? `${formatPortion(portion)} portion` : null,
+    tail,
+  ]
     .filter(Boolean)
     .join(' · ');
 }

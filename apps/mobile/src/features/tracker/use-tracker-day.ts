@@ -88,7 +88,7 @@ export function useTrackerDay({
   // bumped targets (audit P2-4); everyone else keeps the base.
   const dayTargets = data?.adjustedTargets ?? data?.targets;
   // WP-08: the day's payload decides protein-only (no kcal in rows or totals).
-  const { proteinOnly } = useNumbersMode(data?.numbersMode);
+  const { proteinOnly, noNumbers } = useNumbersMode(data?.numbersMode);
 
   // WP-06: "Ate something else" / "Skipped it" on every planned row.
   const slotFlow = useSlotFlow(dateStr);
@@ -350,6 +350,7 @@ export function useTrackerDay({
     refetch,
     dayTargets,
     proteinOnly,
+    noNumbers,
     slotFlow,
     average,
     quickAddOpen,

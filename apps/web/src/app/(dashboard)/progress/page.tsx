@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { BodyMeasurementsSection } from '@/features/coach/components/BodyMeasurementsSection';
 import { WeightTrendSection } from '@/features/coach/components/WeightTrendSection';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -60,6 +61,8 @@ export default function ProgressPage() {
   // "today"; switching keeps the old chart until the new one lands. Same
   // 1W / 1M / 3M / 1Y ranges as the app's Stats (2026-10-15).
   const [range, setRange] = useState<StatsRangeDays>(DEFAULT_STATS_RANGE);
+  // Lane E3 "Hide numbers": how often you logged, never how much.
+  const { noNumbers } = useNumbersMode();
   const {
     data: monthly,
     isLoading,
@@ -123,16 +126,20 @@ export default function ProgressPage() {
             label: 'Days logged',
             value: `${daysLogged}`,
           },
-          {
-            icon: <TrendingUp className="h-4 w-4 text-blue-500" />,
-            label: 'Avg kcal',
-            value: enoughDays && avgKcal > 0 ? avgKcal.toLocaleString() : '—',
-          },
-          {
-            icon: <Scale className="h-4 w-4 text-emerald-500" />,
-            label: 'vs target',
-            value: enoughDays && avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
-          },
+          ...(noNumbers
+            ? []
+            : [
+                {
+                  icon: <TrendingUp className="h-4 w-4 text-blue-500" />,
+                  label: 'Avg kcal',
+                  value: enoughDays && avgKcal > 0 ? avgKcal.toLocaleString() : '—',
+                },
+                {
+                  icon: <Scale className="h-4 w-4 text-emerald-500" />,
+                  label: 'vs target',
+                  value: enoughDays && avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
+                },
+              ]),
         ].map((s, i) => (
           <div key={i} className="flex flex-col gap-1 rounded-2xl border bg-white p-4 shadow-sm">
             <div className="flex items-center gap-1.5 text-xs text-neutral-500">
@@ -188,7 +195,7 @@ export default function ProgressPage() {
         />
       )}
 
-      {!isLoading && !(isError && !monthly) && (
+      {!isLoading && !(isError && !monthly) && !noNumbers && (
         <>
           {/* Calorie line chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">

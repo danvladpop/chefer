@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
-import { overTargetColor } from '@chefer/tokens';
 import type { ProteinGuide } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
 import {
@@ -13,6 +12,8 @@ import {
   dayStatus,
   formatKcal,
   formatNumber,
+  HIDE_NUMBERS_COPY,
+  onPlanLine,
   proteinRingLabel,
 } from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
@@ -35,6 +36,8 @@ interface NutritionSummaryProps {
   remainingPlannedKcal?: number | undefined;
   /** WP-08: the per-meal protein guide ("30–40 g per meal"), shown in protein-only mode. */
   proteinGuide?: ProteinGuide | undefined;
+  /** Lane E3: planned meals eaten / planned today — what "Hide numbers" shows. */
+  onPlan?: { eaten: number; planned: number } | undefined;
 }
 
 /**
@@ -90,7 +93,6 @@ function ProteinSummary({
           progress={progressOf(eatenG, targetG)}
           size={128}
           strokeWidth={12}
-          overColor={overTargetColor}
         >
           <CountUp value={eatenG} className="text-xl font-bold text-gray-900" />
           <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
@@ -160,8 +162,30 @@ export function NutritionSummary({
   targetMode,
   remainingPlannedKcal,
   proteinGuide,
+  onPlan,
 }: NutritionSummaryProps) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
+  // Lane E3 "Hide numbers": no ring, no figures — "Today so far" instead.
+  if (noNumbers) {
+    if (!onPlan) return null;
+    const line = onPlanLine(onPlan.eaten, onPlan.planned);
+    return (
+      <div
+        data-testid="nutrition-on-plan"
+        className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
+      >
+        <h2 className="text-sm font-semibold text-gray-900">{HIDE_NUMBERS_COPY.onPlanTitle}</h2>
+        <p className="mt-1 text-sm text-gray-600">{line}</p>
+        {onPlan.planned > 0 && (
+          <ProgressBar
+            className="mt-3"
+            label={line}
+            progress={Math.min(1, onPlan.eaten / onPlan.planned)}
+          />
+        )}
+      </div>
+    );
+  }
   if (proteinOnly) {
     return (
       <ProteinSummary
@@ -204,8 +228,9 @@ export function NutritionSummary({
           data-testid="nutrition-status"
           className={cn(
             'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
-            targetStatus === 'over' && 'bg-amber-100 text-amber-800',
-            targetStatus === 'heading_over' && 'bg-amber-50 text-amber-800',
+            // Lane E3: past the target is grey like "room left" — never amber or red.
+            targetStatus === 'over' && 'bg-gray-100 text-gray-700',
+            targetStatus === 'heading_over' && 'bg-gray-100 text-gray-600',
             targetStatus === 'under' && 'bg-gray-100 text-gray-600',
             targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
             targetStatus === 'none' && 'bg-gray-100 text-gray-600',
@@ -230,7 +255,6 @@ export function NutritionSummary({
             progress={progressOf(n.eatenKcal, target.dailyCalorieTarget)}
             size={128}
             strokeWidth={12}
-            overColor={overTargetColor}
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
             <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
@@ -269,7 +293,6 @@ export function NutritionSummary({
               <ProgressBar
                 label={`${label}: ${v} of ${t} grams eaten`}
                 progress={progressOf(v, t)}
-                overColor={overTargetColor}
               />
             </div>
           ))}

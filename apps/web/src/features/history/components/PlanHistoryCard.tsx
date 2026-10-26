@@ -33,7 +33,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
   const [useAgainOpen, setUseAgainOpen] = useState(false);
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
 
   const weekStart = new Date(plan.weekStartDate);
   const weekEnd = new Date(plan.weekEndDate);
@@ -75,8 +75,9 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
 
       {/* Macro summary */}
       <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-        {/* WP-08: protein-only mode shows protein, never kcal, for a past week too. */}
-        {proteinOnly ? (
+        {/* WP-08: protein-only mode shows protein, never kcal, for a past week too;
+            lane E3 "Hide numbers" shows neither. */}
+        {noNumbers ? null : proteinOnly ? (
           <span>
             <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein} g</span>{' '}
             protein avg

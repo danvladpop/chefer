@@ -71,6 +71,10 @@ export const PREMIUM_PITCH_COPY = {
   snapTasteBody: 'Photograph a restaurant meal and get an estimate in seconds.',
   snapTasteExampleLabel: 'Example',
   snapTasteExampleMacros: '~620 kcal · 40 g protein',
+  /** The same example in protein-only mode (lane E3). */
+  snapTasteExampleProtein: '~40 g protein',
+  /** The same example in "Hide numbers": a portion, no figures (lane E3). */
+  snapTasteExampleNoNumbers: 'Chicken Caesar salad · 1 portion',
   snapTasteExampleNote: '"dressing included"',
 } as const;
 

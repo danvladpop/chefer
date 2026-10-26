@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
@@ -190,6 +191,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { data: table } = trpc.safety.getTable.useQuery();
   const isSaved = savedData?.isSaved ?? false;
   const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
+  // Lane E3 "Hide numbers": no calories or macros on the recipe either.
+  const { noNumbers } = useNumbersMode();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportedToast, setReportedToast] = useState(false);
   // UX-REC-04: owner Delete (soft) + Share.
@@ -799,11 +802,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           label="Servings"
           value={formatFractionalQuantity(selectedServings)}
         />
-        <Stat
-          icon={<Flame className="h-4 w-4 text-[#944a00]" />}
-          label="Calories"
-          value={`${n.calories} kcal`}
-        />
+        {noNumbers ? null : (
+          <Stat
+            icon={<Flame className="h-4 w-4 text-[#944a00]" />}
+            label="Calories"
+            value={`${n.calories} kcal`}
+          />
+        )}
       </div>
 
       {/* F2: per-person framing when a household is set up. Free tables keep
@@ -837,14 +842,16 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           data-testid="plan-portion-note"
           className="-mt-6 mb-8 rounded-xl bg-[#fff3e8] px-3 py-2 text-xs text-[#944a00]"
         >
-          Your plan has a <strong>{formatPortion(planPortion)} portion</strong> here —{' '}
-          {scaleNutrition(n, planPortion).calories} kcal ·{' '}
-          {Math.round(scaleNutrition(n, planPortion).protein)} g protein. Quantities start at it.
+          Your plan has a <strong>{formatPortion(planPortion)} portion</strong> here
+          {noNumbers
+            ? '. '
+            : ` — ${scaleNutrition(n, planPortion).calories} kcal · ${Math.round(scaleNutrition(n, planPortion).protein)} g protein. `}
+          Quantities start at it.
         </p>
       )}
 
-      {/* Macros — no Fiber (D-18) */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      {/* Macros — no Fiber (D-18); none at all in "Hide numbers" (lane E3) */}
+      <div className={noNumbers ? 'hidden' : 'mb-8 grid grid-cols-3 gap-3'}>
         <MacroChip label="Protein" value={n.protein} />
         <MacroChip label="Carbs" value={n.carbs} />
         <MacroChip label="Fat" value={n.fat} />
@@ -882,7 +889,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <p data-testid="recipe-servings-note" className="mb-3 text-xs text-gray-500">
               Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes {baseServings})
               — amounts are scaled
-              {n.calories > 0
+              {n.calories > 0 && !noNumbers
                 ? `; about ${Math.round(scaleNutrition(n, selectedServings).calories)} kcal and ${Math.round(scaleNutrition(n, selectedServings).protein)} g protein in total.`
                 : '.'}
             </p>
@@ -1101,6 +1108,7 @@ function SavedRecipePicker({
   search,
   onSearchChange,
 }: SavedRecipePickerProps) {
+  const { proteinOnly } = useNumbersMode();
   const { data: savedRecipes, isLoading: loadingSaved } = trpc.recipe.list.useQuery({
     savedOnly: true,
     search: search || undefined,
@@ -1213,8 +1221,10 @@ function SavedRecipePicker({
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        {r.cuisineType} ·{' '}
-                        {(r.nutritionInfo as { calories?: number }).calories ?? '—'} kcal
+                        {r.cuisineType}
+                        {proteinOnly
+                          ? ''
+                          : ` · ${(r.nutritionInfo as { calories?: number }).calories ?? '—'} kcal`}
                       </p>
                     </div>
                   </button>

@@ -568,7 +568,8 @@ burger", "had a croissant"), call logMeal with the dish name and your best
 realistic macro estimate — it is written to their tracker, so confirm what was
 logged. Eating out or skipping a meal is ordinary: report the numbers neutrally
 (over or under their target is information, not a verdict) and never scold,
-apologise for them or call a day good or bad.
+apologise for them or call a day good or bad. Never suggest eating less,
+skipping a meal or training more to make up for what they ate.
 When they share a recipe link and want it imported/saved/adapted, call
 importRecipe with the URL.
 Do not claim to have done something unless the tool result confirms it.`;
@@ -591,6 +592,7 @@ Hard rules:
   make that change?") — never state it as already decided, and never as math.
 - Report numbers over or under their target as plain facts, never as a verdict:
   no scolding, no "bad day". Meals eaten out or skipped are ordinary.
+- Never suggest eating less or training more to make up for a day.
 - If adherence was low, coach the logging habit warmly instead of the numbers.
 - If protein data is given, they lift: say in one line how their protein
   compared with their target, and if short, suggest a protein-forward dish.`;

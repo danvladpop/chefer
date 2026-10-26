@@ -37,6 +37,7 @@ import {
 import { BodyMeasurements } from '../src/features/body/body-measurements';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
+import { useNumbersMode } from '../src/features/numbers-mode/numbers-mode';
 import { useShellV2 } from '../src/features/shell/shell-store';
 import { StatsScreen } from '../src/features/shell/stats/stats-screen';
 import { trpc } from '../src/lib/trpc';
@@ -457,5 +458,8 @@ function LegacyProgressScreen() {
 // 10 Oct redesign: the new shell shows Stats (board Progress), opened from
 // Today's top bar; the old Food|Gym shell keeps the screen above.
 export default function ProgressScreen() {
-  return useShellV2() ? <StatsScreen /> : <LegacyProgressScreen />;
+  const shellV2 = useShellV2();
+  // Lane E3 "Hide numbers": the legacy screen is calorie charts; Stats handles the mode.
+  const { noNumbers } = useNumbersMode();
+  return shellV2 || noNumbers ? <StatsScreen /> : <LegacyProgressScreen />;
 }
