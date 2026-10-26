@@ -5498,6 +5498,33 @@ Analytics (no barcode, name or brand ever): `barcode_scan { via }`,
 `packaged_product_logged { unit, allergenWarning }`, plus `meal_logged`
 (`quick` / `replaced`).
 
+**Saved meals + copy meal (lane A2, both platforms, free).** The day screens
+(mobile Your day + the legacy tracker, web tracker) get a "Save or copy a
+meal" action (bookmark icon next to Copy day) that opens one sheet:
+
+```
+pick a meal of the day being viewed (opens on the first meal with entries;
+  "n entries logged" / "Nothing logged for this meal yet")
+├─ Save as a meal: name (1–60 chars) → savedMeals.createFromDay({ name, date, mealType })
+│    → snapshots every entry with that mealType (recipe entries named after the
+│      recipe, product refs kept); CONFLICT on a name the user already has,
+│      BAD_REQUEST when the meal is empty, > 20 items or the user has 50
+│    → analytics saved_meal_created { itemCount }
+├─ Copy to…: today or one of the 6 days before it × a meal (never the same day
+│    AND meal) → tracker.copyMeal({ fromDate, fromMealType, toDate, toMealType })
+│    → the copies get fresh ids, the target meal type, no plan slot / replacement
+│    → snackbar/toast "Copied 2 entries to dinner, today" + Undo
+│      (tracker.deleteEntries with the returned copiedEntryIds)
+│    → analytics meal_copied { itemCount, sameDay }
+└─ Your saved meals: each with a delete (savedMeals.delete)
+Log sheet → "Saved meals" group (first 5 by last use, or matching the search;
+  hidden when the sheet replaces a plan slot — a slot takes one entry)
+  └─ "+" → tracker.logSavedMeal({ date, savedMealId, mealType }) → the items as
+     fresh entries (recipe items as recipe entries) → "Logged Weekday
+     breakfast" + Undo (deleteEntries with the returned entryIds); the meal's
+     lastLoggedAt moves it to the top → analytics saved_meal_logged { itemCount }
+```
+
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,
 `customTrainingProteinG` and `addTrainingBonus` (§29), but

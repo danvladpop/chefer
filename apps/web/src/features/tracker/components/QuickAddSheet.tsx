@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import {
   AlertTriangle,
   Barcode,
+  Bookmark,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   PACKAGED_PRODUCT_COPY,
+  SAVED_MEALS_COPY,
   type PackagedProductView,
   type ProductAllergenWarning,
 } from '@chefer/types';
@@ -33,6 +36,7 @@ import {
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  savedMealSummary,
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
@@ -93,6 +97,14 @@ interface QuickAddSheetProps {
   onLoggedEntry?:
     | ((entry: { entryId: string; name: string; dayFit?: DayFitLike | null | undefined }) => void)
     | undefined;
+  /** Lane A2: after a saved meal is logged — its new entry ids, for an Undo toast. */
+  onLoggedEntries?:
+    | ((logged: {
+        entryIds: string[];
+        name: string;
+        dayFit?: DayFitLike | null | undefined;
+      }) => void)
+    | undefined;
 }
 
 const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
@@ -135,6 +147,7 @@ export function QuickAddSheet({
   onOpenChange,
   hideTrigger = false,
   onLoggedEntry,
+  onLoggedEntries,
 }: QuickAddSheetProps) {
   // WP-08: protein-only mode asks protein first and shows no calorie figure.
   const { proteinOnly } = useNumbersMode();
@@ -190,6 +203,11 @@ export function QuickAddSheet({
   }, [trimmedQuery]);
 
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: open });
+  // Lane A2: one-tap saved meals. Not offered when replacing a plan slot (a
+  // slot is replaced by one entry; a saved meal is several).
+  const savedMealsQuery = trpc.savedMeals.list.useQuery(undefined, {
+    enabled: open && !replacesSlot,
+  });
   const recipesQuery = trpc.recipe.list.useQuery(
     { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
     { enabled: open && debouncedQuery.length > 0, placeholderData: (previous) => previous },
@@ -289,7 +307,28 @@ export function QuickAddSheet({
       }
     },
   });
-  const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
+  const logSavedMutation = trpc.tracker.logSavedMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: (data, vars) => {
+      const meal = savedMealsQuery.data?.find((m) => m.id === vars.savedMealId);
+      capture('saved_meal_logged', { itemCount: data.entryIds.length });
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      void utils.savedMeals.list.invalidate();
+      onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
+      onLoggedEntries?.({
+        entryIds: data.entryIds,
+        name: meal?.name ?? 'saved meal',
+        dayFit: data.dayFit,
+      });
+    },
+  });
+  const isPending =
+    logRecipeMutation.isPending || logCustomMutation.isPending || logSavedMutation.isPending;
+  const savedMeals = replacesSlot
+    ? []
+    : (savedMealsQuery.data ?? [])
+        .filter((m) => !searching || m.name.toLowerCase().includes(trimmedQuery.toLowerCase()))
+        .slice(0, searching ? undefined : 5);
 
   const recents = (recentsQuery.data ?? []).filter(
     (r) => !searching || r.name.toLowerCase().includes(trimmedQuery.toLowerCase()),
@@ -303,6 +342,7 @@ export function QuickAddSheet({
       );
 
   const hasSearchResults =
+    savedMeals.length > 0 ||
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
@@ -589,6 +629,51 @@ export function QuickAddSheet({
                   logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
                 )}
               </p>
+            )}
+
+            {logSavedMutation.isError && (
+              <p data-testid="log-sheet-saved-error" role="alert" className="text-sm text-red-600">
+                Couldn&apos;t log that: {userFacingErrorMessage(logSavedMutation.error)}
+              </p>
+            )}
+
+            {savedMeals.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {SAVED_MEALS_COPY.groupTitle}
+                </p>
+                {savedMeals.map((meal) => (
+                  <div
+                    key={meal.id}
+                    className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5"
+                  >
+                    <Bookmark className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-800">{meal.name}</p>
+                      <p className="truncate text-xs text-neutral-500">
+                        {savedMealSummary(meal.items, proteinOnly)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid={`log-sheet-saved-add-${meal.id}`}
+                      aria-label={`Log ${meal.name} to ${mealType}`}
+                      disabled={isPending}
+                      onClick={() =>
+                        logSavedMutation.mutate({
+                          ...REBALANCE_PREVIEW,
+                          date,
+                          savedMealId: meal.id,
+                          mealType,
+                        })
+                      }
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#944a00] hover:bg-neutral-100 disabled:opacity-50"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
 
             {recents.length > 0 && (

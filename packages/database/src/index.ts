@@ -337,6 +337,11 @@ export {
   type IPackagedProductRepository,
   type PackagedProductData,
   type BarcodeRows,
+  // Saved meals (lane A2)
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
   ProgressEventRepository,
   progressEventRepository,
@@ -496,6 +501,8 @@ export type {
   AiUsageEvent,
   // Packaged products (ADR 0006)
   PackagedProduct,
+  // Saved meals (lane A2)
+  SavedMeal,
   CuratedRecipeDraft,
 } from '@prisma/client';
 export {
