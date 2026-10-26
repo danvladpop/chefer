@@ -5,6 +5,7 @@ import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Star } from 'lucide-react';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -17,6 +18,7 @@ interface StarRatingWidgetProps {
 }
 
 export function StarRatingWidget({ recipeId, initialRating, initialNotes }: StarRatingWidgetProps) {
+  const { t } = useT();
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number>(initialRating ?? 0);
   // F2: the "Liked by" member chips live as a structured line INSIDE the
@@ -53,7 +55,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
 
   return (
     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
-      <h3 className="mb-3 font-semibold text-neutral-700">Rate this recipe</h3>
+      <h3 className="mb-3 font-semibold text-neutral-700">{t('recipes.rating.title')}</h3>
 
       {/* Star row */}
       <div className="mb-4 flex gap-1" onMouseLeave={() => setHovered(null)}>
@@ -61,7 +63,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
           <button
             key={star}
             type="button"
-            aria-label={`${star} star`}
+            aria-label={t('recipes.rating.starLabel', { count: star })}
             aria-pressed={selected === star}
             onMouseEnter={() => setHovered(star)}
             onClick={() => {
@@ -79,7 +81,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
         ))}
         {selected > 0 && (
           <span className="ml-2 self-center text-sm text-neutral-500">
-            {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][selected]}
+            {t(`recipes.rating.labels.${selected as 1 | 2 | 3 | 4 | 5}`)}
           </span>
         )}
       </div>
@@ -87,7 +89,9 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
       {/* Who liked it (F2) — optional member chips, stored in the notes */}
       {members.length > 0 && (
         <div className="mb-3">
-          <p className="mb-1.5 text-xs font-medium text-neutral-500">Who liked it?</p>
+          <p className="mb-1.5 text-xs font-medium text-neutral-500">
+            {t('recipes.rating.whoLiked')}
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {['Me', ...members.map((m) => m.name)].map((name) => {
               const active = likedBy.includes(name);
@@ -103,7 +107,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
                       : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'
                   }`}
                 >
-                  {name}
+                  {name === 'Me' ? t('recipes.rating.me') : name}
                 </button>
               );
             })}
@@ -118,7 +122,8 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
           setNotes(e.target.value);
           setSaved(false);
         }}
-        placeholder="Any notes? (optional)"
+        placeholder={t('recipes.rating.notesPlaceholder')}
+        aria-label={t('recipes.rating.notesLabel')}
         rows={2}
         className="mb-3 w-full resize-none rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
       />
@@ -135,7 +140,11 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
           disabled={selected === 0 || rateMutation.isPending || saved}
           className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
-          {rateMutation.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Rating'}
+          {rateMutation.isPending
+            ? t('common.states.saving')
+            : saved
+              ? t('recipes.rating.saved')
+              : t('recipes.rating.saveWeb')}
         </button>
         {rateMutation.isError && (
           <span className="text-xs text-red-600">{userFacingErrorMessage(rateMutation.error)}</span>
@@ -144,11 +153,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
 
       {/* §6.5: the P1-1 pitch at the exact moment they generated the signal */}
       {justRated && isPremium === false && (
-        <UpgradeNudge
-          source="post-rating"
-          message="Premium turns your ratings into next week's menu."
-          className="mt-4"
-        />
+        <UpgradeNudge source="post-rating" message={t('recipes.rating.nudge')} className="mt-4" />
       )}
     </div>
   );

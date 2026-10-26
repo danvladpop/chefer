@@ -11,6 +11,7 @@ import {
   startCookTimer,
   type CookTimer,
 } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
 import { ensureRestNotificationPermission, hasRestNotificationPermission } from '../gym/rest-timer';
 
 // UX-COOK-01: step timers live at SCREEN level as absolute `endsAt` stamps.
@@ -47,7 +48,7 @@ async function scheduleEndNotification(
     if (!granted) return null;
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-        name: 'Cooking timers',
+        name: getTranslator().t('cook.timer.channelName'),
         importance: Notifications.AndroidImportance.HIGH,
         sound: 'default',
         vibrationPattern: [0, 250, 150, 250],
@@ -55,8 +56,8 @@ async function scheduleEndNotification(
     }
     return await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Timer done',
-        body: `Step ${step + 1} of ${recipeName} is ready.`,
+        title: getTranslator().t('cook.timer.doneTitle'),
+        body: getTranslator().t('cook.timer.doneBody', { step: step + 1, name: recipeName }),
         sound: true,
         data: { kind: 'cook-timer' },
       },

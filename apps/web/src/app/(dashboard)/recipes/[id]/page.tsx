@@ -22,6 +22,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import {
   ArrowLeft,
@@ -145,7 +146,15 @@ function cookQuery(meal: string | null, portion: number, servings: number | null
   return query ? `?${query}` : '';
 }
 
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+type MealTypeKey = (typeof MEAL_TYPES)[number];
+function asMealType(raw: string | null): MealTypeKey | null {
+  return MEAL_TYPES.find((m) => m === raw) ?? null;
+}
+
+/** A marker to split a translated sentence around an element (word order differs by language). */
+const SLOT = '\u0000';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -154,6 +163,7 @@ interface RecipePageProps {
 }
 
 export default function RecipeDetailPage({ params }: RecipePageProps) {
+  const { t } = useT();
   const { id } = use(params);
   const hasMounted = useHasMounted();
   const router = useRouter();
@@ -175,9 +185,16 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const hasSwapContext = Boolean(planId && day !== null && meal);
 
   // ── Context label ──────────────────────────────────────────────────────────
-  const dayLabel = dayParam !== null ? (DAY_NAMES[dayParam] ?? '') : '';
-  const mealLabel = meal ? meal.charAt(0).toUpperCase() + meal.slice(1) : '';
-  const contextLabel = dayLabel && mealLabel ? `${mealLabel} · ${dayLabel}` : '';
+  const dayKey = dayParam !== null ? DAY_KEYS[dayParam] : undefined;
+  const mealKey = asMealType(meal);
+  const dayLabel = dayKey ? t(`common.weekdays.${dayKey}`) : '';
+  const mealLabel = mealKey
+    ? t(`recipes.mealTypes.${mealKey}`)
+    : meal
+      ? meal.charAt(0).toUpperCase() + meal.slice(1)
+      : '';
+  const contextLabel =
+    dayLabel && mealLabel ? t('recipes.detail.context', { meal: mealLabel, day: dayLabel }) : '';
 
   const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: recipe, isLoading, isError } = recipeQuery;
@@ -209,7 +226,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     meta: { silent: true },
     onSuccess: () => {
       // The Undo toast lives on the cookbook, which this page navigates to.
-      writeRecipeDeleteUndo({ recipeId: id, name: recipe?.name ?? 'Recipe' });
+      writeRecipeDeleteUndo({
+        recipeId: id,
+        name: recipe?.name ?? t('recipes.detail.fallbackName'),
+      });
       void utils.recipe.list.invalidate();
       void utils.mealPlan.getForWeek.invalidate();
       setDeleteOpen(false);
@@ -350,7 +370,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         return;
       }
       await navigator.clipboard.writeText(text);
-      setShareToast('Recipe copied to the clipboard.');
+      setShareToast(t('recipes.detail.copied'));
     } catch {
       // A dismissed share sheet rejects — nothing to report.
     }
@@ -362,7 +382,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   // ── Back destination ───────────────────────────────────────────────────────
   const backHref = planId ? '/meal-plan' : '/recipes';
-  const backLabel = planId ? 'Back to Meal Planner' : 'Back to Recipes';
+  const backLabel = planId ? t('recipes.detail.backToPlanner') : t('recipes.detail.backToRecipes');
 
   // ── Loading ────────────────────────────────────────────────────────────────
   // `!hasMounted` keeps the hydration render identical to the SSR HTML even
@@ -391,7 +411,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
       >
         <ErrorState
-          title="Couldn't load this recipe"
+          title={t('recipes.detail.loadError')}
           onRetry={() => void recipeQuery.refetch()}
           retrying={recipeQuery.isRefetching}
         />
@@ -411,7 +431,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         data-testid="recipe-not-found"
         className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
       >
-        <p className="text-gray-500">Recipe not found.</p>
+        <p className="text-gray-500">{t('recipes.detail.notFound')}</p>
         <Link
           href={backHref}
           className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
@@ -424,6 +444,25 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const { nutritionInfo: n } = recipe;
+  const portionNoteParts = t('recipes.detail.portionNote', {
+    portion: SLOT,
+    kcal: scaleNutrition(n, planPortion).calories,
+    protein: Math.round(scaleNutrition(n, planPortion).protein),
+  }).split(SLOT);
+  /** Four whole sentences, not fragments: the table and "adjusted" parts are optional. */
+  const householdNote = (people: number, table: string | null, adjusted: string | null) => {
+    if (table && adjusted) {
+      return t('recipes.detail.householdTableAdjusted', {
+        count: people,
+        table,
+        servings: adjusted,
+      });
+    }
+    if (table) return t('recipes.detail.householdTable', { count: people, table });
+    if (adjusted)
+      return t('recipes.detail.householdAdjusted', { count: people, servings: adjusted });
+    return t('recipes.detail.household', { count: people });
+  };
 
   /** "Added to Tue lunch" with Undo, which restores a replaced slot too. */
   const onAddedToWeek = (result: AddToWeekResult) => {
@@ -463,7 +502,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       const plan = await utils.mealPlan.getForWeek.fetch({ weekOffset: 0 });
       if (!plan) {
         setWeekToast({
-          message: 'Make a plan first, then add ingredients to its list.',
+          message: t('recipes.detail.needPlan'),
           type: 'error',
         });
         return;
@@ -474,12 +513,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       }
       void utils.shoppingList.getForWeek.invalidate();
       setWeekToast({
-        message: `Added ${lines.length} ingredient${lines.length === 1 ? '' : 's'} to your shopping list`,
+        message: t('recipes.detail.addedToList', { count: lines.length }),
         type: 'success',
       });
     } catch (error) {
       setWeekToast({
-        message: userFacingErrorMessage(error, 'Couldn’t add them to the list. Try again.'),
+        message: userFacingErrorMessage(error, t('recipes.detail.addToListError')),
         type: 'error',
       });
     } finally {
@@ -497,7 +536,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {/* Full label plus the context pill overflows a 375px row */}
-          <span className="sm:hidden">Back</span>
+          <span className="sm:hidden">{t('common.actions.back')}</span>
           <span className="hidden sm:inline">{backLabel}</span>
         </Link>
 
@@ -533,7 +572,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               <span
                 className={`rounded-full px-3 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal] ?? 'bg-gray-100 text-gray-600'}`}
               >
-                {meal}
+                {mealKey ? t(`recipes.mealTypes.${mealKey}`) : meal}
               </span>
             )}
             <span className="rounded-full bg-[#fff3e8] px-3 py-0.5 text-xs font-medium text-[#944a00]">
@@ -561,7 +600,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               data-testid="recipe-source"
               className="mt-1 inline-flex min-h-11 items-center text-sm text-[#944a00] underline"
             >
-              Source: {sourceDomainOf(recipe.sourceUrl)}
+              {t('recipes.detail.source', { domain: sourceDomainOf(recipe.sourceUrl) ?? '' })}
             </a>
           ) : null}
           {recipe.deleted ? (
@@ -569,7 +608,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               data-testid="recipe-deleted-banner"
               className="mt-2 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800"
             >
-              This recipe was deleted. It stays in the plan slots that already use it.
+              {t('recipes.detail.deletedBanner')}
             </p>
           ) : null}
           <AllergenWarningBanner
@@ -608,7 +647,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             }`}
           >
             <Heart className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#944a00]' : ''}`} />
-            {isSaved ? 'Saved' : 'Save'}
+            {isSaved ? t('common.states.saved') : t('common.actions.save')}
           </button>
 
           {/* Owner dogfood 2026-09-30: your own recipes are editable from
@@ -620,7 +659,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
             >
               <Pencil className="h-3.5 w-3.5" />
-              Edit
+              {t('common.actions.edit')}
             </Link>
           ) : null}
 
@@ -633,7 +672,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
             >
               <CalendarPlus className="h-3.5 w-3.5" />
-              Add to my week
+              {t('recipes.detail.addToWeek')}
             </button>
           ) : null}
           <button
@@ -644,7 +683,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
           >
             <ListPlus className="h-3.5 w-3.5" />
-            {addingToList ? 'Adding…' : 'Add ingredients to list'}
+            {addingToList ? t('recipes.detail.adding') : t('recipes.detail.addToList')}
           </button>
 
           {/* UX-REC-04: Duplicate opens the create form prefilled as "Copy of …". */}
@@ -655,7 +694,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
             >
               <Copy className="h-3.5 w-3.5" />
-              Duplicate
+              {t('recipes.detail.duplicate')}
             </Link>
           ) : null}
 
@@ -667,7 +706,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
           >
             <Share2 className="h-3.5 w-3.5" />
-            Share
+            {t('recipes.detail.share')}
           </button>
           {savedData?.canEdit ? (
             <button
@@ -680,7 +719,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:text-red-700"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete
+              {t('common.actions.delete')}
             </button>
           ) : null}
 
@@ -688,11 +727,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               from the reporter's plans, swaps and suggestions at once. */}
           <button
             onClick={() => setReportOpen(true)}
-            aria-label="Report a safety problem"
+            aria-label={t('recipes.detail.reportLabel')}
             className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:text-red-700"
           >
             <Flag className="h-3.5 w-3.5" />
-            Report
+            {t('recipes.detail.report')}
           </button>
 
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
@@ -701,7 +740,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
           >
             <ChefHat className="h-3.5 w-3.5" />
-            Cook
+            {t('recipes.detail.cook')}
           </Link>
 
           {/* Pin for the next generated plan — only meaningful once saved */}
@@ -709,7 +748,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <button
               onClick={() => togglePin.mutate({ recipeId: id, useInNextPlan: !isPinned })}
               disabled={togglePin.isPending}
-              title="Pinned recipes are guaranteed a slot in your next generated plan"
+              title={t('recipes.detail.pinHint')}
               className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm disabled:opacity-60 ${
                 isPinned
                   ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
@@ -717,7 +756,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               }`}
             >
               <Pin className={`h-3.5 w-3.5 ${isPinned ? 'fill-[#944a00]' : ''}`} />
-              {isPinned ? 'Pinned for next plan' : 'Pin for next plan'}
+              {isPinned ? t('recipes.detail.pinned') : t('recipes.detail.pin')}
             </button>
           )}
 
@@ -731,7 +770,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
               >
                 <Library className="h-3.5 w-3.5" />
-                Choose Recipe
+                {t('recipes.detail.chooseRecipe')}
               </button>
 
               {/* AI Swap */}
@@ -759,11 +798,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${swapMutation.isPending ? 'animate-spin' : ''}`}
                 />
-                {swapMutation.isPending ? 'Swapping…' : 'Swap Recipe'}
+                {swapMutation.isPending ? t('recipes.detail.swapping') : t('recipes.detail.swap')}
               </button>
               {swapMutation.isError && (
                 <p className="w-full text-center text-xs text-red-500">
-                  {userFacingErrorMessage(swapMutation.error, 'Swap failed. Please try again.')}
+                  {userFacingErrorMessage(swapMutation.error, t('recipes.detail.swapFailed'))}
                 </p>
               )}
 
@@ -771,7 +810,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                   pool — the moment of need for the AI alternative. */}
               {isPremium === false && (
                 <span className="flex w-full items-center justify-center gap-2 pt-1 text-xs text-gray-500">
-                  Free swaps pick from the chef-curated pool.
+                  {t('recipes.detail.freeSwaps')}
                   <UpgradeButton className="px-2 py-1 text-xs" source="swap" />
                 </span>
               )}
@@ -784,18 +823,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       <div className="mb-8 grid grid-cols-3 divide-x rounded-xl border bg-white">
         <Stat
           icon={<Clock className="h-4 w-4 text-gray-500" />}
-          label="Total time"
-          value={`${totalTime} min`}
+          label={t('recipes.detail.totalTime')}
+          value={t('recipes.detail.minutes', { mins: totalTime })}
         />
         <Stat
           icon={<Users className="h-4 w-4 text-gray-500" />}
-          label="Servings"
+          label={t('recipes.detail.servings')}
           value={formatFractionalQuantity(selectedServings)}
         />
         <Stat
           icon={<Flame className="h-4 w-4 text-[#944a00]" />}
-          label="Calories"
-          value={`${n.calories} kcal`}
+          label={t('recipes.detail.calories')}
+          value={t('recipes.card.kcal', { value: n.calories })}
         />
       </div>
 
@@ -805,8 +844,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <p className="-mt-6 mb-8 flex items-center gap-1.5 text-xs text-gray-500">
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0">
-            Everyone&apos;s allergies at your table of {peopleCount} are checked. Premium scales the
-            quantities to all of you — use the servings control to adjust by hand.
+            {t('recipes.detail.tableChecked', { count: peopleCount })}
           </span>
         </p>
       )}
@@ -814,12 +852,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <p className="-mt-6 mb-8 flex items-center gap-1.5 text-xs text-gray-500">
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0">
-            Quantities are set for your household of {peopleCount}
-            {tableLine ? ` (${tableLine})` : ''}
-            {selectedServings !== defaultServings
-              ? ` — adjusted to ${formatFractionalQuantity(selectedServings)} servings`
-              : ''}
-            . Nutrition facts stay per serving.
+            {householdNote(
+              peopleCount,
+              tableLine,
+              selectedServings !== defaultServings
+                ? formatFractionalQuantity(selectedServings)
+                : null,
+            )}
           </span>
         </p>
       )}
@@ -830,17 +869,19 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           data-testid="plan-portion-note"
           className="-mt-6 mb-8 rounded-xl bg-[#fff3e8] px-3 py-2 text-xs text-[#944a00]"
         >
-          Your plan has a <strong>{formatPortion(planPortion)} portion</strong> here —{' '}
-          {scaleNutrition(n, planPortion).calories} kcal ·{' '}
-          {Math.round(scaleNutrition(n, planPortion).protein)} g protein. Quantities start at it.
+          {portionNoteParts[0]}
+          <strong>
+            {t('recipes.detail.portionLabel', { portion: formatPortion(planPortion) })}
+          </strong>
+          {portionNoteParts[1]}
         </p>
       )}
 
       {/* Macros — no Fiber (D-18) */}
       <div className="mb-8 grid grid-cols-3 gap-3">
-        <MacroChip label="Protein" value={n.protein} />
-        <MacroChip label="Carbs" value={n.carbs} />
-        <MacroChip label="Fat" value={n.fat} />
+        <MacroChip label={t('recipes.macros.protein')} value={n.protein} />
+        <MacroChip label={t('recipes.macros.carbs')} value={n.carbs} />
+        <MacroChip label={t('recipes.macros.fat')} value={n.fat} />
       </div>
 
       {/* Two-column layout */}
@@ -848,12 +889,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         {/* Ingredients */}
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-serif text-lg font-semibold text-gray-900">Ingredients</h2>
+            <h2 className="font-serif text-lg font-semibold text-gray-900">
+              {t('recipes.detail.ingredients')}
+            </h2>
             {/* Servings adjuster — was 20x20px per button */}
             <div className="flex items-center gap-1 rounded-xl border px-1">
               <button
                 onClick={() => setServings(clampCookServings(selectedServings - 1))}
-                aria-label="Decrease servings"
+                aria-label={t('recipes.detail.decreaseServings')}
                 className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 −
@@ -863,7 +906,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               </span>
               <button
                 onClick={() => setServings(clampCookServings(selectedServings + 1))}
-                aria-label="Increase servings"
+                aria-label={t('recipes.detail.increaseServings')}
                 className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 +
@@ -873,11 +916,17 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           {/* UX-REC-11: say what the stepper changed, with the totals. */}
           {selectedServings !== baseServings ? (
             <p data-testid="recipe-servings-note" className="mb-3 text-xs text-gray-500">
-              Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes {baseServings})
-              — amounts are scaled
               {n.calories > 0
-                ? `; about ${Math.round(scaleNutrition(n, selectedServings).calories)} kcal and ${Math.round(scaleNutrition(n, selectedServings).protein)} g protein in total.`
-                : '.'}
+                ? t('recipes.detail.servingsNoteTotals', {
+                    servings: formatFractionalQuantity(selectedServings),
+                    base: baseServings,
+                    kcal: Math.round(scaleNutrition(n, selectedServings).calories),
+                    protein: Math.round(scaleNutrition(n, selectedServings).protein),
+                  })
+                : t('recipes.detail.servingsNote', {
+                    servings: formatFractionalQuantity(selectedServings),
+                    base: baseServings,
+                  })}
             </p>
           ) : null}
           <ul className="space-y-2">
@@ -896,7 +945,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
         {/* Instructions */}
         <section>
-          <h2 className="mb-4 font-serif text-lg font-semibold text-gray-900">Instructions</h2>
+          <h2 className="mb-4 font-serif text-lg font-semibold text-gray-900">
+            {t('recipes.detail.instructions')}
+          </h2>
           <ol className="space-y-4">
             {recipe.instructions.map((step, i) => (
               <li key={i} className="flex gap-3 text-sm leading-relaxed">
@@ -928,13 +979,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {swapMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {userFacingErrorMessage(swapMutation.error, 'Failed to swap recipe. Please try again.')}
+            {userFacingErrorMessage(swapMutation.error, t('recipes.detail.swapFailedLong'))}
           </p>
           <button
             onClick={() => swapMutation.reset()}
             className="touch-target relative text-xs text-red-600 hover:underline"
           >
-            Dismiss
+            {t('recipes.detail.dismiss')}
           </button>
         </div>
       )}
@@ -943,16 +994,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {replaceMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {userFacingErrorMessage(
-              replaceMutation.error,
-              'Failed to replace recipe. Please try again.',
-            )}
+            {userFacingErrorMessage(replaceMutation.error, t('recipes.detail.replaceFailed'))}
           </p>
           <button
             onClick={() => replaceMutation.reset()}
             className="touch-target relative text-xs text-red-600 hover:underline"
           >
-            Dismiss
+            {t('recipes.detail.dismiss')}
           </button>
         </div>
       )}
@@ -960,11 +1008,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {/* Swap undo (F-2): brief window to restore the replaced recipe */}
       {swapUndo && planId && dayParam !== null && meal && (
         <Toast
-          message={swapUndo.fitLine ?? 'Meal swapped.'}
+          message={swapUndo.fitLine ?? t('recipes.detail.swapped')}
           duration={6000}
           onClose={() => setSwapUndo(null)}
           action={{
-            label: undoMutation.isPending ? 'Undoing…' : 'Undo',
+            label: undoMutation.isPending ? t('recipes.detail.undoing') : t('recipes.list.undo'),
             onClick: () => {
               if (undoMutation.isPending) return;
               void undoSwap(swapUndo, dayParam, meal);
@@ -987,8 +1035,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         onClose={() => {
           if (!deleteMine.isPending) setDeleteOpen(false);
         }}
-        title="Delete this recipe?"
-        description={`“${recipe.name}” will be removed from your cookbook, lists and suggestions. Plan slots that already use it keep it. You can undo right after.`}
+        title={t('recipes.detail.deleteTitle')}
+        description={t('recipes.detail.deleteBody', { name: recipe.name })}
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
@@ -997,7 +1045,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               onClick={() => setDeleteOpen(false)}
               className="min-h-11 rounded-xl border bg-white px-5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
             >
-              Keep it
+              {t('recipes.detail.keepIt')}
             </button>
             <button
               type="button"
@@ -1006,14 +1054,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               onClick={() => deleteMine.mutate({ recipeId: id })}
               className="min-h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
             >
-              {deleteMine.isPending ? 'Deleting…' : 'Delete'}
+              {deleteMine.isPending ? t('recipes.detail.deleting') : t('common.actions.delete')}
             </button>
           </div>
         }
       >
         {deleteMine.isError ? (
           <p role="alert" data-testid="recipe-delete-error" className="text-sm text-red-600">
-            {userFacingErrorMessage(deleteMine.error, 'Couldn’t delete the recipe. Try again.')}
+            {userFacingErrorMessage(deleteMine.error, t('recipes.detail.deleteError'))}
           </p>
         ) : null}
       </Sheet>
@@ -1024,7 +1072,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           type={weekToast.type}
           duration={weekToast.undo ? 10_000 : 4_000}
           onClose={() => setWeekToast(null)}
-          {...(weekToast.undo ? { action: { label: 'Undo', onClick: weekToast.undo } } : {})}
+          {...(weekToast.undo
+            ? { action: { label: t('recipes.list.undo'), onClick: weekToast.undo } }
+            : {})}
         />
       ) : null}
       <AddToWeekSheet
@@ -1094,6 +1144,8 @@ function SavedRecipePicker({
   search,
   onSearchChange,
 }: SavedRecipePickerProps) {
+  const { t } = useT();
+  const replacingParts = t('recipes.detail.picker.replacing', { label: SLOT }).split(SLOT);
   const { data: savedRecipes, isLoading: loadingSaved } = trpc.recipe.list.useQuery({
     savedOnly: true,
     search: search || undefined,
@@ -1121,19 +1173,21 @@ function SavedRecipePicker({
     <Sheet
       open
       onClose={onClose}
-      title="Choose a Recipe"
+      title={t('recipes.detail.picker.title')}
       description={
         contextLabel ? (
           <>
-            Replacing <span className="font-medium text-[#944a00]">{contextLabel}</span>
+            {replacingParts[0]}
+            <span className="font-medium text-[#944a00]">{contextLabel}</span>
+            {replacingParts[1]}
           </>
         ) : undefined
       }
       footer={
         <p className="text-center text-xs text-gray-500">
           {combined.length > 0
-            ? `${combined.length} recipe${combined.length === 1 ? '' : 's'} · saved & yours`
-            : 'Save or create recipes to use them here'}
+            ? t('recipes.detail.picker.count', { count: combined.length })
+            : t('recipes.detail.picker.footerEmpty')}
         </p>
       }
     >
@@ -1144,7 +1198,8 @@ function SavedRecipePicker({
             <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
             <input
               type="text"
-              placeholder="Search your recipes…"
+              placeholder={t('recipes.detail.picker.searchPlaceholder')}
+              aria-label={t('recipes.detail.picker.searchPlaceholder')}
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
@@ -1171,11 +1226,9 @@ function SavedRecipePicker({
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
               <Library className="h-8 w-8 text-gray-300" />
               <p className="text-sm text-gray-500">
-                {search ? 'No recipes match your search.' : 'No recipes in your collection yet.'}
+                {search ? t('recipes.detail.picker.noMatch') : t('recipes.detail.picker.noRecipes')}
               </p>
-              <p className="text-xs text-gray-500">
-                Save recipes with ♥ or create your own under My Recipes.
-              </p>
+              <p className="text-xs text-gray-500">{t('recipes.detail.picker.hint')}</p>
             </div>
           ) : (
             <ul className="divide-y">
@@ -1201,13 +1254,15 @@ function SavedRecipePicker({
                         <p className="truncate text-sm font-medium text-gray-900">{r.name}</p>
                         {r._source === 'mine' && (
                           <span className="shrink-0 rounded-full bg-[#fff3e8] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00]">
-                            Mine
+                            {t('recipes.detail.picker.mine')}
                           </span>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        {r.cuisineType} ·{' '}
-                        {(r.nutritionInfo as { calories?: number }).calories ?? '—'} kcal
+                        {t('recipes.detail.picker.meta', {
+                          cuisine: r.cuisineType,
+                          kcal: (r.nutritionInfo as { calories?: number }).calories ?? '—',
+                        })}
                       </p>
                     </div>
                   </button>

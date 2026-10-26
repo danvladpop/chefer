@@ -11,6 +11,7 @@ import {
 } from '@/features/recipes/lib/recipe-delete-undo';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Clock, Compass, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
 import { ErrorState, Toast } from '@chefer/ui';
@@ -27,28 +28,10 @@ type Tab = 'all' | 'saved' | 'my' | 'discover';
 // a "Load more" button, and each tab says what it holds — "My Recipes" is what
 // you wrote or imported, so the AI dishes your plans made live under "All".
 const PAGE_SIZE = 30;
-const TAB_CAPTIONS: Record<Tab, string> = {
-  all: 'Everything from your plans, your own recipes and your favourites.',
-  saved: 'Recipes you have hearted.',
-  my: 'Recipes you wrote or imported. Dishes from your plans are under All.',
-  discover: 'Curated dishes, already filtered for you and your household.',
-};
-
-const TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'saved', label: '♥ Saved' },
-  { key: 'my', label: '✎ My Recipes' },
-  { key: 'discover', label: 'Discover' },
-] as const;
+const TABS = ['all', 'saved', 'my', 'discover'] as const;
 
 type MealFilter = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-const MEAL_FILTERS: { key: MealFilter | null; label: string }[] = [
-  { key: null, label: 'Any meal' },
-  { key: 'breakfast', label: 'Breakfast' },
-  { key: 'lunch', label: 'Lunch' },
-  { key: 'dinner', label: 'Dinner' },
-  { key: 'snack', label: 'Snack' },
-];
+const MEAL_FILTERS: (MealFilter | null)[] = [null, 'breakfast', 'lunch', 'dinner', 'snack'];
 const QUICK_MINS = 30;
 
 /** The fields a recipe card needs — shared by recipe.list and recipe.discover rows. */
@@ -65,6 +48,7 @@ interface CardRecipe {
 }
 
 export default function RecipesPage() {
+  const { t } = useT();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -193,9 +177,11 @@ export default function RecipesPage() {
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-            Your Collection
+            {t('recipes.list.eyebrow')}
           </p>
-          <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">Cookbook</h1>
+          <h1 className="font-serif text-xl font-bold text-gray-900 sm:text-2xl">
+            {t('recipes.list.title')}
+          </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Import (F5 Cheferize) — visible on every tier: free users get the
@@ -205,15 +191,15 @@ export default function RecipesPage() {
             className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#944a00]/30 bg-white px-4 text-sm font-semibold text-[#944a00] shadow-sm transition-colors hover:bg-[#fff3e8]"
           >
             <Link2 className="h-4 w-4" />
-            Import
+            {t('recipes.list.import')}
           </button>
           <Link
             href="/recipes/new"
             className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a3d00]"
           >
             <Plus className="h-4 w-4" />
-            <span className="sm:hidden">New</span>
-            <span className="hidden sm:inline">Create Recipe</span>
+            <span className="sm:hidden">{t('recipes.list.newShort')}</span>
+            <span className="hidden sm:inline">{t('recipes.list.create')}</span>
           </Link>
         </div>
       </div>
@@ -222,7 +208,7 @@ export default function RecipesPage() {
 
       {/* Tabs */}
       <div className="scroll-rail mb-4 gap-1 border-b">
-        {TABS.map(({ key, label }) => (
+        {TABS.map((key) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
@@ -233,13 +219,13 @@ export default function RecipesPage() {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {label}
+            {t(`recipes.list.tabs.${key}`)}
           </button>
         ))}
       </div>
 
       <p data-testid="recipes-tab-caption" className="-mt-2 mb-4 text-xs text-gray-500">
-        {TAB_CAPTIONS[tab]}
+        {t(`recipes.list.captions.${tab}`)}
       </p>
 
       {/* Search */}
@@ -252,8 +238,12 @@ export default function RecipesPage() {
           type="search"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder={tab === 'discover' ? 'Search dishes or ingredients…' : 'Search recipes…'}
-          aria-label="Search recipes"
+          placeholder={
+            tab === 'discover'
+              ? t('recipes.list.searchDiscoverPlaceholder')
+              : t('recipes.list.searchPlaceholder')
+          }
+          aria-label={t('recipes.list.searchLabel')}
           className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-[#944a00] focus:outline-none"
         />
       </div>
@@ -262,13 +252,13 @@ export default function RecipesPage() {
       {tab === 'discover' && (
         <div
           role="group"
-          aria-label="Filter the collection"
+          aria-label={t('recipes.list.filterLabel')}
           data-testid="discover-filters"
           className="scroll-rail -mt-2 mb-6 gap-2"
         >
-          {MEAL_FILTERS.map(({ key, label }) => (
+          {MEAL_FILTERS.map((key) => (
             <button
-              key={label}
+              key={key ?? 'any'}
               type="button"
               onClick={() => setMealFilter(key)}
               aria-pressed={mealFilter === key}
@@ -279,7 +269,7 @@ export default function RecipesPage() {
                   : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
               )}
             >
-              {label}
+              {t(`recipes.list.mealFilters.${key ?? 'any'}`)}
             </button>
           ))}
           <button
@@ -293,7 +283,8 @@ export default function RecipesPage() {
                 : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
             )}
           >
-            <Clock className="h-3.5 w-3.5" aria-hidden="true" />≤ {QUICK_MINS} min
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('recipes.list.quickFilter', { mins: QUICK_MINS })}
           </button>
         </div>
       )}
@@ -314,7 +305,7 @@ export default function RecipesPage() {
         <RecipeGridSkeleton />
       ) : cardsError && !cards ? (
         <ErrorState
-          title="Couldn't load your recipes"
+          title={t('recipes.list.loadError')}
           onRetry={() => void (tab === 'discover' ? discover.refetch() : refetch())}
           retrying={tab === 'discover' ? discover.isRefetching : isRefetching}
         />
@@ -357,7 +348,7 @@ export default function RecipesPage() {
                         href={`/recipes/${recipe.id}/edit`}
                         onClick={(e) => e.stopPropagation()}
                         className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:scale-110 sm:h-8 sm:w-8"
-                        aria-label="Edit recipe"
+                        aria-label={t('recipes.list.editRecipe')}
                       >
                         <Pencil className="h-4 w-4 text-[#944a00]" />
                       </Link>
@@ -369,7 +360,9 @@ export default function RecipesPage() {
                       }}
                       aria-pressed={isSaved}
                       className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:scale-110 sm:h-8 sm:w-8"
-                      aria-label={isSaved ? 'Remove from favourites' : 'Save to favourites'}
+                      aria-label={
+                        isSaved ? t('recipes.list.unfavourite') : t('recipes.list.favourite')
+                      }
                     >
                       <Heart
                         className={`h-4 w-4 ${isSaved ? 'fill-[#944a00] text-[#944a00]' : 'text-gray-500'}`}
@@ -389,18 +382,20 @@ export default function RecipesPage() {
                   <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {recipe.prepTimeMins + recipe.cookTimeMins}m
+                      {t('recipes.card.minutesShort', {
+                        mins: recipe.prepTimeMins + recipe.cookTimeMins,
+                      })}
                     </span>
                     <span className="flex items-center gap-1">
                       <Flame className="h-3 w-3 text-[#944a00]" />
-                      {n.calories} kcal
+                      {t('recipes.card.kcal', { value: n.calories })}
                     </span>
                   </div>
                   {/* Macro chips */}
                   <div className="mt-2 flex gap-1.5">
-                    <Chip label="P" value={n.protein} />
-                    <Chip label="C" value={n.carbs} />
-                    <Chip label="F" value={n.fat} />
+                    <Chip text={t('recipes.card.protein', { value: n.protein })} />
+                    <Chip text={t('recipes.card.carbs', { value: n.carbs })} />
+                    <Chip text={t('recipes.card.fat', { value: n.fat })} />
                   </div>
                 </Link>
               </div>
@@ -417,17 +412,17 @@ export default function RecipesPage() {
             disabled={list.isFetchingNextPage}
             className="min-h-11 rounded-xl border border-[#944a00]/30 bg-white px-6 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
           >
-            {list.isFetchingNextPage ? 'Loading…' : 'Load more recipes'}
+            {list.isFetchingNextPage ? t('common.states.loading') : t('recipes.list.loadMore')}
           </button>
         </div>
       ) : null}
       {deleted ? (
         <Toast
-          message={`Deleted “${deleted.name}”`}
+          message={t('recipes.list.deleted', { name: deleted.name })}
           duration={10_000}
           onClose={() => setDeleted(null)}
           action={{
-            label: restore.isPending ? 'Restoring…' : 'Undo',
+            label: restore.isPending ? t('recipes.list.restoring') : t('recipes.list.undo'),
             onClick: () => {
               if (restore.isPending) return;
               restore.mutate({ recipeId: deleted.recipeId });
@@ -449,12 +444,8 @@ export default function RecipesPage() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Chip({ label, value }: { label: string; value: number }) {
-  return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-      {label} {value}g
-    </span>
-  );
+function Chip({ text }: { text: string }) {
+  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{text}</span>;
 }
 
 function EmptyState({
@@ -474,6 +465,7 @@ function EmptyState({
   onShowRules: () => void;
   onTab: (tab: Tab) => void;
 }) {
+  const { t } = useT();
   // UX-REC-09: with no search or filter set, an empty Discover means the diet
   // filters removed everything — say so, with a way to the settings.
   if (tab === 'discover' && !searching && !filtered && hidden && hidden.hiddenCount > 0) {
@@ -483,7 +475,7 @@ function EmptyState({
         className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 px-4 py-16 text-center"
       >
         <Compass className="h-10 w-10 text-gray-300" aria-hidden="true" />
-        <p className="font-medium text-gray-700">Your diet settings hide every dish</p>
+        <p className="font-medium text-gray-700">{t('recipes.list.empty.dietHidesTitle')}</p>
         <FilteredForLine
           filters={hidden.filteredFor.join(' + ')}
           hiddenCount={hidden.hiddenCount}
@@ -493,7 +485,7 @@ function EmptyState({
           href="/preferences"
           className="inline-flex min-h-11 items-center rounded-xl border border-[#944a00]/30 px-5 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
         >
-          Review your diet settings
+          {t('recipes.list.empty.dietHidesAction')}
         </Link>
       </div>
     );
@@ -502,11 +494,11 @@ function EmptyState({
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 px-4 py-16 text-center">
         <Compass className="h-10 w-10 text-gray-300" aria-hidden="true" />
-        <p className="font-medium text-gray-700">No dishes match</p>
+        <p className="font-medium text-gray-700">{t('recipes.list.empty.discoverTitle')}</p>
         <p className="text-sm text-gray-500">
           {searching || filtered
-            ? 'Try another word, or clear the filters.'
-            : 'Check back soon — new dishes are added.'}
+            ? t('recipes.list.empty.discoverFiltered')
+            : t('recipes.list.empty.discoverBody')}
         </p>
       </div>
     );
@@ -516,15 +508,13 @@ function EmptyState({
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 py-16 text-center">
         <Heart className="h-10 w-10 text-gray-300" />
-        <p className="font-medium text-gray-700">No saved recipes yet</p>
-        <p className="text-sm text-gray-500">
-          Tap the ♥ on any recipe to save it to your collection.
-        </p>
+        <p className="font-medium text-gray-700">{t('recipes.list.empty.savedTitle')}</p>
+        <p className="text-sm text-gray-500">{t('recipes.list.empty.savedBody')}</p>
         <button
           onClick={() => onTab('all')}
           className="min-h-11 px-2 text-sm text-[#944a00] hover:underline"
         >
-          ← All recipes
+          {t('recipes.list.empty.savedAction')}
         </button>
       </div>
     );
@@ -537,17 +527,15 @@ function EmptyState({
           ✎
         </span>
         <div>
-          <p className="font-medium text-gray-700">No custom recipes yet</p>
-          <p className="mt-1 text-sm text-gray-500">
-            Create your first recipe and it will appear here.
-          </p>
+          <p className="font-medium text-gray-700">{t('recipes.list.empty.myTitle')}</p>
+          <p className="mt-1 text-sm text-gray-500">{t('recipes.list.empty.myBody')}</p>
         </div>
         <Link
           href="/recipes/new"
           className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
         >
           <Plus className="h-4 w-4" />
-          Create Recipe
+          {t('recipes.list.create')}
         </Link>
       </div>
     );
@@ -560,12 +548,10 @@ function EmptyState({
       </span>
       <div>
         <p className="font-medium text-gray-700">
-          {searching ? 'No recipes match your search' : 'No recipes yet'}
+          {searching ? t('recipes.list.empty.searchTitle') : t('recipes.list.empty.allTitle')}
         </p>
         <p className="mt-1 text-sm text-gray-500">
-          {searching
-            ? 'Try another word, or look in Discover.'
-            : 'Recipes from your meal plans appear here. Browse the collection meanwhile.'}
+          {searching ? t('recipes.list.empty.searchBody') : t('recipes.list.empty.allBody')}
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
@@ -575,14 +561,14 @@ function EmptyState({
           className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
         >
           <Compass className="h-4 w-4" aria-hidden="true" />
-          Browse Discover
+          {t('recipes.list.empty.browseDiscover')}
         </button>
         {!searching && (
           <Link
             href="/meal-plan"
             className="inline-flex min-h-11 items-center rounded-xl border border-[#944a00]/30 px-5 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
           >
-            Go to Meal Planner
+            {t('recipes.list.empty.goToPlanner')}
           </Link>
         )}
       </div>
