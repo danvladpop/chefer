@@ -144,6 +144,10 @@ enum ConsentKind {
   // ['FOOD'] / ['WEIGHT'] = the client's opt-in to share that data with the
   // trainer (lane K1), `contextId` = the link (or the request it was asked in).
   COACHING_SHARING
+  // Apple Health / Health Connect sync (C2): every change to the data types the
+  // user turned on, as `providers` (e.g. ["HEALTH_CONNECT", "weight", "steps"]);
+  // granted = at least one type on. Only binaries with health sync write it.
+  HEALTH_SYNC
 }
 
 enum AiCallType {
@@ -217,6 +221,7 @@ model User {
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
   weightEntries        WeightEntry[]
+  bodyMeasurements     BodyMeasurement[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
   aiCallLogs           AiCallLog[]
   aiUsageEvents        AiUsageEvent[]
@@ -653,6 +658,10 @@ model DailyLog {
   // Deliberately NOT part of loggedMeals: shipped clients iterate the entries
   // and sum them, and a skipped meal is not food. Additive, defaults to [].
   skippedSlots Json     @default("[]")
+  // Lane D2: the user marked the day as partly logged. It still counts as a
+  // logged day, but the Adaptive Chef leaves it out of its intake average and
+  // its "complete days" rule. Additive, defaults to false.
+  incomplete   Boolean  @default(false)
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -671,7 +680,7 @@ model ChefReview {
   weekStart              DateTime // UTC midnight of the reviewed week's Monday
   adherencePct           Int
   avgDailyKcal           Int
-  weightTrendKg          Float? // EWMA delta over the window; null until enough data
+  weightTrendKg          Float? // trend-weight rate, kg/week (lane D1); null until enough data
   adjustmentKcal         Int
   savedEur               Float? // pantry savings surfaced in the review (F3 seam)
   reviewText             String
@@ -686,6 +695,9 @@ model ChefReview {
   // written before this column existed read false (unlabelled) until the next
   // weekly review replaces them.
   aiGenerated            Boolean   @default(false)
+  // Lane D2: the deterministic "why" behind the week's suggestion
+  // (@chefer/types coachExplanationSchema). Null on rows written before it.
+  explanation            Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -793,16 +805,54 @@ model PantryItem {
   @@map("pantry_items")
 }
 
+/// Where a weigh-in came from (C2 health sync). Typed in Chefer = MANUAL.
+enum WeightSource {
+  MANUAL
+  APPLE_HEALTH
+  HEALTH_CONNECT
+}
+
 model WeightEntry {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   userId     String
   weightKg   Float
-  recordedAt DateTime @default(now())
+  recordedAt DateTime     @default(now())
+  /// C2: imported weigh-ins carry their source and the sample's id there
+  /// (HealthKit UUID / Health Connect record id), so a re-sync never imports
+  /// the same sample twice. Null for MANUAL.
+  source     WeightSource @default(MANUAL)
+  externalId String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, externalId])
   @@index([userId, recordedAt])
   @@map("weight_entries")
+}
+
+// Lane D3 (market review 2026-10): body measurements, free for everyone.
+// One row per user and local calendar day; every measure is optional (a row
+// holds whatever the user measured that day). Lengths are stored in cm and
+// shown in the user's units. Health data: export, consent withdrawal and
+// account deletion cover it (cascade).
+model BodyMeasurement {
+  id         String   @id @default(cuid())
+  userId     String
+  /// The user's local calendar day (UTC midnight of that date).
+  measuredOn DateTime @db.Date
+  waistCm    Float?
+  hipsCm     Float?
+  chestCm    Float?
+  upperArmCm Float?
+  thighCm    Float?
+  bodyFatPct Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, measuredOn])
+  @@map("body_measurements")
 }
 
 // Sign in with Google / Apple (WP-22). One row per linked provider identity;
@@ -1540,6 +1590,10 @@ model WorkoutSession {
   loggedById        String?
   /// The booking it was coached in, if any (no FK: bookings are pruned with the coaching link).
   bookingId         String?
+  /// G2 workout import: the app the session came from (Strong / Hevy CSV);
+  /// null for everything logged in Chefer. Rewards (Chef XP, the Flame) skip
+  /// imported sessions; history, PRs and progression treat them as any other.
+  importSource      WorkoutImportSource?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -1550,6 +1604,12 @@ model WorkoutSession {
   @@index([userId, localDate])
   @@index([userId, status])
   @@map("workout_sessions")
+}
+
+/// G2: where an imported WorkoutSession came from.
+enum WorkoutImportSource {
+  STRONG
+  HEVY
 }
 
 model SessionExercise {
@@ -2099,6 +2159,78 @@ model BookingClient {
   @@id([bookingId, clientId])
   @@index([clientId, bookingId])
   @@map("booking_clients")
+}
+
+// ─── Curated recipe ingest (market review F1, 2026-10-22) ─────────────────────
+// An admin pastes a recipe-video or web link; the extractor's result waits here
+// as a DRAFT until an admin approves or rejects it. Drafts are never served:
+// approval is the only path that creates the CURATED `recipes` row
+// (`recipeId`), and the free pool loads only APPROVED drafts. See
+// infrastructure.md §7 "Curated recipe ingest".
+
+enum CuratedDraftStatus {
+  /// The extractor is reading the link (background job).
+  EXTRACTING
+  /// Extraction failed; `error` says why. Retry re-runs it.
+  FAILED
+  /// Waiting for review.
+  DRAFT
+  /// In the free pool (`recipeId` is set).
+  APPROVED
+  REJECTED
+  /// Was APPROVED, then taken out of the pool. The recipe row stays, so plans
+  /// that already hold it keep resolving.
+  UNPUBLISHED
+}
+
+/// Whose words the draft's prose is. Approval refuses ORIGINAL: the curated
+/// pool republishes facts, never the creator's text.
+enum CuratedProseStatus {
+  ORIGINAL
+  REWRITTEN
+  EDITED
+}
+
+model CuratedRecipeDraft {
+  id               String             @id @default(cuid())
+  /// Canonical link (the video's post URL once extracted); one draft per link.
+  sourceUrl        String             @unique
+  /// What the admin pasted.
+  submittedUrl     String
+  /// 'video' | 'web'
+  via              String
+  status           CuratedDraftStatus @default(EXTRACTING)
+  /// The editable recipe (CuratedDraftRecipe, @chefer/types); null until extracted.
+  draft            Json?
+  /// breakfast | lunch | dinner | snack — which pool slots it may fill.
+  mealTypes        String[]
+  proseStatus      CuratedProseStatus @default(ORIGINAL)
+  /// What the extractor inferred — the reviewer's checklist.
+  assumptions      String[]
+  /// Fields the source did not cover (VideoDraftField values).
+  notFound         String[]
+  platform         String?
+  creator          String?
+  sourceTitle      String?
+  /// caption | subtitles | speech | page
+  transcriptSource String?
+  error            String?
+  rejectReason     String?
+  /// The CURATED recipe created on approval.
+  recipeId         String?            @unique
+  createdById      String?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  /// When the link was last sent to the extractor (first submit or a retry):
+  /// the daily cap (CURATED_INGEST_DAILY_CAP) counts these, and the queue
+  /// sorts by it.
+  submittedAt      DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([submittedAt])
+  @@map("curated_recipe_drafts")
 }
 
 // ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───

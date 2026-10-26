@@ -61,3 +61,15 @@ describe('landing page — route to the app stores (ASO plan §5.2–5.3)', () =
     expect(data).not.toHaveProperty('aggregateRating');
   });
 });
+
+describe('landing page — footer', () => {
+  it('links to the Mealime switch page next to the legal links', async () => {
+    render(await HomePage());
+    expect(screen.getByRole('link', { name: 'Switching from Mealime?' }).getAttribute('href')).toBe(
+      '/switch/mealime',
+    );
+    expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe(
+      '/privacy',
+    );
+  });
+});
