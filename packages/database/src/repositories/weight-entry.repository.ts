@@ -1,4 +1,4 @@
-import type { Prisma, WeightEntry } from '@prisma/client';
+import type { Prisma, WeightEntry, WeightSource } from '@prisma/client';
 import { prisma } from '../client';
 
 export interface CreateWeightEntryData {
@@ -17,8 +17,22 @@ function readCeiling(): Date {
   return new Date(Date.now() + 14 * 60 * 60 * 1000);
 }
 
+/** One weigh-in read from Apple Health / Health Connect (C2). */
+export interface ImportedWeightEntryData {
+  weightKg: number;
+  recordedAt: Date;
+  /** The sample's id in the health store; unique per user. */
+  externalId: string;
+}
+
 export interface IWeightEntryRepository {
   create(data: CreateWeightEntryData): Promise<WeightEntry>;
+  /** Inserts the samples not imported before (by externalId); returns how many were new. */
+  importMany(
+    userId: string,
+    source: WeightSource,
+    entries: ImportedWeightEntryData[],
+  ): Promise<number>;
   /** Owner-scoped update; null when the entry doesn't exist or isn't theirs. */
   updateForUser(
     userId: string,
@@ -42,6 +56,20 @@ export class WeightEntryRepository implements IWeightEntryRepository {
         recordedAt: data.recordedAt ?? new Date(),
       },
     });
+  }
+
+  async importMany(
+    userId: string,
+    source: WeightSource,
+    entries: ImportedWeightEntryData[],
+  ): Promise<number> {
+    if (entries.length === 0) return 0;
+    // @@unique([userId, externalId]) + skipDuplicates: a sample seen before is skipped, never doubled.
+    const { count } = await prisma.weightEntry.createMany({
+      data: entries.map((e) => ({ userId, source, ...e })),
+      skipDuplicates: true,
+    });
+    return count;
   }
 
   async updateForUser(

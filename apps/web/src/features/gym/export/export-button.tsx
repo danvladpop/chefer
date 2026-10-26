@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { Download } from 'lucide-react';
-import { Button } from '@chefer/ui';
+import { Download, FileUp } from 'lucide-react';
+import { Button, buttonVariants } from '@chefer/ui';
+import { cn } from '@chefer/utils';
 import { CardLabel, GymCard } from '../shared/gym-card';
 
 // ─── Gym data export (gym_plan.md §4.2 gym.export.csv, research §5.2 #5) ─────
@@ -63,6 +65,18 @@ export function GymExportCard() {
           Couldn&apos;t export right now — try again in a minute.
         </p>
       )}
+      {/* G2: the way in for people switching from another app. */}
+      <p className="mt-4 text-xs text-gray-500">
+        Coming from Strong or Hevy? Bring your history with you.
+      </p>
+      <Link
+        href="/gym/import"
+        data-testid="gym-import-link"
+        className={cn(buttonVariants({ variant: 'outline' }), 'mt-2')}
+      >
+        <FileUp className="h-4 w-4" aria-hidden="true" />
+        Import workouts
+      </Link>
     </GymCard>
   );
 }

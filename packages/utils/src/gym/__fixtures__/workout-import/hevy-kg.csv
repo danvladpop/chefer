@@ -1,0 +1,13 @@
+"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Bench Press (Barbell)",,"Pause at chest
+keep elbows in",0,"warmup",40,10,,,
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Bench Press (Barbell)",,"Pause at chest
+keep elbows in",1,"normal",80,6,,,8.5
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Bench Press (Barbell)",,"Pause at chest
+keep elbows in",2,"failure",80,5,,,10
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Triceps Rope Pushdown",0,"",0,"normal",25,12,,,
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Lateral Raise (Dumbbell)",0,"",0,"dropset",10,12,,,
+"Push ☀️","22 Sep 2025, 14:05","22 Sep 2025, 15:20","Back, chest, ""fun""","Triceps Rope Pushdown",0,"",1,"normal",25,10,,,
+"Weekend Long","5 Dec 2025, 11:37","5 Dec 2025, 12:55","","Pull Up",,"",0,"normal",,7,,,
+"Weekend Long","5 Dec 2025, 11:37","5 Dec 2025, 12:55","","Running",,"",0,"normal",,,5,1680,
+"Weekend Long","5 Dec 2025, 11:37","5 Dec 2025, 12:55","","Zercher Carry (Barbell)",,"",0,"normal",60,,,40,

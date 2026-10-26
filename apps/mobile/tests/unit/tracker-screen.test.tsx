@@ -332,6 +332,10 @@ jest.mock('../../src/lib/trpc', () => {
             return { log: {}, skippedSlots: mockServer.skippedSlots, rebalance };
           }),
         },
+        // Lane D2: the "Partly logged day" switch under a logged day.
+        setDayIncomplete: {
+          useMutation: mockMutation((vars: { date: string; incomplete: boolean }) => vars),
+        },
         unskipSlot: {
           useMutation: mockMutation((vars: { mealType: string; slotIndex: number }) => {
             mockUnskipSlot(vars);

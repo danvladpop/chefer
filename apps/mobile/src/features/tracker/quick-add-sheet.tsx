@@ -39,7 +39,7 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
-import { trackMealLogged } from '../../lib/analytics-events';
+import { trackMealLogged, type MealLogMethod } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
@@ -317,10 +317,18 @@ export function QuickAddSheet({
         ? 'replaced'
         : 'quick';
   const plannedRowPending = useRef(false);
+  // How the pending log was entered (the "off-plan log by method" breakdown);
+  // set by each log path right before it mutates.
+  const pendingMethod = useRef<MealLogMethod>('quick_add');
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (data, vars) => {
-      trackMealLogged(quickAddSource(vars, plannedRowPending.current), vars.mealType);
+      const fromPlanRow = plannedRowPending.current;
+      trackMealLogged(
+        quickAddSource(vars, fromPlanRow),
+        vars.mealType,
+        fromPlanRow ? undefined : pendingMethod.current,
+      );
       plannedRowPending.current = false;
       onLoggedCommon(data, `Logged ${vars.mealType}`, vars.mealType);
     },
@@ -331,7 +339,7 @@ export function QuickAddSheet({
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
     onSuccess: (data, vars) => {
-      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      trackMealLogged(quickAddSource(vars, false), vars.mealType, pendingMethod.current);
       onLoggedCommon(data, `Logged ${vars.name}`, vars.name);
     },
   });
@@ -374,6 +382,7 @@ export function QuickAddSheet({
 
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
+    pendingMethod.current = 'recent';
     // Aimed at a slot, a recipe from Recent is logged as a custom entry with
     // the recipe's numbers (as they were logged) so the planned slot is
     // REPLACED rather than ticked — and the recipe keeps its name.
@@ -420,6 +429,7 @@ export function QuickAddSheet({
     chosenPortion: number,
   ) => {
     if (isPending) return;
+    pendingMethod.current = 'search';
     if (targetSlot) {
       // Replacing a slot: a custom entry with the recipe's numbers at this portion.
       logCustomMutation.mutate({
@@ -446,6 +456,7 @@ export function QuickAddSheet({
 
   const logIngredientRow = (ingredient: IngredientSearchRow, grams: number) => {
     if (isPending || !ingredient.per100g) return;
+    pendingMethod.current = 'search';
     const scaled = scaleFromPer100g(ingredient.per100g, grams);
     logCustomMutation.mutate({
       date,
@@ -512,6 +523,7 @@ export function QuickAddSheet({
     }
     setErrors({});
     Keyboard.dismiss();
+    pendingMethod.current = 'quick_add';
     if (!sanityOverridden) {
       const sanity = checkMacroSanity(parsed.entry);
       if (!sanity.ok) {
