@@ -2,6 +2,9 @@ import { Linking } from 'react-native';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { SUPPORT_EMAIL } from '@chefer/types';
 import { AppealLink, appealMailto } from '../../src/features/friends/components/appeal-link';
+import { getTranslator } from '../../src/lib/i18n';
+
+const { t } = getTranslator();
 
 // The appeal route for an automatic moderation step (PRD §9): a labelled link
 // that opens a pre-addressed email with a subject saying what is appealed.
@@ -10,10 +13,10 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('AppealLink', () => {
   it('builds a mailto to the support address with an encoded subject', () => {
-    expect(appealMailto('recipe')).toBe(
+    expect(appealMailto('recipe', t)).toBe(
       `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Appeal: hidden recipe')}`,
     );
-    expect(appealMailto('profile')).toBe(
+    expect(appealMailto('profile', t)).toBe(
       `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Appeal: private profile')}`,
     );
   });
@@ -31,6 +34,6 @@ describe('AppealLink', () => {
     );
 
     await userEvent.setup().press(link);
-    expect(openURL).toHaveBeenCalledWith(appealMailto('profile'));
+    expect(openURL).toHaveBeenCalledWith(appealMailto('profile', t));
   });
 });

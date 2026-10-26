@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 
 // The header row of every Following stack screen (the root Stack has
 // `headerShown: false`; screens draw their own, as My weeks does): a 44 pt
@@ -19,12 +20,13 @@ export type FriendsScreenHeaderProps = {
 
 export function FriendsScreenHeader({ title, right, onBack, testID }: FriendsScreenHeaderProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <View testID={testID} className="min-h-14 flex-row items-center gap-1 px-2 pb-1 pt-2">
       <Pressable
         testID={testID ? `${testID}-back` : undefined}
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.actions.back')}
         onPress={onBack ?? (() => router.back())}
         className="h-11 w-11 items-center justify-center"
       >

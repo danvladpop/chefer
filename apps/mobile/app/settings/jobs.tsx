@@ -16,6 +16,7 @@ import { Icon } from '../../src/components/icon';
 import { setMode } from '../../src/features/gym/mode-store';
 import { JobsStep } from '../../src/features/onboarding/jobs-step';
 import { TrainButton } from '../../src/features/shell/train/train-button';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -35,6 +36,7 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 // Back stays a plain `router.back()` the unsaved guard intercepts).
 
 export default function SettingsJobsScreen() {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
@@ -58,8 +60,8 @@ export default function SettingsJobsScreen() {
     jobs !== null &&
     (jobs.length !== originalJobs.length || jobs.some((job) => !originalJobs.includes(job)));
   const guard = useUnsavedGuard(dirty, {
-    title: 'Discard your changes?',
-    message: 'Your selections have not been saved.',
+    title: t('settings.jobs.discardTitle'),
+    message: t('settings.jobs.discardMessage'),
   });
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
@@ -71,8 +73,8 @@ export default function SettingsJobsScreen() {
       const addedFood = wasGymOnly && (jobs?.some((j) => j !== 'TRAIN') ?? false);
       if (addedTrain) {
         snackbar.show({
-          message: 'Set up training now?',
-          actionLabel: 'Set up',
+          message: t('settings.jobs.setUpTrainingPrompt'),
+          actionLabel: t('settings.jobs.setUp'),
           onAction: () => {
             setMode('gym');
             router.replace('/today');
@@ -82,8 +84,8 @@ export default function SettingsJobsScreen() {
         router.back();
       } else if (addedFood) {
         snackbar.show({
-          message: 'Set up your food — 3 quick questions?',
-          actionLabel: 'Set up',
+          message: t('settings.jobs.setUpFoodPrompt'),
+          actionLabel: t('settings.jobs.setUp'),
           onAction: () => router.push('/preferences'),
         });
         router.back();
@@ -99,7 +101,7 @@ export default function SettingsJobsScreen() {
       <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-center bg-canvas">
         <ErrorState
           testID="settings-jobs-load-error"
-          title="Couldn't load your settings"
+          title={t('settings.jobs.loadError')}
           onRetry={retry}
         />
       </Screen>
@@ -123,7 +125,7 @@ export default function SettingsJobsScreen() {
       <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
         <IconButton
           testID="settings-jobs-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => router.back()}
           className="-ml-2"
@@ -133,7 +135,7 @@ export default function SettingsJobsScreen() {
           accessibilityRole="header"
           className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          What you use Chefer for
+          {t('settings.jobs.title')}
         </Text>
       </View>
       {/* UX-ACC-05: the six cards scroll — the last one used to sit under Save,
@@ -148,7 +150,7 @@ export default function SettingsJobsScreen() {
       <View className="gap-2 border-t border-separator bg-surface px-4 pb-2 pt-3">
         <TrainButton
           testID="settings-jobs-save"
-          label="Save"
+          label={t('common.actions.save')}
           size="lg"
           loading={setJobsMutation.isPending}
           disabled={jobs.length === 0 || setJobsMutation.isPending}

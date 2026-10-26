@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useT } from '@/lib/i18n';
 import { Menu } from 'lucide-react';
 import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
@@ -22,6 +23,7 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNavProps) {
+  const { t } = useT();
   const pathname = usePathname();
   const { mode, nav, navBadges, trainerModeAvailable } = useAppMode();
 
@@ -31,7 +33,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t('nav.primary')}
       className={cn(
         'fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-white/80',
         className,
@@ -39,7 +41,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
     >
       <ul key={mode} className={cn('flex h-16', modeSwapFade(trainerModeAvailable))}>
         {nav.tabBar.map((item) => {
-          const { href, label, shortLabel, icon: Icon } = item;
+          const { href, labelKey, shortLabelKey, icon: Icon } = item;
           const active = isItemActive(pathname, item);
           return (
             <li key={href} className="flex-1">
@@ -63,7 +65,9 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
                     className="absolute -right-2.5 -top-1.5"
                   />
                 </span>
-                <span className="text-xs font-medium leading-none">{shortLabel ?? label}</span>
+                <span className="text-xs font-medium leading-none">
+                  {t(shortLabelKey ?? labelKey)}
+                </span>
                 <NavCountText count={navBadges[href] ?? 0} />
               </Link>
             </li>
@@ -86,7 +90,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
               className={cn('h-[22px] w-[22px]', moreActive && 'stroke-[2.5]')}
               aria-hidden="true"
             />
-            <span className="text-xs font-medium leading-none">More</span>
+            <span className="text-xs font-medium leading-none">{t('nav.more')}</span>
           </button>
         </li>
       </ul>

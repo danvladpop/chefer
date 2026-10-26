@@ -1,6 +1,7 @@
 import { FlatList, RefreshControl } from 'react-native';
-import { FRIENDS_COPY, FRIENDS_LIMITS } from '@chefer/types';
+import { FRIENDS_LIMITS } from '@chefer/types';
 import { ErrorState, Screen } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { isFriendsUnavailableError } from '../api/friends-errors';
 import { FriendsGate, FriendsUnavailableScreen } from '../components/friends-gate';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
@@ -17,6 +18,7 @@ import { SuggestionRow } from './suggestion-row';
 // its new state; dismissing removes it (MO-04).
 
 function SuggestionsBody() {
+  const { t } = useT();
   const query = useSuggestions(FRIENDS_LIMITS.suggestionsAll);
   const suggestions = query.data ?? [];
 
@@ -25,7 +27,7 @@ function SuggestionsBody() {
     return (
       <ErrorState
         testID="friends-suggestions-error"
-        title={FRIENDS_COPY.home.sectionError('suggestions')}
+        title={t('friends.home.sectionError.suggestions')}
         description=""
         onRetry={() => void query.refetch()}
       />
@@ -51,12 +53,13 @@ function SuggestionsBody() {
 }
 
 export function FriendsSuggestionsScreen() {
+  const { t } = useT();
   return (
     <FriendsGate>
-      <ActivatedGate title={FRIENDS_SCREEN_TITLES.suggestions} testID="friends-suggestions">
+      <ActivatedGate title={t(FRIENDS_SCREEN_TITLES.suggestions)} testID="friends-suggestions">
         <Screen testID="friends-suggestions" className="px-0">
           <FriendsScreenHeader
-            title={FRIENDS_SCREEN_TITLES.suggestions}
+            title={t(FRIENDS_SCREEN_TITLES.suggestions)}
             testID="friends-suggestions-header"
           />
           <SuggestionsBody />

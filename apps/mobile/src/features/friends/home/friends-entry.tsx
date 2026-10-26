@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY, type ActivateResultDto, type ProfileVisibility } from '@chefer/types';
+import type { ActivateResultDto, ProfileVisibility } from '@chefer/types';
 import { ErrorState, Screen, Skeleton, useSnackbar } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { useFriendsBadge } from '../api/use-friends-badge';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
 import { FriendsHome } from './home-screen';
@@ -18,9 +19,10 @@ import { PersonRowsSkeleton } from './skeletons';
 export const ACTIVATED_SNACKBAR_GAP_MS = 6_500;
 
 function HomeSkeleton() {
+  const { t } = useT();
   return (
     <Screen testID="friends-home-loading" className="px-0">
-      <FriendsScreenHeader title={FRIENDS_COPY.home.title} testID="friends-home-loading-header" />
+      <FriendsScreenHeader title={t('friends.home.title')} testID="friends-home-loading-header" />
       <View className="gap-3 pt-1">
         <View className="px-4">
           <Skeleton className="h-11 w-full rounded-full" />
@@ -36,6 +38,7 @@ function HomeSkeleton() {
 }
 
 export function FriendsEntry() {
+  const { t } = useT();
   const { me, badgeCount, isLoading, isError, refetch } = useFriendsBadge();
   const snackbar = useSnackbar();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,14 +46,16 @@ export function FriendsEntry() {
   const onActivated = (result: ActivateResultDto, visibility: ProfileVisibility) => {
     snackbar.show({
       message:
-        visibility === 'PUBLIC' ? FRIENDS_COPY.activated.public : FRIENDS_COPY.activated.private,
+        visibility === 'PUBLIC' ? t('friends.activated.public') : t('friends.activated.private'),
       tone: 'success',
     });
     if (result.filterHiddenRecipes > 0) {
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         timer.current = null;
-        snackbar.show({ message: FRIENDS_COPY.activated.filterHidden(result.filterHiddenRecipes) });
+        snackbar.show({
+          message: t('friends.activated.filterHidden', { count: result.filterHiddenRecipes }),
+        });
       }, ACTIVATED_SNACKBAR_GAP_MS);
     }
   };
@@ -59,9 +64,9 @@ export function FriendsEntry() {
     if (isError && !isLoading) {
       return (
         <Screen testID="friends-home-error" className="px-0">
-          <FriendsScreenHeader title={FRIENDS_COPY.home.title} testID="friends-home-error-header" />
+          <FriendsScreenHeader title={t('friends.home.title')} testID="friends-home-error-header" />
           <ErrorState
-            title={FRIENDS_COPY.home.sectionError('list')}
+            title={t('friends.home.sectionError.list')}
             description=""
             onRetry={refetch}
           />

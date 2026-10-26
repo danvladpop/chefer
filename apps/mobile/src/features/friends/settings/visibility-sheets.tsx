@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { Button, haptics, Sheet, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 
 // ─── The Public → Private confirm (UX §11.2) ───────────────────────────────────
 // `Make your profile private?` — Make private / Review followers / Cancel.
@@ -31,6 +31,7 @@ export function PrivateConfirmSheet({
   onReview,
   testID = 'friends-settings-private-confirm',
 }: PrivateConfirmSheetProps) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const reviewing = useRef(false);
@@ -70,11 +71,11 @@ export function PrivateConfirmSheet({
           onReview();
         }
       }}
-      title={FRIENDS_COPY.private.confirm.title}
+      title={t('friends.private.confirm.title')}
       testID={testID}
     >
       <Text testID={`${testID}-body`} className="text-body text-label">
-        {FRIENDS_COPY.private.confirm.body(followers)}
+        {t('friends.private.confirm.body', { count: followers })}
       </Text>
       {failed ? (
         <Text
@@ -83,7 +84,7 @@ export function PrivateConfirmSheet({
           accessibilityLiveRegion="polite"
           className="text-subhead text-danger"
         >
-          {FRIENDS_COPY.settings.saveError}
+          {t('friends.settings.saveError')}
         </Text>
       ) : null}
       <View className="gap-2 pt-2">
@@ -93,7 +94,7 @@ export function PrivateConfirmSheet({
           loading={busy}
           onPress={() => void confirm()}
         >
-          {FRIENDS_COPY.private.confirm.cta}
+          {t('friends.private.confirm.cta')}
         </Button>
         <Button
           testID={`${testID}-review`}
@@ -105,7 +106,7 @@ export function PrivateConfirmSheet({
             close();
           }}
         >
-          {FRIENDS_COPY.private.confirm.reviewFollowers}
+          {t('friends.private.confirm.reviewFollowers')}
         </Button>
         <Button
           testID={`${testID}-cancel`}
@@ -114,7 +115,7 @@ export function PrivateConfirmSheet({
           disabled={busy}
           onPress={close}
         >
-          {FRIENDS_COPY.common.cancel}
+          {t('friends.common.cancel')}
         </Button>
       </View>
     </Sheet>

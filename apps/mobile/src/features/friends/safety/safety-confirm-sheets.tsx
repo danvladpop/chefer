@@ -1,7 +1,7 @@
-import { FRIENDS_COPY } from '@chefer/types';
 import { useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
-import { FRIENDS_CONFIRMS, FriendsConfirmSheet } from './confirm-copy';
+import { useT } from '../../../lib/i18n';
+import { FriendsConfirmSheet, useFriendsConfirms } from './confirm-copy';
 import { useBlock, useUnblock } from './use-block';
 import { useRemoveFollower } from './use-remove-follower';
 
@@ -32,14 +32,16 @@ export function BlockConfirmSheet({
   onExited,
   testID = 'friends-block-confirm',
 }: SafetySheetProps & { from: 'profile' | 'followers' }) {
+  const { t } = useT();
+  const confirms = useFriendsConfirms();
   const { block } = useBlock();
   const snackbar = useSnackbar();
   return (
     <FriendsConfirmSheet
       testID={testID}
       visible={visible}
-      copy={FRIENDS_CONFIRMS.block(person.firstName)}
-      errorMessage={FRIENDS_COPY.relation.error}
+      copy={confirms.block(person.firstName)}
+      errorMessage={t('friends.relation.error')}
       onClose={onClose}
       onConfirm={async () => {
         const result = await block(person.id);
@@ -47,7 +49,10 @@ export function BlockConfirmSheet({
         return result.ok;
       }}
       onDone={() => {
-        snackbar.show({ message: FRIENDS_COPY.block.done(person.firstName), tone: 'success' });
+        snackbar.show({
+          message: t('friends.block.done', { first: person.firstName }),
+          tone: 'success',
+        });
         onDone?.();
       }}
       {...(onExited ? { onExited } : {})}
@@ -64,13 +69,15 @@ export function RemoveFollowerConfirmSheet({
   onExited,
   testID = 'friends-remove-confirm',
 }: SafetySheetProps) {
+  const { t } = useT();
+  const confirms = useFriendsConfirms();
   const { removeFollower } = useRemoveFollower();
   const snackbar = useSnackbar();
   return (
     <FriendsConfirmSheet
       testID={testID}
       visible={visible}
-      copy={FRIENDS_CONFIRMS.removeFollower(person.firstName)}
+      copy={confirms.removeFollower(person.firstName)}
       onClose={onClose}
       onConfirm={async () => {
         const result = await removeFollower(person.id);
@@ -78,7 +85,10 @@ export function RemoveFollowerConfirmSheet({
         return result.ok;
       }}
       onDone={() => {
-        snackbar.show({ message: FRIENDS_COPY.remove.done(person.firstName), tone: 'success' });
+        snackbar.show({
+          message: t('friends.remove.done', { first: person.firstName }),
+          tone: 'success',
+        });
         onDone?.();
       }}
       {...(onExited ? { onExited } : {})}
@@ -95,12 +105,13 @@ export function UnblockConfirmSheet({
   onExited,
   testID = 'friends-unblock-confirm',
 }: SafetySheetProps) {
+  const confirms = useFriendsConfirms();
   const { unblock } = useUnblock();
   return (
     <FriendsConfirmSheet
       testID={testID}
       visible={visible}
-      copy={FRIENDS_CONFIRMS.unblock(person.firstName)}
+      copy={confirms.unblock(person.firstName)}
       onClose={onClose}
       onConfirm={async () => (await unblock(person.id)).ok}
       {...(onDone ? { onDone } : {})}

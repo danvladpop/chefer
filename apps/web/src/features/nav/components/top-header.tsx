@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/features/auth/hooks/use-auth';
+import { useT } from '@/lib/i18n';
 import { Menu } from 'lucide-react';
 import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
@@ -14,9 +15,10 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
+  const { t } = useT();
   const { user, logout, isLoading } = useAuth();
 
-  const displayName = user?.name ?? user?.email ?? 'User';
+  const displayName = user?.name ?? user?.email ?? t('nav.user.defaultName');
 
   return (
     // Sticky rather than static: below lg the whole document scrolls, so a
@@ -26,7 +28,7 @@ export function TopHeader({ title, onOpenMenu }: TopHeaderProps) {
         <button
           type="button"
           onClick={onOpenMenu}
-          aria-label="Open navigation menu"
+          aria-label={t('nav.openMenu')}
           className={cn(
             '-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 lg:hidden',
             pressControl,

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
+import { useT } from '@/lib/i18n';
 import { pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { useAppMode } from '../mode-context';
@@ -21,6 +22,7 @@ interface SideBarProps {
 }
 
 export function SideBar({ className }: SideBarProps) {
+  const { t } = useT();
   const pathname = usePathname();
   const { mode, nav, navBadges, trainerModeAvailable } = useAppMode();
 
@@ -43,7 +45,7 @@ export function SideBar({ className }: SideBarProps) {
           keeps under More, so both shells share one grouping (P2-8). */}
       <nav
         key={mode}
-        aria-label="Primary"
+        aria-label={t('nav.primary')}
         className={cn('flex-1 overflow-y-auto px-3 py-4', modeSwapFade(trainerModeAvailable))}
       >
         <NavList items={nav.primary} pathname={pathname} badges={navBadges} />
@@ -77,10 +79,11 @@ function NavList({
   pathname: string;
   badges: Readonly<Record<string, number>>;
 }) {
+  const { t } = useT();
   return (
     <ul className="space-y-0.5">
       {items.map((item) => {
-        const { href, label, icon: Icon } = item;
+        const { href, labelKey, icon: Icon } = item;
         const isActive = isItemActive(pathname, item);
         return (
           <li key={href}>
@@ -102,7 +105,7 @@ function NavList({
                 )}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1">{label}</span>
+              <span className="min-w-0 flex-1">{t(labelKey)}</span>
               <NavCountBadge count={badges[href] ?? 0} />
             </Link>
           </li>

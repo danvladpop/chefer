@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import { FRIENDS_SCREEN_TITLES } from '../../src/features/friends/components/screen-titles';
 import { FriendsBlockedScreen } from '../../src/features/friends/settings/blocked-screen';
+import { getTranslator } from '../../src/lib/i18n';
 import {
   availableHandlers,
   person,
@@ -48,7 +48,7 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('Blocked people', () => {
   it('titles the screen from the copy deck', () => {
-    expect(FRIENDS_SCREEN_TITLES.blocked).toBe(FRIENDS_COPY.blocked.title);
+    expect(getTranslator().t(FRIENDS_SCREEN_TITLES.blocked)).toBe('Blocked people');
   });
 
   it('lists people as plain rows with an Unblock button each', async () => {

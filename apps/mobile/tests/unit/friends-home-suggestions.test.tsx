@@ -1,14 +1,16 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import FriendsHomeRoute from '../../app/friends/index';
 import FriendsSuggestionsRoute from '../../app/friends/suggestions';
 import { resetRememberedSegment } from '../../src/features/friends/home/home-screen';
 import { suggestionReasonText } from '../../src/features/friends/home/suggestion-row';
+import { getTranslator } from '../../src/lib/i18n';
 import { meDto, renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { homeHandlers, personId, settle, who } from './friends-home-fixtures';
+
+const { t } = getTranslator();
 
 // F2.1 · Suggested for you (UX §5.1, PRD FR-09): the reasons, dismiss (optimistic
 // removal, rollback + Retry on failure, analytics with the reason only), following
@@ -64,7 +66,7 @@ describe('suggestion reasons', () => {
     [{ reason: 'follows_you', mutualCount: 0 }, 'Follows you'],
     [{ reason: 'popular', mutualCount: 0 }, 'Popular on Chefer'],
   ] as const)('%j → %s', (extra, text) => {
-    expect(suggestionReasonText({ ...who(1), ...extra })).toBe(text);
+    expect(suggestionReasonText({ ...who(1), ...extra }, getTranslator().t)).toBe(text);
   });
 });
 
@@ -106,10 +108,10 @@ describe('the home section', () => {
     });
     const user = userEvent.setup();
     await user.press(screen.getByTestId(`friends-suggestion-${personId(3)}-dismiss`));
-    expect(await screen.findByText(FRIENDS_COPY.relation.error)).toBeTruthy();
+    expect(await screen.findByText(t('friends.relation.error'))).toBeTruthy();
     expect(screen.getByTestId(`friends-suggestion-${personId(3)}`)).toBeTruthy();
     expect(track).not.toHaveBeenCalled();
-    await user.press(screen.getByText(FRIENDS_COPY.relation.errorAction));
+    await user.press(screen.getByText(t('friends.relation.errorAction')));
     await waitFor(() => expect(dismiss).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(screen.queryByTestId(`friends-suggestion-${personId(3)}`)).toBeNull(),

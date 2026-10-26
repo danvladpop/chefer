@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, FRIENDS_LIMITS, type FriendRecipeCard } from '@chefer/types';
+import { FRIENDS_LIMITS, type FriendRecipeCard } from '@chefer/types';
 import {
   EmptyState,
   ErrorState,
@@ -22,6 +22,7 @@ import {
   useSnackbar,
   useThemeColors,
 } from '@chefer/ui-mobile';
+import { useT } from '../../../../lib/i18n';
 import { trpc } from '../../../../lib/trpc';
 import { RecipeImage } from '../../../recipes/recipe-image';
 
@@ -60,6 +61,7 @@ export function FriendRecipeGrid({
   testID = 'friends-recipes',
 }: FriendRecipeGridProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { fontScale } = useWindowDimensions();
   const oneColumn = fontScale >= RECIPE_GRID_SINGLE_COLUMN_SCALE;
   const [search, setSearch] = useState('');
@@ -91,8 +93,8 @@ export function FriendRecipeGrid({
       {showSearch ? (
         <SearchField
           testID={`${testID}-search`}
-          accessibilityLabel={FRIENDS_COPY.recipes.search(firstName)}
-          placeholder={FRIENDS_COPY.recipes.search(firstName)}
+          accessibilityLabel={t('friends.recipes.search', { first: firstName })}
+          placeholder={t('friends.recipes.search', { first: firstName })}
           autoCapitalize="none"
           onDebouncedChange={setSearch}
         />
@@ -107,14 +109,14 @@ export function FriendRecipeGrid({
       ) : recipes.isError && items.length === 0 ? (
         <ErrorState
           testID={`${testID}-error`}
-          title={FRIENDS_COPY.profile.error}
+          title={t('friends.profile.error')}
           onRetry={() => void recipes.refetch()}
         />
       ) : items.length === 0 ? (
         <EmptyState
           testID={`${testID}-empty`}
           icon={<Ionicons name="book-outline" size={40} color={colors.labelTertiary} />}
-          title={FRIENDS_COPY.recipes.empty(firstName)}
+          title={t('friends.recipes.empty', { first: firstName })}
         />
       ) : (
         <View className="flex-row flex-wrap justify-between gap-y-3">
@@ -141,6 +143,7 @@ type RecipesInput = { userId: string; limit: number; search?: string };
 
 /** Optimistic heart on the grid's cache + snackbar with Undo. */
 function useRecipeHeart(input: RecipesInput): (recipe: FriendRecipeCard) => void {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const toggle = trpc.recipe.toggleFavourite.useMutation({ meta: { silent: true } });
@@ -169,15 +172,15 @@ function useRecipeHeart(input: RecipesInput): (recipe: FriendRecipeCard) => void
       void utils.recipe.isSaved.invalidate({ recipeId: recipe.id });
       if (withUndo) {
         snackbar.show({
-          message: result.isSaved ? FRIENDS_COPY.recipes.saved : FRIENDS_COPY.recipes.removed,
-          actionLabel: FRIENDS_COPY.common.undo,
+          message: result.isSaved ? t('friends.recipes.saved') : t('friends.recipes.removed'),
+          actionLabel: t('friends.common.undo'),
           onAction: () => void run(recipe, !result.isSaved, false),
         });
       }
     } catch {
       flip(recipe.id, !to);
       haptics.error();
-      snackbar.show({ message: FRIENDS_COPY.relation.error });
+      snackbar.show({ message: t('friends.relation.error') });
     }
   };
 
@@ -196,6 +199,7 @@ export function FriendRecipeTile({
   testID: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -213,7 +217,7 @@ export function FriendRecipeTile({
         accessibilityRole="button"
         accessibilityLabel={[
           recipe.name,
-          FRIENDS_COPY.recipes.perServing(kcal, recipe.totalTimeMins),
+          t('friends.recipes.perServing', { kcal, mins: recipe.totalTimeMins }),
           recipe.sourceDomain,
         ]
           .filter(Boolean)
@@ -234,7 +238,7 @@ export function FriendRecipeTile({
             {recipe.name}
           </Text>
           <Text className="text-xs text-label-secondary">
-            {FRIENDS_COPY.recipes.perServing(kcal, recipe.totalTimeMins)}
+            {t('friends.recipes.perServing', { kcal, mins: recipe.totalTimeMins })}
           </Text>
           {recipe.sourceDomain ? (
             <Text
@@ -252,8 +256,8 @@ export function FriendRecipeTile({
         accessibilityRole="button"
         accessibilityLabel={
           recipe.isFavourite
-            ? FRIENDS_COPY.recipes.unsave(recipe.name)
-            : FRIENDS_COPY.recipes.save(recipe.name)
+            ? t('friends.recipes.unsave', { recipe: recipe.name })
+            : t('friends.recipes.save', { recipe: recipe.name })
         }
         accessibilityState={{ selected: recipe.isFavourite }}
         hitSlop={4}
