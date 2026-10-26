@@ -275,7 +275,11 @@ export default function CookModeScreen() {
     meta: { silent: true },
     onSuccess: (result, variables) => {
       // WP-13: opened from a plan slot (`meal` param) = planned, else a quick log.
-      trackMealLogged(isMealSlot(meal) ? 'planned' : 'quick', variables.mealType);
+      trackMealLogged(
+        isMealSlot(meal) ? 'planned' : 'quick',
+        variables.mealType,
+        isMealSlot(meal) ? undefined : 'cook',
+      );
       setLogged(true);
       setLoggedAs({ date: variables.date, slot });
       recordRebalanceOutcome(result);
