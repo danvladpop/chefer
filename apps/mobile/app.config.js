@@ -136,6 +136,9 @@ function webcredentialsDomain() {
 }
 const ASSOCIATED_DOMAIN = APPLE_SIGN_IN ? webcredentialsDomain() : null;
 
+/** iOS bundle id per variant (see the note on `config` below). */
+const IOS_BUNDLE_ID = IS_PRODUCTION ? 'com.popdan.chefer' : 'dev.chefer.app.dev';
+
 /**
  * Production iOS bundle id is com.popdan.chefer (2026-09-28): `dev.chefer.app`
  * stayed registered to the free personal team that signed the early builds,
@@ -167,9 +170,12 @@ const config = {
   // Plate-and-cutlery on brand brown; the dev variant carries a DEV band so the
   // two installs are distinguishable. Sources: assets/icon-source/*.svg.
   icon: IS_PRODUCTION ? './assets/icon.png' : './assets/icon-dev.png',
-  userInterfaceStyle: 'automatic',
+  // UX-X-07: the app is light-only, so system UI (keyboard, alerts, share
+  // sheet, pickers) must not turn dark over light screens. expo-system-ui
+  // applies it on Android. Revisit with dark mode.
+  userInterfaceStyle: 'light',
   ios: {
-    bundleIdentifier: IS_PRODUCTION ? 'com.popdan.chefer' : 'dev.chefer.app.dev',
+    bundleIdentifier: IOS_BUNDLE_ID,
     supportsTablet: false,
     infoPlist: {
       // iPhone stays portrait NATIVELY — the same Info.plist as with
@@ -194,6 +200,11 @@ const config = {
     // webcredentials: lets iOS offer saved passwords / strong-password
     // suggestions for the API's domain (AASA served by the API, WP-22).
     ...(ASSOCIATED_DOMAIN ? { associatedDomains: [`webcredentials:${ASSOCIATED_DOMAIN}`] } : {}),
+    // C4: the Today home-screen widget reads the app's snapshot from this App
+    // Group (@bacons/apple-targets mirrors it onto the widget extension).
+    entitlements: {
+      'com.apple.security.application-groups': [`group.${IOS_BUNDLE_ID}`],
+    },
     config: {
       // Only HTTPS and the OS's standard crypto — exempt from export
       // compliance, so App Store Connect stops asking on every build.

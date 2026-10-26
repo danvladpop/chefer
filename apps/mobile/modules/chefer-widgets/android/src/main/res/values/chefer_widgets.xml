@@ -1,0 +1,11 @@
+<resources>
+  <string name="chefer_today_widget_label">Today</string>
+  <string name="chefer_today_widget_description">Your next meal and what\'s left of today\'s targets.</string>
+  <string name="chefer_today_widget_empty_eyebrow">Chefer</string>
+  <string name="chefer_today_widget_empty_title">Open Chefer to see today</string>
+  <!-- Light-only, like the app (UX-X-07): @chefer/tokens canvas / label / labelSecondary / brand. -->
+  <color name="chefer_widget_surface">#FAF7F2</color>
+  <color name="chefer_widget_ink">#1C1917</color>
+  <color name="chefer_widget_ink_secondary">#57534E</color>
+  <color name="chefer_widget_brand">#944A00</color>
+</resources>

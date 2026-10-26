@@ -48,6 +48,7 @@
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
 41. [Curated Recipe Ingest & Pool Coverage (admin)](#41-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
+42. [Home-screen Today Widget (mobile)](#42-home-screen-today-widget-mobile-c4)
 
 ---
 
@@ -6652,3 +6653,30 @@ Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAd
     the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
     red = that household repeats a recipe within 2 weeks, amber = within 4
 ```
+
+---
+
+## 42. Home-screen Today Widget (mobile, C4)
+
+Binaries built after 1.0.2 (native: `infrastructure.md` §4 mobile). Older binaries
+run the same JS and simply have no widget.
+
+```
+Today loads (dashboard.summary, the real day — never a previous hour's placeholder)
+  → buildTodayWidgetSnapshot(summary)          src/features/widget/today-widget-snapshot.ts
+      eyebrow  "Next · Lunch" | "Tomorrow · Breakfast" | "Today"
+      title    the recipe | "No more meals planned" | "Plan your week in Chefer"
+      detail   "1,540 kcal · 102 g protein left" (targets incl. the training-day bump,
+               never below 0) | "102 g protein left" (protein-only) |
+               none (nutrition off, or numbers mode NONE)
+      url      deep link to Today
+  → CheferWidgets.setTodaySnapshot(json)       only when it changed
+      iOS: App Group group.<app id> → WidgetKit reload    Android: shared prefs → widget redraw
+Widget: shows the strings; a snapshot for another day (or none) shows "Open Chefer to see today".
+Tap → opens Today.
+Sign-out → the snapshot is cleared (src/lib/sign-out.ts).
+```
+
+- Sizes: iOS small + medium, Android 2×2 resizable to 4×2. Light-only, in the app's colours.
+- Kept minimal on purpose — a home screen is public: no weight, allergies or account details.
+- Web: not applicable (no home-screen widget).

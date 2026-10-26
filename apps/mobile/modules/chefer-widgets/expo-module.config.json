@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CheferWidgetsModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.cheferwidgets.CheferWidgetsModule"]
+  }
+}

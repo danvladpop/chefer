@@ -41,6 +41,7 @@ import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { RebalanceOffer } from '../../src/features/tracker/rebalance-offer';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
+import { useTodayWidgetSync } from '../../src/features/widget/today-widget';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { trpc } from '../../src/lib/trpc';
 
@@ -67,6 +68,7 @@ export default function HomeScreen() {
   const {
     data: d,
     isLoading,
+    isPlaceholderData,
     refetch,
   } = trpc.dashboard.summary.useQuery(
     {
@@ -76,6 +78,8 @@ export default function HomeScreen() {
     },
     { placeholderData: keepPreviousData },
   );
+  // C4: the home-screen widget mirrors this day (never a previous hour's placeholder).
+  useTodayWidgetSync(isPlaceholderData ? undefined : d);
 
   // UX-FOOD-13: the pull-to-refresh spinner follows a user pull only (and drops
   // after 10 s even if the refetch hangs). Binding it to `isRefetching` left it
