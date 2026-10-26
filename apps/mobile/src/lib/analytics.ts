@@ -85,8 +85,18 @@ export function setAnalyticsConsent(next: Partial<AnalyticsConsent>): AnalyticsC
   return consent;
 }
 
-/** Called when the session resolves. Linking only takes effect if `consent.linked` is also true. */
+/**
+ * The signed-in account's id, or null when signed out. Called by
+ * `SessionUserHost` whenever `user.me` resolves or the session ends, so
+ * sign-in, sign-out and switching accounts all land here. Linking only takes
+ * effect while `consent.linked` is also true.
+ */
 export function setCurrentUserId(userId: string | null): void {
+  // A different account on this phone never inherits the previous account's
+  // "Link usage to my account" choice, even without a sign-out in between.
+  if (linkedUserId !== null && userId !== null && userId !== linkedUserId && consent.linked) {
+    setAnalyticsConsent({ linked: false });
+  }
   linkedUserId = userId;
 }
 
@@ -114,11 +124,13 @@ export function track(event: string, properties: Record<string, unknown>): void 
   }
   // AC3: anonymous off => zero network calls, not even a queued event.
   if (!consent.anonymous) return;
-  const distinctId = consent.linked && linkedUserId ? linkedUserId : sessionId;
+  const linked = consent.linked && linkedUserId !== null;
   enqueue({
     event,
-    properties,
-    distinct_id: distinctId,
+    // Like web's `person_profiles: 'identified_only'`: an unlinked event
+    // creates no PostHog person, so a per-launch id never becomes a profile.
+    properties: { ...properties, $process_person_profile: linked },
+    distinct_id: linked && linkedUserId ? linkedUserId : sessionId,
     timestamp: new Date().toISOString(),
   });
 }

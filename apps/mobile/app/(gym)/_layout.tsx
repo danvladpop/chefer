@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { colors, countPillText } from '@chefer/ui-mobile';
+import { countPillText, useThemeColors } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { ShellV2Forward } from '../../src/features/shell/shell-forward';
@@ -15,6 +15,7 @@ const TAB_COUNT = 5;
 // resolve at the root, so "/" belongs to the food dashboard and "/more" to the
 // food More tab; Gym's is `gym-more`.
 export default function GymTabsLayout() {
+  const colors = useThemeColors();
   // Same in-app Following badge as Food's More tab (pending requests + unread
   // Activity, hidden at 0). Shares the useFriendsMe cache with the Food layout.
   const { badgeCount } = useFriendsMe();
@@ -77,8 +78,8 @@ export default function GymTabsLayout() {
           tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: colors.primary,
-            color: colors.primaryForeground,
+            backgroundColor: colors.brand,
+            color: colors.onBrand,
             fontSize: 12,
           },
           tabBarIcon: ({ color, size }) => (

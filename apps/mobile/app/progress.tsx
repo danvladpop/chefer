@@ -6,13 +6,13 @@ import { router } from 'expo-router';
 import {
   BarChart,
   Card,
-  colors,
   ErrorState,
   KeyboardAwareScrollView,
   LineChart,
   Screen,
   SegmentedControl,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
@@ -25,11 +25,16 @@ import {
   formatNumber,
   isLoggedDay,
   localDateStr,
+  MEASUREMENTS_COPY,
   PROGRESS_RANGES,
+  summarizeWeightTrend,
+  TREND_WEIGHT_EXPLAINER,
   weightChangeTone,
+  weightTrendSeries,
   type ProgressRange,
   type WeightChangeTone,
 } from '@chefer/utils';
+import { BodyMeasurements } from '../src/features/body/body-measurements';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
 import { useShellV2 } from '../src/features/shell/shell-store';
@@ -43,7 +48,6 @@ import { trpc } from '../src/lib/trpc';
 // time x-axis rather than web's evenly spaced categories, and the change is
 // coloured by goal — gaining is good news for GAIN_MUSCLE (audit F-TRK-4-1).
 
-const MACRO_COLORS = { protein: '#3b82f6', carbs: '#10b981', fat: '#f59e0b' } as const;
 const DAY_MS = 86_400_000;
 /** T-11.6: an average or a percentage needs at least this many logged days to mean anything. */
 const MIN_LOGGED_DAYS = 3;
@@ -54,14 +58,15 @@ const RANGE_OPTIONS = PROGRESS_RANGES.map((n) => ({
 }));
 
 const TONE_CLASS: Record<WeightChangeTone, string> = {
-  positive: 'text-emerald-600',
-  negative: 'text-red-500',
-  neutral: 'text-gray-800',
+  positive: 'text-positive',
+  // Adherence-neutral (lane D1): a change away from the goal is not a failure.
+  negative: 'text-label',
+  neutral: 'text-label',
 };
 
 const TONE_SUFFIX: Record<WeightChangeTone, string> = {
   positive: ', in line with your goal',
-  negative: ', away from your goal',
+  negative: '',
   neutral: '',
 };
 
@@ -73,7 +78,7 @@ function shortDate(value: string | Date): string {
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
+    <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
       {children}
     </Text>
   );
@@ -100,7 +105,7 @@ function StatTile({
           {label}
         </Text>
       </View>
-      <Text testID={testID} className="text-lg font-bold text-gray-800">
+      <Text testID={testID} className="text-lg font-bold text-label">
         {value}
       </Text>
     </Card>
@@ -109,6 +114,8 @@ function StatTile({
 
 /** Legacy (Food|Gym shell) Progress — unchanged. */
 function LegacyProgressScreen() {
+  const colors = useThemeColors();
+  const macroColors = { protein: colors.info, carbs: colors.positive, fat: colors.attention };
   const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
   const {
     data: monthly,
@@ -176,21 +183,22 @@ function LegacyProgressScreen() {
   // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
   const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
   const weights = weightQuery.data ?? [];
+  // Lane D1: the bold line is the trend weight (@chefer/utils) and the change
+  // is the trend's over the 90 days — a direction, never painted as a failure.
+  const series = weightTrendSeries(weights);
   const latestWeight = weights.at(-1)?.weightKg;
-  const firstWeight = weights.at(0)?.weightKg;
-  const weightDelta =
-    latestWeight != null && firstWeight != null && weights.length > 1
-      ? latestWeight - firstWeight
-      : null;
+  const trendSummary = summarizeWeightTrend(series, { windowDays: 90 });
+  const weightDelta = trendSummary?.changeKg ?? null;
   const tone =
     weightDelta != null ? weightChangeTone(weightDelta, preferences?.chefProfile?.goal) : 'neutral';
 
   // Time axis: x in days since epoch, so a two-week gap between weigh-ins
   // looks like one.
-  const weightData = weights.map((w) => ({
-    x: new Date(w.recordedAt).getTime() / DAY_MS,
-    y: bodyWeightInUnit(w.weightKg, system),
+  const weightData = series.map((p) => ({
+    x: p.recordedAt.getTime() / DAY_MS,
+    y: bodyWeightInUnit(p.weightKg, system),
   }));
+  const trendData = series.map((p) => bodyWeightInUnit(p.trendKg, system));
   const weightLabels = (() => {
     const firstX = weightData.at(0)?.x;
     const lastX = weightData.at(-1)?.x;
@@ -210,10 +218,10 @@ function LegacyProgressScreen() {
           onPress={() => router.back()}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+          <Ionicons name="arrow-back" size={20} color={colors.label} />
         </Pressable>
         <View>
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             Insights
           </Text>
           <Text testID="progress-title" variant="title">
@@ -228,21 +236,21 @@ function LegacyProgressScreen() {
           <StatTile
             testID="progress-stat-days"
             icon="flame-outline"
-            iconColor={colors.primary}
+            iconColor={colors.brand}
             label="Days logged"
             value={monthly ? String(daysLogged) : '—'}
           />
           <StatTile
             testID="progress-stat-avg"
             icon="trending-up-outline"
-            iconColor="#3b82f6"
+            iconColor={colors.info}
             label="Avg kcal"
             value={avgKcal > 0 ? formatKcal(avgKcal) : '—'}
           />
           <StatTile
             testID="progress-stat-vs-target"
             icon="scale-outline"
-            iconColor="#10b981"
+            iconColor={colors.positive}
             label="vs target"
             value={avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—'}
           />
@@ -269,14 +277,14 @@ function LegacyProgressScreen() {
 
         {isLoading ? (
           <View className="items-center py-12">
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={colors.brand} />
           </View>
         ) : isError && !monthly ? (
           // A failed load is not an empty history (audit F-X-3-1).
           <ErrorState
             testID="progress-error"
             title="Couldn't load your progress"
-            icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
         ) : (
@@ -340,16 +348,16 @@ function LegacyProgressScreen() {
                     testID="progress-macros-chart"
                     accessibilityLabel={`Daily protein, carbs and fat in grams, last ${windowDays} days`}
                     data={macroData}
-                    seriesColors={MACRO_COLORS}
+                    seriesColors={macroColors}
                     labelEvery={Math.max(1, Math.ceil(windowDays / 4))}
                     height={200}
                   />
                   <View className="mt-2 flex-row justify-center gap-4">
                     {(
                       [
-                        ['Protein', MACRO_COLORS.protein],
-                        ['Carbs', MACRO_COLORS.carbs],
-                        ['Fat', MACRO_COLORS.fat],
+                        ['Protein', macroColors.protein],
+                        ['Carbs', macroColors.carbs],
+                        ['Fat', macroColors.fat],
                       ] as const
                     ).map(([label, color]) => (
                       <View key={label} className="flex-row items-center gap-1.5">
@@ -357,7 +365,7 @@ function LegacyProgressScreen() {
                           className="h-2.5 w-2.5 rounded-sm"
                           style={{ backgroundColor: color }}
                         />
-                        <Text className="text-xs text-gray-600">{label}</Text>
+                        <Text className="text-xs text-label-secondary">{label}</Text>
                       </View>
                     ))}
                   </View>
@@ -373,15 +381,15 @@ function LegacyProgressScreen() {
 
           {latestWeight != null && (
             <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-1">
-              <Text className="text-sm text-gray-500">
+              <Text className="text-sm text-label-tertiary">
                 Current:{' '}
                 <Text testID="progress-weight-current" className="text-sm font-semibold">
                   {formatBodyWeight(latestWeight, system)}
                 </Text>
               </Text>
               {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
-                <Text className="text-sm text-gray-500">
-                  Change (90d):{' '}
+                <Text className="text-sm text-label-tertiary">
+                  Trend change (90d):{' '}
                   <Text
                     testID="progress-weight-change"
                     // Colour alone doesn't tell a screen reader which way is good.
@@ -403,19 +411,24 @@ function LegacyProgressScreen() {
             />
           ) : weightQuery.isLoading ? (
             <View className="h-40 items-center justify-center">
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={colors.brand} />
             </View>
           ) : weights.length > 0 ? (
-            <LineChart
-              testID="progress-weight-chart"
-              accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
-              data={weightData}
-              trend={weightData.map((p) => p.y)}
-              {...(weightLabels && { xLabels: weightLabels })}
-              color="#10b981"
-              niceTicks
-              height={170}
-            />
+            <>
+              <LineChart
+                testID="progress-weight-chart"
+                accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
+                data={weightData}
+                trend={trendData}
+                {...(weightLabels && { xLabels: weightLabels })}
+                color={colors.positive}
+                niceTicks
+                height={170}
+              />
+              <Text testID="progress-weight-explainer" variant="muted" className="mt-1 text-xs">
+                {TREND_WEIGHT_EXPLAINER}
+              </Text>
+            </>
           ) : (
             <Text testID="progress-weight-empty" variant="muted" className="mb-2 text-sm">
               No weight entries yet. Log your first entry below.
@@ -429,6 +442,12 @@ function LegacyProgressScreen() {
             />
           </View>
           {weights.length > 0 && <WeightEntriesList entries={weights} />}
+        </Card>
+
+        {/* Body measurements: free, one chart per measure (lane D3) */}
+        <Card>
+          <SectionLabel>{MEASUREMENTS_COPY.title}</SectionLabel>
+          <BodyMeasurements />
         </Card>
       </KeyboardAwareScrollView>
     </Screen>

@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { ConfirmSheet, ErrorState, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   customEntryChipLabel,
@@ -23,6 +23,7 @@ import { YourDayScreen } from '../src/features/shell/tracker/your-day-screen';
 import { EditEntrySheet } from '../src/features/tracker/edit-entry-sheet';
 import { EditRecipeEntrySheet } from '../src/features/tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../src/features/tracker/invalidate';
+import { PartlyLoggedRow } from '../src/features/tracker/partly-logged-row';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { RebalanceOffer } from '../src/features/tracker/rebalance-offer';
@@ -46,12 +47,12 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
   return (
     <View>
       <View className="mb-1 flex-row justify-between">
-        <Text className="text-xs font-medium text-gray-700">{label}</Text>
-        <Text className="text-xs text-gray-500">
+        <Text className="text-xs font-medium text-label-secondary">{label}</Text>
+        <Text className="text-xs text-label-tertiary">
           {Math.round(value)} / {target}
         </Text>
       </View>
-      <View className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <View className="h-2 w-full overflow-hidden rounded-full bg-surface-sunken">
         <View className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
       </View>
     </View>
@@ -60,6 +61,7 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
 
 /** Legacy (Food|Gym shell) tracker — unchanged behaviour; logic in useTrackerDay. */
 function LegacyTrackerScreen() {
+  const colors = useThemeColors();
   const {
     snap,
     utils,
@@ -120,7 +122,7 @@ function LegacyTrackerScreen() {
             onPress={() => router.back()}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={20} color="#1f2937" />
+            <Ionicons name="arrow-back" size={20} color={colors.label} />
           </Pressable>
           <Text testID="tracker-title" variant="title" className="flex-1">
             Tracker
@@ -135,7 +137,7 @@ function LegacyTrackerScreen() {
             }}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="copy-outline" size={20} color="#6b7280" />
+            <Ionicons name="copy-outline" size={20} color={colors.labelTertiary} />
           </Pressable>
         </View>
 
@@ -148,9 +150,9 @@ function LegacyTrackerScreen() {
             onPress={() => changeDate(-1)}
             className="h-11 w-11 items-center justify-center rounded-lg border border-border"
           >
-            <Ionicons name="chevron-back" size={18} color="#6b7280" />
+            <Ionicons name="chevron-back" size={18} color={colors.labelTertiary} />
           </Pressable>
-          <Text className="text-sm font-medium text-gray-700">
+          <Text className="text-sm font-medium text-label-secondary">
             {isToday ? 'Today' : formatDate(selectedDate, 'weekday-long-short')}
           </Text>
           <Pressable
@@ -164,18 +166,18 @@ function LegacyTrackerScreen() {
               isToday && 'opacity-40',
             )}
           >
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+            <Ionicons name="chevron-forward" size={18} color={colors.labelTertiary} />
           </Pressable>
         </View>
 
         {isLoading && !isFuture ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#944a00" />
+            <ActivityIndicator size="large" color={colors.brand} />
           </View>
         ) : isError && !data && !isFuture ? (
           <ErrorState
             title="Couldn't load this day"
-            icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
         ) : (
@@ -196,7 +198,7 @@ function LegacyTrackerScreen() {
               className="gap-3 rounded-xl border border-border bg-card p-4"
             >
               <View className="mb-1 flex-row items-center justify-between">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
                   Logged {isToday ? 'Today' : 'This Day'}
                 </Text>
                 {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
@@ -207,7 +209,11 @@ function LegacyTrackerScreen() {
                   onPress={() => setExplainOpen(true)}
                   className="h-11 w-11 items-center justify-center"
                 >
-                  <Ionicons name="information-circle-outline" size={20} color="#9ca3af" />
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color={colors.labelTertiary}
+                  />
                 </Pressable>
               </View>
               {data?.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
@@ -236,12 +242,12 @@ function LegacyTrackerScreen() {
                 )}
               </View>
               {proteinOnly && data?.proteinGuide && (
-                <Text testID="tracker-protein-guide" className="text-xs text-gray-600">
+                <Text testID="tracker-protein-guide" className="text-xs text-label-secondary">
                   {data.proteinGuide.label}
                 </Text>
               )}
               {average && (
-                <Text testID="tracker-weekly-average" className="text-xs text-gray-600">
+                <Text testID="tracker-weekly-average" className="text-xs text-label-secondary">
                   {proteinOnly ? proteinAverageText(average) : weeklyAverageText(average)}
                 </Text>
               )}
@@ -257,7 +263,7 @@ function LegacyTrackerScreen() {
                   // T-19.6: a Track-only user may never generate a plan — this
                   // reads as an invitation to log, not a missing-plan error.
                   <>
-                    <Ionicons name="restaurant-outline" size={28} color="#9ca3af" />
+                    <Ionicons name="restaurant-outline" size={28} color={colors.labelTertiary} />
                     <Text
                       testID="tracker-empty-plan-text"
                       variant="muted"
@@ -313,7 +319,7 @@ function LegacyTrackerScreen() {
                               : undefined
                           }
                         />
-                        <Text numberOfLines={1} className="text-xs text-gray-500">
+                        <Text numberOfLines={1} className="text-xs text-label-tertiary">
                           Planned: {meal.recipeName}
                         </Text>
                       </View>
@@ -329,7 +335,7 @@ function LegacyTrackerScreen() {
                         className="gap-1 rounded-xl border border-border bg-muted p-3"
                       >
                         <MealTypeBadge mealType={meal.mealType} />
-                        <Text numberOfLines={1} className="text-sm text-gray-500">
+                        <Text numberOfLines={1} className="text-sm text-label-tertiary">
                           {meal.recipeName}
                         </Text>
                         <SlotStatusLine
@@ -363,11 +369,11 @@ function LegacyTrackerScreen() {
                             <MealTypeBadge mealType={meal.mealType} />
                             <Text
                               numberOfLines={1}
-                              className="mt-0.5 text-sm font-medium text-gray-800"
+                              className="mt-0.5 text-sm font-medium text-label"
                             >
                               {meal.recipeName}
                             </Text>
-                            <Text className="text-xs text-gray-500">
+                            <Text className="text-xs text-label-tertiary">
                               {nutritionLabel(
                                 { kcal: meal.kcal * portion, protein: meal.protein * portion },
                                 proteinOnly,
@@ -402,13 +408,15 @@ function LegacyTrackerScreen() {
                                 'min-h-11 flex-1 items-center justify-center rounded-lg border',
                                 portion === p
                                   ? 'border-primary bg-primary'
-                                  : 'border-border bg-white',
+                                  : 'border-border bg-surface',
                               )}
                             >
                               <Text
                                 className={cn(
                                   'text-xs font-semibold',
-                                  portion === p ? 'text-primary-foreground' : 'text-gray-600',
+                                  portion === p
+                                    ? 'text-primary-foreground'
+                                    : 'text-label-secondary',
                                 )}
                               >
                                 {formatPortion(p)}
@@ -431,7 +439,7 @@ function LegacyTrackerScreen() {
               <View testID="tracker-also-eaten" className="gap-2">
                 <Text
                   accessibilityRole="header"
-                  className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+                  className="text-xs font-semibold uppercase tracking-widest text-label-tertiary"
                 >
                   Also eaten
                 </Text>
@@ -454,10 +462,10 @@ function LegacyTrackerScreen() {
                           className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
                         >
                           <View className="min-w-0 flex-1">
-                            <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                            <Text numberOfLines={1} className="text-sm font-medium text-label">
                               {item.m.recipeName}
                             </Text>
-                            <Text className="text-xs text-gray-500">
+                            <Text className="text-xs text-label-tertiary">
                               {nutritionLabel(item.m, proteinOnly)}
                               {(item.m.portionMultiplier ?? 1) !== 1 &&
                                 ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
@@ -474,7 +482,11 @@ function LegacyTrackerScreen() {
                               }}
                               className="h-11 w-11 items-center justify-center"
                             >
-                              <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                              <Ionicons
+                                name="trash-outline"
+                                size={18}
+                                color={colors.labelTertiary}
+                              />
                             </Pressable>
                           )}
                         </Pressable>
@@ -491,17 +503,17 @@ function LegacyTrackerScreen() {
                             <View className="flex-row items-center gap-2">
                               <Text
                                 numberOfLines={1}
-                                className="shrink text-sm font-medium text-gray-800"
+                                className="shrink text-sm font-medium text-label"
                               >
                                 {item.row.name}
                               </Text>
-                              <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                                <Text className="text-xs text-gray-500">
+                              <View className="rounded-full bg-surface-sunken px-2 py-0.5">
+                                <Text className="text-xs text-label-tertiary">
                                   {customEntryChipLabel(item.row.estimatedBy)}
                                 </Text>
                               </View>
                             </View>
-                            <Text className="text-xs text-gray-500">
+                            <Text className="text-xs text-label-tertiary">
                               {nutritionLabel(item.row, proteinOnly)}
                             </Text>
                           </View>
@@ -515,7 +527,7 @@ function LegacyTrackerScreen() {
                             }}
                             className="h-11 w-11 items-center justify-center"
                           >
-                            <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                            <Ionicons name="trash-outline" size={18} color={colors.labelTertiary} />
                           </Pressable>
                         </Pressable>
                       ),
@@ -533,7 +545,7 @@ function LegacyTrackerScreen() {
               onPress={() => setQuickAddOpen(true)}
               className="h-11 flex-row items-center justify-center gap-1.5 rounded-md border border-border"
             >
-              <Ionicons name="add" size={18} color="#944a00" />
+              <Ionicons name="add" size={18} color={colors.brand} />
               <Text className="text-sm font-medium text-primary">Log something</Text>
             </Pressable>
 
@@ -546,6 +558,11 @@ function LegacyTrackerScreen() {
                 onAutoPicked={() => router.setParams({ snap: undefined })}
               />
             )}
+
+            {/* Lane D2: a half-logged day can be left out of the weekly review. */}
+            {!isFuture && data && (data.log?.loggedMeals.length ?? 0) > 0 ? (
+              <PartlyLoggedRow date={dateStr} incomplete={data.incomplete ?? false} />
+            ) : null}
           </ScrollView>
         )}
 

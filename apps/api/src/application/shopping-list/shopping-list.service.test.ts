@@ -4,6 +4,11 @@ import type { UserProfile } from '@chefer/types';
 import { fakeIngredientPriceFindMany } from '../../test-support/fake-ingredient-prices.js';
 import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
+import {
+  noopProgressRecorder,
+  setProgressRecorder,
+  type IProgressRecorder,
+} from '../progress/progress-hooks.js';
 import { estimatePlanCostEur } from '../shared/plan-cost.js';
 import { carryCheckedKeys, ShoppingListService } from './shopping-list.service.js';
 
@@ -722,5 +727,106 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
     expect(householdService.scalingTable).toHaveBeenCalledWith(freeUser);
     expect(list.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('600');
     expect(list).not.toHaveProperty('portions');
+  });
+});
+
+// Kitchen progress hook (tech-plan §4.2): only a check (not an uncheck) records, it carries
+// the client's local day when given, and it can never fail the toggle.
+describe('ShoppingListService.toggleItems — Kitchen progress hook', () => {
+  const service = new ShoppingListService();
+  const spyRecorder = (over: Partial<IProgressRecorder> = {}): IProgressRecorder => ({
+    ...noopProgressRecorder,
+    onShoppingToggled: vi.fn().mockResolvedValue(undefined),
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setProgressRecorder(noopProgressRecorder);
+    vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue(PLAN as never);
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn: unknown) => {
+      const tx = {
+        shoppingList: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+      };
+      return (fn as (t: typeof tx) => Promise<unknown>)(tx);
+    });
+  });
+
+  it('records on a check with the client local day', async () => {
+    const spy = spyRecorder();
+    setProgressRecorder(spy);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true, '2026-10-22');
+    expect(spy.onShoppingToggled).toHaveBeenCalledWith('u1', 'plan1', '2026-10-22');
+  });
+
+  it('works for older clients that send no local day', async () => {
+    const spy = spyRecorder();
+    setProgressRecorder(spy);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true);
+    expect(spy.onShoppingToggled).toHaveBeenCalledWith('u1', 'plan1', undefined);
+  });
+
+  it('does not record an uncheck', async () => {
+    const spy = spyRecorder();
+    setProgressRecorder(spy);
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], false);
+    expect(spy.onShoppingToggled).not.toHaveBeenCalled();
+  });
+
+  it('a hook error does not fail the check-off', async () => {
+    setProgressRecorder(
+      spyRecorder({ onShoppingToggled: vi.fn().mockRejectedValue(new Error('ledger down')) }),
+    );
+    const res = await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true);
+    expect(res.checkedKeys).toContain('plan1-tomato|g');
+  });
+});
+
+// Kitchen progress: "is the whole list checked?" counts the derived lines plus custom items.
+describe('ShoppingListService.progressFor', () => {
+  const service = new ShoppingListService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue(PLAN as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([RECIPE] as never);
+  });
+
+  it('counts every line, and what is still unchecked', async () => {
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue({
+      checkedKeys: ['plan1-tomato|g'],
+      customItems: [],
+    } as never);
+    expect(await service.progressFor('u1', 'plan1')).toEqual({ total: 2, unchecked: 1 });
+  });
+
+  it('is done when every derived line and every custom item is checked', async () => {
+    const custom = {
+      key: 'plan1-custom-salt',
+      ingredientName: 'Salt',
+      quantity: '1',
+      unit: 'pcs',
+      category: 'other',
+      recipeNames: [],
+    };
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue({
+      checkedKeys: ['plan1-tomato|g', 'plan1-beef|g'],
+      customItems: [custom],
+    } as never);
+    expect(await service.progressFor('u1', 'plan1')).toEqual({ total: 3, unchecked: 1 });
+
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue({
+      checkedKeys: ['plan1-tomato|g', 'plan1-beef|g', 'plan1-custom-salt'],
+      customItems: [custom],
+    } as never);
+    expect(await service.progressFor('u1', 'plan1')).toEqual({ total: 3, unchecked: 0 });
+  });
+
+  it("is null for a plan that isn't the user's", async () => {
+    vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue(null);
+    expect(await service.progressFor('u1', 'other')).toBeNull();
   });
 });

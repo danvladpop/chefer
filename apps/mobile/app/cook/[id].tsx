@@ -25,6 +25,7 @@ import {
 import {
   clampCookServings,
   cn,
+  cookCountLine,
   defaultCookServings,
   finishMealCopy,
   formatCookTimer,
@@ -43,6 +44,10 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../src/components/icon';
+import { BiscuitLine } from '../../src/features/progress/biscuit-line';
+import { KitchenReceipt } from '../../src/features/progress/kitchen-receipt';
+import { useFinishCook } from '../../src/features/progress/use-finish-cook';
+import { useProgressEnabled, useProgressSummary } from '../../src/features/progress/use-progress';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import {
   clearCookSession,
@@ -230,6 +235,12 @@ export default function CookModeScreen() {
     if (finished) track('cook_finished', {});
   }, [finished]);
 
+  // Kitchen progress (mockup 02): finishing records the cook for EVERY user (D1, retried
+  // from a queue when offline); the receipt below shows only when the feature is on.
+  const cookProgress = useFinishCook({ finished, recipeId: id });
+  const progressOn = useProgressEnabled();
+  const { summary: progressSummary } = useProgressSummary();
+
   useEffect(() => {
     if (finished) return;
     saveCookSession(id, {
@@ -267,7 +278,11 @@ export default function CookModeScreen() {
     meta: { silent: true },
     onSuccess: (result, variables) => {
       // WP-13: opened from a plan slot (`meal` param) = planned, else a quick log.
-      trackMealLogged(isMealSlot(meal) ? 'planned' : 'quick', variables.mealType);
+      trackMealLogged(
+        isMealSlot(meal) ? 'planned' : 'quick',
+        variables.mealType,
+        isMealSlot(meal) ? undefined : 'cook',
+      );
       setLogged(true);
       setLoggedAs({ date: variables.date, slot });
       recordRebalanceOutcome(result);
@@ -602,6 +617,29 @@ export default function CookModeScreen() {
           <Text className="text-center text-body text-label-secondary">
             Log it to today&apos;s tracker to keep your day&apos;s totals up to date.
           </Text>
+          {/* Kitchen progress (mockup 02): Biscuit's line and the receipt, once the API has answered. */}
+          {progressOn && cookProgress.receipt && progressSummary?.settings.showXp !== false ? (
+            <>
+              {progressSummary?.settings.biscuit && !progressSummary.quiet ? (
+                <BiscuitLine
+                  moment="cookFinished"
+                  seed={cookProgress.cookId}
+                  loop="cooking"
+                  testID="cook-biscuit"
+                />
+              ) : null}
+              {cookProgress.receipt.meta.cookCount ? (
+                <Text testID="cook-count" className="text-center text-callout text-label-secondary">
+                  {cookCountLine(cookProgress.receipt.meta.cookCount)}
+                </Text>
+              ) : null}
+              <KitchenReceipt
+                testID="cook-receipt"
+                receipt={cookProgress.receipt}
+                xp={progressSummary?.xp}
+              />
+            </>
+          ) : null}
           {/* UX-COOK-04: the slot is a choice, preset from the plan or the clock. */}
           {logged ? null : (
             <View className="items-center gap-2 self-stretch">

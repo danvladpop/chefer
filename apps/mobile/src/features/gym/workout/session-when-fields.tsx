@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
+import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text, useThemeColors } from '@chefer/ui-mobile';
 import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long
@@ -12,10 +12,6 @@ import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 /** Longest session the field accepts (10 h). */
 export const MAX_DURATION_MIN = 600;
-/** Enabled / disabled chevrons — Ionicons takes a colour, not a class. */
-const ICON_ON = '#374151';
-const ICON_OFF = '#d1d5db';
-
 export function whenDateLabel(date: string, today: string): string {
   if (date === today) return `Today · ${weekdayDateLabel(date)}`;
   if (date === addDaysLocal(today, -1)) return `Yesterday · ${weekdayDateLabel(date)}`;
@@ -35,6 +31,8 @@ function StepButton({
   disabled: boolean;
   onPress: () => void;
 }) {
+  // Enabled / disabled chevrons — Ionicons takes a colour, not a class.
+  const colors = useThemeColors();
   return (
     <Pressable
       testID={testID}
@@ -45,7 +43,7 @@ function StepButton({
       onPress={onPress}
       className="h-11 w-11 items-center justify-center rounded-full active:bg-muted"
     >
-      <Ionicons name={icon} size={22} color={disabled ? ICON_OFF : ICON_ON} />
+      <Ionicons name={icon} size={22} color={disabled ? colors.labelTertiary : colors.label} />
     </Pressable>
   );
 }

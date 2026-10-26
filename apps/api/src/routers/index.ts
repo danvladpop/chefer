@@ -2,6 +2,7 @@ import { mergeRouters, router } from '../lib/trpc.js';
 import { authRouter } from './auth.router.js';
 import { coachRouter } from './coach.router.js';
 import { coachingRouter } from './coaching.router.js';
+import { curatedAdminRouter } from './curated-admin.router.js';
 import { dashboardRouter } from './dashboard.router.js';
 import { feedbackRouter } from './feedback.router.js';
 import { friendsRouter } from './friends/index.js';
@@ -15,6 +16,7 @@ import { pantryRouter } from './pantry.router.js';
 import { preferencesRouter } from './preferences.router.js';
 import { privacyRouter } from './privacy.router.js';
 import { profileRouter } from './profile.router.js';
+import { progressRouter } from './progress.router.js';
 import { recipeRouter } from './recipe.router.js';
 import { safetyRouter } from './safety.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
@@ -30,6 +32,8 @@ export const appRouter = router({
   // Trainer coaching (docs/trainer-platform/spec.md §7) — dark behind the `coaching`
   // flag + COACHING_ALLOWLIST. `trainer.*` is the trainer side, `coaching.*` the client side.
   coaching: coachingRouter,
+  // Curated recipe ingest + pool coverage (market review F1/F2) — admin only.
+  curatedAdmin: curatedAdminRouter,
   dashboard: dashboardRouter,
   feedback: feedbackRouter,
   // Following (docs/friends/implementation-plan.md §4.1) — dark behind the
@@ -47,6 +51,10 @@ export const appRouter = router({
   // this file later; real procedures land wave 1.
   privacy: privacyRouter,
   profile: profileRouter,
+  // Kitchen progress (docs/gamification-2026-10/tech-plan.md) — dark behind the
+  // `gamification` flag + GAMIFICATION_ALLOWLIST; `availability` and `finishCook`
+  // answer while it's off.
+  progress: progressRouter,
   // Import procedures (F5) merge into the recipe namespace:
   // recipe.importPreview / recipe.importSave live in import.router.ts.
   recipe: mergeRouters(recipeRouter, importRouter),

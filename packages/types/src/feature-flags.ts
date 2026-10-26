@@ -53,6 +53,15 @@ export const featureFlagsSchema = z
      *  mode switch, for active trainers only. Off by default; with it off,
      *  trainer tools stay under You → Trainer tools exactly as today. */
     trainerMode: z.boolean(),
+    /** Kitchen progress (docs/gamification-2026-10/tech-plan.md): Chef XP,
+     *  ranks, the Flame, Today's three, achievements and the weekly recap on
+     *  mobile and web. Off by default; GAMIFICATION_ALLOWLIST (emails, or `*`)
+     *  sees it while it is off. The ledger records for everyone either way (D1). */
+    gamification: z.boolean(),
+    /** Apple Health / Health Connect sync (C2): the "Connect health" screen and
+     *  every read/write. Needs a binary with the native modules; off by
+     *  default (dark launch). */
+    healthSync: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

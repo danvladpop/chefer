@@ -33,35 +33,54 @@ because the AI providers receive health-related data, only after the user's AI c
 Collection is "processed ephemerally" only where stated; everything else is stored on Chefer's
 servers against the account.
 
-| Play category      | Data type                    | Collected                                                                              | Shared | Optional?                                                    | Purposes                                              | What it is in Chefer                                                                                                        |
-| ------------------ | ---------------------------- | -------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Personal info      | Name                         | Yes                                                                                    | No     | Required                                                     | App functionality, Account management                 | Display name at sign-up                                                                                                     |
-| Personal info      | Email address                | Yes                                                                                    | No     | Required                                                     | App functionality, Account management, Communications | Login, password reset, the weekly emails the user turns on                                                                  |
-| Personal info      | User IDs                     | Yes                                                                                    | No     | Required                                                     | App functionality, Account management                 | Account id and session token                                                                                                |
-| Health and fitness | Health info                  | Yes                                                                                    | No     | Optional (asked with a consent sheet)                        | App functionality, Personalization                    | Sex, age, height, body weight log, allergies and diets, calorie and macro targets, logged meals                             |
-| Health and fitness | Fitness info                 | Yes                                                                                    | No     | Optional                                                     | App functionality, Personalization                    | Workouts, sets, reps, weights, routines, training goals                                                                     |
-| Photos and videos  | Photos                       | Yes                                                                                    | No     | Optional (only photos the user picks or takes)               | App functionality                                     | Meal photos for Snap to log (sent to the AI provider to be read, processed ephemerally, not stored), recipe photos (stored) |
-| Messages           | Other in-app messages        | Yes                                                                                    | No     | Optional                                                     | App functionality                                     | Chat messages with the AI chef and "Send feedback" messages                                                                 |
-| App activity       | Other user-generated content | Yes                                                                                    | No     | Optional                                                     | App functionality, Personalization                    | Recipes, imported recipe text/links, pantry items, household member profiles                                                |
-| App activity       | App interactions             | **Only when a PostHog key is configured for the mobile build. Today: leave unticked.** | No     | Optional (in-app switch, on by default for anonymous counts) | Analytics                                             | Screen and button usage counts, typed events with no free text. See "When analytics is switched on" below.                  |
+| Play category      | Data type                    | Collected                                                                                           | Shared | Optional?                                                    | Purposes                                              | What it is in Chefer                                                                                                        |
+| ------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Personal info      | Name                         | Yes                                                                                                 | No     | Required                                                     | App functionality, Account management                 | Display name at sign-up                                                                                                     |
+| Personal info      | Email address                | Yes                                                                                                 | No     | Required                                                     | App functionality, Account management, Communications | Login, password reset, the weekly emails the user turns on                                                                  |
+| Personal info      | User IDs                     | Yes                                                                                                 | No     | Required                                                     | App functionality, Account management                 | Account id and session token                                                                                                |
+| Health and fitness | Health info                  | Yes                                                                                                 | No     | Optional (asked with a consent sheet)                        | App functionality, Personalization                    | Sex, age, height, body weight log, allergies and diets, calorie and macro targets, logged meals                             |
+| Health and fitness | Fitness info                 | Yes                                                                                                 | No     | Optional                                                     | App functionality, Personalization                    | Workouts, sets, reps, weights, routines, training goals                                                                     |
+| Photos and videos  | Photos                       | Yes                                                                                                 | No     | Optional (only photos the user picks or takes)               | App functionality                                     | Meal photos for Snap to log (sent to the AI provider to be read, processed ephemerally, not stored), recipe photos (stored) |
+| Messages           | Other in-app messages        | Yes                                                                                                 | No     | Optional                                                     | App functionality                                     | Chat messages with the AI chef and "Send feedback" messages                                                                 |
+| App activity       | Other user-generated content | Yes                                                                                                 | No     | Optional                                                     | App functionality, Personalization                    | Recipes, imported recipe text/links, pantry items, household member profiles                                                |
+| App activity       | App interactions             | **Yes once analytics is switched on (2026-10-22, Q18 reversed). Tick it before the key goes live.** | No     | Optional (in-app switch, on by default for anonymous counts) | Analytics                                             | Screen and button usage counts, typed events with no free text. See "When analytics is switched on" below.                  |
 
 **Not collected (leave unticked):** Approximate or precise location, Contacts, Calendar,
 Financial info (no payments in the app), Web browsing, Files and docs, Audio (the app records
 none; audio of a video link the user imports is transcribed on the server and deleted), Health
 Connect data, Device or other IDs (**no advertising id, no Android ID or IMEI read**), App info
-and performance (crash logs and diagnostics: mobile Sentry is not set up), Race, religion,
+and performance (diagnostics; **crash logs** move to collected, see "When analytics is switched on"), Race, religion,
 sexual orientation or other sensitive attributes.
 
 ## When analytics is switched on
 
-Applies the day `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` are set for a mobile
-build (today they are not; see the iOS page for how this was verified). Then:
+The owner reversed Q18 on 2026-10-22. Analytics goes on when the `EXPO_PUBLIC_POSTHOG_KEY` and
+`EXPO_PUBLIC_POSTHOG_HOST` repo variables are set; the deploy's OTA job then bundles them
+(`infrastructure.md` §13). **Fill these in before the variables are set.** The OTA also reaches
+Android binaries already installed, so the form must be right first. The Play account does not
+exist yet, so enter them from the start.
 
-- Tick **App activity → App interactions**, collected, not shared, purpose **Analytics**, optional.
-- Users can turn it off in the app (Profile → Privacy & data → Usage analytics), which stops every
-  request.
-- Nothing free-text is ever sent (the typed event map forbids it).
-- Play has no "linked or not" question for this; the privacy policy carries that part.
+Play Console → App content → Data safety → Data types. Change or add only these rows:
+
+| Play category            | Data type              | Collected | Shared | Processed ephemerally? | Required or optional                                                                                         | Purposes                                               | Notes                                                                                                                                                                                                  |
+| ------------------------ | ---------------------- | --------- | ------ | ---------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App activity             | **App interactions**   | **Yes**   | **No** | No                     | **Optional**: users can turn it off (Profile → Privacy & data → Usage analytics stops every request at once) | **Analytics**                                          | Typed events: counts, booleans and fixed labels. No free text (the typed event map forbids it). PostHog EU is a service provider processing for Chefer, so it is not "sharing" under Play's definition |
+| Personal info            | **User IDs** (already) | Yes       | No     | No                     | Required (already)                                                                                           | App functionality, Account management, **+ Analytics** | When "Link usage to my account" is on (opt-in, off by default), the account id is the analytics id. Add the Analytics purpose to the existing row                                                      |
+| App info and performance | **Crash logs**         | **Yes**   | No     | No                     | Required (crash reporting has no in-app switch)                                                              | **App functionality**                                  | Not analytics, but due now: mobile Sentry has been live since 2026-10-16                                                                                                                               |
+
+Leave unticked: **Device or other IDs**. The analytics id is a random value made at each cold
+start and never stored, so it does not identify the device; no advertising id, Android ID or
+IMEI is read. Leave App info and performance → Diagnostics and Other app performance data
+unticked (no tracing, no performance data).
+
+Overview answers that change: none. Data is still encrypted in transit (`https://eu.i.posthog.com`
+is already named there). Play asks no "linked or not" question; the privacy policy carries that
+part, and it already describes both switches.
+
+**Deletion:** deleting the account also deletes the user's PostHog person when they had linking
+on (T-12.5, `posthogAdmin.deletePerson`), in the project the API's `POSTHOG_PROJECT_ID` names. So
+mobile must send to **the same PostHog project as web**. Unlinked events carry no account id and
+create no person.
 
 ## Other Play forms that go with this one
 

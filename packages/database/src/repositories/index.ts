@@ -77,7 +77,15 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  type ImportedWeightEntryData,
 } from './weight-entry.repository';
+
+export {
+  BodyMeasurementRepository,
+  bodyMeasurementRepository,
+  type IBodyMeasurementRepository,
+  type BodyMeasurementValuesData,
+} from './body-measurement.repository';
 
 export {
   ChefReviewRepository,
@@ -422,6 +430,19 @@ export {
   type TemplateNameRow,
 } from './workout-template.repository';
 
+// Curated recipe ingest (market review F1)
+export {
+  CuratedRecipeDraftRepository,
+  curatedRecipeDraftRepository,
+  CuratedDraftStateError,
+  type ICuratedRecipeDraftRepository,
+  type CuratedDraftCreateData,
+  type CuratedDraftPatch,
+  type CuratedRecipeCreateData,
+  type CuratedPublishData,
+  type ApprovedCuratedDraft,
+} from './curated-recipe-draft.repository';
+
 export {
   RecipeImageRepository,
   recipeImageRepository,
@@ -460,3 +481,48 @@ export {
   type IUploadReferenceRepository,
   type PurgeResult,
 } from './upload-reference.repository';
+
+// Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
+export {
+  ProgressEventRepository,
+  progressEventRepository,
+  type IProgressEventRepository,
+  type NewProgressEvent,
+  type ProgressScorer,
+  type ProgressOrigin,
+  type AppendOptions,
+  type AppendResult,
+  type LedgerCounters,
+  type LedgerLight,
+  type WeekStats,
+} from './progress-event.repository';
+export {
+  ProgressStateRepository,
+  progressStateRepository,
+  type IProgressStateRepository,
+  type ProgressStatePatch,
+} from './progress-state.repository';
+export {
+  ProgressUnlockRepository,
+  progressUnlockRepository,
+  type IProgressUnlockRepository,
+  type NewUnlock,
+} from './progress-unlock.repository';
+export {
+  ProgressQuestDayRepository,
+  progressQuestDayRepository,
+  type IProgressQuestDayRepository,
+} from './progress-quest-day.repository';
+export {
+  CookLogRepository,
+  cookLogRepository,
+  type ICookLogRepository,
+  type NewCookLog,
+} from './cook-log.repository';
+export {
+  ProgressSourceRepository,
+  progressSourceRepository,
+  type IProgressSourceRepository,
+  type PlanWithDays,
+  type ShoppingListHistory,
+} from './progress-source.repository';

@@ -67,7 +67,7 @@ export function HowYouCookForm({
   return (
     <View testID={testID} className="gap-5">
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Which meals should we plan?
         </Text>
         <ChipGroup
@@ -83,7 +83,7 @@ export function HowYouCookForm({
       </View>
 
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           On which days?
         </Text>
         <ChipGroup
@@ -99,7 +99,7 @@ export function HowYouCookForm({
       </View>
 
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           How long can you cook on those days?
         </Text>
         <SegmentedControl
@@ -110,7 +110,7 @@ export function HowYouCookForm({
           onChange={(value) => onChange(withTimeCap(shape, value))}
         />
         <View className="min-h-11 flex-row items-center justify-between">
-          <Text className="flex-1 text-sm text-gray-700">Weekends can take longer</Text>
+          <Text className="flex-1 text-sm text-label-secondary">Weekends can take longer</Text>
           <Switch
             testID={`${testID}-weekend-no-limit`}
             value={shape.weekendNoLimit}
@@ -120,7 +120,7 @@ export function HowYouCookForm({
       </View>
 
       <View className="gap-2">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Cooking for
         </Text>
         {table ? (
@@ -129,7 +129,7 @@ export function HowYouCookForm({
             className="min-h-11 flex-row items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
           >
             <View className="min-w-0 flex-1">
-              <Text className="text-sm font-medium text-gray-900">{table.text}</Text>
+              <Text className="text-sm font-medium text-label">{table.text}</Text>
               {table.names ? (
                 <Text numberOfLines={1} variant="muted" className="text-xs">
                   {table.names}
@@ -164,8 +164,8 @@ export function HowYouCookForm({
         )}
       </View>
 
-      <View className="rounded-xl bg-gray-50 px-3 py-2.5" accessibilityLiveRegion="polite">
-        <Text testID={`${testID}-summary`} className="text-sm text-gray-700">
+      <View className="rounded-xl bg-surface-sunken px-3 py-2.5" accessibilityLiveRegion="polite">
+        <Text testID={`${testID}-summary`} className="text-sm text-label-secondary">
           {planShapeSummary(shape, table ? (householdMembers?.length ?? 0) + 1 : null)}
         </Text>
       </View>

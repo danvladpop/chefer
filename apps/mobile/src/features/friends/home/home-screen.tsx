@@ -17,7 +17,6 @@ import {
   type FriendUserSummary,
 } from '@chefer/types';
 import {
-  colors,
   duration,
   EmptyState,
   ErrorState,
@@ -27,6 +26,7 @@ import {
   SegmentedControl,
   Text,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 import { isFriendsNotActivatedError, isFriendsUnavailableError } from '../api/friends-errors';
@@ -107,6 +107,7 @@ export type FriendsHomeProps = {
 };
 
 export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
+  const colors = useThemeColors();
   const reduced = useReducedMotion();
   const online = useIsOnline();
   const utils = trpc.useUtils();
@@ -238,7 +239,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
             <Text className="text-sm font-medium text-primary">
               {FRIENDS_COPY.home.seeAllRequests(row.count)}
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={14} color={colors.brand} />
           </Pressable>
         );
       case 'requestsError':
@@ -290,14 +291,14 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
         return segment === 'following' ? (
           <EmptyState
             testID="friends-empty-following"
-            icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
             title={FRIENDS_COPY.empty.youFollow.title}
             description={FRIENDS_COPY.empty.youFollow.body}
           />
         ) : (
           <EmptyState
             testID="friends-empty-followers"
-            icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
             title={FRIENDS_COPY.empty.followers.title}
             description={FRIENDS_COPY.empty.followers.body}
             action={{
@@ -342,7 +343,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
                     }
                     className="h-11 w-11 items-center justify-center"
                   >
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#6b7280" />
+                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.labelTertiary} />
                   </Pressable>
                 ) : null}
               </View>
@@ -370,7 +371,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
                 className="min-h-11 flex-row items-center gap-1 px-2"
               >
                 <Text className="text-sm font-medium text-primary">{FRIENDS_COPY.home.seeAll}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={14} color={colors.brand} />
               </Pressable>
             ) : null}
           </View>

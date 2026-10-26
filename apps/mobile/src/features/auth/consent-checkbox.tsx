@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 // T-39.1 / T-26.5: no Checkbox exists yet in `@chefer/ui-mobile` (the kit has
@@ -27,6 +27,7 @@ export function ConsentCheckbox({
   errorTestID,
   children,
 }: ConsentCheckboxProps) {
+  const colors = useThemeColors();
   return (
     <View className="gap-1">
       <Pressable
@@ -45,9 +46,9 @@ export function ConsentCheckbox({
             error && !checked && 'border-destructive',
           )}
         >
-          {checked && <Ionicons name="checkmark" size={14} color="white" />}
+          {checked && <Ionicons name="checkmark" size={14} color={colors.onBrand} />}
         </View>
-        <Text className="min-w-0 flex-1 text-sm text-gray-800">{children}</Text>
+        <Text className="min-w-0 flex-1 text-sm text-label">{children}</Text>
       </Pressable>
       {error ? (
         <Text
