@@ -1,3 +1,4 @@
+import { effectiveNumbersMode } from '@chefer/types';
 import type { RouterOutputs } from '../../lib/trpc';
 import { mealTypeLabel } from '../shell/today/today-helpers';
 
@@ -36,7 +37,9 @@ function leftLine(d: Summary): string | null {
   };
   const proteinLeft = Math.max(0, Math.round(target.proteinG - n.protein.eaten));
   const protein = `${proteinLeft} g protein left`;
-  if (d.numbersMode === 'PROTEIN_ONLY') return protein;
+  // WP-08: the one numbers-mode predicate, not the stored string.
+  const proteinOnly = effectiveNumbersMode(d.numbersMode) !== 'FULL';
+  if (proteinOnly) return protein;
   const kcalLeft = Math.max(0, Math.round(target.dailyCalorieTarget - n.eatenKcal));
   return `${kcalLeft.toLocaleString('en-US')} kcal · ${protein}`;
 }
