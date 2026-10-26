@@ -86,7 +86,12 @@ object RestTimerController {
   @Synchronized
   fun sync(context: Context, rest: NativeRest?) {
     val app = context.applicationContext
-    if (rest == null || rest.endsAt <= System.currentTimeMillis() + 1000) {
+    val now = System.currentTimeMillis()
+    // The JS clears its rest when its own clock reaches zero. That is the
+    // natural end, which the alarm (onRestOver) alerts for and cleans up —
+    // clearing here could race it and cancel the alert.
+    if (rest == null && current(app)?.let { it.endsAt <= now + 1000 } == true) return
+    if (rest == null || rest.endsAt <= now + 1000) {
       store(app, null)
       cancelAlarms(app)
       RestTimerService.stop(app)
