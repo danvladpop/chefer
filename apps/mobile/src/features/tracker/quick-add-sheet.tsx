@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  PACKAGED_PRODUCT_COPY,
+  type PackagedProductView,
+  type ProductAllergenWarning,
+} from '@chefer/types';
+import {
   Button,
   Chip,
   DONE_FIELD_PROPS,
@@ -22,6 +27,7 @@ import {
   formatQuickAddGrams,
   nutritionLabel,
   parseQuickAdd,
+  productDisplayName,
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
@@ -37,6 +43,7 @@ import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useNumericChain } from '../preferences/use-numeric-chain';
 import { RecipeImage } from '../recipes/recipe-image';
 import { invalidateDayQueries } from './invalidate';
+import { ProductFlow } from './products/product-flow';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { mealLabel, SLOT_COPY } from './slot-copy';
 
@@ -46,9 +53,9 @@ type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 // calories-only Quick add form, which is now the "Enter calories yourself"
 // fallback (`view === 'manual'`). Recent → This week's plan → Your recipes →
 // Ingredients (per 100 g), in that order, so the fastest path (log a repeat
-// food) is one tap into the sheet. Never branded products or barcodes
-// (B-29, AC6): the ingredient group is Chefer's own catalogue
-// (`ingredients.search`) only.
+// food) is one tap into the sheet. The ingredient group is Chefer's own catalogue
+// (`ingredients.search`) only — packaged products (ADR 0006, which replaced
+// B-29) are a separate group and the "Scan barcode" view (`view === 'product'`).
 
 export type PlannedLogMeal = {
   recipeId: string;
@@ -104,7 +111,8 @@ const INGREDIENT_PAGE_MAX = 36;
 const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
-type SheetView = 'search' | 'manual';
+type SheetView = 'search' | 'manual' | 'product';
+type ProductStart = { product: PackagedProductView; warnings: ProductAllergenWarning[] };
 
 /** A recent/plan row's stored mealType may pre-date the fixed enum; logCustomMeal
  * requires one of the four, so fall back to `snack` for anything else. */
@@ -154,6 +162,8 @@ export function QuickAddSheet({
   const [gramsCapped, setGramsCapped] = useState(false);
   const [portion, setPortion] = useState(1);
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
+  // The product a "Packaged products" row opens on; undefined = the barcode start.
+  const [productStart, setProductStart] = useState<ProductStart | undefined>(undefined);
 
   // Manual "Enter calories yourself" form state (the old sheet, verbatim).
   const [name, setName] = useState('');
@@ -186,6 +196,7 @@ export function QuickAddSheet({
     setGramsCapped(false);
     setPortion(1);
     setIngredientLimit(INGREDIENT_PAGE);
+    setProductStart(undefined);
     setName('');
     setKcal('');
     setMacros({ protein: '', carbs: '', fat: '' });
@@ -226,8 +237,15 @@ export function QuickAddSheet({
     { query: debouncedQuery, ...(ingredientLimit > INGREDIENT_PAGE && { limit: ingredientLimit }) },
     { enabled: visible && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
+  const productsQuery = trpc.products.search.useQuery(
+    { query: debouncedQuery, limit: 5 },
+    { enabled: visible && debouncedQuery.length > 1, placeholderData: (previous) => previous },
+  );
   const searchSettling =
-    debouncedQuery !== trimmedQuery || recipesQuery.isFetching || ingredientsQuery.isFetching;
+    debouncedQuery !== trimmedQuery ||
+    recipesQuery.isFetching ||
+    ingredientsQuery.isFetching ||
+    productsQuery.isFetching;
   const searchFailed = recipesQuery.isError || ingredientsQuery.isError;
 
   const recents = useMemo(() => {
@@ -250,10 +268,14 @@ export function QuickAddSheet({
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
-    (ingredientsQuery.data?.length ?? 0) > 0;
+    (ingredientsQuery.data?.length ?? 0) > 0 ||
+    (productsQuery.data?.length ?? 0) > 0;
 
   const onLoggedCommon = (
-    data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
+    data:
+      | RouterOutputs['tracker']['logRecipe']
+      | RouterOutputs['tracker']['logCustomMeal']
+      | RouterOutputs['tracker']['logProduct'],
     message: string,
     loggedName: string,
   ) => {
@@ -408,6 +430,12 @@ export function QuickAddSheet({
     });
   };
 
+  const openProduct = (start?: ProductStart) => {
+    Keyboard.dismiss();
+    setProductStart(start);
+    setView('product');
+  };
+
   const startManual = () => {
     setView('manual');
     setName(trimmedQuery);
@@ -511,9 +539,11 @@ export function QuickAddSheet({
           ? proteinOnly
             ? 'Enter protein yourself'
             : 'Enter calories yourself'
-          : targetSlot
-            ? SLOT_COPY.ateElse
-            : 'Log something'
+          : view === 'product'
+            ? PACKAGED_PRODUCT_COPY.scanBarcode
+            : targetSlot
+              ? SLOT_COPY.ateElse
+              : 'Log something'
       }
       eyebrow={targetSlot ? mealLabel(targetSlot.mealType) : undefined}
       testID="log-sheet"
@@ -585,6 +615,22 @@ export function QuickAddSheet({
             returnKeyType="search"
             onSubmitEditing={() => Keyboard.dismiss()}
           />
+
+          {/* ADR 0006: next to the search, not under every group — the sheet
+            opens with the keyboard up, which hides anything at the bottom. */}
+          <View className="flex-row flex-wrap gap-2">
+            <Pressable
+              testID="log-sheet-scan-barcode"
+              accessibilityRole="button"
+              onPress={() => openProduct()}
+              className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-separator bg-surface px-3"
+            >
+              <Ionicons name="barcode-outline" size={16} color={colors.brand} />
+              <Text className="text-sm font-medium text-brand">
+                {PACKAGED_PRODUCT_COPY.scanBarcode}
+              </Text>
+            </Pressable>
+          </View>
 
           {(logRecipeMutation.isError || logCustomMutation.isError) && (
             <Text
@@ -799,6 +845,43 @@ export function QuickAddSheet({
             </View>
           )}
 
+          {searching && (productsQuery.data?.length ?? 0) > 0 && (
+            <View className="gap-1.5">
+              {groupHeader(PACKAGED_PRODUCT_COPY.packagedGroup)}
+              {(productsQuery.data ?? []).map(({ product, warnings }) => (
+                <Pressable
+                  key={product.id}
+                  testID={`log-sheet-product-${product.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${productDisplayName(product)}${warnings.length > 0 ? ', allergen warning' : ''}`}
+                  onPress={() => openProduct({ product, warnings })}
+                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
+                >
+                  <RecipeImage imageUrl={product.imageUrl} className="h-9 w-9 rounded-lg" />
+                  <View className="min-w-0 flex-1">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
+                      {productDisplayName(product)}
+                    </Text>
+                    <Text className="text-xs text-label-secondary">
+                      {product.per100g.kcal === null
+                        ? 'No calories yet'
+                        : proteinOnly
+                          ? product.per100g.protein === null
+                            ? 'Protein not stated'
+                            : `${Math.round(product.per100g.protein)} g protein / 100 g`
+                          : `${Math.round(product.per100g.kcal)} kcal / 100 g`}
+                      {product.isOwn ? ' · yours' : ''}
+                    </Text>
+                  </View>
+                  {warnings.length > 0 && (
+                    <Ionicons name="warning-outline" size={18} color={colors.attention} />
+                  )}
+                  <Ionicons name="chevron-forward" size={16} color={colors.labelTertiary} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {searching && (ingredientsQuery.data?.length ?? 0) > 0 && (
             <View className="gap-1.5">
               {groupHeader('Ingredients (per 100 g)')}
@@ -980,6 +1063,48 @@ export function QuickAddSheet({
               </Text>
             </Pressable>
           </View>
+        </View>
+      ) : view === 'product' ? (
+        <View className="gap-3">
+          <Pressable
+            testID="log-sheet-product-back"
+            accessibilityRole="button"
+            onPress={() => setView('search')}
+            className="min-h-11 flex-row items-center gap-1"
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.brand} />
+            <Text className="text-sm font-medium text-primary">Back to search</Text>
+          </Pressable>
+          {!targetSlot && (
+            <View className="gap-1">
+              <Text className="text-xs font-medium text-label-secondary">Meal</Text>
+              <SegmentedControl
+                size="sm"
+                options={MEAL_OPTIONS}
+                value={mealType}
+                onChange={setMealType}
+                accessibilityLabel="Meal"
+                testID="log-sheet-product-meal"
+              />
+            </View>
+          )}
+          <ProductFlow
+            key={productStart?.product.id ?? 'start'}
+            date={date}
+            mealType={targetSlot ? toQuickAddMealType(targetSlot.mealType) : mealType}
+            replacesSlot={
+              targetSlot
+                ? { mealType: targetSlot.mealType, slotIndex: targetSlot.slotIndex }
+                : undefined
+            }
+            proteinOnly={proteinOnly}
+            initial={productStart}
+            onLogged={(data, productName) => {
+              const loggedMealType = targetSlot ? targetSlot.mealType : mealType;
+              trackMealLogged(quickAddSource({ mealType: loggedMealType }, false), loggedMealType);
+              onLoggedCommon(data, `Logged ${productName}`, productName);
+            }}
+          />
         </View>
       ) : (
         <View className="gap-4">

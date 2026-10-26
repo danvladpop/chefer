@@ -941,6 +941,7 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+export * from './packaged-product';
 export { escapeCsvField, parseCsv, sniffCsvDelimiter, toCsv, type CsvCell } from './csv';
 export {
   DATA_EXPORT_COPY,

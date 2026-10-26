@@ -3,6 +3,7 @@ import {
   chefProfileRepository,
   dailyLogRepository,
   mealPlanRepository,
+  packagedProductRepository,
   parseSkippedSlots,
   weightEntryRepository,
 } from '@chefer/database';
@@ -12,11 +13,20 @@ import type {
   HealthPlatform,
   NumbersMode,
   NutritionTargets,
+  ProductAmount,
   ProteinGuide,
   TrainingDayNutrition,
   UserProfile,
 } from '@chefer/types';
-import { buildProteinGuide, localDateStr, slotPortion } from '@chefer/utils';
+import {
+  buildProteinGuide,
+  localDateStr,
+  productAmountGrams,
+  productEntryName,
+  QUICK_ADD_LIMITS,
+  scaleProduct,
+  slotPortion,
+} from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { fitPlanDay, type DayFitOutcome } from '../meal-plan/day-fit.js';
 import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
@@ -28,6 +38,7 @@ import {
   type RebalanceResult,
 } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
+import { toProductView } from '../products/product-view.js';
 import { notifyProgress } from '../progress/progress-hooks.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import { recipeCopyService } from '../recipe/recipe-copy.service.js';
@@ -218,6 +229,8 @@ export interface RecentTrackerEntry {
   /** UX-FOOD-11: macros the entry left blank (stored as 0 g). */
   unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   estimatedBy?: 'vision' | 'manual';
+  /** Logged from a packaged product (ADR 0006). Additive. */
+  productId?: string;
   portionMultiplier?: number;
   count: number;
   lastLoggedAt: string;
@@ -565,6 +578,8 @@ export const trackerService = {
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
       replacesSlot?: SlotRefJson | undefined;
+      /** Set by logProduct only (ADR 0006). */
+      product?: { id: string; grams: number } | undefined;
     },
     rebalanceMode: RebalanceMode = 'auto',
   ): Promise<{ log: DailyLog; entryId: string } & RebalanceOutcome> {
@@ -587,6 +602,7 @@ export const trackerService = {
       ...(replaces && {
         replacesSlot: { mealType: replaces.mealType, slotIndex: replaces.slotIndex },
       }),
+      ...(entry.product && { product: { id: entry.product.id, grams: entry.product.grams } }),
     };
     // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
     const log = await dailyLogRepository.mutateDayState(
@@ -601,6 +617,67 @@ export const trackerService = {
     );
     await progressDayChanged(user.id, dateStr);
     return { log, entryId, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
+  },
+
+  /**
+   * Packaged products (ADR 0006): logs an amount of a product the user can
+   * see. The numbers are computed here from the product's per-100 g values
+   * (the client's preview uses the same `scaleProduct`), and the entry is an
+   * ordinary custom entry plus `product: { id, grams }` — so every shipped
+   * client totals, edits and re-logs it like any quick-add.
+   */
+  async logProduct(
+    user: UserProfile,
+    dateStr: string,
+    input: {
+      productId: string;
+      amount: ProductAmount;
+      mealType: string;
+      replacesSlot?: SlotRefJson | undefined;
+    },
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryId: string } & RebalanceOutcome> {
+    // Shared rows and the user's own only: someone else's private product is NOT_FOUND.
+    const row = await packagedProductRepository.findVisibleById(input.productId, user.id);
+    if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'That product no longer exists.' });
+    const product = toProductView(row, user.id);
+    const grams = productAmountGrams(input.amount, product.servingSizeG);
+    if (grams === null) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This product has no serving size. Log it in grams instead.',
+      });
+    }
+    const scaled = scaleProduct(product.per100g, grams);
+    if (!scaled) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This product has no calories yet. Add them from the pack first.',
+      });
+    }
+    if (scaled.kcal > QUICK_ADD_LIMITS.kcal) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `One entry holds up to ${QUICK_ADD_LIMITS.kcal} kcal. Log a smaller amount.`,
+      });
+    }
+    return this.logCustomMeal(
+      user,
+      dateStr,
+      {
+        name: productEntryName(product, input.amount, grams),
+        estimatedBy: 'manual',
+        mealType: input.mealType,
+        kcal: scaled.kcal,
+        protein: Math.min(scaled.protein, QUICK_ADD_LIMITS.protein),
+        carbs: Math.min(scaled.carbs, QUICK_ADD_LIMITS.carbs),
+        fat: Math.min(scaled.fat, QUICK_ADD_LIMITS.fat),
+        ...(scaled.unknownMacros.length > 0 && { unknownMacros: scaled.unknownMacros }),
+        ...(input.replacesSlot && { replacesSlot: input.replacesSlot }),
+        product: { id: product.id, grams },
+      },
+      rebalanceMode,
+    );
   },
 
   /**
@@ -882,6 +959,7 @@ export const trackerService = {
         fat: a.fat,
         ...(a.unknownMacros && { unknownMacros: a.unknownMacros }),
         ...(a.estimatedBy && { estimatedBy: a.estimatedBy }),
+        ...(a.productId && { productId: a.productId }),
         ...(a.portionMultiplier !== undefined && { portionMultiplier: a.portionMultiplier }),
         count: a.count,
         lastLoggedAt: a.lastLoggedAt,

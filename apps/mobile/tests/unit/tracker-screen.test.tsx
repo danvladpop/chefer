@@ -154,6 +154,7 @@ jest.mock('../../src/lib/trpc', () => {
       },
       recipe: { list: { useQuery: () => ({ data: [] }) } },
       ingredients: { search: { useQuery: () => ({ data: [] }) } },
+      products: { search: { useQuery: () => ({ data: [] }) } },
       tracker: {
         getDay: {
           useQuery: () => ({

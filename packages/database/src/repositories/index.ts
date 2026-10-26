@@ -482,6 +482,14 @@ export {
   type PurgeResult,
 } from './upload-reference.repository';
 
+// Packaged products (ADR 0006): the Open Food Facts cache + users' own products
+export {
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
+} from './packaged-product.repository';
 // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
 export {
   ProgressEventRepository,

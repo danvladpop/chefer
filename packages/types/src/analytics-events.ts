@@ -223,6 +223,17 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Packaged foods (ADR 0006, lane A) — enums and booleans only ────────────
+  // Never a barcode, a product name or a brand.
+  /** A barcode was submitted: from a photo, typed, or (later) the live scanner. */
+  barcode_scan: { via: 'photo' | 'typed' | 'live' };
+  barcode_found: { source: 'own' | 'cache' | 'off'; allergenWarning: boolean };
+  barcode_not_found: { via: 'photo' | 'typed' | 'live' | 'unreadable' };
+  /** A reviewed label scan (`label`) or a typed product (`manual`) was saved. */
+  label_scan_saved: { edited: boolean };
+  packaged_product_created: { source: 'label' | 'manual' };
+  packaged_product_logged: { unit: 'g' | 'serving'; allergenWarning: boolean };
   // Lane D2 (market review 2026-10): the explained coach.
   day_incomplete_set: { incomplete: boolean };
   coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };

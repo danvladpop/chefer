@@ -3,6 +3,7 @@ import {
   bodyMeasurementValuesSchema,
   HEALTH_WEIGHT_IMPORT_MAX,
   healthPlatformSchema,
+  productAmountSchema,
 } from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
 import { bodyMeasurementService } from '../application/body/body-measurement.service.js';
@@ -176,6 +177,25 @@ export const trackerRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { date, rebalanceMode, ...entry } = input;
       return trackerService.logCustomMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
+  // Packaged products (ADR 0006): log grams or servings of a product the user
+  // can see. FREE. The server scales the numbers; the entry is a custom entry
+  // with an additive `product: { id, grams }`. Additive procedure.
+  logProduct: protectedProcedure
+    .input(
+      z.object({
+        date: logDateSchema,
+        productId: z.string().min(1).max(40),
+        amount: productAmountSchema,
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        replacesSlot: slotRefSchema.optional(),
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logProduct(ctx.user, date, entry, rebalanceMode ?? 'auto');
     }),
 
   // WP-06 "Skipped it": the slot is neither eaten nor remaining. Idempotent;
