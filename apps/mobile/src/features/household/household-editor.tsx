@@ -42,6 +42,9 @@ import { SafetyPicker, type SafetyPickerHandle } from '../safety/safety-picker';
 import { BoardCard } from '../shell/today/parts';
 import { TrainButton } from '../shell/train/train-button';
 import { HouseholdGhost } from './household-ghost';
+import { InviteSheet } from './sharing/invite-sheet';
+import { MemberSharingLine, type SharingMember } from './sharing/member-sharing';
+import { householdSharingFrom, type HouseholdSharing } from './sharing/use-household-sharing';
 
 // Household editor (F2, backlog P2-3) — port of web's household-section.
 // Every tier adds AND edits members (name, portion, kid, allergies,
@@ -85,6 +88,10 @@ type Member = {
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
+  /** ADR 0003: a partner's account claimed this profile. */
+  hasAccount?: boolean;
+  /** ADR 0003: the profile the signed-in partner claimed (the one they may edit). */
+  isYou?: boolean;
 };
 
 function labelFor(id: string): string {
@@ -252,12 +259,17 @@ export type HouseholdEditorHandle = {
   addPending: (onAdded: () => void) => void;
 };
 
+const SOLO = householdSharingFrom(undefined);
+
 export function HouseholdEditor({
   variant = 'screen',
   handleRef,
+  sharing = SOLO,
 }: {
   variant?: 'screen' | 'onboarding';
   handleRef?: Ref<HouseholdEditorHandle>;
+  /** ADR 0003: the Household screen's `household.sharing` (onboarding is always solo). */
+  sharing?: HouseholdSharing;
 }) {
   const colors = useThemeColors();
   const { limit, isPremium } = useEntitlement('householdMembers');
@@ -287,6 +299,10 @@ export function HouseholdEditor({
   // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [safetyDeclined, setSafetyDeclined] = useState(false);
+  // ADR 0003: sharing (invite, joined badges, a partner's read-only view of the owner's table).
+  const partnerView = sharing.isPartner;
+  const showSharing = variant === 'screen' && sharing.enabled;
+  const [inviting, setInviting] = useState<SharingMember | null>(null);
 
   // Member changes move plan warnings, list sizes and costs.
   const invalidate = () => {
@@ -600,7 +616,8 @@ export function HouseholdEditor({
     <View className="gap-4">
       {healthConsentSheet}
       {/* "You" card — always first (UX-01) */}
-      {variant === 'screen' && <YouCard />}
+      {/* A partner's own profile is their claimed row (badged "You") in the owner's table. */}
+      {variant === 'screen' && !partnerView && <YouCard />}
 
       {/* Members */}
       {isLoading ? (
@@ -685,25 +702,33 @@ export function HouseholdEditor({
                       {memberCardSummary(m)}
                     </Text>
                   </View>
-                  <IconButton
-                    testID={`household-edit-${m.id}`}
-                    accessibilityLabel={`Edit ${m.name}`}
-                    icon={<Icon name="edit" size={20} color={colors.labelSecondary} />}
-                    onPress={() => startEdit(m)}
-                  />
-                  <IconButton
-                    testID={`household-remove-${m.id}`}
-                    accessibilityLabel={`Remove ${m.name}`}
-                    icon={<Icon name="trash" size={20} color={colors.danger} />}
-                    onPress={() => {
-                      // Removing the member in the form drops the edit too.
-                      if (editing?.id === m.id) {
-                        resetForm();
-                      }
-                      setConfirmingId(m.id);
-                    }}
-                  />
+                  {/* ADR 0003: a partner edits only the profile they claimed, and removes none. */}
+                  {!partnerView || m.isYou ? (
+                    <IconButton
+                      testID={`household-edit-${m.id}`}
+                      accessibilityLabel={`Edit ${m.name}`}
+                      icon={<Icon name="edit" size={20} color={colors.labelSecondary} />}
+                      onPress={() => startEdit(m)}
+                    />
+                  ) : null}
+                  {!partnerView ? (
+                    <IconButton
+                      testID={`household-remove-${m.id}`}
+                      accessibilityLabel={`Remove ${m.name}`}
+                      icon={<Icon name="trash" size={20} color={colors.danger} />}
+                      onPress={() => {
+                        // Removing the member in the form drops the edit too.
+                        if (editing?.id === m.id) {
+                          resetForm();
+                        }
+                        setConfirmingId(m.id);
+                      }}
+                    />
+                  ) : null}
                 </View>
+                {showSharing ? (
+                  <MemberSharingLine member={m} sharing={sharing} onInvite={setInviting} />
+                ) : null}
                 {editing?.id === m.id && formCard}
               </Fragment>
             ),
@@ -720,7 +745,7 @@ export function HouseholdEditor({
 
       {/* Free tables: safety applies, scaling is the premium part (P2-3).
           An empty free table sees the ghost instead (F-PM-12). */}
-      {variant === 'screen' && isPremium === false && members.length > 0 && (
+      {variant === 'screen' && isPremium === false && members.length > 0 && !partnerView && (
         <BoardCard testID="household-upsell" className="bg-brand-tint">
           <Text className="text-headline font-semibold text-label">
             Everyone&apos;s allergies apply to every plan — free.
@@ -746,7 +771,17 @@ export function HouseholdEditor({
 
       {/* Add someone — every tier (editing happens under the member). Hidden while the
           list failed to load: the table size (and the member cap) is unknown. */}
-      {!editing && !listFailed && formCard}
+      {!editing && !listFailed && !partnerView && formCard}
+
+      {showSharing ? (
+        <InviteSheet
+          member={inviting}
+          openInvite={
+            inviting ? sharing.status?.invites.find((i) => i.memberId === inviting.id) : undefined
+          }
+          onClose={() => setInviting(null)}
+        />
+      ) : null}
 
       <Sheet
         visible={memberSafetySheetOpen}

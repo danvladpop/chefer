@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { isMealSlotConflict } from '@/features/household-sharing/lib/conflict';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
@@ -84,6 +85,7 @@ export function ReplaceMealSheet({
   onClose,
   onChanged,
   onSideAdded,
+  onConflict,
 }: {
   target: ReplaceTarget | null;
   onClose: () => void;
@@ -91,6 +93,11 @@ export function ReplaceMealSheet({
   onChanged?: (result: ReplaceMealResult) => void;
   /** FB7-04: fired after a side dish was added — lets the caller offer Undo. */
   onSideAdded?: (result: SideAddedResult) => void;
+  /**
+   * ADR 0003: the slot changed under this sheet (the other person in a shared
+   * household got there first). The sheet closes; the caller says so and refetches.
+   */
+  onConflict?: () => void;
 }) {
   const { proteinOnly } = useNumbersMode(); // WP-08
   const [search, setSearch] = useState('');
@@ -169,8 +176,18 @@ export function ReplaceMealSheet({
       ...(dayFit && { dayFit }),
     });
   };
+  const closeOnConflict = (err: unknown) => {
+    if (!isMealSlotConflict(err)) return;
+    replaceMutation.reset();
+    swapMutation.reset();
+    onClose();
+    onConflict?.();
+  };
+  // The recipe the slot held when the sheet opened: a stale one is a CONFLICT.
+  const expected = target?.recipeId ? { expectedRecipeId: target.recipeId } : {};
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
     meta: { silent: true },
+    onError: closeOnConflict,
     onSuccess: (data) => {
       invalidate();
       onClose();
@@ -182,6 +199,7 @@ export function ReplaceMealSheet({
   const requestAiConsent = useAiConsent();
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     meta: { silent: true },
+    onError: closeOnConflict,
     onSuccess: (data) => {
       invalidate();
       onClose();
@@ -290,6 +308,7 @@ export function ReplaceMealSheet({
                   slotIndex: target.slotIndex,
                   // Day rebalance: the server fits the day against the client's today.
                   localDate: localDateStr(),
+                  ...expected,
                 }),
               );
             }}
@@ -334,6 +353,7 @@ export function ReplaceMealSheet({
                     recipeId: lastAttemptedId,
                     acknowledgeConflict: true,
                     localDate: localDateStr(),
+                    ...expected,
                   });
                 }}
                 className="mt-1 text-xs font-semibold text-red-700 underline disabled:opacity-50"
@@ -410,6 +430,7 @@ export function ReplaceMealSheet({
                               slotIndex: target.slotIndex,
                               recipeId: recipe.id,
                               localDate: localDateStr(),
+                              ...expected,
                             });
                           }}
                           className="flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors hover:border-[#944a00]/40 hover:bg-orange-50/40 disabled:opacity-50"

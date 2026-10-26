@@ -195,8 +195,14 @@ describe('funnel call sites (market review 2026-10)', () => {
     ],
     ['method: photo', 'src/features/tracker/scan-meal-card.tsx', "'photo')"],
     ['method: cook', 'app/cook/[id].tsx', "'cook'"],
-    ['list_item_checked (shell)', 'src/features/shell/shop/shop-screen.tsx', 'trackListToggled('],
-    ['list_item_checked (legacy)', 'app/(food)/shopping-list.tsx', 'trackListToggled('],
+    // ADR 0003: both Shop screens tick through the durable outbox hook, which tracks the tick.
+    [
+      'list_item_checked (outbox hook)',
+      'src/features/shopping-list/use-shop-toggle.ts',
+      'trackListToggled(',
+    ],
+    ['list_item_checked (shell)', 'src/features/shell/shop/shop-screen.tsx', 'useShopToggle('],
+    ['list_item_checked (legacy)', 'app/(food)/shopping-list.tsx', 'useShopToggle('],
     ['recipe_imported', 'app/import-recipe.tsx', "track('recipe_imported'"],
     ['coaching_joined', 'src/features/coaching/join/join-screen.tsx', "track('coaching_joined'"],
     [

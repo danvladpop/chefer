@@ -1,6 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { HouseholdNotices } from '@/features/household-sharing/components/HouseholdNotices';
+import { LeaveHousehold } from '@/features/household-sharing/components/LeaveHousehold';
+import { MemberSharingLine } from '@/features/household-sharing/components/MemberSharingLine';
+import { PartnerBanner } from '@/features/household-sharing/components/PartnerBanner';
+import { useHouseholdSharing } from '@/features/household-sharing/use-household-sharing';
 import { StepDiet, type StepDietHandle } from '@/features/onboarding/components/step-diet';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { HealthDeclinedNotice } from '@/features/privacy/components/HealthDeclinedNotice';
@@ -14,6 +19,7 @@ import {
   findSafetyTaxonomyEntry,
   HOUSEHOLD_AGE_BANDS,
   HOUSEHOLD_PORTION_OPTIONS,
+  HOUSEHOLD_SHARING_COPY,
   type HouseholdAgeBand,
 } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
@@ -667,6 +673,12 @@ export function HouseholdSection({
   const [editing, setEditing] = useState<HouseholdMemberDto | null>(null);
   const [preset, setPreset] = useState<Partial<MemberFormState> | undefined>(undefined);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // ADR 0003: sharing shows only on the Preferences section, with the flag on.
+  const sharing = useHouseholdSharing();
+  const sharingStatus = variant === 'onboarding' ? null : sharing.status;
+  // A partner sees the owner's table: only their own profile is theirs to edit.
+  const isPartner = sharingStatus?.role === 'PARTNER';
+  const partnerOwner = isPartner ? (sharingStatus.owner?.name ?? '') : null;
 
   const removeMutation = trpc.household.remove.useMutation({
     onSuccess: () => {
@@ -677,7 +689,7 @@ export function HouseholdSection({
 
   const atLimit = limit !== null && memberCount >= limit;
   const onboarding = variant === 'onboarding';
-  const showGhost = !isPremium && !onboarding && memberCount === 0;
+  const showGhost = !isPremium && !onboarding && !isPartner && memberCount === 0;
 
   function openEditor(member: HouseholdMemberDto | null, nextPreset?: Partial<MemberFormState>) {
     setEditing(member);
@@ -695,6 +707,8 @@ export function HouseholdSection({
 
   const body = (
     <>
+      {sharingStatus && <HouseholdNotices enabled />}
+      {partnerOwner !== null && <PartnerBanner ownerName={partnerOwner} className="mb-3" />}
       {!onboarding && <YouRow />}
       {loadFailed ? (
         // UX-ACC-03: a failed load must not read as "just you at the table".
@@ -721,7 +735,7 @@ export function HouseholdSection({
         />
       ) : (
         <>
-          {memberCount === 0 && (
+          {memberCount === 0 && !isPartner && (
             <QuickChips onPick={(kind) => openEditor(null, MEMBER_PRESETS[kind])} />
           )}
 
@@ -759,73 +773,84 @@ export function HouseholdSection({
                     </div>
                   </li>
                 ) : (
-                  <li
-                    key={m.id}
-                    className="flex items-center gap-3 rounded-xl border border-input px-3 py-2"
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-sm font-semibold text-[#944a00]">
-                      {m.isKid ? (
-                        <Baby className="h-4 w-4" aria-hidden="true" />
-                      ) : (
-                        m.name.slice(0, 1).toUpperCase()
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {m.name}
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          {ageBandLabel(m.ageBand) ? `${ageBandLabel(m.ageBand)} · ` : ''}
-                          {portionLabel(m.portionFactor)} portion
+                  <li key={m.id} className="rounded-xl border border-input px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-sm font-semibold text-[#944a00]">
+                        {m.isKid ? (
+                          <Baby className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          m.name.slice(0, 1).toUpperCase()
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {m.name}
+                          {m.isYou && (
+                            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              {HOUSEHOLD_SHARING_COPY.you}
+                            </span>
+                          )}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            {ageBandLabel(m.ageBand) ? `${ageBandLabel(m.ageBand)} · ` : ''}
+                            {portionLabel(m.portionFactor)} portion
+                          </span>
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {safetySummary(m)}
                         </span>
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {safetySummary(m)}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => openEditor(m)}
-                      aria-label={`Edit ${m.name}`}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingId(m.id)}
-                      aria-label={`Remove ${m.name}`}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                      {(!isPartner || m.isYou) && (
+                        <button
+                          type="button"
+                          onClick={() => openEditor(m)}
+                          aria-label={`Edit ${m.name}`}
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                      {!isPartner && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(m.id)}
+                          aria-label={`Remove ${m.name}`}
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                    {sharingStatus && <MemberSharingLine member={m} status={sharingStatus} />}
                   </li>
                 ),
               )}
             </ul>
           )}
 
-          <div className="mt-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => openEditor(null)}
-              disabled={atLimit}
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-dashed border-primary/40 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {memberCount === 0 ? 'Add someone else' : 'Add someone'}
-            </button>
-            {limit !== null && (
-              <span className="text-xs text-muted-foreground">
-                {memberCount} of {limit}
-              </span>
-            )}
-          </div>
+          {!isPartner && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => openEditor(null)}
+                disabled={atLimit}
+                className="flex min-h-11 items-center gap-1.5 rounded-xl border border-dashed border-primary/40 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {memberCount === 0 ? 'Add someone else' : 'Add someone'}
+              </button>
+              {limit !== null && (
+                <span className="text-xs text-muted-foreground">
+                  {memberCount} of {limit}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* UX-02/CI-41: table read-back summary */}
           {tableSummary && <p className="mt-2 text-xs text-muted-foreground">{tableSummary}</p>}
 
           {/* Free tables: safety applies, scaling is the premium part (P2-3) */}
-          {!isPremium && !onboarding && memberCount > 0 && (
+          {!isPremium && !onboarding && !isPartner && memberCount > 0 && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
               <p className="text-sm text-gray-700">
                 Everyone&apos;s allergies already apply to every plan. Your shopping list and
@@ -837,6 +862,8 @@ export function HouseholdSection({
               </div>
             </div>
           )}
+
+          {partnerOwner !== null && <LeaveHousehold ownerName={partnerOwner} />}
         </>
       )}
 
@@ -872,7 +899,7 @@ export function HouseholdSection({
           </span>
         )}
       </div>
-      <p className="mb-4 text-sm text-muted-foreground">
+      <p className="mb-4 text-sm text-muted-foreground" hidden={isPartner}>
         Add the people you cook for. Their allergies and restrictions apply to every plan — free.
         Premium also scales servings and the shopping list to the whole table.
       </p>

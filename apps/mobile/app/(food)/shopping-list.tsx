@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Link } from 'expo-router';
+import { Link, useIsFocused } from 'expo-router';
+import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
 import {
   Button,
   Card,
@@ -32,6 +33,8 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PartnerBanner } from '../../src/features/household/sharing/partner-banner';
+import { useHouseholdSharing } from '../../src/features/household/sharing/use-household-sharing';
 import { LockedFeatureCard } from '../../src/features/premium/locked-feature-card';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
@@ -45,13 +48,17 @@ import {
 import { ItemThumb } from '../../src/features/shopping-list/item-thumb';
 import { isPendingItem, withPendingItems } from '../../src/features/shopping-list/pending-item';
 import { ShareListSheet } from '../../src/features/shopping-list/share-list-sheet';
+import { useSharedListSync } from '../../src/features/shopping-list/use-shared-list-sync';
+import {
+  useCheckedWithPending,
+  useShopToggle,
+} from '../../src/features/shopping-list/use-shop-toggle';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsOnline } from '../../src/hooks/use-is-online';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnits } from '../../src/hooks/use-units';
 import { track } from '../../src/lib/analytics';
-import { trackListToggled } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
@@ -119,29 +126,16 @@ export default function ShoppingListScreen() {
   }, [weekList]);
 
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
-  // immediately, per-key server semantics merge concurrent devices.
-  const toggleMutation = trpc.shoppingList.toggleItems.useMutation({
-    onMutate: async ({ keys, checked }) => {
-      await utils.shoppingList.getForWeek.cancel({ weekOffset });
-      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
-      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
-        old
-          ? {
-              ...old,
-              checkedKeys: checked
-                ? [...new Set([...old.checkedKeys, ...keys])]
-                : old.checkedKeys.filter((k) => !keys.includes(k)),
-            }
-          : old,
-      );
-      return { previous };
-    },
-    onSuccess: (_data, vars) => trackListToggled(vars),
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
-      }
-    },
+  // immediately, per-key server semantics merge concurrent devices. ADR 0003:
+  // sent through the durable outbox, so an offline tick survives a killed app.
+  const toggleItems = useShopToggle(weekOffset);
+  // ADR 0003: a shared household's list is live while this tab is on screen.
+  const sharing = useHouseholdSharing();
+  const isFocused = useIsFocused();
+  const checkedBy = useSharedListSync({
+    weekOffset,
+    planId: weekList?.planId,
+    enabled: sharing.shared && isFocused,
   });
 
   // UX-SHOP-02: the new row shows up at once, marked "Not saved yet" until the
@@ -205,7 +199,19 @@ export default function ShoppingListScreen() {
     );
   };
   const items = weekList?.items ?? [];
-  const checkedItems = weekList?.checkedKeys ?? [];
+  const checkedItems = useCheckedWithPending(weekList?.checkedKeys, weekList?.planId);
+  // ADR 0003: "Ticked by Maria" / "Added by you" (the live sync's "who" is the freshest).
+  const whoLine = (
+    item: { key: string; checkedBy?: ListPersonDto; addedBy?: ListPersonDto },
+    checked: boolean,
+  ): string | null => {
+    if (!sharing.shared) return null;
+    if (checked) {
+      const by = checkedBy[item.key] ?? item.checkedBy;
+      if (by) return HOUSEHOLD_SHARING_COPY.checkedBy(by);
+    }
+    return item.addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(item.addedBy) : null;
+  };
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
@@ -226,11 +232,7 @@ export default function ShoppingListScreen() {
     if (!weekList?.planId) {
       return;
     }
-    toggleMutation.mutate({
-      planId: weekList.planId,
-      keys: [key],
-      checked: !checkedItems.includes(key),
-    });
+    toggleItems(weekList.planId, [key], !checkedItems.includes(key));
   };
 
   // T-21.5 (CI-14, PAT-11): keeps "Add item" clear of the keyboard.
@@ -345,6 +347,10 @@ export default function ShoppingListScreen() {
             {shoppingProvenanceText(weekList?.fromDayOfWeek)}
           </Text>
         </View>
+
+        {sharing.isPartner && sharing.ownerName ? (
+          <PartnerBanner testID="shop-partner-banner" ownerName={sharing.ownerName} />
+        ) : null}
 
         {/* UX-SHOP-02: say so when changes are waiting for a connection. */}
         {!online && (
@@ -507,6 +513,7 @@ export default function ShoppingListScreen() {
                       {catItems.map((item) => {
                         const isChecked = checkedItems.includes(item.key);
                         const pending = isPendingItem(item);
+                        const who = whoLine(item, isChecked);
                         const quantityLabel = Number.isFinite(Number(item.quantity))
                           ? units.qty(Number(item.quantity), item.unit)
                           : `${item.quantity} ${item.unit}`;
@@ -562,6 +569,15 @@ export default function ShoppingListScreen() {
                                     ` · ${formatApproxPriceHint(item.estimatedPriceEur, currency)}`}
                                   {pending && (online ? ' · Saving…' : ' · Not saved yet')}
                                 </Text>
+                                {who ? (
+                                  <Text
+                                    testID={`shop-item-${item.key}-who`}
+                                    numberOfLines={1}
+                                    className="text-xs text-label-secondary"
+                                  >
+                                    {who}
+                                  </Text>
+                                ) : null}
                               </View>
                               <View
                                 className={cn(
