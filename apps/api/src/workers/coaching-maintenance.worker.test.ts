@@ -38,18 +38,22 @@ function setup() {
     deleteForEndedLinksBefore: vi.fn(async () => 7),
     deleteBlocksBefore: vi.fn(async () => 1),
   };
+  const checkIns = { deleteOrphanedBefore: vi.fn(async () => 2) };
   const enforceAllowlist = vi.fn(async (u: { email: string }) => u.email === 'removed@x.dev');
   return {
     worker: new CoachingMaintenanceWorker({
       invites,
+      householdInvites: { deleteExpiredInvitesBefore: vi.fn(async () => 0) },
       notes,
       links,
       requests,
       trainers,
       templates,
       bookings,
+      checkIns,
       enforceAllowlist,
     }),
+    checkIns,
     templates,
     bookings,
     invites,
@@ -73,6 +77,7 @@ describe('CoachingMaintenanceWorker', () => {
       trainersRemoved: 1,
       prunedTemplates: 6,
       prunedBookings: 8,
+      prunedCheckIns: 2,
     });
     // Trainer mode §10: bookings follow the link's 24 months; blocked time is kept 24 months too.
     expect(bookings.deleteForEndedLinksBefore).toHaveBeenCalledWith(

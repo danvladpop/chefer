@@ -44,6 +44,8 @@ describe('trainer mode: badges and Today summary', () => {
       unmarkedAttendance: 0,
       bookingChanges: 0,
       total: 0,
+      // Lane K4 (additive): quiet clients since the trainer last looked; never in `total`.
+      quietClients: 0,
     });
     expect(await trainer.api.trainer.dashboard.summary.query({ today: TODAY })).toEqual({
       activeClients: 0,
@@ -57,6 +59,8 @@ describe('trainer mode: badges and Today summary', () => {
       todayBookings: [],
       unmarkedAttendance: [],
       sessionsDelivered: [],
+      // Lane K4 (additive): the trainer's "went quiet" threshold (default 3).
+      quietAfterDays: 3,
     });
   });
 

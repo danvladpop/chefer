@@ -35,6 +35,7 @@ import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { wellKnownRouter } from './routers/well-known.router.js';
+import { coachingAlertsWorker } from './workers/coaching-alerts.worker.js';
 import { coachingMaintenanceWorker } from './workers/coaching-maintenance.worker.js';
 import { dataRetentionWorker } from './workers/data-retention.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
@@ -299,6 +300,8 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Following housekeeping + the weekly moderation metrics line (plan §4.6)
   friendsMaintenanceWorker.start();
   coachingMaintenanceWorker.start();
+  // Lane K3/K4: weekly check-in emails (hourly).
+  coachingAlertsWorker.start();
 
   // Daily prune: expired sessions, AI usage + AI call logs older than 90 days
   dataRetentionWorker.start();
@@ -362,6 +365,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   weeklyEmailWorker.stop();
   friendsMaintenanceWorker.stop();
   coachingMaintenanceWorker.stop();
+  coachingAlertsWorker.stop();
   dataRetentionWorker.stop();
   uploadSweeperWorker.stop();
   await planTailoringWorker.stop();

@@ -60,7 +60,7 @@ export function PlanMissSheet({
 }: PlanMissSheetProps) {
   const utils = trpc.useUtils();
   // WP-08: protein-only mode judges a day by its protein alone and states no calorie figure.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const proteinGap = proteinGapG !== undefined && proteinGapG > 0;
   const direction =
     proteinOnly && proteinGap ? 'under' : (missDirection(kcal, target, 0) ?? 'under');
@@ -127,6 +127,8 @@ export function PlanMissSheet({
     </button>
   ) : null;
 
+  // Lane E3 "Hide numbers": a fit-to-target sheet has nothing to say without figures.
+  if (noNumbers) return null;
   return (
     <Sheet
       open={open}

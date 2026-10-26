@@ -6,9 +6,9 @@ import { Text } from './text';
 
 // Macro rows and tiles (10 Oct redesign). The emoji is decoration next to the
 // word — never instead of it — so it is hidden from screen readers and every
-// value is spoken with its name. Bars are brand; over target they turn
-// `attention` and the row says "N g over" in words (colour is never the only
-// signal, and numbers are never red — F8).
+// value is spoken with its name. Bars are brand, over target too: the row
+// says "N g over" in neutral words (never an alarm colour or red — F8; lane E3:
+// eating-disorder-safe in every mode).
 
 export type MacroKey = 'protein' | 'carbs' | 'fat';
 
@@ -54,7 +54,7 @@ export function MacroRow({ macro, value, target, className, testID }: MacroRowPr
         {overBy > 0 ? (
           <Text
             testID={testID ? `${testID}-over` : undefined}
-            className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-attention"
+            className="rounded-full bg-surface-sunken px-2 text-caption text-label-secondary"
           >
             {overBy} g over
           </Text>
@@ -71,8 +71,6 @@ export function MacroRow({ macro, value, target, className, testID }: MacroRowPr
         <ProgressBar
           progress={value / target}
           color={colors.brand}
-          overColor={colors.attention}
-          capColor={colors.attention}
           className="h-2 bg-surface-sunken"
         />
       ) : null}

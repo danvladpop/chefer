@@ -324,7 +324,7 @@ describe('ingredients.search — ranking and limit (UX-FOOD-12)', () => {
 });
 
 describe('ingredients.search — per100g (T-19.1, T-BUG-X7)', () => {
-  it('rows carry per100g macros (or null) and never a barcode/brand field (B-29, AC6)', async () => {
+  it('rows carry per100g macros (or null) and never a barcode/brand field (catalogue only; packaged products are separate, ADR 0006)', async () => {
     const results = await client.ingredients.search.query({ query: 'chicken' });
     if (results.length === 0) {
       console.warn('[tracker.contract] no ingredient catalog rows matched "chicken"');

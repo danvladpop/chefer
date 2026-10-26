@@ -26,13 +26,25 @@ import { isCoachingEnabledFor } from '../../lib/coaching-flags.js';
 //      workouts, adherence, history) and `write` (routine, next targets) both
 //      require it. `note` requires rule 1 plus an active link OR an existing,
 //      not-hidden note row (a hidden note is not readable in Phase 1).
+//   3b. Lane K1: `food` and `weight` require the ACTIVE link AND the client's
+//      matching switch on that link (`shareFoodAt` / `shareWeightAt`). The
+//      switch lives on the link, so a revoke, the end of the coaching or a new
+//      coaching (which starts with both off) all deny at once.
 //   4. No cross-request cache; a per-request memo only. Ending a link takes
 //      effect on the trainer's very next request.
 //
 // Denied is ONE value whatever the reason: NOT_FOUND "This client isn't
 // available" (the INV-3 pattern), never a reason.
 
-export type CoachingScope = 'read' | 'write' | 'note';
+export type CoachingScope = 'read' | 'write' | 'note' | 'food' | 'weight';
+
+/** Lane K1: whether the client shares that data on this (ACTIVE) link. */
+export function linkShares(
+  link: Pick<CoachingLink, 'shareFoodAt' | 'shareWeightAt'>,
+  data: 'food' | 'weight',
+): boolean {
+  return (data === 'food' ? link.shareFoodAt : link.shareWeightAt) != null;
+}
 
 /** What `assert` resolved: the trainer, the client and (for read/write) the ACTIVE link. */
 export interface CoachingAccess {
@@ -127,6 +139,9 @@ export class CoachingAccessService {
     if (trainer.id === clientId) throw clientUnavailableError();
     // 3. an ACTIVE link
     const link = await this.deps.links.findActivePair(trainer.id, clientId);
+    if (link && (scope === 'food' || scope === 'weight') && !linkShares(link, scope)) {
+      throw clientUnavailableError();
+    }
     if (link) return { trainerId: trainer.id, clientId, scope, link };
     if (scope === 'note') {
       const note = await this.deps.notes.find(trainer.id, clientId);

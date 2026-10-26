@@ -256,4 +256,67 @@ export interface EventMap {
   // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
+  // Lane D4: on-device progress photos (never the photo, never a count of them).
+  progress_photo_added: { source: 'camera' | 'library' };
+  progress_photos_compared: Record<string, never>;
+  // ─── Packaged foods (ADR 0006, lane A) — enums and booleans only ────────────
+  // Never a barcode, a product name or a brand.
+  /** A barcode was submitted: from a photo, typed, or (later) the live scanner. */
+  barcode_scan: { via: 'photo' | 'typed' | 'live' };
+  barcode_found: { source: 'own' | 'cache' | 'off'; allergenWarning: boolean };
+  barcode_not_found: { via: 'photo' | 'typed' | 'live' | 'unreadable' };
+  /** A reviewed label scan (`label`) or a typed product (`manual`) was saved. */
+  label_scan_saved: { edited: boolean };
+  packaged_product_created: { source: 'label' | 'manual' };
+  packaged_product_logged: { unit: 'g' | 'serving'; allergenWarning: boolean };
+
+  // ─── Saved meals + copy meal (lane A2) — counts and booleans only ───────────
+  saved_meal_created: { itemCount: number };
+  saved_meal_logged: { itemCount: number };
+  meal_copied: { itemCount: number; sameDay: boolean };
+
+  // ─── Hidden fat on photo scans (lane A3) ─────────────────────────────────────
+  /** The answer to "Cooked with oil or butter?" when a Snap-to-Log estimate is logged. */
+  snap_hidden_fat: { level: 'none' | 'a-little' | 'a-lot' };
+
+  // ─── Typed "I ate…" logging (lane A4) — counts only, never the sentence ─────
+  food_text_parsed: { itemCount: number; estimated: number };
+  food_text_logged: { itemCount: number; edited: boolean };
+  // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
+  /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
+  meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
+  /** E1: a Settings change (either platform); `meals` = meals with a reminder. */
+  meal_reminders_changed: { enabled: boolean; meals: number; surface: 'mobile' | 'web' };
+  /** E2: a share card was created and the share sheet shown; `completed` = not dismissed. */
+  share_card_shared: { kind: 'recipe' | 'cook' | 'workout' | 'recap'; completed: boolean };
+  /** E2: the weekly recap screen opened. */
+  weekly_recap_viewed: { from: 'today' | 'link' | 'menu'; empty: boolean };
+  // ─── Household sharing (ADR 0003) — enums and counts only ────────────────────
+  household_invite_created: { via: 'share' | 'copy' };
+  household_invite_opened: {
+    state:
+      | 'OK'
+      | 'NOT_FOUND'
+      | 'SELF'
+      | 'ALREADY_JOINED'
+      | 'IN_OTHER_HOUSEHOLD'
+      | 'HAS_PARTNERS'
+      | 'PROFILE_TAKEN'
+      | 'USED'
+      | 'REVOKED'
+      | 'EXPIRED';
+    signedIn: boolean;
+  };
+  household_joined: { editedSafety: boolean };
+  household_left: { by: 'partner' | 'owner' };
+  shared_list_synced: { remoteChanges: number };
+  shared_plan_conflict: Record<string, never>;
+  // ─── Coaching data (lane K, market review 2026-10) — no PII, enums only ───────
+  coaching_sharing_changed: {
+    data: 'food' | 'weight';
+    on: boolean;
+    where: 'join' | 'request' | 'settings';
+  };
+  check_in_config_saved: { enabled: boolean; questions: number };
+  check_in_submitted: { questions: number; withNote: boolean; edit: boolean };
 }

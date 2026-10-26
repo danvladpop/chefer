@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import {
   mealPlanRepository,
@@ -7,7 +8,13 @@ import {
   type MealPlanDay,
   type PlanMealSlotJson,
 } from '@chefer/database';
-import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
+import {
+  LABEL_DEPENDENT_INGREDIENTS,
+  type ListPersonDto,
+  type ShoppingListSyncDto,
+  type TableSafety,
+  type UserProfile,
+} from '@chefer/types';
 import { roundToPurchasable } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -18,6 +25,7 @@ import {
   visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
+import { householdAccess, type HouseholdPeople } from '../household/household-access.service.js';
 import { householdService } from '../household/household.service.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { PANTRY_RETIRED } from '../pantry/pantry-retired.js';
@@ -71,6 +79,12 @@ export interface ShoppingListItemForWeek {
    * `LabelCaveat` / "Buy certified gluten-free".
    */
   labelCheck?: string[];
+  /**
+   * ADR 0003, only when the household has a partner: who ticked this item
+   * (checked items) and, for a custom item, who added it. Names only, never ids.
+   */
+  checkedBy?: ListPersonDto;
+  addedBy?: ListPersonDto;
 }
 
 /** F3 pantry summary attached to every served list. */
@@ -131,6 +145,39 @@ interface StoredShoppingListItem {
   category: GroceryCategory;
   recipeNames: string[];
   isCustom?: boolean;
+  /** ADR 0003: the user id that added a custom item (persisted, never served). */
+  addedById?: string;
+}
+
+/** ADR 0003: `ShoppingList.checkedMeta` — the last toggle of each key, ticks and unticks. */
+type CheckMeta = Record<string, { by: string; at: string; checked: boolean }>;
+
+function readCheckMeta(raw: unknown): CheckMeta {
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as CheckMeta) : {};
+}
+
+/** Options of one toggle: who made it, and the device time it was made at (offline replays). */
+export interface ToggleOptions {
+  actorId?: string;
+  at?: Date;
+  /** Kitchen progress: the client's local day (optional; older clients send none). */
+  localDate?: string;
+}
+
+function person(people: HouseholdPeople, id: string | undefined, viewerId: string) {
+  const name = id ? people.get(id) : undefined;
+  return name ? ({ name, isYou: id === viewerId } satisfies ListPersonDto) : undefined;
+}
+
+/** What makes the served ITEMS change: the week's meals and the custom items. */
+function listRevision(
+  plan: { id: string; days: { dayOfWeek: number; meals: unknown }[] },
+  customItems: unknown,
+): string {
+  return createHash('sha1')
+    .update(JSON.stringify([plan.id, plan.days.map((d) => [d.dayOfWeek, d.meals]), customItems]))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /** One item the user asked to add (chat tool or the page's add-input). */
@@ -250,7 +297,7 @@ export class ShoppingListService {
     const priceMap = new Map(priceRows.map((p) => [p.ingredientName, p]));
 
     const items: ShoppingListItemForWeek[] = await Promise.all(
-      rawItems.map(async (item) => {
+      rawItems.map(async ({ addedById: _adder, ...item }) => {
         const price = priceMap.get(normalizeIngredientName(item.ingredientName));
         return {
           ...item,
@@ -452,7 +499,15 @@ export class ShoppingListService {
     return next;
   }
 
-  async getForWeek(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
+  /**
+   * `viewerId` (ADR 0003): the person looking, when `user` is the household
+   * owner whose list a partner reads — adds "ticked by / added by" hints.
+   */
+  async getForWeek(
+    user: UserProfile,
+    weekOffset: number,
+    viewerId: string = user.id,
+  ): Promise<WeekShoppingList> {
     const userId = user.id;
     const weekStart = getMondayOfWeek(weekOffset);
     const weekEnd = new Date(weekStart);
@@ -511,13 +566,18 @@ export class ShoppingListService {
       checkedKeys,
     );
 
+    const people = await householdAccess.people(userId);
+    const attributed = people
+      ? this.attribute(items, people, viewerId, checkedKeys, stored?.checkedMeta, customItems)
+      : items;
+
     return {
       planId: targetPlan.id,
       ...fromDayField(targetPlan),
       weekStartDate: weekStart.toISOString(),
       weekEndDate: weekEnd.toISOString(),
       hasPlan: true,
-      items: withLabelChecks(items, safetyTable),
+      items: withLabelChecks(attributed, safetyTable),
       weekOffset,
       estimatedTotalEur,
       aiGenerated: false,
@@ -525,6 +585,64 @@ export class ShoppingListService {
       pantry,
       tableSafety: safetyTable,
       ...sized,
+    };
+  }
+
+  /** ADR 0003: "Ticked by Maria" / "Added by you" on a shared list. */
+  private attribute(
+    items: ShoppingListItemForWeek[],
+    people: HouseholdPeople,
+    viewerId: string,
+    checkedKeys: string[],
+    rawMeta: unknown,
+    customItems: StoredShoppingListItem[],
+  ): ShoppingListItemForWeek[] {
+    const meta = readCheckMeta(rawMeta);
+    const checked = new Set(checkedKeys);
+    const adders = new Map(customItems.map((c) => [c.key, c.addedById]));
+    return items.map((item) => {
+      const checkedBy = checked.has(item.key)
+        ? person(people, meta[item.key]?.by, viewerId)
+        : undefined;
+      const addedBy = item.isCustom ? person(people, adders.get(item.key), viewerId) : undefined;
+      return {
+        ...item,
+        ...(checkedBy && { checkedBy }),
+        ...(addedBy && { addedBy }),
+      };
+    });
+  }
+
+  /**
+   * `shoppingList.sync` (ADR 0003): the shared list's cheap "anything new?" —
+   * polled every few seconds while Shop is open. `revision` changes only when
+   * the items do (a swap, a custom item); ticks come back whole.
+   */
+  async sync(
+    user: UserProfile,
+    weekOffset: number,
+    viewerId: string,
+  ): Promise<ShoppingListSyncDto> {
+    const plan = await mealPlanRepository.findForWeek(user.id, getMondayOfWeek(weekOffset));
+    if (!plan) return { planId: null, revision: 'none', checkedKeys: [], checkedBy: {} };
+    const [stored, people] = await Promise.all([
+      prisma.shoppingList.findUnique({ where: { planId: plan.id } }),
+      householdAccess.people(user.id),
+    ]);
+    const checkedKeys = stored?.checkedKeys ?? [];
+    const meta = readCheckMeta(stored?.checkedMeta);
+    const checkedBy: Record<string, ListPersonDto> = {};
+    if (people) {
+      for (const key of checkedKeys) {
+        const p = person(people, meta[key]?.by, viewerId);
+        if (p) checkedBy[key] = p;
+      }
+    }
+    return {
+      planId: plan.id,
+      revision: listRevision(plan, stored?.customItems ?? []),
+      checkedKeys,
+      checkedBy,
     };
   }
 
@@ -579,8 +697,7 @@ export class ShoppingListService {
     planId: string,
     keys: string[],
     checked: boolean,
-    /** Kitchen progress: the client's local day (optional; older clients send none). */
-    localDate?: string,
+    opts: ToggleOptions = {},
   ): Promise<{ checkedKeys: string[] }> {
     const userId = user.id;
     const plan = await mealPlanRepository.findByIdForUser(userId, planId);
@@ -597,15 +714,30 @@ export class ShoppingListService {
           async (tx) => {
             const existing = await tx.shoppingList.findUnique({ where: { planId } });
             const current = new Set(existing?.checkedKeys ?? []);
+            // ADR 0003: last write per key wins, by the time it was MADE — an
+            // offline tick replayed later can't undo a newer untick. `at` is
+            // clamped to now (a fast device clock can't win forever).
+            const now = new Date();
+            const at = opts.at && opts.at < now ? opts.at : now;
+            const meta = readCheckMeta(existing?.checkedMeta);
             for (const key of keys) {
+              const last = meta[key];
+              if (last && new Date(last.at) > at) continue;
               if (checked) current.add(key);
               else current.delete(key);
+              meta[key] = { by: opts.actorId ?? userId, at: at.toISOString(), checked };
             }
             const next = [...current];
             await tx.shoppingList.upsert({
               where: { planId },
-              create: { planId, items: [], aiGenerated: false, checkedKeys: next },
-              update: { checkedKeys: next },
+              create: {
+                planId,
+                items: [],
+                aiGenerated: false,
+                checkedKeys: next,
+                checkedMeta: meta,
+              },
+              update: { checkedKeys: next, checkedMeta: meta },
             });
             return next;
           },
@@ -625,9 +757,10 @@ export class ShoppingListService {
           }
         }
         // Kitchen progress: a fully checked list earns SHOP_DONE (best-effort).
+        // ADR 0003: on a shared list it goes to the household owner, whose plan it is.
         if (checked) {
           await notifyProgress('onShoppingToggled', userId, (r) =>
-            r.onShoppingToggled(userId, planId, localDate),
+            r.onShoppingToggled(userId, planId, opts.localDate),
           );
         }
         return { checkedKeys };
@@ -673,6 +806,8 @@ export class ShoppingListService {
     userId: string,
     planId: string,
     inputs: CustomItemInput[],
+    /** ADR 0003: who added them, when a partner adds to the owner's list. */
+    actorId: string = userId,
   ): Promise<{ added: string[] }> {
     const plan = await mealPlanRepository.findByIdForUser(userId, planId);
     if (!plan) {
@@ -690,6 +825,7 @@ export class ShoppingListService {
         unit,
         category: inferCategory(name),
         recipeNames: [],
+        addedById: actorId,
       };
     });
 

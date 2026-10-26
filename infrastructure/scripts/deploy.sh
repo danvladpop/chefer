@@ -24,9 +24,19 @@ git pull --ff-only
 echo "==> Pulling images (TAG=$TAG)"
 $COMPOSE pull
 
+echo "==> Migrating the database (TAG=$TAG)"
+# Before anything is recreated: a one-shot container of the NEW image applies
+# the schema (additive-only guard) and syncs the catalog. If it fails, stop
+# here — the previous api/web keep serving (2026-10-24: a refused db push after
+# `up -d` had already replaced them took prod down for 20 min). `up -d` below
+# runs migrate once more as a no-op, since api depends on it completing.
+if ! $COMPOSE run --rm migrate; then
+  echo "ERROR: migration failed — api/web were NOT recreated; the previous build is still serving." >&2
+  exit 1
+fi
+
 echo "==> Starting containers"
-# --no-build: never build on this box; the migrate service applies the schema
-# before api starts.
+# --no-build: never build on this box.
 $COMPOSE up -d --no-build
 
 echo "==> Restarting Caddy (picks up Caddyfile changes)"

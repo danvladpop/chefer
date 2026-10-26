@@ -23,6 +23,7 @@ import { Icon, type IconName } from '../../../components/icon';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc } from '../../../lib/trpc';
 import { nutritionStatusBadge } from '../../ingredients/nutrition-provenance';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { FilteredForLine } from '../../safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../safety/what-we-check-sheet';
 import { ShellTopBar } from '../shell-chrome';
@@ -84,9 +85,13 @@ export function cookbookFromLabel(
   return null;
 }
 
-/** "30 min · 520 kcal", plus the nutrition caveat ("Partial data") when there is one. */
-export function cookbookTileMeta(recipe: CookbookRecipe): string {
+/**
+ * "30 min · 520 kcal", plus the nutrition caveat ("Partial data") when there is
+ * one. Without calories (protein-only, "Hide numbers" — lane E3) it is the time.
+ */
+export function cookbookTileMeta(recipe: CookbookRecipe, proteinOnly = false): string {
   const minutes = Math.max(0, Math.round(recipe.prepTimeMins + recipe.cookTimeMins));
+  if (proteinOnly) return `${minutes} min`;
   const kcal = (recipe.nutritionInfo as { calories?: number } | null)?.calories;
   const caveat = nutritionStatusBadge(recipe.nutritionStatus);
   return [`${minutes} min`, kcal !== undefined ? `${formatKcal(kcal)} kcal` : null, caveat]
@@ -147,6 +152,7 @@ function HeaderButton({
 
 export function CookbookScreen() {
   const colors = useThemeColors();
+  const { proteinOnly } = useNumbersMode();
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -239,7 +245,7 @@ export function CookbookScreen() {
         key={recipe.id}
         testID={`cookbook-tile-${recipe.id}`}
         title={recipe.name}
-        meta={cookbookTileMeta(recipe)}
+        meta={cookbookTileMeta(recipe, proteinOnly)}
         imageUri={getRecipeImageUrl(recipe.imageUrl)}
         illustration={<Icon name="recipes" color={colors.brand} size={32} />}
         {...(from ? { badge: from } : {})}

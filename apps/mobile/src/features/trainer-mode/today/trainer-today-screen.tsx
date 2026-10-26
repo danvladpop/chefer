@@ -84,6 +84,18 @@ export function TrainerTodayScreen() {
       void refetchSummary();
     }, [refetchSummary]),
   );
+  // Lane K4: opening Today is looking at the quiet clients — the Today badge starts over.
+  const markQuietSeen = trpc.trainer.quiet.markSeen.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.trainer.badges.invalidate(),
+  });
+  const { mutate: markSeen } = markQuietSeen;
+  const quietBadge = badges.quiet;
+  useFocusEffect(
+    useCallback(() => {
+      if (quietBadge > 0) markSeen();
+    }, [quietBadge, markSeen]),
+  );
 
   const topBar = <ShellTopBar className="mb-1" />;
   const d = summary.data;
@@ -191,6 +203,7 @@ export function TrainerTodayScreen() {
                 maxClients={d.maxClients}
                 averageAdherence={d.averageAdherence}
                 quietClients={d.quietClients.length}
+                quietAfterDays={d.quietAfterDays}
                 bookingsThisWeek={d.bookingsThisWeek}
               />
             </>
@@ -203,7 +216,11 @@ export function TrainerTodayScreen() {
               </Text>
               <UnmarkedAttendance bookings={d.unmarkedAttendance ?? []} zone={zone} today={today} />
               {d.quietClients.map((client) => (
-                <QuietClientRow key={client.clientId} client={client} />
+                <QuietClientRow
+                  key={client.clientId}
+                  client={client}
+                  withFood={d.quietAfterDays !== undefined}
+                />
               ))}
               <TrainerNotices />
               {d.quietClients.length === 0 &&

@@ -61,7 +61,7 @@ export function TonightCard({
 }) {
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   // UX-FOOD-04: "Rate it" opens the real rating widget inline (the one cook
   // mode and recipe detail use); the link is gone once a rating exists.
   const [rateOpen, setRateOpen] = useState(false);
@@ -127,6 +127,7 @@ export function TonightCard({
             slot.replacedBy.kcal,
             slot.replacedBy.protein,
             proteinOnly,
+            noNumbers,
           )}
         </p>
         {flow && entryId && (

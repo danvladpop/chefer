@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
+import { CheckInSettings } from '@/features/trainer/components/CheckInSettings';
 import { InviteSheet } from '@/features/trainer/components/InviteSheet';
+import { TrainerAlertsSettings } from '@/features/trainer/components/TrainerAlertsSettings';
 import { TrainerSettings } from '@/features/trainer/components/TrainerSettings';
 import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
 import { ChevronRight, QrCode } from 'lucide-react';
@@ -63,6 +65,8 @@ export function TrainerYou() {
           </div>
         </div>
       </TrainerSettings>
+      <CheckInSettings />
+      <TrainerAlertsSettings />
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </div>
   );

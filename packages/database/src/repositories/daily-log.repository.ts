@@ -47,6 +47,12 @@ export interface LoggedMealEntry {
    * clients see an ordinary custom entry (same `mealType`) and total it.
    */
   replacesSlot?: SlotRefJson | undefined;
+  /**
+   * A CUSTOM entry logged from a packaged product (ADR 0006): which product
+   * and how many grams. The numbers above are already scaled; older clients
+   * see an ordinary custom entry and total it.
+   */
+  product?: { id: string; grams: number } | undefined;
 }
 
 /** A plan slot of one day: the meal type and its index in the day's `meals`. */
@@ -78,6 +84,17 @@ export interface UpsertDailyLogData {
 export interface IDailyLogRepository {
   findByDate(userId: string, date: Date): Promise<DailyLog | null>;
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
+  /** Lane E2 recap: the logs with `from` ≤ date < `to` (UTC-midnight dates), oldest first. */
+  findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
+  /** Lane E2 recap: every recipe id logged on a day before `before` ("new recipes tried"). */
+  findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>>;
+  /** Lane K: the user's logs from `from` to `to` (both UTC-midnight `@db.Date` days, inclusive), oldest first. */
+  findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
+  /**
+   * Lane K4: per user, the latest `@db.Date` on or after `since` with at least one logged entry.
+   * Users with none are missing from the map.
+   */
+  lastLoggedDates(userIds: readonly string[], since: Date): Promise<Map<string, Date>>;
   upsert(data: UpsertDailyLogData): Promise<DailyLog>;
   /**
    * Read-modify-write of one day's entries in a SERIALIZABLE transaction,
@@ -155,6 +172,52 @@ export class DailyLogRepository implements IDailyLogRepository {
       where: { userId, date: { gte: since } },
       orderBy: { date: 'asc' },
     });
+  }
+
+  async findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
+    return prisma.dailyLog.findMany({
+      where: { userId, date: { gte: from, lt: to } },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
+    return prisma.dailyLog.findMany({
+      where: { userId, date: { gte: from, lte: to } },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>> {
+    const rows = await prisma.dailyLog.findMany({
+      where: { userId, date: { lt: before } },
+      select: { loggedMeals: true },
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (!Array.isArray(row.loggedMeals)) continue;
+      for (const entry of row.loggedMeals) {
+        const recipeId = (entry as { recipeId?: unknown } | null)?.recipeId;
+        if (typeof recipeId === 'string') ids.add(recipeId);
+      }
+    }
+    return ids;
+  }
+
+  async lastLoggedDates(userIds: readonly string[], since: Date): Promise<Map<string, Date>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await prisma.dailyLog.findMany({
+      where: { userId: { in: [...userIds] }, date: { gte: since } },
+      select: { userId: true, date: true, loggedMeals: true },
+      orderBy: { date: 'desc' },
+    });
+    const out = new Map<string, Date>();
+    for (const row of rows) {
+      if (out.has(row.userId)) continue;
+      if (Array.isArray(row.loggedMeals) && row.loggedMeals.length > 0)
+        out.set(row.userId, row.date);
+    }
+    return out;
   }
 
   async upsert(data: UpsertDailyLogData): Promise<DailyLog> {

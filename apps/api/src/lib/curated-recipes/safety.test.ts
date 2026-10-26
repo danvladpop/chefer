@@ -219,6 +219,87 @@ describe('isRecipeSafe — safe substitutes are not flagged (F-REC-4-1)', () => 
   });
 });
 
+describe('gluten — wheat products whose names say neither "pasta" nor "wheat"', () => {
+  const glutenSafe = (name: string) => {
+    const r = recipe({ dietaryTags: ['gluten-free'], ingredients: ing(name) });
+    return {
+      allergy: isRecipeSafe(r, prefs({ allergies: ['Gluten'] })),
+      diet: isRecipeSafe(r, prefs({ dietaryRestrictions: ['Gluten-free'] })),
+      derived: deriveDietTags(r).includes('gluten-free'),
+    };
+  };
+  const blocked = { allergy: false, diet: false, derived: false };
+  const safe = { allergy: true, diet: true, derived: true };
+
+  it.each([
+    'spaghetti',
+    'penne',
+    'fusilli',
+    'tagliatelle',
+    'linguine',
+    'fettuccine',
+    'pappardelle',
+    'rigatoni',
+    'farfalle',
+    'macaroni',
+    'lasagne sheets',
+    'lasagna noodles',
+    'cannelloni tubes',
+    'orzo',
+    'potato gnocchi',
+    'cheese tortellini',
+    'spinach ravioli',
+    'vermicelli',
+    'udon',
+    'soba',
+    'ramen',
+    'breadcrumbs',
+    'panko',
+    'crackers',
+    'pita',
+    'pitta',
+    'naan',
+    'chapati',
+    'puff pastry',
+    'filo',
+    'phyllo dough',
+    'croissant',
+    'brioche',
+    'pretzels',
+    'wholewheat',
+  ])('blocks "%s" for a gluten allergy and a gluten-free diet', (name) => {
+    expect(glutenSafe(name)).toEqual(blocked);
+  });
+
+  it.each([
+    'rice noodles',
+    'rice vermicelli',
+    'brown rice spaghetti',
+    'chickpea pasta',
+    'red lentil penne',
+    'black bean fusilli',
+    'corn macaroni',
+    'zucchini noodles',
+    'konjac noodles',
+    'glass noodles',
+    'gluten-free pasta',
+    'gluten-free spaghetti',
+    'gluten free lasagne sheets',
+    'gluten-free gnocchi',
+    'gluten-free breadcrumbs',
+    'spaghetti squash',
+    'pastrami',
+  ])('keeps "%s", a gluten-free variant that names itself, safe', (name) => {
+    expect(glutenSafe(name)).toEqual(safe);
+  });
+
+  it('a gluten-free base does not clear filled pasta, gnocchi or udon', () => {
+    expect(glutenSafe('rice udon').allergy).toBe(false);
+    expect(glutenSafe('potato gnocchi').allergy).toBe(false);
+    expect(glutenSafe('pea ravioli').allergy).toBe(false);
+  });
+});
+
 describe('findSafetyIssues', () => {
   it('names each conflicting allergy and restriction, ignoring dislikes', () => {
     const omelette = recipe({

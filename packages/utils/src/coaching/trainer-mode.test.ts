@@ -4,10 +4,14 @@ import {
   averageAdherence,
   effectiveShellMode,
   filterClients,
+  isQuietClient,
   isTrainerModeAvailable,
+  quietDaysOf,
+  quietState,
   sortClients,
   summarizeTrainerDashboard,
   trainerBadges,
+  unseenQuietCount,
 } from './trainer-mode';
 
 function row(over: Partial<ClientRowDto> & { clientId: string; name: string }): ClientRowDto {
@@ -117,5 +121,50 @@ describe('filterClients / sortClients', () => {
   it('sorts by name, or most recent workout first with never-trained last', () => {
     expect(sortClients(rows, 'name').map((r) => r.clientId)).toEqual(['3', '1', '2']);
     expect(sortClients(rows, 'lastWorkout').map((r) => r.clientId)).toEqual(['3', '1', '2']);
+  });
+});
+
+describe('lane K4: quiet clients', () => {
+  it('quietState: the later of the last workout and (shared) food log; else the start day', () => {
+    expect(
+      quietState({
+        lastWorkoutDate: '2026-10-15',
+        lastFoodDate: '2026-10-19',
+        startDay: '2026-10-01',
+        today: '2026-10-22',
+        quietAfterDays: 3,
+      }),
+    ).toEqual({
+      lastActivityDate: '2026-10-19',
+      quietDays: 3,
+      quiet: true,
+      quietSince: '2026-10-22',
+    });
+    expect(
+      quietState({
+        lastWorkoutDate: null,
+        lastFoodDate: null,
+        startDay: '2026-10-21',
+        today: '2026-10-22',
+        quietAfterDays: 3,
+      }),
+    ).toMatchObject({ lastActivityDate: null, quietDays: 1, quiet: false });
+  });
+
+  it('isQuietClient follows the server, else the old 7-day rule', () => {
+    expect(isQuietClient({ inactiveDays: 2, quiet: true })).toBe(true);
+    expect(isQuietClient({ inactiveDays: 9, quiet: false })).toBe(false);
+    expect(isQuietClient({ inactiveDays: 7 })).toBe(true);
+    expect(quietDaysOf({ inactiveDays: 9, quietDays: 4 })).toBe(4);
+  });
+
+  it('unseenQuietCount counts clients who went quiet after the last look', () => {
+    const rows = [
+      { quiet: true, quietSince: '2026-10-20' },
+      { quiet: true, quietSince: '2026-10-22' },
+      { quiet: false, quietSince: '2026-10-25' },
+    ];
+    expect(unseenQuietCount(rows, null)).toBe(2);
+    expect(unseenQuietCount(rows, '2026-10-21')).toBe(1);
   });
 });

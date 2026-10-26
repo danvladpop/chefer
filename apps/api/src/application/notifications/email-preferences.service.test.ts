@@ -23,6 +23,7 @@ vi.mock('../../lib/env.js', () => ({
 const PREFS = {
   weeklyEmailReady: true,
   weeklyEmailRecap: true,
+  coachingCheckInEmail: true,
   emailVerified: null as Date | null,
   email: 'ana@chefer.dev',
 };
@@ -71,6 +72,21 @@ describe('EmailPreferencesService', () => {
         weeklyEmailReady: false,
         weeklyEmailRecap: false,
       });
+    });
+
+    it('a check-in link (lane K3) turns off only check-in emails, never the weekly ones', async () => {
+      const result = await service.unsubscribe(createUnsubscribeToken('u1', 'COACHING_CHECK_IN'));
+      expect(repo.setPreferences).toHaveBeenLastCalledWith('u1', { coachingCheckInEmail: false });
+      expect(result).toEqual({ scope: 'COACHING_CHECK_IN', weekReady: true, weeklyRecap: true });
+    });
+
+    it('a quiet-digest link (lane K4) turns off only the trainer digest', async () => {
+      const setQuietDigest = vi.fn(async () => true);
+      const own = new EmailPreferencesService(repo, { send: makeSend() }, () => '', setQuietDigest);
+      const result = await own.unsubscribe(createUnsubscribeToken('u1', 'COACHING_QUIET_DIGEST'));
+      expect(setQuietDigest).toHaveBeenCalledWith('u1', false);
+      expect(repo.setPreferences).not.toHaveBeenCalled();
+      expect(result.scope).toBe('COACHING_QUIET_DIGEST');
     });
 
     it('resubscribe undoes it with the same link', async () => {

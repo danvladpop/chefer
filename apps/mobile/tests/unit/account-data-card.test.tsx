@@ -76,6 +76,11 @@ jest.mock('../../src/features/auth/account-deleted-notice', () => ({
   },
 }));
 
+const mockRemoveAllPhotos = jest.fn((_userId: string) => Promise.resolve());
+jest.mock('../../src/features/body/progress-photo-store', () => ({
+  removeAllProgressPhotos: (userId: string) => mockRemoveAllPhotos(userId),
+}));
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
@@ -97,7 +102,7 @@ jest.mock('../../src/lib/trpc', () => ({
     },
     auth: {
       logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) },
-      me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
+      me: { useQuery: () => ({ data: { id: 'u1', email: 'alice@chefer.dev' } }) },
       linkedIdentities: { useQuery: () => ({ data: undefined }) },
       requestPasswordReset: {
         useMutation: () => ({ mutate: mockResetMutate, isError: false, ...mockResetState }),
@@ -282,6 +287,14 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     await mockDeleteOptions?.onSuccess?.();
     expect(mockSignOut).toHaveBeenCalledWith({ reason: 'account-deleted' });
     expect(router.replace).toHaveBeenCalledWith('/(auth)');
+  });
+
+  it('lane D4: deleting the account also removes the progress photos on this phone', async () => {
+    mockRemoveAllPhotos.mockClear();
+    await renderCard();
+    await mockDeleteOptions?.onSuccess?.();
+    expect(mockRemoveAllPhotos).toHaveBeenCalledWith('u1');
+    expect(screen.getByText(/Progress photos stay on your phone/)).toBeOnTheScreen();
   });
 
   it('UX-ACC-11: a wrong password shows its error right under the password field and refocuses it', async () => {

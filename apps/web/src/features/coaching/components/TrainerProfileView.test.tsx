@@ -7,7 +7,10 @@ import { COACHING_COPY } from '@chefer/types';
 import { localDateStr } from '@chefer/utils';
 import { TrainerProfileView } from './TrainerProfileView';
 
-type MutationOpts = { onSuccess?: () => void; onError?: (e: unknown) => void };
+type MutationOpts = {
+  onSuccess?: (data?: unknown, vars?: { share?: { food: boolean; weight: boolean } }) => void;
+  onError?: (e: unknown) => void;
+};
 
 const m = vi.hoisted(
   (): {
@@ -123,8 +126,9 @@ describe('TrainerProfileView', () => {
       trainerId: 't1',
       source: 'web',
       localDate: localDateStr(),
+      share: { food: false, weight: false },
     });
-    act(() => m.requestOpts.onSuccess?.());
+    act(() => m.requestOpts.onSuccess?.(undefined, { share: { food: false, weight: false } }));
     expect(screen.getByTestId('coaching-request-sent')).toHaveTextContent('Request sent to Ana');
   });
 

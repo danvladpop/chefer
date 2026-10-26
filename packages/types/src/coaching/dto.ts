@@ -14,6 +14,7 @@ import type {
   WeekStatus,
   WorkoutType,
 } from '../gym';
+import type { ClientSharingDto, CoachingSharingDto } from './data-sharing';
 import type { RoutineDayTemplateRefDto } from './templates';
 
 // ─── Availability ─────────────────────────────────────────────────────────────
@@ -84,6 +85,16 @@ export interface ClientRowDto {
   keepItSimple?: boolean;
   /** Additive (trainer mode M3): the client's next booking with this trainer, ISO start, or null. */
   nextBookingAt?: string | null;
+  /** Additive (lane K1): what the client shares with this trainer besides training. */
+  sharing?: ClientSharingDto;
+  /**
+   * Additive (lane K4): the last device-local date the client logged anything the trainer may know
+   * about (a workout; a food log only while shared), whole days since it, and whether that is at
+   * least the trainer's `quietAfterDays`. Older APIs send none: fall back to `inactiveDays` ≥ 7.
+   */
+  lastActivityDate?: string | null;
+  quietDays?: number;
+  quiet?: boolean;
 }
 
 // ─── Workouts and adherence ───────────────────────────────────────────────────
@@ -178,7 +189,7 @@ export interface AdherenceDto {
 
 export interface ClientOverviewDto {
   /** `keepItSimple` additive (2026-10-17): see ClientRowDto. */
-  client: { name: string; since: string; keepItSimple?: boolean };
+  client: { name: string; since: string; keepItSimple?: boolean; sharing?: ClientSharingDto };
   adherence: AdherenceDto;
   /** The last 5 completed workouts, newest first. */
   recent: CoachedWorkoutDto[];
@@ -284,7 +295,8 @@ export interface InvitePreviewDto {
 }
 
 export interface CoachingStatusDto {
-  trainer: { name: string; since: string } | null;
+  /** `sharing` additive (lane K1): the client's food / weight switches for this coaching. */
+  trainer: { name: string; since: string; sharing?: CoachingSharingDto } | null;
   /** Additive (2026-10-17): the client's pending coaching request, if any. */
   request?: CoachingRequestDto | null;
   /**

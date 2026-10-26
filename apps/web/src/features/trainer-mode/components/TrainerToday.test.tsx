@@ -35,10 +35,13 @@ vi.mock('next/link', () => ({
 }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
+    // Lane K4: Today marks quiet clients seen (badge > 0 only).
+    useUtils: () => ({ trainer: { badges: { invalidate: vi.fn() } } }),
     trainer: {
       dashboard: {
         summary: { useQuery: () => ({ ...m.summary, refetch: m.refetch }) },
       },
+      quiet: { markSeen: { useMutation: () => ({ mutate: vi.fn() }) } },
     },
   },
 }));

@@ -1,9 +1,13 @@
 import {
   clearNextTargetInputSchema,
   clientBookingsInputSchema,
+  clientCheckInsInputSchema,
   clientExerciseHistoryInputSchema,
+  clientFoodInputSchema,
   clientIdInputSchema,
   clientOverviewInputSchema,
+  clientWeekSummaryInputSchema,
+  clientWeightInputSchema,
   clientWorkoutsInputSchema,
   createClientRoutineInputSchema,
   localDateSchema,
@@ -12,7 +16,9 @@ import {
   setNextTargetInputSchema,
 } from '@chefer/types';
 import { bookingService } from '../../application/coaching/booking.service.js';
+import { coachingCheckInService } from '../../application/coaching/coaching-check-in.service.js';
 import { coachingContentService } from '../../application/coaching/coaching-content.service.js';
+import { coachingDataService } from '../../application/coaching/coaching-data.service.js';
 import { coachingNoteService } from '../../application/coaching/coaching-note.service.js';
 import { trainerRoutineService } from '../../application/coaching/trainer-routine.service.js';
 import { effectiveLevel } from '../../application/gym/client-level.js';
@@ -27,6 +33,9 @@ import { router } from '../../lib/trpc.js';
 const readProcedure = trainerProcedure.use(requireCoachingAccess('read'));
 const writeProcedure = trainerProcedure.use(requireCoachingAccess('write'));
 const noteProcedure = trainerProcedure.use(requireCoachingAccess('note'));
+// Lane K1: the ACTIVE link AND the client's matching sharing switch, else the same NOT_FOUND.
+const foodProcedure = trainerProcedure.use(requireCoachingAccess('food'));
+const weightProcedure = trainerProcedure.use(requireCoachingAccess('weight'));
 
 /** `trainer.client.routine` also takes an optional device-local `today` (the next-time suggestions are computed for it). */
 const routineInputSchema = clientIdInputSchema.extend({ today: localDateSchema.optional() });
@@ -78,6 +87,24 @@ export const trainerClientRouter = router({
   bookings: readProcedure
     .input(clientBookingsInputSchema)
     .query(({ ctx, input }) => bookingService.clientBookings(ctx.coachingAccess, input.today)),
+  /** Lane K2: the weekly card: workouts always, food / weight only when the client shares them. */
+  weekSummary: readProcedure
+    .input(clientWeekSummaryInputSchema)
+    .query(({ ctx, input }) => coachingDataService.weekSummary(ctx.coachingAccess, input.today)),
+  /** Lane K1: the client's shared food log, day by day (scope `food`). */
+  food: foodProcedure
+    .input(clientFoodInputSchema)
+    .query(({ ctx, input }) =>
+      coachingDataService.food(ctx.coachingAccess, input.today, input.days),
+    ),
+  /** Lane K1: the client's shared weigh-ins (scope `weight`). */
+  weight: weightProcedure
+    .input(clientWeightInputSchema)
+    .query(({ ctx, input }) => coachingDataService.weight(ctx.coachingAccess, input.today)),
+  /** Lane K3: the client's answered weekly check-ins (newest first) and this week's state. */
+  checkIns: readProcedure
+    .input(clientCheckInsInputSchema)
+    .query(({ ctx, input }) => coachingCheckInService.forClient(ctx.coachingAccess, input.today)),
   note: noteProcedure
     .input(clientIdInputSchema)
     .query(({ ctx }) => coachingNoteService.get(ctx.coachingAccess)),

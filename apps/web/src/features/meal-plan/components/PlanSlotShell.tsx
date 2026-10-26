@@ -58,7 +58,7 @@ interface PlanSlotShellProps {
 }
 
 export function PlanSlotShell({ mealType, slotIndex, state, flow, children }: PlanSlotShellProps) {
-  const { proteinOnly } = useNumbersMode(); // WP-08
+  const { proteinOnly, noNumbers } = useNumbersMode(); // WP-08
   const slot = slotTargetOf(mealType, slotIndex);
   const status = state?.status ?? 'planned';
   const muted = isSlotMuted(state);
@@ -83,6 +83,7 @@ export function PlanSlotShell({ mealType, slotIndex, state, flow, children }: Pl
                   state.entry.kcal,
                   state.entry.protein,
                   proteinOnly,
+                  noNumbers,
                 )
               : SKIPPED_LABEL}
           </p>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveNumbersMode, numbersModeSchema, setNumbersModeInputSchema } from './numbers-mode';
+import {
+  effectiveNumbersMode,
+  numbersModeSchema,
+  numbersVisibility,
+  setNumbersModeInputSchema,
+} from './numbers-mode';
 
 describe('numbersModeSchema', () => {
   it('accepts the three modes, including the reserved NONE', () => {
@@ -16,15 +21,27 @@ describe('numbersModeSchema', () => {
 });
 
 describe('effectiveNumbersMode', () => {
-  it('maps null, undefined, NONE and unknown values to FULL', () => {
+  it('maps null, undefined and unknown values to FULL', () => {
     expect(effectiveNumbersMode(null)).toBe('FULL');
     expect(effectiveNumbersMode(undefined)).toBe('FULL');
-    expect(effectiveNumbersMode('NONE')).toBe('FULL');
     expect(effectiveNumbersMode('SOMETHING_NEW')).toBe('FULL');
   });
 
-  it('keeps FULL and PROTEIN_ONLY', () => {
+  it('keeps FULL, PROTEIN_ONLY and (lane E3) NONE', () => {
     expect(effectiveNumbersMode('FULL')).toBe('FULL');
     expect(effectiveNumbersMode('PROTEIN_ONLY')).toBe('PROTEIN_ONLY');
+    expect(effectiveNumbersMode('NONE')).toBe('NONE');
+  });
+});
+
+describe('numbersVisibility (lane E3)', () => {
+  it('FULL shows everything, PROTEIN_ONLY only protein, NONE nothing', () => {
+    expect(numbersVisibility('FULL')).toEqual({ kcal: true, macros: true, protein: true });
+    expect(numbersVisibility('PROTEIN_ONLY')).toEqual({
+      kcal: false,
+      macros: false,
+      protein: true,
+    });
+    expect(numbersVisibility('NONE')).toEqual({ kcal: false, macros: false, protein: false });
   });
 });

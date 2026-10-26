@@ -59,7 +59,9 @@ export interface RebalanceOfferProps {
 /** Mounted on every logging surface; renders (and touches tRPC) only while an offer is pending. */
 export function RebalanceOffer({ planId, ...rest }: RebalanceOfferProps) {
   const offer = useRebalanceOffer();
-  if (!offer || (planId !== undefined && offer.planId !== planId)) {
+  // Lane E3 "Hide numbers": the offer is all calories and protein — not shown.
+  const { noNumbers } = useNumbersMode();
+  if (noNumbers || !offer || (planId !== undefined && offer.planId !== planId)) {
     return null;
   }
   return <OfferCard offer={offer} {...rest} />;

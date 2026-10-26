@@ -1,5 +1,6 @@
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { HOUSEHOLD_SHARING_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import { MealsScreen } from '../../src/features/shell/meals/meals-screen';
 import { resetRebalanceOfferForTests } from '../../src/features/tracker/rebalance-offer-store';
@@ -230,6 +231,8 @@ describe('Meals tab (new shell)', () => {
         slotIndex: 0,
         recipeId: 'r9',
         localDate: '2026-10-07',
+        // ADR 0003: the recipe the swap expects to replace.
+        expectedRecipeId: 'b1',
       }),
     );
     expect(await screen.findByText('Swapped to Rice Bowl')).toBeOnTheScreen();
@@ -559,5 +562,64 @@ describe('Change week sheet', () => {
     await user.press(await screen.findByTestId('meals-change-week'));
     expect(await screen.findByText('New plan for next week')).toBeOnTheScreen();
     expect(screen.queryByTestId('change-week-rebalance')).toBeNull();
+  });
+});
+
+describe('Meals tab: a shared week (ADR 0003)', () => {
+  const partner = {
+    enabled: true,
+    role: 'PARTNER' as const,
+    canInvite: false,
+    owner: { name: 'Dan' },
+    partners: [],
+    invites: [],
+  };
+
+  it("a partner sees Dan's week without the owner's planning actions", async () => {
+    await renderWithTrpc(
+      <MealsScreen />,
+      base({ 'household.sharing': () => partner }),
+      testQueryClient(),
+    );
+    expect(await screen.findByText(HOUSEHOLD_SHARING_COPY.partnerBanner('Dan'))).toBeOnTheScreen();
+    expect(screen.getByText(HOUSEHOLD_SHARING_COPY.ownerOnly('Dan'))).toBeOnTheScreen();
+    expect(screen.queryByTestId('meals-change-week')).toBeNull();
+    // Swapping stays the partner's to do.
+    expect(screen.getByLabelText('Change breakfast')).toBeOnTheScreen();
+  });
+
+  it('a partner with no week yet is told the owner plans it (no Generate)', async () => {
+    await renderWithTrpc(
+      <MealsScreen />,
+      base({ 'household.sharing': () => partner, 'mealPlan.getForWeek': () => null }),
+      testQueryClient(),
+    );
+    expect(await screen.findByTestId('meals-partner-banner')).toBeOnTheScreen();
+    expect(screen.queryByTestId('meals-generate')).toBeNull();
+  });
+
+  it('a swap that lost the race says so and shows the latest week', async () => {
+    const user = userEvent.setup();
+    const getForWeek = jest.fn(plan);
+    await renderWithTrpc(
+      <MealsScreen />,
+      base({
+        'mealPlan.getForWeek': getForWeek,
+        'mealPlan.replaceRecipe': () => {
+          throw trpcError('CONFLICT', 409, {
+            conflict: {
+              kind: 'mealSlot',
+              current: { dayOfWeek: 2, mealType: 'breakfast', recipeId: 'x1' },
+            },
+          });
+        },
+      }),
+      testQueryClient(),
+    );
+    await user.press(await screen.findByLabelText('Change breakfast'));
+    const before = getForWeek.mock.calls.length;
+    await user.press(await screen.findByTestId('picker-recipe-r9'));
+    expect(await screen.findByText(HOUSEHOLD_SHARING_COPY.conflictSomeone)).toBeOnTheScreen();
+    await waitFor(() => expect(getForWeek.mock.calls.length).toBeGreaterThan(before));
   });
 });

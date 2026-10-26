@@ -154,7 +154,26 @@ jest.mock('../../src/lib/trpc', () => {
       },
       recipe: { list: { useQuery: () => ({ data: [] }) } },
       ingredients: { search: { useQuery: () => ({ data: [] }) } },
+      products: { search: { useQuery: () => ({ data: [] }) } },
+      savedMeals: {
+        list: { useQuery: () => ({ data: [] }) },
+        createFromDay: {
+          useMutation: () => ({
+            mutate: jest.fn(),
+            reset: jest.fn(),
+            isPending: false,
+            error: null,
+          }),
+        },
+        delete: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      },
       tracker: {
+        copyMeal: {
+          useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+        },
+        logSavedMeal: {
+          useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+        },
         getDay: {
           useQuery: () => ({
             data: useSyncExternalStore(mockSubscribe, () => mockCache),
@@ -1452,9 +1471,10 @@ describe('TrackerScreen — protein-only mode (WP-08)', () => {
     expect(screen.getByText(/400 kcal/)).toBeOnTheScreen();
   });
 
-  it('NONE (reserved for WP-16) reads as the full numbers', async () => {
+  it('lane E3 "Hide numbers" (NONE): no calories or protein figure', async () => {
     mockDayExtras = { numbersMode: 'NONE' };
     await renderTracker();
-    expect(screen.getByText('Calories')).toBeOnTheScreen();
+    expect(screen.queryByText('Calories')).toBeNull();
+    expect(screen.queryByText(/kcal|g protein/)).toBeNull();
   });
 });

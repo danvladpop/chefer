@@ -40,8 +40,9 @@ const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 export default function HistoryPlanScreen() {
   const { planId } = useLocalSearchParams<{ planId: string; status?: string }>();
   const [selectedDay, setSelectedDay] = useState(0);
-  // WP-08: protein-only mode shows protein, never kcal, for a past week too.
-  const { proteinOnly } = useNumbersMode();
+  // WP-08: protein-only mode shows protein, never kcal, for a past week too;
+  // lane E3 "Hide numbers" shows neither.
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const snackbar = useSnackbar();
   const colors = useThemeColors();
 
@@ -181,13 +182,19 @@ export default function HistoryPlanScreen() {
               </BoardCard>
             ) : (
               <>
-                <Text testID="history-day-kcal" className="text-subhead text-label-secondary">
-                  {proteinOnly
-                    ? `Day total · ${dayTotals.protein} g protein`
-                    : `Day total · ${formatKcal(dayKcal)} kcal`}
-                </Text>
-                {day?.proteinGapG !== undefined && (
-                  <Text testID="history-day-protein-gap" className="text-subhead text-attention">
+                {noNumbers ? null : (
+                  <Text testID="history-day-kcal" className="text-subhead text-label-secondary">
+                    {proteinOnly
+                      ? `Day total · ${dayTotals.protein} g protein`
+                      : `Day total · ${formatKcal(dayKcal)} kcal`}
+                  </Text>
+                )}
+                {/* Lane E3: a shortfall is stated in neutral text, never an alarm colour. */}
+                {!noNumbers && day?.proteinGapG !== undefined && (
+                  <Text
+                    testID="history-day-protein-gap"
+                    className="text-subhead text-label-secondary"
+                  >
                     Protein short by {day.proteinGapG} g
                   </Text>
                 )}

@@ -6,6 +6,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import {
   Button,
   Card,
+  Chip,
   DONE_FIELD_PROPS,
   Input,
   Text,
@@ -15,14 +16,20 @@ import {
 import {
   cn,
   defaultMealSlot,
+  HIDDEN_FAT_COPY,
+  HIDDEN_FAT_OPTIONS,
+  hiddenFatExtra,
   PREMIUM_PITCH_COPY,
   proteinLabel,
   QUICK_ADD_LIMITS,
   showSnapTaste,
   userFacingErrorMessage,
+  withHiddenFat,
+  type HiddenFatLevel,
   type SlotRef,
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
+import { track } from '../../lib/analytics';
 import { trackMealLogged } from '../../lib/analytics-events';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
@@ -112,7 +119,14 @@ function SnapTaste() {
   const colors = useThemeColors();
   const { isPremium } = useEntitlement('mealScansPerDay');
   const { data } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  // Lane E3: the example's figures follow the numbers mode too.
+  const { show } = useNumbersMode();
   if (!showSnapTaste({ isPremium, jobs: data?.jobs ?? [] })) return null;
+  const example = show.kcal
+    ? PREMIUM_PITCH_COPY.snapTasteExampleMacros
+    : show.protein
+      ? PREMIUM_PITCH_COPY.snapTasteExampleProtein
+      : PREMIUM_PITCH_COPY.snapTasteExampleNoNumbers;
   return (
     <Card testID="scan-taste" className="gap-3">
       <Text variant="heading">{PREMIUM_PITCH_COPY.snapTasteTitle}</Text>
@@ -121,7 +135,7 @@ function SnapTaste() {
       </Text>
       <View
         testID="scan-taste-example"
-        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${PREMIUM_PITCH_COPY.snapTasteExampleMacros}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
+        accessibilityLabel={`${PREMIUM_PITCH_COPY.snapTasteExampleLabel}: ${example}, ${PREMIUM_PITCH_COPY.snapTasteExampleNote}`}
         className="flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-muted p-3"
       >
         <View className="h-12 w-12 items-center justify-center rounded-lg bg-surface">
@@ -133,9 +147,7 @@ function SnapTaste() {
               {PREMIUM_PITCH_COPY.snapTasteExampleLabel}
             </Text>
           </View>
-          <Text className="text-sm font-semibold text-label">
-            {PREMIUM_PITCH_COPY.snapTasteExampleMacros}
-          </Text>
+          <Text className="text-sm font-semibold text-label">{example}</Text>
           <Text variant="muted" className="text-xs">
             {PREMIUM_PITCH_COPY.snapTasteExampleNote}
           </Text>
@@ -156,7 +168,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
   const colors = useThemeColors();
   const snackbar = useSnackbar();
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -165,6 +177,8 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
   // user may correct before logging (macros follow proportionally).
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [kcalText, setKcalText] = useState('');
+  // Lane A3: the oil or butter a photo can't see, added on top of the estimate.
+  const [hiddenFat, setHiddenFat] = useState<HiddenFatLevel>('none');
   // Bug B-36: this always defaulted to Lunch, even for a 7am or 9pm scan.
   // Shared with Quick add so a log entered at any hour lands sensibly.
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(() =>
@@ -191,6 +205,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
     meta: { silent: true },
     onSuccess: (data, variables) => {
       trackMealLogged('snap', variables.mealType, 'photo');
+      track('snap_hidden_fat', { level: hiddenFat });
       recordRebalanceOutcome(data);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught
@@ -266,6 +281,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
       );
       setEstimate(est);
       setKcalText(String(est.kcal));
+      setHiddenFat('none');
       setPhotoUri(asset.uri);
     } catch (err) {
       if (err instanceof ScanUpgradeRequiredError) {
@@ -280,7 +296,8 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
 
   // What will be logged: the user's calories, with the estimated macros scaled
   // to match (the estimate's own numbers when they leave calories alone).
-  const logged = loggedFromEstimate(estimate, kcalText);
+  const logged = withHiddenFat(loggedFromEstimate(estimate, kcalText), hiddenFat);
+  const fatExtra = hiddenFatExtra(hiddenFat);
 
   return (
     <Card testID="scan-meal-card" className="gap-3">
@@ -380,7 +397,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          {proteinOnly ? (
+          {noNumbers ? null : proteinOnly ? (
             <Text testID="scan-protein" className="text-sm font-semibold text-label">
               {`≈ ${proteinLabel(logged.protein)}`}
             </Text>
@@ -406,6 +423,31 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               </Text>
             </>
           )}
+          {/* Lane A3 (MO-01 press feedback via Chip): photos miss hidden fat. */}
+          <View testID="scan-hidden-fat" className="gap-1.5">
+            <Text className="text-xs font-medium text-label-secondary">
+              {HIDDEN_FAT_COPY.question}
+            </Text>
+            <Text variant="muted" className="text-xs">
+              {HIDDEN_FAT_COPY.hint}
+            </Text>
+            <View className="flex-row flex-wrap gap-1.5">
+              {HIDDEN_FAT_OPTIONS.map((o) => (
+                <Chip
+                  key={o.level}
+                  testID={`scan-hidden-fat-${o.level}`}
+                  label={o.label}
+                  selected={hiddenFat === o.level}
+                  onPress={() => setHiddenFat(o.level)}
+                />
+              ))}
+            </View>
+            {fatExtra.kcal > 0 && (
+              <Text testID="scan-hidden-fat-added" className="text-xs text-label-secondary">
+                {HIDDEN_FAT_COPY.addedLine(fatExtra.kcal, fatExtra.fat)}
+              </Text>
+            )}
+          </View>
           {!replacesSlot && (
             <View className="flex-row gap-1.5">
               {MEAL_TYPES.map((t) => (

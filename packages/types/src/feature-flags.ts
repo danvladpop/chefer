@@ -62,6 +62,10 @@ export const featureFlagsSchema = z
      *  every read/write. Needs a binary with the native modules; off by
      *  default (dark launch). */
     healthSync: z.boolean(),
+    /** Household sharing (ADR 0003): invite a partner with their own account to
+     *  the shared week and live shopping list. Off by default; with it off no
+     *  invite can be made or redeemed and every entry point stays hidden. */
+    householdSharing: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

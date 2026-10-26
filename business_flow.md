@@ -49,6 +49,8 @@
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
 41. [Curated Recipe Ingest & Pool Coverage (admin)](#41-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
 
+42. [Weekly Recap & Share Cards](#43-weekly-recap--share-cards-market-review-2026-10-lane-e2)
+
 ---
 
 ## 1. Application Overview
@@ -1764,13 +1766,37 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 
 ### Protein-only mode: one number, protein (WP-08, owner decision D-5)
 
-A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is reserved for WP-16). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
+A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is "Hide numbers" — see the next section). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
 
 - **What the API hands the client.** `preferences.get.numbersMode`, `dashboard.summary.{numbersMode, proteinGuide}`, `tracker.getDay.{numbersMode, proteinGuide}` and `targets.get.{numbersMode, proteinWhy}`, all additive. Clients render `effectiveNumbersMode(numbersMode)` from `@chefer/types`, which maps null/`NONE` to `FULL` until WP-16.
 - **The protein number** is always the effective protein target from `resolveTargets` (own override, lifter rule or goal split). Today's ring reads "72 of 120 g protein"; macro bars and the kcal caption are hidden.
 - **Per-meal guide** (`buildProteinGuide`, `@chefer/utils`): target ÷ planned meals (3 when nothing is planned), shown as a 10 g range aligned to 5 g and centred on the per-meal figure ("30–40 g per meal").
 - **"Why this number?"** (`explainProteinTarget`): the research default is 1.6 g per kg of body weight. When the user's effective target is not within 0.1 g/kg of that, `proteinWhy` names it (own override, the training-focused goal rule, or the goal's calorie split) with a plain sentence and the 1.6 g/kg figure for their weight.
 - **Old clients (1.0.1)** ignore the new fields and keep full numbers; no API gating, no existing field changes shape.
+
+### Hide numbers: no calorie or macro figures anywhere (market review 2026-10, lane E3)
+
+The eating-disorder-safe option, offered as an equal third choice next to "Calories and macros" and "Just protein" in
+onboarding and Preferences on both platforms (`preferences.setNumbersMode({ numbersMode: 'NONE' })`, every tier, no
+schema change). Like protein-only it changes **presentation only** — the plan still balances calories underneath.
+
+- **One rule:** `numbersVisibility(mode)` (`@chefer/types`): FULL shows kcal, macros and protein; PROTEIN_ONLY protein
+  only; NONE nothing. Clients read it through `useNumbersMode()` → `{ proteinOnly (no kcal: PROTEIN_ONLY and NONE),
+noNumbers (NONE), show }`, or render through `<NutritionNumber kind>`.
+- **What shows instead:** Today and the Log screen get "Today so far" — the planned meals eaten as qualitative
+  progress (`onPlanLine`: "2 of 3 planned meals eaten", never a shortfall); rows and plan tiles show the portion
+  ("1½ portions", `portionLabel`) and the time; day totals, the weekly intake chart, the stats averages and the
+  recipe nutrition facts disappear. The rebalance offer, the fit-to-target sheet, "Why this number" and the weekly
+  review banner (all figures) do not render.
+- **The chef (AI chat):** for a NONE user the chat context carries no nutrition figure at all, plus
+  `HIDE_NUMBERS_CHAT_RULE` (never state a figure, never suggest eating less to make up for a meal).
+- **Over target, every mode:** neutral — the ring and bars keep the brand colour and say "over" in words; no amber,
+  no red (replaces owner decision 3, 2026-09-25). Shortfall lines are neutral text too.
+- **Guard:** the numbers-mode source scans (`apps/mobile/tests/unit/numbers-mode-scan.test.ts`,
+  `apps/web/src/features/numbers-mode/numbers-mode-scan.test.ts`) fail on any Today / Log / plan / recipe / coach /
+  stats file that shows a protein or macro figure without consulting `noNumbers` / `show.*` / `<NutritionNumber>`.
+  The quick-add sheets wait on lane A's rewrite (`PENDING_LANE_A`).
+- **Old clients** (store binaries' JS from before E3) read NONE as FULL and keep showing numbers.
 
 ### Cookbook, Shop, My weeks (P2-8)
 
@@ -2413,6 +2439,32 @@ Progress screen.
 - **Analytics:** `body_measurement_logged { measures, units }` — which
   measures, never the values.
 
+### Progress photos (lane D4, on the phone only — ADR 0005)
+
+Owner decision 2026-10-22: progress photos never leave the phone unless the
+user shares one.
+
+- **App** (Stats under Body measurements, and the legacy Progress screen):
+  "Take photo" (camera; permission asked; a refusal says so and points to
+  "Choose photo") or "Choose photo" (library). The image is shrunk on the
+  device to a 1600 px long edge when the binary has the manipulator, then
+  copied into `documentDirectory/progress-photos/<userId>/` with an
+  `index.json` (`progress-photo-store.ts`). Each photo is dated today.
+- **Grid** newest first, 3 per row, each tile dated. Tap two photos and
+  "Compare" shows them side by side, oldest on the left. Long press opens one:
+  "Share" (iOS share sheet; Android via `expo-sharing` when the binary has it,
+  else "Couldn't share…") and "Delete photo" behind a confirm ("It's only on
+  this phone, so it can't be restored").
+- **Accounts on one phone:** each signed-in account has its own folder, so a
+  second account never sees the first one's photos.
+- **Web:** a card on `/progress` — "Progress photos live on your phone…".
+- **Export and deletion:** both platforms' "Your data" cards say photos stay
+  on the phone and aren't in the export; the delete sheet says deleting the
+  account in the app removes them (it does: `removeAllProgressPhotos` runs on
+  `user.deleteSelf` success) and deleting the app does too.
+- **Analytics:** `progress_photo_added { source }`, `progress_photos_compared`
+  — never the photo, never a count.
+
 ### Trend weight (lane D1, 2026-10-22)
 
 One smoothing for every surface, in `@chefer/utils` `weight-trend.ts`, so the
@@ -2467,6 +2519,14 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
        │    prompt demands honesty about what a photo can't show
        └─ mock: deterministic fixture (520 kcal chicken plate)
 → confirm Sheet: every number editable, confidence badge + portion note shown
+  └─ "Cooked with oil or butter?" None / A little / A lot (lane A3, both
+     platforms): photos can't see hidden fat — a 2026 study found photo apps
+     underestimate meals by ~250–345 kcal and ~30 g fat. A little = 14 g fat
+     (+126 kcal, ~1 tbsp oil), a lot = 35 g (+315 kcal); added on top of the
+     (possibly edited) estimate, capped at the entry limits, shown as
+     "+126 kcal and 14 g fat for the oil or butter (estimate)" and in the Log
+     button total. `withHiddenFat` / `HIDDEN_FAT_GRAMS` (@chefer/utils);
+     analytics snap_hidden_fat { level } on log
   ├─ confirm → tracker.logCustomMeal (custom entry, estimatedBy: 'vision')
   │    → analytics meal_scanned { confirmed: true }
   └─ discard → nothing logged; meal_scanned { confirmed: false }
@@ -2943,6 +3003,74 @@ pantry, chat-locked, training-day); a successful Upgrade there opens the sheet.
 **Events:** `household_member_added`, `upgrade_prompt_shown {source:
 'household'}`, `teaser_engaged {feature: 'household'}`, `onboarding_intent
 {intent}` (see docs/analytics-funnel.md).
+
+### 17.1 Partners: a shared week and a live list (ADR 0003)
+
+Dark behind the `householdSharing` flag. A **partner** is a person with their own Chefer account who joins the
+**household owner**'s household by claiming one **member profile**. Both see and edit the same week and one live
+shopping list; food logs, weight and targets stay each person's own.
+
+```
+Invite (owner, web or mobile Household screen)
+  member row → "Invite to Chefer" → household.invites.create { memberId }
+    → link APP_URL/household/join/<code> (single use, 14 days; a new one replaces the old)
+    → OS share sheet / Copy link                                  (household_invite_created)
+
+Open the link
+  ├─ web, signed out on a phone → the app-or-web page (Open in the app = chefer://household/join/<code>,
+  │    store badges, Continue on web → /login?next=…) — the coaching-invite pattern
+  ├─ web, signed out on desktop → /login?next=/household/join/<code> (register keeps `next`)
+  └─ app → household/join/[code] (signed out: remembered, then sign in / register and back)
+  household.previewInvite → state (household_invite_opened { state, signedIn })
+    OK → the join screen: "Join Dan's household", what is shared, what stays private,
+         the profile's allergies / diet / dislikes to CONFIRM or fix, "Your own plans are kept"
+    else → one sentence per state (used, expired, cancelled, already in a household, …)
+
+Join → household.join { code, allergies, dietaryRestrictions, dislikedIngredients }
+  one transaction: claim the invite · checks (not already a partner, no partners of your own,
+  profile unclaimed, owner under PLAN_FEATURES.householdPartners) · the profile's terms = the confirmed
+  ones · union them into the partner's own preferences · the link
+  → owner gets "Maria joined your household" (in-app notice; there is no server push)  (household_joined)
+
+Shared week (Meals)
+  partner reads the OWNER's plan: every slot at the partner's portion (the profile's portionFactor),
+  their own calorie/protein targets, no refit notice; "You're sharing Dan's week and shopping list."
+  partner may: swap · replace · pin · remove a side · add a recipe (runs as the owner: owner's tier,
+    safety union, quota; an AI swap also needs the partner's AI consent)
+  owner only: generate / regenerate · plan a day · My weeks · restore · rebalance · scale a day
+    (a partner gets "Only Dan can do this, because the week is planned on their goals…")
+  conflicts: edits send the recipe they expect in the slot; if the other person changed it first →
+    CONFLICT → "This meal changed a moment ago. Here's the latest week." + refetch (shared_plan_conflict)
+  freshness: Meals refetches every 15 s while focused, when the household has a partner
+
+Live list (Shop)
+  while focused and shared: shoppingList.sync every 4 s → ticks + "who"; a new `revision`
+    (a swap, a custom item) refetches the whole list (shared_list_synced { remoteChanges })
+  hints: "Ticked by Maria" / "Added by you" under items
+  offline (mobile): ticks go to a durable outbox and replay in order with their original time;
+    the server keeps the newest change per item, so an old offline tick never undoes a newer untick
+
+Leaving / removing (household.leave · household.removePartner)
+  the profile stays (with a snapshot of the safety terms), the plan and its history stay with the owner,
+  the partner's own plans come back (carry-forward from their own last week); notices to the other side
+  (household_left { by })
+  owner deletes a claimed profile → that partner is removed first
+
+Portions and targets
+  slots store the OWNER's eater portion (day fit / refit run only on the owner's targets);
+  a partner eats and logs their profile's portionFactor; the list = owner portion + Σ members
+  (the partner is a member), premium scaling rules unchanged. Fitting a partner's portion to
+  their own targets is a follow-up.
+```
+
+**Events:** `household_invite_created`, `household_invite_opened`, `household_joined`, `household_left`,
+`shared_list_synced`, `shared_plan_conflict`.
+
+**Web:** the sharing UI lives in Preferences → My household (`#household`: invite sheet per adult profile, "Has
+Chefer" + remove, partner banner + leave, notices), `/household/join/<code>` (join screen) and
+`/household-invite/<code>` (signed-out phone). Meals polls `getForWeek` every 15 s and Shop polls `shoppingList.sync`
+every 4 s while the tab is visible and the household is shared; `mergeSyncedChecks` (`@chefer/utils`) keeps a tick
+still in flight over an older sync answer.
 
 ---
 
@@ -4453,6 +4581,40 @@ onboarding saved → NudgeStep (2 switches) → on: ensureGymReminderPermission 
 FoodNudgeHost (root) ← KV change / foreground / today's tracker.getDay → syncFoodNudges
 ```
 
+### Mealtime reminders (market review 2026-10, lane E1)
+
+One opt-in LOCAL notification per planned meal at the user's time — "Breakfast
+time" 08:00, "Lunch time" 12:30, "Snack time" 16:00, "Dinner time" 18:30 by
+default, pre-filled for the meals in the user's plan shape (`planSlots`, legacy =
+breakfast/lunch/dinner) and only on planned weekdays (`planDays`). Copy is warm
+and never reports what didn't happen (`engagement-copy.ts`, lint-scanned).
+
+- **Stored on the server**, unlike the food nudges: `ChefProfile.mealReminders`
+  `{ enabled, times: { breakfast|lunch|dinner|snack: "HH:MM" | null } }`, null =
+  never chosen. `notifications.getMealReminders` returns it (or the defaults) with
+  `chosen`, `planSlots` and `planDays`; `notifications.setMealReminders` saves it.
+- **Offered in onboarding V4 on the phone** as "Remind me at mealtimes?" for food
+  jobs (after the plan reveal, or after Can't-eat for Track-only), before Premium.
+  "Yes, remind me" asks the OS permission and saves `enabled: true`; "Not now" (or
+  a refused permission) saves `enabled: false`, so the answer is recorded. Web never
+  asks (`onboardingV4Steps({ offerReminders })` is false there).
+- **Settings → Notifications** (mobile) has the master switch, a switch and a time
+  per meal (shared `TimePicker`, quarter hours). **Web Preferences** shows and edits
+  the same value and says the reminders arrive on the phone — web sends nothing.
+- **Scheduling (phone only):** `MealReminderHost` keeps a rolling window of
+  one-shot notifications for the next 4 days (`MEAL_REMINDER_DAYS`), re-planned on
+  launch, on foreground, when the choice changes and when today's log changes.
+  **A meal that is already logged or ticked today gets no reminder** (ticking a
+  planned meal logs it; `loggedMealSlots(tracker.getDay.log.loggedMeals)`).
+  Without OS permission nothing is scheduled. Tap → `/tracker`. Sign-out cancels
+  them (the choice stays on the account).
+
+```
+onboarding V4 'reminders' → ensureGymReminderPermission → notifications.setMealReminders
+MealReminderHost (root) ← getMealReminders / foreground / today's tracker.getDay → syncMealReminders
+web Preferences → MealRemindersSection → notifications.setMealReminders (no push)
+```
+
 ### Manual trigger (ops / live verification)
 
 No API procedure. From `apps/api`:
@@ -4519,8 +4681,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
 ```
 
 **Households:** `HouseholdMember` rows are the account's own extra eaters (name,
-portion, allergies) — no other account is linked to them, so they are simply
-deleted with the owner. There is no ownership to transfer.
+portion, allergies), deleted with the owner. There is no ownership to transfer.
+**Household sharing (ADR 0003):** before the transaction `householdAccess.beforeAccountDeleted`
+ends every link. As the owner: each partner keeps a "Dan stopped using Chefer — your plan is your
+own again" notice (actor = the partner, so it survives the cascade) and goes back to their own plans.
+As a partner: the owner gets "Maria left your household"; the claimed profile stays with the owner
+(with a snapshot of its safety terms); the link rows cascade.
 
 **Following (F1.5, PRD FR-22.2):** needs no explicit step in `deleteAccount` — every Following table cascades from
 the `users` row: the social profile, follows both ways, blocks both ways, suggestion dismissals, reports **filed and received**,
@@ -5415,8 +5581,10 @@ chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
 `per100g`). "Enter calories yourself" is the old calories-only form, kept as
 the fallback when nothing matches — gated by the macro sanity check above
 (`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
-Never a branded product or barcode (B-29, AC6): the Ingredients group is
-Chefer's own catalog only.
+The Ingredients group is Chefer's own reviewed catalog only. B-29 ("never a
+branded product or barcode") was superseded on 2026-10-22 by ADR 0006:
+packaged products are logged too, as their own search group and the "Scan
+barcode" view (below), and never enter the catalog.
 
 **Edit any entry, undo any delete (bug B-34, T-19.2, both platforms).** Every
 custom entry (quick-add, photo scan) is tappable → `edit-entry-sheet.tsx` /
@@ -5443,6 +5611,115 @@ sheet naming the previous day (`yesterday`, or a short date further back) and
 calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
 `Undo` calls the new `tracker.deleteEntries` with the returned
 `copiedEntryIds` — deleting exactly the copies, never the originals.
+
+**Packaged products: barcode + label scan (ADR 0006, lane A1, both platforms).**
+Free barcode logging; the label scan is premium. Kept outside the reviewed
+ingredient catalog (`PackagedProduct` table, §6 of infrastructure.md).
+
+```
+Log sheet → "Scan barcode"
+  ├─ photo of the barcode (mobile: expo-image-picker camera/library; web: file
+  │    input with capture) → shrunk on the device → products.lookupBarcodePhoto
+  │    (base64) → zxing-wasm decodes EAN-13 / EAN-8 / UPC-A on the server
+  │    └─ nothing readable → { status: 'unreadable' } ("Try again closer, or type it")
+  └─ typed number → barcodeSchema (digits, GTIN check digit) → products.lookupBarcode
+products.lookupBarcode({ barcode })          ← also what lane C's live scanner calls
+  ├─ UPC-A padded to EAN-13 (one canonical form)
+  ├─ the user's own product (LABEL / USER)        → found, origin 'own'
+  ├─ cached OFF row fetched < 30 days ago          → found, origin 'cache'
+  ├─ Open Food Facts v2 GET /api/v2/product/{code} (User-Agent "Chefer/1.0 …",
+  │    ≤ 60/min, misses remembered 24 h) → normalised (missing = null, kcal
+  │    from kJ only) → upsert the shared cache row      → found, origin 'off'
+  ├─ not on OFF → { status: 'not_found', barcode }
+  └─ OFF down / rate-limited → stale cache row (stale: true) or SERVICE_UNAVAILABLE
+found → product card: allergen WARNINGS (owner + household allergies, and
+  diets such as vegan / dairy-free; Shellfish covers crustaceans + molluscs;
+  traces = "may contain") — never a block · allergen line ("Allergens
+  unknown — check the pack" when OFF can't say) · grams or servings with a
+  live preview (scaleProduct, the same function the server logs with) ·
+  "Data from Open Food Facts · ODbL" link on OFF rows
+  └─ Log → tracker.logProduct({ date, productId, amount: {unit:'g',grams} |
+       {unit:'serving',servings}, mealType, replacesSlot?, rebalanceMode })
+       → server scales per-100 g values (unknown macros → 0 g + unknownMacros),
+         refuses > 5,000 kcal, no serving size for servings, or no kcal
+       → appends a custom entry "Brand Name, 2 servings (60 g)" (estimatedBy
+         'manual') + product: { id, grams } → Recents carry productId
+not_found →
+  ├─ "Photograph the label" (premium; free users get the snap-scan pitch)
+  │    → AI consent ('meal-scan' sheet) → products.scanLabel (aiConsentProcedure)
+  │    → reserveMealScan (the Snap-to-Log quota; refunded on capacity failure)
+  │    → aiService.readNutritionLabel (vision workload) → copied numbers, per
+  │      serving converted to per 100 g, allergen words → taxonomy ids
+  │    → the review form (every number editable, notes + confidence shown)
+  └─ "Enter it yourself" (free) → the same form, blank, barcode kept
+  → products.create({ source: 'LABEL' | 'USER', … }) → private row (wins
+    over the cache for its owner) → product card → log as above
+Log sheet search (≥ 2 chars) → products.search → "Packaged products" group:
+  cached OFF rows + the user's own, own first, with a warning icon on clashes
+```
+
+Analytics (no barcode, name or brand ever): `barcode_scan { via }`,
+`barcode_found { source, allergenWarning }`, `barcode_not_found { via }`,
+`label_scan_saved { edited }`, `packaged_product_created { source }`,
+`packaged_product_logged { unit, allergenWarning }`, plus `meal_logged`
+(`quick` / `replaced`).
+
+**Saved meals + copy meal (lane A2, both platforms, free).** The day screens
+(mobile Your day + the legacy tracker, web tracker) get a "Save or copy a
+meal" action (bookmark icon next to Copy day) that opens one sheet:
+
+```
+pick a meal of the day being viewed (opens on the first meal with entries;
+  "n entries logged" / "Nothing logged for this meal yet")
+├─ Save as a meal: name (1–60 chars) → savedMeals.createFromDay({ name, date, mealType })
+│    → snapshots every entry with that mealType (recipe entries named after the
+│      recipe, product refs kept); CONFLICT on a name the user already has,
+│      BAD_REQUEST when the meal is empty, > 20 items or the user has 50
+│    → analytics saved_meal_created { itemCount }
+├─ Copy to…: today or one of the 6 days before it × a meal (never the same day
+│    AND meal) → tracker.copyMeal({ fromDate, fromMealType, toDate, toMealType })
+│    → the copies get fresh ids, the target meal type, no plan slot / replacement
+│    → snackbar/toast "Copied 2 entries to dinner, today" + Undo
+│      (tracker.deleteEntries with the returned copiedEntryIds)
+│    → analytics meal_copied { itemCount, sameDay }
+└─ Your saved meals: each with a delete (savedMeals.delete)
+Log sheet → "Saved meals" group (first 5 by last use, or matching the search;
+  hidden when the sheet replaces a plan slot — a slot takes one entry)
+  └─ "+" → tracker.logSavedMeal({ date, savedMealId, mealType }) → the items as
+     fresh entries (recipe items as recipe entries) → "Logged Weekday
+     breakfast" + Undo (deleteEntries with the returned entryIds); the meal's
+     lastLoggedAt moves it to the top → analytics saved_meal_logged { itemCount }
+```
+
+**Typed log: "I ate…" outside the chat (lane A4, both platforms).** Free with
+a daily cap of 10 (`PLAN_FEATURES.foodTextPerDay`), unlimited on premium; AI
+consent first (new consent feature `food-text`). Voice is the keyboard's own
+dictation — no native module.
+
+```
+Log sheet → "Type what you ate" (hidden when the sheet replaces one plan slot)
+  → one line, e.g. "2 eggs, toast with butter, coffee with milk" → Read it
+  → AI consent sheet ('food-text': "turn what you typed into food entries")
+  → tracker.parseFoodText({ text ≤ 300 chars })            [aiConsentProcedure]
+      ├─ reserveFoodText (AiCallLog FOOD_TEXT; free 10/day → TOO_MANY_REQUESTS,
+      │    premium unlimited but logged and inside the AI budget; refunded on a
+      │    capacity failure)
+      ├─ aiService.parseFoodText → ≤ 12 items { text, food, grams, count,
+      │    per-100 g estimate } ("toast with butter" → toast + butter)
+      └─ each item's numbers from the most trusted match:
+           1. a recent log with that name (servings × its own numbers)
+           2. the user's own packaged product, or a cached one with that exact name
+           3. the ingredient catalog (a whole-word name match: "egg" ≠ "Eggplant")
+           4. the AI's per-100 g estimate — marked "Estimate", logged as estimatedBy 'vision'
+      → { items } — NOTHING is logged
+  → review list: each item with its source, an editable amount (g or
+    servings), a remove button; "Log 2 items · 575 kcal"
+  → tracker.logItems({ date, mealType, items[1–12] })  → custom entries
+    (product refs kept, unknown macros flagged) → snackbar/toast + Undo
+    (deleteEntries with the returned entryIds)
+analytics (counts only, never the sentence): food_text_parsed { itemCount,
+  estimated }, food_text_logged { itemCount, edited }
+```
 
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,
@@ -6465,6 +6742,93 @@ Trainer mode — mobile tabs Schedule · Clients · Today · Workouts · You (To
 
 ---
 
+### 37.12 Coaching data: food and weight sharing (lane K, market review 2026-10)
+
+Owner decision 2026-10-22: a client opts in **per coaching** to share their food log and / or weight. Both are
+**off** by default, offered on the consent screen and in Your trainer, revocable at any time, every change logged.
+
+```
+Consent screen (invite join / "Ask to coach me")       Your trainer → "What you share with Ana"
+  "You choose what else to share"                        the same two switches, live (coaching.setSharing)
+  [ ] Share my food log   [ ] Share my weight            on  → snackbar "Ana can now see your food log"
+  coaching.join / requestCoaching { share }              off → "Ana can no longer see your food log"
+        │                                                       │
+        ▼                                                       ▼
+CoachingLink.shareFoodAt / shareWeightAt  ◄── one COACHING_SHARING event per change (providers ['FOOD'] / ['WEIGHT'])
+        │   (a request: logged when SENT, contextId = the request; applied when the trainer accepts)
+        ▼
+trainer.client.food / trainer.client.weight  (requireCoachingAccess('food' | 'weight'))
+   ACTIVE link AND the switch on → the data; anything else → the uniform NOT_FOUND "This client isn't available"
+   revoke → denied on the trainer's NEXT request (access is never cached across requests)
+   coaching ends (client leaves, trainer removes, trainer tools off, a switch to another trainer)
+        → withdrawn events for every switch that was on, switches cleared; a new coaching starts with both off
+```
+
+- **What the food log shows the trainer:** per day the meals logged, kcal and protein against the day's targets, and
+  plan adherence (eaten as planned / ate something else / skipped), with the entries' names. From the last 4 weeks.
+  **Weight:** one weigh-in per day for the last 3 months (raw weight; trend weight when lane D1 lands).
+- **Never shared:** allergies, diet settings, body measurements, photos, notes, carbs and fat.
+- **Hide numbers:** the trainer sees the numbers the client chose to see (`trainerNumbersView`): Protein only hides
+  calories, "no numbers" (`numbersMode = NONE`, lane E3) hides every number; meals and adherence stay.
+- **Store privacy labels (owner action):** food and weight are now _shared with another user_ (the trainer) when the
+  client opts in. App Store "Data used to track / linked" stays as is, but the Health & Fitness and "Other user
+  content" disclosures and Google Play's Data safety "Data shared" section need the trainer case, and the privacy
+  policy needs the paragraph (bump `LEGAL_VERSIONS.privacy`).
+- Analytics: `coaching_sharing_changed { data: food | weight, on, where: join | request | settings }`.
+
+**Trainer views (K2).** Client detail (trainer tools and trainer mode, web + mobile):
+
+```
+trainer.client.weekSummary { clientId, today }   (scope read: every ACTIVE client)
+  "Last 7 days"   2 of 3 workouts                         always
+                  Food logged 5 of 7 days · 1,850 of 2,000 kcal a day · 110 of 125 g protein a day
+                  · 70% of planned meals eaten as planned  only while food is shared
+                  64.2 kg · Thu 23 Oct · −0.4 kg in 7 days only while weight is shared
+                  "Maria doesn't share food or weight with you."  when neither is
+Food tab (only while something is shared)
+  trainer.client.food { days: 7 }    per day: meals, kcal / protein vs target, "2 of 3 planned", entry names
+  trainer.client.weight              sparkline + the last 5 weigh-ins
+  revoke → the tab disappears on the next load (both reads answer NOT_FOUND), the card says "doesn't share"
+```
+
+The card's wording is `weekSummaryLines` / `foodDayParts` (`@chefer/utils`), so both apps say the same.
+Mobile shows kg (like every trainer screen); web uses the trainer's own gym unit.
+
+**Weekly check-ins (K3).**
+
+```
+Trainer settings → "Weekly check-in"   off by default; day (Mon…Sun, default Sun); up to 6 of
+                                       Energy · Hunger · Sleep · Stress · Sticking to the plan · Soreness · Mood
+        │ trainer.checkIns.saveConfig
+        ▼
+Client, on that weekday (own calendar), from the first one after the coaching started:
+  Today / Train card "Ana's weekly check-in" — Answer → /coaching/check-in · Later (hides it until tomorrow)
+  email (08:00 UTC that day, once per period, one-click unsubscribe)
+  /coaching/check-in: each question 1–5 + optional note → coaching.checkIn.submit
+        open until the next one opens; answering again changes the answers
+        ▼
+Trainer, the client's page → "Check-ins": newest first, "Energy 3/5 · Sleep 4/5", the note,
+  "This week's check-in is waiting for Maria" (trainer.client.checkIns, ACTIVE coaching only)
+```
+
+The questions are a fixed catalogue (no free text from the trainer in a client's inbox); the client's note is opaque
+text, never sent to AI or analytics. Analytics: `check_in_config_saved { enabled, questions }`,
+`check_in_submitted { questions, withNote, edit }`.
+
+**"Client went quiet" (K4).**
+
+```
+Trainer settings → "Client alerts"   Tell me when a client goes quiet after [1·2·3·5·7·14] days (default 3)
+                                     [ ] Email me a daily summary
+quiet = no workout logged, and no food logged for clients who SHARE their food log, for N days
+        (a client who doesn't share food is never judged by food: the trainer learns nothing from it)
+  Clients list   "Nothing logged for 4 days" badge (trainer.clients.list → quiet / quietDays)
+  Today          "Quiet clients" stat ("3+ days with nothing logged") and the rows under Needs attention
+  badge          Today tab (mobile trainer mode) / Today nav item (web): quiet since the trainer last
+                 opened Today; opening Today calls trainer.quiet.markSeen
+  email          07:00 UTC, once a day, only when someone is quiet: names and days, nothing else
+```
+
 ## 38. Store Rating Prompt Flow (mobile, ASO plan §5.1)
 
 Mobile only (iOS + Android, from the 1.0.2 binary). Web has no equivalent: store ratings are native.
@@ -6637,3 +7001,40 @@ Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAd
     the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
     red = that household repeats a recipe within 2 weeks, amber = within 4
 ```
+
+## 43. Weekly Recap & Share Cards (market review 2026-10, lane E2)
+
+> **Status:** Implemented on mobile and web. Every tier. No flag.
+
+**Weekly recap — "Your week in review".** Factual counts for one Monday–Sunday week, from `recap.week`:
+
+- **Food:** meals cooked from the plan (planned slots that were logged or ticked, cook mode's "Made it!" included, via
+  `matchLoggedToSlots`), new recipes tried (recipe ids logged that week and never before), and protein-goal days
+  (logged days not protein-short per `proteinGapG`, only with a goal or own targets).
+- **Training:** completed sessions, PRs (first-ever lifts are baselines, not PRs) and the existing weekly streak
+  (read-only; no new streak logic — Kitchen progress owns gamification).
+- **Shame-free by rule:** no denominators that read as a shortfall ("9 meals cooked from your plan", never "9 of 14"),
+  no zero rows, and a week with nothing in it says "A quiet week".
+- **Where it opens:** the mobile `/recap` screen and web `/recap` (previous/next week, newest = the last completed
+  week); Today on **Monday** (mobile `RecapTodayCard`, web `RecapDashboardCard`, hidden when last week is empty or
+  the `gamification` flag is on — Kitchen progress's Sunday–Tuesday banner owns that slot); and the Monday "week
+  ready" email's "Look back at last week" link (`APP_URL/recap?from=email`; email links open the web).
+
+**Share cards.** "Share as a card" on a recipe, the cook-mode finish ("Share what you cooked"), the workout summary
+("Share your workout", online only) and the recap ("Share your week", with a pick-what-goes-on-it sheet).
+
+```
+tap Share ─► share.create({ kind, …, opt-ins }) ─► ShareCard row (snapshot of ONLY what the card shows)
+          ◄─ { id, url: APP_URL/s/<id>, imageUrl: …/image }
+mobile: FileSystem.downloadAsync(imageUrl) ─► iOS Share.share({ url: file, message: text + link })
+                                            Android (expo-sharing) shareAsync(file, image/png)
+                                            no image / old binary ─► Share.share({ message: text + link })
+web:    fetch(imageUrl) ─► navigator.share({ files: [png], text, url }) when supported
+                          else a sheet with the card, Download and Copy link
+anyone with the link ─► web /s/<id> (public, noindex, OG tags) ─► share.get ─► next/og PNG at /s/<id>/image
+```
+
+- **Privacy** (the Following rules): a card never carries allergies, diets, body weight, logged meals, notes, heart
+  rate or the person's name. Nutrition per serving (recipe/cook) and protein days (recap) are opt-in; PRs on a
+  workout card are on by default (weights lifted, never body weight). Cards are deleted with the account.
+- **Analytics:** `share_card_shared { kind, completed }`, `weekly_recap_viewed { from, empty }`.

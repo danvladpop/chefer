@@ -4,6 +4,29 @@ Chefer helps people eat well and train: a meal plan and food tracking on one sid
 people they follow and trainers who coach them. This glossary holds the words the product and code settle on; add a
 term the moment it is agreed.
 
+## Engagement
+
+**Mealtime reminder**:
+An opt-in local phone notification at the time of one planned meal ("Lunch time", 12:30), skipped once that meal is
+logged or ticked. Stored on the account; only the phone sends it.
+_Avoid_: nudge (the dinner / plan-Sunday food nudges are a separate, device-only feature), push notification (nothing
+is sent from the server)
+
+**Weekly recap**:
+"Your week in review": factual counts for one Monday–Sunday week (meals cooked from the plan, new recipes, protein
+days, workouts, PRs, the streak). Never a shortfall or a zero row.
+_Avoid_: report, score
+
+**Hide numbers**:
+The numbers mode (`NONE`) that shows no calorie or macro figure anywhere: portions, "on plan" ticks and qualitative
+progress instead. The eating-disorder-safe choice.
+_Avoid_: no-calorie mode, diet-free mode
+
+**Share card**:
+An image (with an app link) the user chooses to share: a recipe, a finished cook, a workout or the weekly recap. Holds
+only a snapshot of what it shows.
+_Avoid_: post, story (Kitchen progress's recap story is a separate, gamified surface)
+
 ## Premium
 
 **Tier**:
@@ -46,6 +69,100 @@ _Avoid_: popup, interstitial, prompt
 The entry point that states the user's tier at the top of You (mobile) and Profile (web): Free opens
 the overview pitch, Premium only shows status.
 _Avoid_: plan card, upgrade banner
+
+## Food logging
+
+**Log sheet**:
+The one sheet everything off-plan is logged from: search (Recent, the plan, your recipes, packaged products,
+ingredients), Scan barcode, Snap-to-Log and "Enter calories yourself".
+_Avoid_: Quick add (the old calories-only form), food diary
+
+**Packaged product**:
+A branded, barcoded food (a pot of yoghurt, a cereal box), with its numbers per 100 g. Kept apart from the ingredient
+catalog (ADR 0006).
+_Avoid_: Branded ingredient, food item, SKU
+
+**Barcode lookup**:
+Turning a barcode's digits into a packaged product: the user's own product first, then Chefer's cache, then Open Food
+Facts. A typed number, a barcode photo and the live scanner all end in the same lookup.
+_Avoid_: Scan (on its own: say barcode photo, label scan or Snap-to-Log)
+
+**Label scan**:
+Reading a packaged product's nutrition table from a photo (premium AI) into a draft the user checks before saving.
+_Avoid_: OCR, label import
+
+**Your product**:
+A packaged product the user saved from a label scan or typed in; private to them, and it wins over the shared copy.
+_Avoid_: Custom product, private product (in user copy)
+
+**Open Food Facts (OFF)**:
+The open product database the barcode lookup reads; its data is shown with "Data from Open Food Facts" (ODbL).
+_Avoid_: OFF in user copy
+
+**Saved meal**:
+A named snapshot of one logged meal's entries (their names and numbers), logged again in one tap from the Log sheet.
+Editing the original entries never changes it.
+_Avoid_: Template, favourite meal, combo
+
+**Copy meal**:
+Copying the entries of one meal of a day to another day and/or meal, with an Undo of exactly the copies. Copy day
+does the same for a whole day.
+_Avoid_: Duplicate, repeat meal
+
+**Hidden fat**:
+Oil or butter a dish was cooked in, which a photo can't see. After a Snap-to-Log estimate the user says none, a little
+or a lot, and that fat is added on top as an estimate.
+_Avoid_: Cooking oil adjustment, fat correction
+
+**Typed log**:
+Logging by typing (or dictating) what you ate in one sentence. The chef splits it into items and matches each to your
+recents, a packaged product or the catalog — an AI estimate only as a last resort — and you confirm before anything is
+logged.
+_Avoid_: Natural-language logging, AI log, chat log (that is the AI chef chat)
+
+**Allergens unknown**:
+What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
+_Avoid_: No allergens, allergen-free
+
+## Household
+
+**Household**:
+The people one account plans meals for: the household owner and their member profiles, some of which may be claimed
+by partners. It is anchored on the owner's account (ADR 0003).
+_Avoid_: family, group, team
+
+**Household owner**:
+The account the household's member profiles, week plan and shopping list belong to. Only the owner generates the
+week, follows a saved week or removes partners.
+_Avoid_: admin, host, main account
+
+**Member profile**:
+One person at the table that the owner added: a name, a portion and safety terms. It may or may not be claimed by a
+partner.
+_Avoid_: member account, dependant, eater (in user copy)
+
+**Partner**:
+A person with their own Chefer account who joined a household by claiming a member profile. A partner sees and edits
+the shared week and list; their food logs, weight and targets stay their own.
+_Avoid_: co-owner, guest, family member, collaborator
+
+**Household invite**:
+A single-use link the owner makes for one member profile; redeeming it makes the redeemer that profile's partner.
+_Avoid_: share code, referral, family link
+
+**Claim**:
+What a partner does to a member profile on joining: confirm its safety terms and link it to their account. Leaving
+unclaims it; the profile stays.
+_Avoid_: adopt, merge, take over
+
+**Shared week**:
+The household owner's week plan as both owner and partners see it. A partner sees it at their own portion and
+against their own targets.
+_Avoid_: family plan, joint plan
+
+**Shared list**:
+The shopping list of the shared week; ticks show for everyone in the household within seconds, with who ticked them.
+_Avoid_: family list, synced list
 
 ## Training
 
@@ -94,6 +211,18 @@ _Avoid_: Coach (as a noun for a person), link, subscription
 **Invite**:
 A single-use offer of coaching from a trainer that the client accepts.
 _Avoid_: Code, referral
+
+**Shared data**:
+What a client chooses to let their trainer see beyond training: their food log and / or their weight. Off unless the client turns it on, per coaching; it ends with the coaching.
+_Avoid_: Permissions, access (in user copy), sync
+
+**Check-in**:
+A trainer's short weekly questionnaire (a few 1–5 questions and an optional note) that each client answers in the app.
+_Avoid_: Survey, form, questionnaire (in user copy)
+
+**Quiet client**:
+A client who has logged nothing their trainer can see (no workout, and no food log if they share it) for the trainer's chosen number of days.
+_Avoid_: Inactive, churned, lapsed
 
 **Coaching request**:
 A client's ask to be coached, which the trainer accepts or declines.
@@ -272,3 +401,7 @@ _Avoid_: full day, good day
 **Body measurement**:
 One day's entry of waist, hips, chest, upper arm, thigh and/or body fat, each optional; free for everyone.
 _Avoid_: body metrics (that is height, age, sex and activity on the profile), measurement (alone, in code)
+
+**Progress photo**:
+A body photo the user takes to compare over time. It lives only on their phone (ADR 0005), never on Chefer's servers.
+_Avoid_: body photo (in copy), selfie, upload

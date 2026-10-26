@@ -15,6 +15,17 @@ const m = vi.hoisted(() => ({
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
   search: 'week=0&day=2',
   replace: vi.fn<[string], undefined>(),
+  // ADR 0003: the household sharing role (SOLO unless a test says otherwise).
+  partnerOf: null as string | null,
+}));
+vi.mock('@/features/household-sharing/use-household-sharing', () => ({
+  useHouseholdSharing: () => ({
+    status: null,
+    role: m.partnerOf ? 'PARTNER' : 'SOLO',
+    isShared: m.partnerOf !== null,
+    isPartner: m.partnerOf !== null,
+    ownerName: m.partnerOf,
+  }),
 }));
 
 vi.mock('next/link', () => ({
@@ -119,6 +130,7 @@ beforeEach(() => {
   m.search = 'week=0&day=2';
   m.previewCalls = 0;
   m.previewFails = false;
+  m.partnerOf = null;
   m.preview = null;
   m.plan = planWith([
     { type: 'lunch', recipe: recipe('wrap', 'Chicken Wrap', 500) },
@@ -325,5 +337,34 @@ describe('Plan page — portions refit notice (day rebalance, board PlanRefit)',
     expect(m.mutations['mealPlan.dismissPortionRefit']).toHaveBeenCalledWith({ planId: 'plan-1' });
     expect(m.mutations['mealPlan.undoPortionRefit']).toBeUndefined();
     expect(screen.queryByTestId('plan-portion-refit')).toBeNull();
+  });
+});
+
+describe('Plan page — a partner in a shared household (ADR 0003)', () => {
+  it('shows whose week it is and leaves the week-level actions to the owner', () => {
+    m.partnerOf = 'Dan';
+    render(<MealPlanPage />);
+    const banner = screen.getByTestId('household-partner-banner');
+    expect(banner.textContent).toContain("You're sharing Dan's week and shopping list.");
+    expect(banner.textContent).toContain('Only Dan can do this');
+    expect(screen.queryByTestId('plan-week-options')).toBeNull();
+    expect(screen.queryByTestId('plan-settings-open')).toBeNull();
+    expect(screen.queryByTestId('plan-my-weeks-link')).toBeNull();
+  });
+
+  it('the owner keeps every action', () => {
+    render(<MealPlanPage />);
+    expect(screen.queryByTestId('household-partner-banner')).toBeNull();
+    expect(screen.getByTestId('plan-week-options')).toBeTruthy();
+    expect(screen.getByTestId('plan-my-weeks-link')).toBeTruthy();
+  });
+
+  it('an empty shared week says only the owner can plan it', () => {
+    m.partnerOf = 'Dan';
+    m.plan = undefined;
+    render(<MealPlanPage />);
+    expect(screen.queryByTestId('plan-generate-empty')).toBeNull();
+    expect(screen.queryByTestId('plan-regenerate')).toBeNull();
+    expect(screen.getByTestId('plan-owner-only').textContent).toContain('Only Dan can do this');
   });
 });

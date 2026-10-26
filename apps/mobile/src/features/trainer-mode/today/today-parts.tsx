@@ -1,6 +1,11 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_LIMITS, TRAINER_MODE_COPY, type TrainerQuietClientDto } from '@chefer/types';
+import {
+  COACHING_LIMITS,
+  QUIET_COPY,
+  TRAINER_MODE_COPY,
+  type TrainerQuietClientDto,
+} from '@chefer/types';
 import {
   Badge,
   Button,
@@ -107,12 +112,15 @@ export function WeekStats({
   maxClients,
   averageAdherence,
   quietClients,
+  quietAfterDays,
   bookingsThisWeek = null,
 }: {
   activeClients: number;
   maxClients: number;
   averageAdherence: number | null;
   quietClients: number;
+  /** Lane K4: the trainer's threshold; absent from an older API (the 7-day workout rule). */
+  quietAfterDays?: number | undefined;
   bookingsThisWeek?: { scheduled: number; done: number } | null;
 }) {
   const clients = (
@@ -130,7 +138,11 @@ export function WeekStats({
       value={String(quietClients)}
       count={quietClients}
       label={COPY.quietClients}
-      accessibilityHint={COPY.quietHint(COACHING_LIMITS.inactiveDays)}
+      accessibilityHint={
+        quietAfterDays !== undefined
+          ? QUIET_COPY.statHint(quietAfterDays)
+          : COPY.quietHint(COACHING_LIMITS.inactiveDays)
+      }
     />
   );
   return (
@@ -170,25 +182,37 @@ export function WeekStats({
   );
 }
 
-export function quietClientLabel(client: TrainerQuietClientDto): string {
+/** Lane K4 (`withFood`): "Nothing logged for 4 days" (food counts while shared); else "4 days without a workout". */
+function quietRowText(client: TrainerQuietClientDto, withFood: boolean): string {
+  return withFood ? QUIET_COPY.row(client.inactiveDays) : COPY.quietRow(client.inactiveDays);
+}
+
+export function quietClientLabel(client: TrainerQuietClientDto, withFood = false): string {
   return [
     client.name,
     client.lastWorkoutDate
       ? COPY.lastWorkout(formatWeekdayDate(client.lastWorkoutDate))
       : COPY.noWorkoutYet,
-    COPY.quietRow(client.inactiveDays),
+    quietRowText(client, withFood),
   ].join('. ');
 }
 
 /** §6.1 (5): a quiet client — name, last workout, days without one. Tap → the client. */
-export function QuietClientRow({ client }: { client: TrainerQuietClientDto }) {
+export function QuietClientRow({
+  client,
+  withFood = false,
+}: {
+  client: TrainerQuietClientDto;
+  /** Lane K4: the server judged "quiet" with food logs too (it sent `quietAfterDays`). */
+  withFood?: boolean;
+}) {
   const colors = useThemeColors();
   return (
     // MO-01: a card-sized tap target scales on press.
     <PressableScale
       testID={`trainer-today-quiet-${client.clientId}`}
       accessibilityRole="button"
-      accessibilityLabel={quietClientLabel(client)}
+      accessibilityLabel={quietClientLabel(client, withFood)}
       onPress={() => router.push(`/trainer/${client.clientId}`)}
       className="min-h-14 gap-1 rounded-card border border-separator bg-surface px-4 py-3"
     >
@@ -204,7 +228,7 @@ export function QuietClientRow({ client }: { client: TrainerQuietClientDto }) {
           : COPY.noWorkoutYet}
       </Text>
       <View className="flex-row">
-        <Badge variant="warning">{COPY.quietRow(client.inactiveDays)}</Badge>
+        <Badge variant="warning">{quietRowText(client, withFood)}</Badge>
       </View>
     </PressableScale>
   );

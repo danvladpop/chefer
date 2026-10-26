@@ -8,17 +8,23 @@ import { PLAN_FEATURES, UPLOAD_LIMITS } from '@chefer/types';
 // helpers; no other file may compare planTier to 'PREMIUM' directly.
 
 /** Admins keep implicit premium — AI features are enabled for both. */
-export function isPremiumUser(user: UserProfile): boolean {
+export function isPremiumUser(user: Pick<UserProfile, 'planTier' | 'role'>): boolean {
   return user.planTier === 'PREMIUM' || user.role === 'ADMIN';
 }
 
-function accessFor(user: UserProfile, key: PlanFeatureKey): boolean | number {
+function accessFor(
+  user: Pick<UserProfile, 'planTier' | 'role'>,
+  key: PlanFeatureKey,
+): boolean | number {
   const feature = PLAN_FEATURES[key];
   return isPremiumUser(user) ? feature.premium : feature.free;
 }
 
 /** Whether the user's tier has any access to the feature (a limit counts). */
-export function hasFeature(user: UserProfile, key: PlanFeatureKey): boolean {
+export function hasFeature(
+  user: Pick<UserProfile, 'planTier' | 'role'>,
+  key: PlanFeatureKey,
+): boolean {
   const access = accessFor(user, key);
   return access !== false && access !== 0;
 }

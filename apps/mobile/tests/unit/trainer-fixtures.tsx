@@ -2,6 +2,7 @@ import { act } from '@testing-library/react-native';
 import type {
   AdherenceDto,
   ClientRowDto,
+  ClientWeekSummaryDto,
   CoachedWorkoutDto,
   InviteDto,
   NextTargetDto,
@@ -46,6 +47,29 @@ export function trainerHandlers(overrides: Handlers = {}): Handlers {
     'trainer.status': () => ({ canActivate: true, active: true, displayName: 'Ana' }),
     'trainer.clients.list': () => [clientRow()],
     'user.me': () => ({ name: 'Ana Ionescu' }),
+    // Lane K2: the client screen's "Last 7 days" card (nothing shared by default).
+    'trainer.client.weekSummary': () => weekSummary(),
+    // Lane K3: weekly check-ins (off by default).
+    'trainer.client.checkIns': () => ({ enabled: false, current: null, items: [] }),
+    // Lane K4: "went quiet" settings (the defaults).
+    'trainer.alerts.config': () => ({ quietAfterDays: 3, digestEmail: false }),
+    'trainer.checkIns.config': () => ({
+      enabled: false,
+      day: 6,
+      questions: ['ENERGY', 'HUNGER', 'SLEEP', 'ADHERENCE'],
+    }),
+    ...overrides,
+  };
+}
+
+export function weekSummary(overrides: Partial<ClientWeekSummaryDto> = {}): ClientWeekSummaryDto {
+  return {
+    from: '2026-10-01',
+    to: '2026-10-07',
+    workouts: { done: 2, goal: 3 },
+    sharing: { food: false, weight: false },
+    food: null,
+    weight: null,
     ...overrides,
   };
 }

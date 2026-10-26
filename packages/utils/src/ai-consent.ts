@@ -132,6 +132,10 @@ export function aiConsentFeatureForPath(path: string | null | undefined): AiCons
       return 'shopping-list';
     case 'ingredients.estimateNutrition':
       return 'ingredient-estimate';
+    case 'products.scanLabel':
+      return 'meal-scan';
+    case 'tracker.parseFoodText':
+      return 'food-text';
     default:
       return 'meal-plan';
   }

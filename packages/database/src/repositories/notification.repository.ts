@@ -33,6 +33,15 @@ export const COACHING_NOTIFICATION_KINDS = [
 ] as const satisfies readonly NotificationKind[];
 export type CoachingNotificationKindDb = (typeof COACHING_NOTIFICATION_KINDS)[number];
 
+/** Household sharing's kinds (ADR 0003): read only through `listHousehold`. */
+export const HOUSEHOLD_NOTIFICATION_KINDS = [
+  'HOUSEHOLD_PARTNER_JOINED',
+  'HOUSEHOLD_PARTNER_LEFT',
+  'HOUSEHOLD_REMOVED',
+  'HOUSEHOLD_ENDED',
+] as const satisfies readonly NotificationKind[];
+export type HouseholdNotificationKindDb = (typeof HOUSEHOLD_NOTIFICATION_KINDS)[number];
+
 const SOCIAL_KIND_FILTER = { in: [...SOCIAL_NOTIFICATION_KINDS] };
 
 export interface CoachingNotificationData {
@@ -233,3 +242,47 @@ export class NotificationRepository implements INotificationRepository {
 }
 
 export const notificationRepository = new NotificationRepository();
+
+// ─── Household notices (ADR 0003) ─────────────────────────────────────────────
+// Same table, own kinds, own reader — shipped Activity and coaching readers
+// filter on their kind lists, so they never meet these.
+
+export class HouseholdNoticeRepository {
+  async upsert(data: {
+    userId: string;
+    kind: HouseholdNotificationKindDb;
+    actorId: string;
+    name: string;
+  }): Promise<Notification> {
+    const { userId, kind, actorId, name } = data;
+    const payload = { name } satisfies Prisma.InputJsonValue;
+    return prisma.notification.upsert({
+      where: { userId_kind_actorId: { userId, kind, actorId } },
+      create: { userId, kind, actorId, payload },
+      update: { payload, createdAt: new Date(), readAt: null },
+    });
+  }
+
+  /** Unread notices, plus read ones since `since`, newest first. */
+  async list(userId: string, since: Date, limit: number): Promise<Notification[]> {
+    return prisma.notification.findMany({
+      where: {
+        userId,
+        kind: { in: [...HOUSEHOLD_NOTIFICATION_KINDS] },
+        OR: [{ readAt: null }, { createdAt: { gte: since } }],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async markRead(userId: string, id: string): Promise<boolean> {
+    const { count } = await prisma.notification.updateMany({
+      where: { id, userId, kind: { in: [...HOUSEHOLD_NOTIFICATION_KINDS] } },
+      data: { readAt: new Date() },
+    });
+    return count > 0;
+  }
+}
+
+export const householdNoticeRepository = new HouseholdNoticeRepository();
