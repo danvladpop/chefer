@@ -2467,6 +2467,14 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
        │    prompt demands honesty about what a photo can't show
        └─ mock: deterministic fixture (520 kcal chicken plate)
 → confirm Sheet: every number editable, confidence badge + portion note shown
+  └─ "Cooked with oil or butter?" None / A little / A lot (lane A3, both
+     platforms): photos can't see hidden fat — a 2026 study found photo apps
+     underestimate meals by ~250–345 kcal and ~30 g fat. A little = 14 g fat
+     (+126 kcal, ~1 tbsp oil), a lot = 35 g (+315 kcal); added on top of the
+     (possibly edited) estimate, capped at the entry limits, shown as
+     "+126 kcal and 14 g fat for the oil or butter (estimate)" and in the Log
+     button total. `withHiddenFat` / `HIDDEN_FAT_GRAMS` (@chefer/utils);
+     analytics snap_hidden_fat { level } on log
   ├─ confirm → tracker.logCustomMeal (custom entry, estimatedBy: 'vision')
   │    → analytics meal_scanned { confirmed: true }
   └─ discard → nothing logged; meal_scanned { confirmed: false }

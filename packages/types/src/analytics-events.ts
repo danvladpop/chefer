@@ -239,6 +239,10 @@ export interface EventMap {
   saved_meal_created: { itemCount: number };
   saved_meal_logged: { itemCount: number };
   meal_copied: { itemCount: number; sameDay: boolean };
+
+  // ─── Hidden fat on photo scans (lane A3) ─────────────────────────────────────
+  /** The answer to "Cooked with oil or butter?" when a Snap-to-Log estimate is logged. */
+  snap_hidden_fat: { level: 'none' | 'a-little' | 'a-lot' };
   // Lane D2 (market review 2026-10): the explained coach.
   day_incomplete_set: { incomplete: boolean };
   coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
