@@ -2195,7 +2195,7 @@ All five cascade from `User`, so `deleteAccount` needs no explicit step (`accoun
 
 ### Coaching data: the client's food and weight sharing (lane K1, 2026-10-22, additive)
 
-Migration `20261024120300_coaching_data_sharing`. Owner decision: opt-in **per coaching**, both off by default.
+Migration `20261026100000_coaching_data_sharing`. Owner decision: opt-in **per coaching**, both off by default.
 
 | Model / change                                                      | Meaning                                                                                                                                                                                                            |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
