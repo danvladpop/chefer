@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { loginPathFor, safeNextPath } from '@/features/coaching/lib/next-path';
+import { loginPathFor, signedOutInvitePath } from '@/features/coaching/lib/next-path';
 import { isMobileUserAgent } from '@/features/coaching/lib/open-in-app';
 
 const PROTECTED_ROUTES = [
@@ -21,6 +21,7 @@ const PROTECTED_ROUTES = [
   '/gym',
   '/trainer',
   '/coaching',
+  '/household',
 ];
 
 export function middleware(request: NextRequest) {
@@ -36,14 +37,15 @@ export function middleware(request: NextRequest) {
 
   const session = request.cookies.get('chefer_session');
   if (!session?.value) {
-    // A coaching invite on a phone: offer the app (and the stores) before any
-    // sign-in. A rewrite, so the address stays the invite link.
-    if (safeNextPath(pathname) && isMobileUserAgent(request.headers.get('user-agent'))) {
+    // A coaching or household invite on a phone: offer the app (and the stores)
+    // before any sign-in. A rewrite, so the address stays the invite link.
+    const invitePage = signedOutInvitePath(pathname);
+    if (invitePage && isMobileUserAgent(request.headers.get('user-agent'))) {
       const url = request.nextUrl.clone();
-      url.pathname = pathname.replace(/^\/coaching\/join\//, '/coaching-invite/');
+      url.pathname = invitePage;
       return NextResponse.rewrite(url);
     }
-    // A coaching invite link: sign in (or register) and come straight back to it.
+    // An invite link: sign in (or register) and come straight back to it.
     return NextResponse.redirect(new URL(loginPathFor(pathname), request.url));
   }
 
@@ -69,5 +71,6 @@ export const config = {
     '/gym/:path*',
     '/trainer/:path*',
     '/coaching/:path*',
+    '/household/:path*',
   ],
 };

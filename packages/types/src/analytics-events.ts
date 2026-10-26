@@ -291,4 +291,24 @@ export interface EventMap {
   share_card_shared: { kind: 'recipe' | 'cook' | 'workout' | 'recap'; completed: boolean };
   /** E2: the weekly recap screen opened. */
   weekly_recap_viewed: { from: 'today' | 'link' | 'menu'; empty: boolean };
+  // ─── Household sharing (ADR 0003) — enums and counts only ────────────────────
+  household_invite_created: { via: 'share' | 'copy' };
+  household_invite_opened: {
+    state:
+      | 'OK'
+      | 'NOT_FOUND'
+      | 'SELF'
+      | 'ALREADY_JOINED'
+      | 'IN_OTHER_HOUSEHOLD'
+      | 'HAS_PARTNERS'
+      | 'PROFILE_TAKEN'
+      | 'USED'
+      | 'REVOKED'
+      | 'EXPIRED';
+    signedIn: boolean;
+  };
+  household_joined: { editedSafety: boolean };
+  household_left: { by: 'partner' | 'owner' };
+  shared_list_synced: { remoteChanges: number };
+  shared_plan_conflict: Record<string, never>;
 }

@@ -989,3 +989,6 @@ export {
   type RecapPlanDay,
 } from './weekly-recap';
 export { shareCardLines, type ShareCardLines } from './share-card-lines';
+// ─── Shared shopping list reconcile (ADR 0003, household sharing) ──────────────
+export { mergeSyncedChecks, type CheckedKeysState, type MergedChecks } from './shared-list';
+export { householdPortionPhrase } from './household-sharing';

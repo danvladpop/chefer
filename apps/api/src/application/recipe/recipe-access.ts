@@ -113,7 +113,22 @@ export async function isRecipeVisibleTo(
   if (recipe.deletedAt != null) return repo.isRecipeInUserPlans(userId, recipe.id);
   if (isRecipeOpenTo(recipe, userId)) return true;
   if (await repo.isRecipeInUserPlans(userId, recipe.id)) return true;
+  if (recipe.creatorId !== null && (await inSameHousehold(userId, recipe.creatorId))) return true;
   return isSociallyVisible(userId, recipe, social);
+}
+
+/**
+ * ADR 0003: people in one household open each other's own recipes, so a partner
+ * can put theirs in the shared week. Lazy and fail-closed (the household seam
+ * loads env + flags).
+ */
+async function inSameHousehold(userId: string, creatorId: string): Promise<boolean> {
+  try {
+    const { householdAccess } = await import('../household/household-access.service.js');
+    return await householdAccess.sameHousehold(userId, creatorId);
+  } catch {
+    return false;
+  }
 }
 
 /** The Following branch alone (§4.3). Every check fails closed. */

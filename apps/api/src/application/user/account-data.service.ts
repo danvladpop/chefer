@@ -13,6 +13,7 @@ import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
 import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { gymStatsService } from '../gym/gym-stats.service.js';
+import { householdAccess } from '../household/household-access.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
@@ -451,6 +452,14 @@ export async function collectAccountData(userId: string) {
   const social = await exportSocialData(userId, consentEvents);
   const coaching = await exportCoachingData(userId, consentEvents);
   const progress = await exportProgressData(userId);
+  // ADR 0003: household sharing — links on either side, and invites made.
+  const [householdLinks, householdInvites] = await Promise.all([
+    prisma.householdLink.findMany({
+      where: { OR: [{ ownerId: userId }, { partnerId: userId }] },
+      orderBy: { startedAt: 'desc' },
+    }),
+    prisma.householdInvite.findMany({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' } }),
+  ]);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -489,6 +498,7 @@ export async function collectAccountData(userId: string) {
     social,
     coaching,
     progress,
+    household: { links: householdLinks, invites: householdInvites },
     signInMethods,
     privacy: {
       consentHistory: consentEvents,
@@ -563,6 +573,9 @@ export async function deleteAccount(userId: string): Promise<void> {
   // first — every coaching ends and each client keeps a notice ("Your trainer
   // stopped using Chefer"), written so it survives this account's cascade.
   await trainerProfileService.deactivate(userId, 'web', { accountDeleted: true });
+  // ADR 0003: households end first — each partner keeps "Dan stopped using
+  // Chefer" (written so it survives this cascade); the claimed profile stays.
+  await householdAccess.beforeAccountDeleted(userId);
   // Trainer mode M3 (§9): as a client, their places in future bookings are
   // cancelled first, so a booking left with nobody reads as cancelled (their
   // rows then cascade away with the account).

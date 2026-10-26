@@ -91,6 +91,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
       trainerProfile: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       coachingLink: { findMany: emptyFindMany() },
       coachingInvite: { findMany: emptyFindMany() },
+      householdLink: { findMany: emptyFindMany() },
+      householdInvite: { findMany: emptyFindMany() },
       coachingNote: { findMany: emptyFindMany() },
       authIdentity: { findMany: emptyFindMany() },
       targetChange: { findMany: emptyFindMany() },

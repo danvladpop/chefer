@@ -37,6 +37,7 @@ import {
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { hasFeature, isPremiumUser } from '../../lib/entitlements.js';
+import { atPortion, householdPlanScope } from '../meal-plan/plan-for-date.js';
 import type { DailyTargets } from '../preferences/preferences.service.js';
 import { safetyService } from '../safety/safety.service.js';
 import {
@@ -391,7 +392,11 @@ export class DashboardService {
 
     const [chefProfile, plan, favourites, todayLog, recentLogs] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
-      mealPlanRepository.findForWeek(userId, monday),
+      // ADR 0003: a partner's Today shows the household's week at their portion.
+      householdPlanScope(userId).then(async ({ planUserId, partnerPortion }) => {
+        const found = await mealPlanRepository.findForWeek(planUserId, monday);
+        return found && partnerPortion !== null ? atPortion(found, partnerPortion) : found;
+      }),
       favouriteRecipeRepository.findByUserId(userId, 4),
       dailyLogRepository.findByDate(userId, local?.localDate ? now : new Date()),
       // B-31 interim (T-00.12): "tracks" = logged on ≥ 3 of the last 7 days.
@@ -854,7 +859,10 @@ export class DashboardService {
     // every dashboard unit test) to pay for that, just for an opt-in field
     // most callers never ask for.
     const { shoppingListService } = await import('../shopping-list/shopping-list.service.js');
-    const list = await shoppingListService.getForWeek(viewer, 0);
+    // ADR 0003: a partner's "shop for tomorrow" reads the household's list.
+    const { householdAccess } = await import('../household/household-access.service.js');
+    const listUser = await householdAccess.planUser(viewer, await householdAccess.scope(viewer.id));
+    const list = await shoppingListService.getForWeek(listUser, 0);
     if (list.planId !== planId) return null; // clock/week mismatch — skip rather than show the wrong week
     const tomorrowRecipeNames = new Set(
       tomorrowMeals.map((m) => recipeMap.get(m.recipeId)?.name).filter((n): n is string => !!n),

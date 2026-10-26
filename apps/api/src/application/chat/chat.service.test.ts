@@ -376,10 +376,13 @@ describe('ChatService', () => {
       ],
     });
 
-    expect(shoppingListService.addCustomItems).toHaveBeenCalledWith('u1', 'plan1', [
-      { name: 'oat milk', quantity: 2, unit: 'l' },
-      { name: 'flour' },
-    ]);
+    // The 4th argument is who added them (ADR 0003 "Added by").
+    expect(shoppingListService.addCustomItems).toHaveBeenCalledWith(
+      'u1',
+      'plan1',
+      [{ name: 'oat milk', quantity: 2, unit: 'l' }, { name: 'flour' }],
+      'u1',
+    );
     expect(result).toContain('Oat milk');
   });
 
