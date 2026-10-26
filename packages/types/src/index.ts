@@ -273,3 +273,4 @@ export type ErrorCode =
   | 'SERVICE_UNAVAILABLE';
 export * from './packaged-product';
 export * from './saved-meals';
+export * from './food-text';

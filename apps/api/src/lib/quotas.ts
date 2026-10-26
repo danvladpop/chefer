@@ -220,6 +220,25 @@ export async function reserveChatMessage(user: UserProfile): Promise<QuotaReserv
   );
 }
 
+/**
+ * Reserves one typed "I ate…" parse (lane A4): free 10 a day, premium
+ * unlimited (still logged and inside the AI budget). Attempts count; the
+ * caller refunds a capacity failure.
+ */
+export async function reserveFoodText(user: UserProfile): Promise<QuotaReservation> {
+  const limit = getLimit(user, 'foodTextPerDay');
+  return reserve(
+    user.id,
+    AiCallType.FOOD_TEXT,
+    limit,
+    () =>
+      new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: `You've used today's ${limit ?? ''} typed logs. Premium has no daily limit, or log by search for now.`,
+      }),
+  );
+}
+
 /** Reserves one AI nutrition estimate (premium-only; audit F-PAN-2-4). */
 export async function reserveNutritionEstimate(user: UserProfile): Promise<QuotaReservation> {
   const limit = getLimit(user, 'aiNutritionEstimatesPerDay');

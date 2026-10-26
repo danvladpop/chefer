@@ -47,6 +47,7 @@ export function emptyCallCounts(): AiCallCounts {
     [AiCallType.SCAN]: 0,
     [AiCallType.RECIPE_IMPORT]: 0,
     [AiCallType.CURATED_PLAN]: 0,
+    [AiCallType.FOOD_TEXT]: 0,
   };
 }
 

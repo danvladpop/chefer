@@ -28,6 +28,7 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
     chat: vi.fn().mockResolvedValue(new ReadableStream()),
     analyzeMealPhoto: vi.fn().mockResolvedValue({ dishName: 'Pasta' }),
     readNutritionLabel: vi.fn().mockResolvedValue({ basis: 'per100g', kcal: 100 }),
+    parseFoodText: vi.fn().mockResolvedValue([]),
     extractRecipe: vi.fn().mockResolvedValue({ name: 'Extracted' }),
     extractRecipeAnnotated: vi
       .fn()

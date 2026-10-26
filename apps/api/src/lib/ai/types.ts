@@ -174,6 +174,25 @@ export interface NutritionLabelReading {
   confidence: 'low' | 'med' | 'high';
 }
 
+// ─── Typed food logging (lane A4) ─────────────────────────────────────────────
+
+/** One food the model found in the user's typed sentence. */
+export interface FoodTextParseItem {
+  /** The words it came from, e.g. "2 eggs". */
+  text: string;
+  /** A plain, singular food name for matching, e.g. "egg". */
+  food: string;
+  /** Best estimate of the total grams eaten. */
+  grams: number;
+  /** Pieces, when the text counts them ("2 eggs" → 2); null otherwise. */
+  count: number | null;
+  /** The model's per-100 g estimate — used only when nothing better matches. */
+  kcalPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+}
+
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
 /**
@@ -427,6 +446,11 @@ export interface IAIService {
    * analyzeMealPhoto. Additive.
    */
   readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading>;
+  /**
+   * Lane A4: split a typed "I ate…" sentence into foods with amounts and a
+   * fallback per-100 g estimate. Text only (`chat` workload). Additive.
+   */
+  parseFoodText(text: string): Promise<FoodTextParseItem[]>;
   /**
    * F5 Cheferize — extraction from page text, pasted text or a photo.
    * URL sources are fetched/stripped by the recipe-import service first;
