@@ -15,6 +15,7 @@ import {
 import {
   hasLoggableSet,
   nothingTicked,
+  profileDistanceUnit,
   sameKg,
   sessionDurationMin,
   toSessionSummary,
@@ -290,6 +291,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
     () => ({
       mode,
       unit,
+      distanceUnit: profileDistanceUnit(bootstrap?.profile),
       profile,
       lookup,
       prior,
@@ -315,6 +317,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
       lookup,
       prior,
       bootstrap?.olderBests,
+      bootstrap?.profile,
       handlers,
       openSheet,
       dispatch,

@@ -12,7 +12,12 @@
 // recentSessions` cannot show cardio history until that type gains them.
 // See the session final report.
 
-import { CARDIO_CATALOG_BY_ID, type CardioCatalogEntry, type DistanceUnit } from '@chefer/types';
+import {
+  CARDIO_CATALOG_BY_ID,
+  type CardioCatalogEntry,
+  type DistanceUnit,
+  type WeightUnit,
+} from '@chefer/types';
 import { round2 } from './loads';
 
 function round1(x: number): number {
@@ -141,6 +146,19 @@ export function cardioPresetsFor(exerciseId: string): CardioCatalogEntry | null 
 }
 
 /** Whether this catalogue entry's `distance` field is metres (rower) vs the user's unit. */
+/**
+ * The user's distance unit: the Training settings choice, else the one that
+ * goes with their weight unit (lb → miles). G3: the ONE rule — the mobile
+ * cardio entry and history used to read only the weight unit, so a "kg + miles"
+ * user logged and saw kilometres.
+ */
+export function profileDistanceUnit(
+  profile: { unit?: WeightUnit | null; distanceUnit?: DistanceUnit | null } | null | undefined,
+): DistanceUnit {
+  if (profile?.distanceUnit) return profile.distanceUnit;
+  return profile?.unit === 'LB' ? 'MI' : 'KM';
+}
+
 export function distanceUnitFor(exerciseId: string, profileUnit: DistanceUnit): CardioDistanceUnit {
   return cardioPresetsFor(exerciseId)?.distanceInMetres ? 'M' : profileUnit;
 }
