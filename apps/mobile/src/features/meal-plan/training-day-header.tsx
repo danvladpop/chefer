@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { PlanTrainingBasis, PlanTrainingDay } from '@chefer/types';
-import { colors, ExplainSheet, Text } from '@chefer/ui-mobile';
+import { ExplainSheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   preRunNote,
@@ -32,6 +32,7 @@ export function TrainingDayHeader({
   onPress: () => void;
   testID?: string;
 }) {
+  const colors = useThemeColors();
   // WP-08: protein-only mode shows the protein bump of a lifting day, never calories.
   const { proteinOnly } = useNumbersMode();
   const copy = proteinOnly
@@ -45,10 +46,10 @@ export function TrainingDayHeader({
       onPress={onPress}
       className={cn(
         'min-h-11 flex-row items-center gap-2 rounded-xl px-3 py-2',
-        day.applied ? 'bg-accent' : 'bg-gray-50',
+        day.applied ? 'bg-accent' : 'bg-surface-sunken',
       )}
     >
-      <Ionicons name={trainingGlyph(day.kind)} size={18} color={colors.primary} />
+      <Ionicons name={trainingGlyph(day.kind)} size={18} color={colors.brand} />
       <View className="min-w-0 flex-1">
         <Text testID={`${testID}-title`} className="text-sm font-semibold text-primary">
           {copy.title}
@@ -64,20 +65,21 @@ export function TrainingDayHeader({
           </Text>
         ) : null}
       </View>
-      <Ionicons name="information-circle-outline" size={20} color={colors.mutedForeground} />
+      <Ionicons name="information-circle-outline" size={20} color={colors.labelTertiary} />
     </Pressable>
   );
 }
 
 /** The evening before a long run: one carb-snack idea, quietly. */
 export function PreRunNote({ snack }: { snack?: string | undefined }) {
+  const colors = useThemeColors();
   return (
     <View
       testID="plan-pre-run-note"
-      className="flex-row items-start gap-2 rounded-xl bg-gray-50 px-3 py-2"
+      className="flex-row items-start gap-2 rounded-xl bg-surface-sunken px-3 py-2"
     >
-      <Ionicons name="walk-outline" size={16} color={colors.mutedForeground} />
-      <Text className="min-w-0 flex-1 text-xs text-gray-600">{preRunNote(snack)}</Text>
+      <Ionicons name="walk-outline" size={16} color={colors.labelTertiary} />
+      <Text className="min-w-0 flex-1 text-xs text-label-secondary">{preRunNote(snack)}</Text>
     </View>
   );
 }

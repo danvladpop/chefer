@@ -1,5 +1,10 @@
 package expo.modules.cheferresttimer
 
+import android.app.AlarmManager
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -22,6 +27,28 @@ class CheferRestTimerModule : Module() {
     }
 
     Function("getState") { state() }
+
+    // Android 12+: whether "Alarms & reminders" is off, i.e. long rests can
+    // ring late (RestTimerService covers only ~3 min). iOS has no such function.
+    Function("needsExactAlarmPermission") {
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == false
+    }
+
+    /** Opens this app's "Alarms & reminders" switch; false if there is none to open. */
+    Function("openExactAlarmSettings") {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@Function false
+      try {
+        val activity = appContext.currentActivity
+        val intent =
+          Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
+        if (activity != null) activity.startActivity(intent)
+        else context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+      } catch (e: Exception) {
+        false
+      }
+    }
 
     OnStartObserving { RestTimerController.onChange = { sendEvent("onChange", state()) } }
 

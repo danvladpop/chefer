@@ -7,6 +7,7 @@ import {
   formatDistance,
   groupRecentSessions,
   isLoggedWorkout,
+  profileDistanceUnit,
   sessionStatsText,
   weekdayDateLabel,
   type RecentSessionRow,
@@ -58,7 +59,7 @@ export function PastWorkouts({ bootstrap }: { bootstrap: GymBootstrap }) {
   const actions = useSessionActions({ bootstrap, source: 'recent', testIDPrefix: 'train-past' });
   const pager = useRecentSessions(bootstrap);
   const today = localDate();
-  const distanceUnit = bootstrap.profile?.distanceUnit ?? 'KM';
+  const distanceUnit = profileDistanceUnit(bootstrap.profile);
   const imagesOf = useMemo(() => libraryImages(bootstrap.library), [bootstrap.library]);
 
   if (pager.combined.length === 0) return null;

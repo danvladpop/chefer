@@ -120,6 +120,11 @@ const envSchema = z.object({
   // friendly "busy, try again in a minute" instead of a second download.
   VIDEO_IMPORT_CONCURRENCY: z.coerce.number().int().positive().max(8).default(1),
 
+  // Curated recipe ingest (market review F1): links an admin may send to the
+  // extractor per UTC day, first submits and retries together. The default
+  // matches Gemini's free tier (~20 requests a day); raise it with a paid key.
+  CURATED_INGEST_DAILY_CAP: z.coerce.number().int().min(0).max(1000).default(20),
+
   // Phase 1 guardrails: the daily uploads orphan sweeper
   // (workers/upload-sweeper.worker.ts). 'true' logs what it would delete
   // (files, ledger rows; the 30-day recipe purge is skipped) and deletes nothing.
@@ -302,6 +307,24 @@ const envSchema = z.object({
         ),
     ),
   TRAINER_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+
+  // Kitchen progress dark launch (docs/gamification-2026-10/tech-plan.md §8):
+  // comma-separated EMAIL ADDRESSES (case-insensitive) that see Kitchen progress
+  // while the `gamification` flag is off. `*` means everyone. Empty (the default)
+  // = nobody. Read through lib/progress-flags.ts, never directly. The ledger
+  // records for every user regardless (D1); this only gates what they see.
+  GAMIFICATION_ALLOWLIST: z
     .string()
     .default('')
     .transform(

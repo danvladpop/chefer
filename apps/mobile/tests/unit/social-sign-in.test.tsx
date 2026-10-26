@@ -105,7 +105,7 @@ function installNative(
           signInAsync: mockAppleSignIn,
           AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 },
           AppleAuthenticationButtonType: { CONTINUE: 1 },
-          AppleAuthenticationButtonStyle: { BLACK: 2 },
+          AppleAuthenticationButtonStyle: { BLACK: 2, WHITE: 0 },
           AppleAuthenticationButton: FakeAppleButton,
         } as unknown as NativeSignInModules['apple'])
       : null,

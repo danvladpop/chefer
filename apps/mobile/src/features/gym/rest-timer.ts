@@ -190,6 +190,41 @@ export function markRestPermissionRationaleShown(): void {
   kv.setString(RATIONALE_SHOWN_KEY, '1');
 }
 
+// ── Exact alarms (Android, owner decision 2026-10-23) ─────────────────────────
+
+/**
+ * Device-level, kept on sign-out (DEVICE_KV_KEYS_KEPT): the one-time "exact rest
+ * alarms" ask was answered, either way. The OS switch belongs to the phone, so
+ * a decline is never asked again.
+ */
+export const EXACT_ALARM_ASKED_KEY = 'rest-timer.exact-alarm-asked';
+
+/**
+ * True once, on Android 12+ binaries with the native rest timer, while
+ * "Alarms & reminders" is off: the foreground service keeps a rest exact for
+ * only ~3 min, so longer rests can ring late. False on iOS and
+ * on binaries without the native module (no such function).
+ */
+export function shouldAskExactAlarms(): boolean {
+  if (kv.getString(EXACT_ALARM_ASKED_KEY) === '1') return false;
+  try {
+    return getNativeRestTimer()?.needsExactAlarmPermission?.() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Records the answer; "Open settings" also opens the switch. */
+export function answerExactAlarms(openSettings: boolean): void {
+  kv.setString(EXACT_ALARM_ASKED_KEY, '1');
+  if (!openSettings) return;
+  try {
+    getNativeRestTimer()?.openExactAlarmSettings?.();
+  } catch {
+    // Settings unavailable: nothing else to do.
+  }
+}
+
 // ── Announcements (UX-GYM-09) ─────────────────────────────────────────────────
 
 /** How far into a rest the screen reader has already been told. */

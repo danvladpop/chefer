@@ -12,6 +12,7 @@ import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
 import { socialAuthService } from '../auth/social-auth.service.js';
 import { trainerProfileService } from '../coaching/trainer-profile.service.js';
+import { gymStatsService } from '../gym/gym-stats.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
@@ -30,10 +31,7 @@ import { emailPreferencesService } from '../notifications/email-preferences.serv
 
 type NameRow = { firstName: string | null; lastName: string | null; name: string | null };
 
-async function exportSocialData(
-  userId: string,
-  consentEvents: { kind: string }[],
-): Promise<Record<string, unknown>> {
+async function exportSocialData<E extends { kind: string }>(userId: string, consentEvents: E[]) {
   const [profile, follows, blocks, notifications, reports, copies] = await Promise.all([
     prisma.socialProfile.findUnique({
       where: { userId },
@@ -185,10 +183,7 @@ function trainerBookingExport(b: BookingWithClients) {
   };
 }
 
-async function exportCoachingData(
-  userId: string,
-  consentEvents: { kind: string }[],
-): Promise<Record<string, unknown>> {
+async function exportCoachingData<E extends { kind: string }>(userId: string, consentEvents: E[]) {
   const [trainerProfile, linksAsClient, linksAsTrainer, invites, notesWritten, bookings] =
     await Promise.all([
       prisma.trainerProfile.findUnique({ where: { userId } }),
@@ -284,8 +279,39 @@ async function exportCoachingData(
   };
 }
 
-/** Everything Chefer stores about one user, as plain JSON. */
+// ─── Kitchen progress export (docs/gamification-2026-10/tech-plan.md §2) ───────
+// `progress` is an additive section: your totals and settings, every ledger
+// event (what earned the XP, on which day), the badges, the quest sets and the
+// cook log. All five tables cascade from the user row on deletion.
+
+async function exportProgressData(userId: string) {
+  const where = { userId };
+  const [state, events, unlocks, questDays, cookLogs] = await Promise.all([
+    prisma.progressState.findUnique({ where }),
+    prisma.progressEvent.findMany({
+      where,
+      orderBy: [{ localDate: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.progressUnlock.findMany({ where, orderBy: { unlockedAt: 'asc' } }),
+    prisma.progressQuestDay.findMany({ where, orderBy: { localDate: 'asc' } }),
+    prisma.cookLog.findMany({ where, orderBy: { finishedAt: 'asc' } }),
+  ]);
+  return { state, events, unlocks, questDays, cookLogs };
+}
+
+/** Everything Chefer stores about one user, as plain JSON (`user.exportData`). */
 export async function exportAccountData(userId: string): Promise<Record<string, unknown>> {
+  return collectAccountData(userId);
+}
+
+export type AccountData = Awaited<ReturnType<typeof collectAccountData>>;
+
+/**
+ * The export, typed — the full data export (G1, `export-archive.service.ts`)
+ * builds its CSVs from this same object, so the ZIP's JSON and its CSVs can
+ * never disagree.
+ */
+export async function collectAccountData(userId: string) {
   const where = { userId };
   const [
     user,
@@ -295,6 +321,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     mealPlans,
     dailyLogs,
     weightEntries,
+    bodyMeasurements,
     favourites,
     ratings,
     pantryItems,
@@ -311,6 +338,9 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     emailPreferences,
     aiCallLog,
     signInMethods,
+    savedRecipes,
+    targetChanges,
+    personalRecords,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -332,6 +362,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     prisma.mealPlan.findMany({ where, include: { days: true } }),
     prisma.dailyLog.findMany({ where }),
     prisma.weightEntry.findMany({ where }),
+    prisma.bodyMeasurement.findMany({ where }),
     prisma.favouriteRecipe.findMany({ where }),
     prisma.mealRating.findMany({ where }),
     prisma.pantryItem.findMany({ where }),
@@ -364,6 +395,36 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       select: { provider: true, email: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
+    // G1: the recipes behind `favourites` (which hold ids only), so a saved
+    // recipe survives in the export even if Chefer is gone.
+    prisma.favouriteRecipe.findMany({
+      where,
+      orderBy: { savedAt: 'desc' },
+      select: {
+        savedAt: true,
+        recipe: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            source: true,
+            sourceUrl: true,
+            cuisineType: true,
+            dietaryTags: true,
+            servings: true,
+            prepTimeMins: true,
+            cookTimeMins: true,
+            ingredients: true,
+            instructions: true,
+            nutritionInfo: true,
+          },
+        },
+      },
+    }),
+    // G1: how your targets changed over time (§29), oldest first.
+    prisma.targetChange.findMany({ where, orderBy: { createdAt: 'asc' } }),
+    // G1: the PR timeline, oldest first — computed, like the in-app one.
+    gymStatsService.prs(userId, undefined, Number.MAX_SAFE_INTEGER).then((prs) => prs.reverse()),
   ]);
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
 
@@ -372,8 +433,24 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
   const shoppingLists = await prisma.shoppingList.findMany({
     where: { planId: { in: mealPlans.map((p) => p.id) } },
   });
+  // G1: routines and PRs store exercise ids — name every one (curated and
+  // the user's own custom), so the export reads without Chefer's library.
+  const exerciseIds = new Set([
+    ...personalRecords.map((pr) => pr.exerciseId),
+    ...routines.flatMap((r) => r.days.flatMap((d) => d.exercises.map((e) => e.exerciseId))),
+    ...workoutSessions.flatMap((s) => s.exercises.map((e) => e.exerciseId)),
+  ]);
+  const exerciseNames: Record<string, string> = Object.fromEntries(
+    (
+      await prisma.exercise.findMany({
+        where: { id: { in: [...exerciseIds] } },
+        select: { id: true, name: true },
+      })
+    ).map((e) => [e.id, e.name]),
+  );
   const social = await exportSocialData(userId, consentEvents);
   const coaching = await exportCoachingData(userId, consentEvents);
+  const progress = await exportProgressData(userId);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -385,12 +462,15 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       mealPlans,
       dailyLogs,
       weightEntries,
+      bodyMeasurements,
       favourites,
       ratings,
       pantryItems,
       recipes,
       chefReviews,
       shoppingLists,
+      savedRecipes: savedRecipes.map((f) => ({ savedAt: f.savedAt, ...f.recipe })),
+      targetChanges,
     },
     gym: {
       gymProfile,
@@ -399,10 +479,16 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       exerciseProgressions,
       trainingPauses,
       customExercises,
+      personalRecords: personalRecords.map((pr) => ({
+        ...pr,
+        exercise: exerciseNames[pr.exerciseId] ?? pr.exerciseId,
+      })),
+      exerciseNames,
     },
     feedback,
     social,
     coaching,
+    progress,
     signInMethods,
     privacy: {
       consentHistory: consentEvents,
@@ -436,6 +522,9 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
  * with `originRecipeId`/`originCreatorId` set to null (SetNull), and hearts on
  * the deleted originals cascade away. account-data.service.test.ts pins the
  * schema's onDelete rules so a new Following table can't forget the cascade.
+ * Kitchen progress (gamification P1): the ledger, cook log, state, unlocks and
+ * quest sets all cascade from the users row; account-data.service.test.ts pins
+ * their onDelete rules.
  * Household members are the user's own extra eaters (no other accounts are
  * linked to them), so they simply cascade — there is nothing to hand over.
  * Everything runs in one transaction: all or nothing. After it commits, the

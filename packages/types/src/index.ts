@@ -8,10 +8,12 @@ export * from './training-nutrition';
 export * from './household';
 export * from './ai-consent';
 export * from './health-consent';
+export * from './health-sync';
 export * from './account-deletion';
 export * from './support';
 export * from './app-stores';
 export * from './video-import';
+export * from './curated-ingest';
 export * from './safety-taxonomy';
 export * from './safety';
 export * from './recipe-form';
@@ -21,6 +23,8 @@ export * from './feature-flags';
 export * from './analytics-events';
 export * from './targets';
 export * from './body-metrics';
+export * from './coach-review';
+export * from './body-measurements';
 export * from './legal';
 export * from './friends';
 export * from './friends-copy';
@@ -30,6 +34,7 @@ export * from './nutrition';
 export * from './ingredient-catalog-copy';
 export * from './social-auth';
 export * from './usage-limits';
+export * from './progress';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

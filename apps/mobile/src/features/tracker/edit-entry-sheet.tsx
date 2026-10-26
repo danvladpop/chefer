@@ -207,8 +207,8 @@ export function EditEntrySheet({
       footer={
         <View className="gap-2">
           {sanity?.message && (
-            <View testID="edit-entry-sanity" className="gap-2 rounded-lg bg-amber-50 p-3">
-              <Text className="text-xs text-amber-800">{sanity.message}</Text>
+            <View testID="edit-entry-sanity" className="gap-2 rounded-lg bg-attention/10 p-3">
+              <Text className="text-xs text-attention">{sanity.message}</Text>
               <Button
                 testID="edit-entry-sanity-log-anyway"
                 variant="outline"
@@ -234,7 +234,7 @@ export function EditEntrySheet({
       }
     >
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">What did you eat?</Text>
+        <Text className="text-xs font-medium text-label-secondary">What did you eat?</Text>
         <Input
           testID="edit-entry-name"
           accessibilityLabel="Name"
@@ -246,7 +246,7 @@ export function EditEntrySheet({
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Meal</Text>
+        <Text className="text-xs font-medium text-label-secondary">Meal</Text>
         <SegmentedControl
           size="sm"
           options={MEAL_OPTIONS}
@@ -260,7 +260,7 @@ export function EditEntrySheet({
       {proteinOnly ? (
         <>
           <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Protein (g)</Text>
+            <Text className="text-xs font-medium text-label-secondary">Protein (g)</Text>
             <View className="flex-row items-center gap-2">
               <Input
                 testID="edit-entry-protein"
@@ -279,7 +279,7 @@ export function EditEntrySheet({
       ) : (
         <>
           <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Calories</Text>
+            <Text className="text-xs font-medium text-label-secondary">Calories</Text>
             <View className="flex-row items-center gap-2">
               <Input
                 testID="edit-entry-kcal"
@@ -298,11 +298,13 @@ export function EditEntrySheet({
           </View>
 
           <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
+            <Text className="text-xs font-medium text-label-secondary">
+              Macros (optional, grams)
+            </Text>
             <View className="flex-row gap-2">
               {MACROS.map(({ key, label }, index) => (
                 <View key={key} className="min-w-0 flex-1 gap-1">
-                  <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
+                  <Text className="text-xs font-medium text-label-secondary">{label} (g)</Text>
                   <Input
                     testID={`edit-entry-${key}`}
                     accessibilityLabel={`${label} grams`}
@@ -325,7 +327,7 @@ export function EditEntrySheet({
       {numbers.bars}
 
       {updateMutation.isError && (
-        <Text testID="edit-entry-api-error" className="text-sm text-red-600">
+        <Text testID="edit-entry-api-error" className="text-sm text-danger">
           {userFacingErrorMessage(updateMutation.error)}
         </Text>
       )}

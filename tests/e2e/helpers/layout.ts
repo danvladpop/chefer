@@ -2,6 +2,18 @@ import type { Page } from '@playwright/test';
 
 // ─── Shared layout assertions ─────────────────────────────────────────────────
 
+/** Monday (local) of this week as YYYY-MM-DD, for the recap route. */
+function thisWeekMonday(): string {
+  const now = new Date();
+  const monday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - ((now.getDay() + 6) % 7),
+  );
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
+}
+
 /**
  * Authenticated routes worth sweeping. Mirrors FOOD_NAV_ITEMS in apps/web,
  * plus the routes that left the nav but still render (P2-8): /tracker
@@ -20,6 +32,10 @@ export const APP_ROUTES = [
   '/my-weeks',
   '/profile',
   '/preferences',
+  // Kitchen progress (gamification flag): with the flag off these render the
+  // friendly "not available" state, so the sweep passes either way.
+  '/achievements',
+  `/kitchen-recap/${thisWeekMonday()}`,
   // Gym mode (gym_plan.md G5). /gym sends a profile-less account on to /gym/setup;
   // /gym/workout without a running session renders its empty state.
   '/gym',
@@ -54,13 +70,15 @@ export const APP_ROUTES = [
   // Email-link pages (P2-5): without a token they render the invalid-link state.
   '/unsubscribe',
   '/verify-email',
+  // Public marketing page (market review 2026-10, lane L): no app shell.
+  '/switch/mealime',
 ] as const;
 
 /**
  * Routes served outside the app shell (the `(auth)` group: no tab bar / sidebar,
  * so no "Primary" navigation landmark to wait for).
  */
-const SHELL_LESS_ROUTES: readonly string[] = ['/unsubscribe', '/verify-email'];
+const SHELL_LESS_ROUTES: readonly string[] = ['/unsubscribe', '/verify-email', '/switch/mealime'];
 
 /** True for a route that renders without the app shell's primary navigation. */
 export function isShellLess(route: string): boolean {

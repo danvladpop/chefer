@@ -3,7 +3,15 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from '
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Link, router, useFocusEffect } from 'expo-router';
-import { Button, Card, ErrorState, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -52,6 +60,7 @@ function momentFor(hour: number): Moment {
 // into the full tracker (which left More). Deviation from web, deliberate:
 // scanning shows the premium Snap-to-log card (no free demo sheet on mobile).
 export default function HomeScreen() {
+  const colors = useThemeColors();
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
   // UX-FOOD-23: the hour is part of the query key, so when it rolls over the
   // key changes. Keep the previous dashboard on screen while the new hour's
@@ -119,7 +128,7 @@ export default function HomeScreen() {
       <Screen>
         <ModeSwitch className="mt-3" />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       </Screen>
     );
@@ -133,7 +142,7 @@ export default function HomeScreen() {
         <ErrorState
           testID="today-load-error"
           title="Couldn't load your dashboard"
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
       </Screen>
@@ -217,7 +226,7 @@ export default function HomeScreen() {
           {/* Header */}
           <View className="flex-row items-end justify-between gap-3">
             <View className="min-w-0 flex-1">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
                 {d.today.date}
               </Text>
               <Text testID="home-title" variant="title" className="mt-0.5">
@@ -233,15 +242,15 @@ export default function HomeScreen() {
               className="min-h-11 flex-row items-center gap-1"
             >
               <Text className="text-sm font-semibold text-primary">See full day</Text>
-              <Ionicons name="chevron-forward" size={16} color="#944a00" />
+              <Ionicons name="chevron-forward" size={16} color={colors.brand} />
             </Pressable>
           </View>
 
           {/* PW-5: this week's plan was prepared before the week started */}
           {d.weekReady && d.today.dayOfWeek === 0 && (
-            <Card className="border-emerald-200 bg-emerald-50">
-              <Text className="text-sm font-semibold text-emerald-900">Your week is ready</Text>
-              <Text className="mt-0.5 text-xs text-emerald-800">
+            <Card className="border-positive/30 bg-positive/10">
+              <Text className="text-sm font-semibold text-positive">Your week is ready</Text>
+              <Text className="mt-0.5 text-xs text-positive">
                 The chef prepared this week&apos;s plan for you on Sunday
                 {d.weekReady.ratedCount > 0
                   ? ` — built from ${d.weekReady.ratedCount} dish${d.weekReady.ratedCount === 1 ? '' : 'es'} you rated`
@@ -300,7 +309,7 @@ export default function HomeScreen() {
               onPress={() => setQuickAddOpen(true)}
             >
               <View className="flex-row items-center gap-1.5">
-                <Ionicons name="add" size={18} color="#944a00" />
+                <Ionicons name="add" size={18} color={colors.brand} />
                 <Text className="text-sm font-medium text-primary">Quick add</Text>
               </View>
             </Button>
@@ -396,7 +405,7 @@ export default function HomeScreen() {
           {/* Recent favourites */}
           {!shellV2 && d.recentFavourites.length > 0 && (
             <View>
-              <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
+              <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-label-tertiary">
                 Recent Favourites
               </Text>
               <ScrollView
@@ -412,10 +421,10 @@ export default function HomeScreen() {
                   >
                     <Pressable accessibilityRole="button" className="w-36">
                       <RecipeImage imageUrl={fav.imageUrl} className="h-24 w-36 rounded-xl" />
-                      <Text numberOfLines={1} className="mt-1.5 text-sm font-medium text-gray-800">
+                      <Text numberOfLines={1} className="mt-1.5 text-sm font-medium text-label">
                         {fav.name}
                       </Text>
-                      <Text className="text-xs text-gray-500">
+                      <Text className="text-xs text-label-tertiary">
                         {fav.cuisineType} · {fav.prepTimeMins} min
                       </Text>
                     </Pressable>

@@ -21,11 +21,13 @@ import type {
   SessionSummaryDto,
   SyncResultDto,
   UpsertSessionsResultDto,
+  WorkoutImportSource,
   WorkoutSessionDetailDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
 import { nextCarryOver, nextDayIdAfter, toSessionSummary } from '@chefer/utils';
 import { logger } from '../../lib/logger.js';
+import { notifyProgress, type IProgressRecorder } from '../progress/progress-hooks.js';
 import { filterSessionExercisesForLevel } from './client-level.js';
 import {
   loggedByIds,
@@ -83,6 +85,8 @@ export class WorkoutSessionService {
       ITrainerProfileRepository,
       'findMany'
     > = trainerProfileRepository,
+    /** Kitchen progress hook; undefined = the app-wide recorder (a no-op in tests). */
+    private readonly progress?: IProgressRecorder,
   ) {}
 
   async upsertMany(
@@ -135,12 +139,83 @@ export class WorkoutSessionService {
       await this.applyCarryOver(userId, completedDocs).catch((err: unknown) => {
         console.error('[gym] carry-over update failed after upsertMany', { userId, err });
       });
+      // Kitchen progress: the finished workouts and their PRs (best-effort, awaited so the
+      // phone's next progress.inbox read sees the receipt). Offline replays score on the
+      // workout's own localDate, and a re-send pays nothing: the key is the session id.
+      const ids = completedDocs.map((doc) => doc.id);
+      await notifyProgress(
+        'onWorkoutsCompleted',
+        userId,
+        (r) => r.onWorkoutsCompleted(userId, ids),
+        this.progress,
+      );
     }
     const finalResults: SyncResultDto[] = docs.map(
       (doc, i) => results.get(i) ?? { id: doc.id, status: 'rejected' },
     );
     reportRejections(userId, finalResults);
     return { results: finalResults };
+  }
+
+  /**
+   * G2: writes COMPLETED sessions built from a Strong / Hevy export, marked
+   * with `importSource`. Never touches a session that already exists (a
+   * re-import of the same file, or one the user has since edited), never moves
+   * a routine rotation, and folds progression once at the end — so imported
+   * history feeds PRs, e1RM and the next suggestion like any logged workout.
+   */
+  async importDocs(
+    userId: string,
+    docs: WorkoutSessionDoc[],
+    importSource: WorkoutImportSource,
+  ): Promise<{ written: number; existing: number; rejected: number }> {
+    const counts = { written: 0, existing: 0, rejected: 0 };
+    const existing = new Set(
+      await this.sessionRepo.findExistingIds(
+        userId,
+        docs.map((d) => d.id),
+      ),
+    );
+    const visible = new Set(
+      (
+        await this.exerciseRepo.findVisibleByIds(userId, [
+          ...new Set(docs.flatMap((d) => d.exercises.map((e) => e.exerciseId))),
+        ])
+      ).map((e) => e.id),
+    );
+    const touched = new Set<string>();
+    for (const doc of docs) {
+      if (existing.has(doc.id)) {
+        counts.existing++;
+        continue;
+      }
+      if (validateDoc(doc, visible)) {
+        counts.rejected++;
+        continue;
+      }
+      try {
+        const result = await this.sessionRepo.upsertDocument(
+          userId,
+          { ...toWriteData(doc), importSource },
+          { rotation: null },
+        );
+        if (result.status !== 'written') {
+          counts.existing++;
+          continue;
+        }
+        counts.written++;
+        for (const e of doc.exercises) touched.add(e.exerciseId);
+      } catch (err) {
+        if (!knownWriteFailure(err)) throw err;
+        counts.rejected++;
+      }
+    }
+    if (touched.size > 0) {
+      await this.progression.recompute(userId, [...touched]).catch((err: unknown) => {
+        console.error('[gym] progression recompute failed after import', { userId, err });
+      });
+    }
+    return counts;
   }
 
   /** `loggedBy`: the caller renders "Logged by Ana" (trainer mode M3, level 8+ or web). */

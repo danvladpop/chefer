@@ -64,7 +64,7 @@ export function TodaysWorkoutCard() {
     return (
       <Card testID="todays-workout-card-resume" className="flex-row items-center gap-3">
         <View className="min-w-0 flex-1">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             {summary.name}
           </Text>
           <Text testID="todays-workout-card-resume-label" className="mt-0.5 font-medium">
@@ -85,7 +85,7 @@ export function TodaysWorkoutCard() {
       <Pressable testID="todays-workout-card" accessibilityRole="button" onPress={goToGym}>
         <Card className="flex-row items-center justify-between gap-3">
           <View className="min-w-0 flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
               Training
             </Text>
             <Text testID="todays-workout-card-label" className="mt-0.5 font-medium">
@@ -111,7 +111,7 @@ export function TodaysWorkoutCard() {
     return (
       <Pressable testID="todays-workout-card" accessibilityRole="button" onPress={goToGym}>
         <Card className="gap-0.5">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
             Today&apos;s workout
           </Text>
           <Text testID="todays-workout-card-label" className="font-medium">
@@ -125,7 +125,7 @@ export function TodaysWorkoutCard() {
   if (status.kind === 'rest' && session.kind !== 'planned') {
     return (
       <Card testID="todays-workout-card" className="gap-1">
-        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
           Today&apos;s workout
         </Text>
         <Text testID="todays-workout-card-label" className="font-medium">
@@ -167,7 +167,7 @@ export function TodaysWorkoutCard() {
 
   return (
     <Card testID="todays-workout-card" className="gap-1">
-      <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+      <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
         {eyebrow}
       </Text>
       <Text testID="todays-workout-card-label" className="font-medium">

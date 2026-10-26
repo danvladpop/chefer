@@ -86,7 +86,12 @@ object RestTimerController {
   @Synchronized
   fun sync(context: Context, rest: NativeRest?) {
     val app = context.applicationContext
-    if (rest == null || rest.endsAt <= System.currentTimeMillis() + 1000) {
+    val now = System.currentTimeMillis()
+    // The JS clears its rest when its own clock reaches zero. That is the
+    // natural end, which the alarm (onRestOver) alerts for and cleans up —
+    // clearing here could race it and cancel the alert.
+    if (rest == null && current(app)?.let { it.endsAt <= now + 1000 } == true) return
+    if (rest == null || rest.endsAt <= now + 1000) {
       store(app, null)
       cancelAlarms(app)
       RestTimerService.stop(app)
@@ -152,6 +157,20 @@ object RestTimerController {
     } catch (e: SecurityException) {
       // POST_NOTIFICATIONS revoked between the check and the post.
     }
+  }
+
+
+  /**
+   * The keep-alive service hit the OS's ~3 min cap: the app may now be frozen
+   * and its listener alarm dropped. An inexact alarm may fire up to 75% of its
+   * delay late (measured: 154 s late when set 3.5 min ahead), so set the
+   * backstop again from now — the window shrinks with the time left.
+   */
+  @Synchronized
+  fun onKeepAliveEnded(context: Context) {
+    val rest = current(context) ?: return
+    if (rest.endsAt <= System.currentTimeMillis()) return
+    scheduleAlarm(context.applicationContext, rest.endsAt)
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────

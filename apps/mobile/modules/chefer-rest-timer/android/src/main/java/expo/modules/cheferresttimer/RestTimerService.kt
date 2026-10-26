@@ -50,6 +50,7 @@ class RestTimerService : Service() {
   private fun detach() {
     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
     stopSelf()
+    RestTimerController.onKeepAliveEnded(this)
   }
 
   companion object {

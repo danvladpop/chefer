@@ -11,6 +11,7 @@ import { COACHING_COPY } from '@chefer/types';
 // react-native-svg (already in the binary) as ONE path of dark modules. Always dark on light, whatever the
 // theme: a scanner needs the contrast, so the colours are the light palette's label and surface.
 
+// drift-ok: a QR code must stay dark on light at night, or scanners cannot read it
 const QR_COLORS = colorsFor('light');
 /** The quiet zone the QR spec asks for, in modules. */
 const QUIET_ZONE = 4;
