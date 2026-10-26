@@ -5,6 +5,7 @@ import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
 import { Button, ErrorState, IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { track } from '../../../lib/analytics';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
@@ -138,6 +139,7 @@ function JoinFlow({ code }: { code: string }) {
   const join = trpc.coaching.join.useMutation({
     meta: { silent: true },
     onSuccess: (status) => {
+      track('coaching_joined', {});
       clearPendingJoin();
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();

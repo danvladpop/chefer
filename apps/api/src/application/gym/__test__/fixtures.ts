@@ -282,6 +282,7 @@ export function sessionRow(doc: WorkoutSessionDoc, userId = 'u1'): SessionWithCh
     rotationAppliedAt: null,
     loggedById: null,
     bookingId: null,
+    importSource: null,
     workoutType: doc.workoutType ?? null,
     createdAt: T0,
     updatedAt: T0,
@@ -374,6 +375,9 @@ export function makeMemorySessionRepo(routinePointers = new Map<string, string |
       return Promise.resolve(result);
     }),
     findByIdForUser: vi.fn().mockResolvedValue(null),
+    findExistingIds: vi.fn((userId: string, ids: string[]) =>
+      Promise.resolve(ids.filter((id) => rows.get(id)?.userId === userId)),
+    ),
     listForUser: vi.fn().mockResolvedValue([]),
     findCompleted: vi.fn().mockResolvedValue([]),
     findCompletedDates: vi.fn().mockResolvedValue([]),

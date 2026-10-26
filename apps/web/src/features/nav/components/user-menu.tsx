@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useT } from '@/lib/i18n';
-import { ChevronDown, LogOut, Settings, ShieldCheck, User } from 'lucide-react';
+import { ChefHat, ChevronDown, LogOut, Settings, ShieldCheck, User } from 'lucide-react';
 import { useMenu } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
@@ -91,6 +91,18 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
             >
               <ShieldCheck className="h-4 w-4 text-gray-500" aria-hidden="true" />
               {t('nav.user.adminUsers')}
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              href="/admin/recipes"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+              className={cn(itemClass, 'border-b')}
+            >
+              <ChefHat className="h-4 w-4 text-gray-500" aria-hidden="true" />
+              Admin · Curated recipes
             </Link>
           )}
           <button

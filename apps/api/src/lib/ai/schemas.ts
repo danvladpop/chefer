@@ -105,6 +105,13 @@ export const recipeTranslationDraftSchema = z.object({
   ingredientNames: z.array(z.string().trim().min(1).max(200)).max(80),
 });
 
+/** rewriteRecipeProse's response (curated ingest). */
+export const rewrittenProseSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  instructions: z.array(z.string().min(1)),
+});
+
 export const ingredientPriceEstimateSchema = z.object({
   ingredientName: z.string(),
   pricePer100gEur: z.number().nullable(),

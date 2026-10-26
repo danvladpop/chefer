@@ -10,6 +10,7 @@ import {
   buildMealPlanUserPrompt,
   buildRepairLinesPrompt,
   buildReviewUserPrompt,
+  buildRewriteProseUserPrompt,
   buildSwapUserPrompt,
   buildTranslateRecipeUserPrompt,
   CHAT_SYSTEM_PROMPT,
@@ -24,6 +25,7 @@ import {
   MEAL_PLAN_SYSTEM_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
+  REWRITE_PROSE_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
   translateRecipeSystemPrompt,
 } from './prompts.js';
@@ -37,6 +39,7 @@ import {
   parseMealPhotoResponse,
   recipeLineRepairResponseSchema,
   recipeTranslationDraftSchema,
+  rewrittenProseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
@@ -54,12 +57,14 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
   RecipeTranslationDraft,
   RecipeTranslationInput,
+  RewrittenProse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -262,6 +267,16 @@ const RECIPE_TRANSLATION_SCHEMA: Schema = {
     ingredientNames: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
   required: ['name', 'description', 'instructions', 'ingredientNames'],
+};
+
+const REWRITTEN_PROSE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    description: { type: Type.STRING },
+    instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ['name', 'description', 'instructions'],
 };
 
 const CHEFERIZED_RECIPE_SCHEMA: Schema = {
@@ -839,6 +854,34 @@ export class GeminiAIService implements IAIService {
     if (!parsed.success) {
       throw new Error(
         `GeminiAIService: cheferize response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
+  }
+
+  /** Curated ingest (market review F1): same facts, Chefer's words. */
+  async rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse> {
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildRewriteProseUserPrompt(input),
+        config: {
+          systemInstruction: REWRITE_PROSE_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: REWRITTEN_PROSE_SCHEMA,
+          temperature: 0.6,
+          maxOutputTokens: 2048,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'rewriteRecipeProse',
+    );
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from rewriteRecipeProse');
+    const parsed = rewrittenProseSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: rewriteRecipeProse response failed validation — ${parsed.error.message}`,
       );
     }
     return parsed.data;

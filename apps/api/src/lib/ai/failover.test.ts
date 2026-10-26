@@ -36,6 +36,9 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
     translateRecipe: vi
       .fn()
       .mockResolvedValue({ name: 'N', description: '', instructions: [], ingredientNames: [] }),
+    rewriteRecipeProse: vi
+      .fn()
+      .mockResolvedValue({ name: 'Rewritten', description: 'D.', instructions: [] }),
   };
   return { ...base, ...overrides } as IAIService;
 }

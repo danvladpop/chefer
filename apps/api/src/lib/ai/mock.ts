@@ -15,12 +15,14 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
   RecipeTranslationDraft,
   RecipeTranslationInput,
+  RewrittenProse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -366,6 +368,32 @@ export class MockAIService implements IAIService {
       prepTimeMins: 10,
       cookTimeMins: 20,
       servings: 4,
+    };
+  }
+
+  /**
+   * Deterministic stand-in for the curated prose rewrite: strips social-media
+   * noise (emojis, hashtags, handles) and re-voices each step, so the review
+   * screen shows a visible change without a live call.
+   */
+  async rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse> {
+    await delay(200);
+    const clean = (s: string) =>
+      s
+        .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
+        .replace(/[#@][\w.]+/g, '')
+        .replace(/!+/g, '.')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const sentence = (s: string) => {
+      const t = clean(s).replace(/[.\s]+$/, '');
+      return t ? `${t.charAt(0).toUpperCase()}${t.slice(1)}.` : '';
+    };
+    const name = clean(input.name).slice(0, 60) || 'Home-style dish';
+    return {
+      name,
+      description: `A simple, satisfying ${name.toLowerCase()} you can make at home.`,
+      instructions: input.instructions.map(sentence).filter((s) => s.length > 1),
     };
   }
 

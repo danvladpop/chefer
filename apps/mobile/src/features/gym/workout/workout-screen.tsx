@@ -17,6 +17,7 @@ import {
 import {
   formatLoad,
   livePrLine,
+  profileDistanceUnit,
   routineWithoutSuperset,
   routineWithSuperset,
   sameKg,
@@ -447,6 +448,7 @@ export function WorkoutScreen() {
   const ctx = useMemo<WorkoutContext>(
     () => ({
       unit,
+      distanceUnit: profileDistanceUnit(bootstrap?.profile),
       profile,
       trainer: trainerLines,
       lookup,
@@ -483,6 +485,7 @@ export function WorkoutScreen() {
     }),
     [
       unit,
+      bootstrap?.profile,
       profile,
       trainerLines,
       lookup,

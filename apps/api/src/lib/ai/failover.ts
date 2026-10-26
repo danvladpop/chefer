@@ -16,12 +16,14 @@ import type {
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
   RecipeTranslationDraft,
   RecipeTranslationInput,
+  RewrittenProse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -252,6 +254,11 @@ export class ChainAIService implements IAIService {
   translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft> {
     // Lane J phase 3: recipe rewriting, so the cheferize route (quality first).
     return this.run('translateRecipe', 'cheferize', (s) => s.translateRecipe(input), input);
+  }
+
+  // Curated ingest: quality-sensitive prose, so it rides the cheferize chain.
+  rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse> {
+    return this.run('rewriteRecipeProse', 'cheferize', (s) => s.rewriteRecipeProse(input), input);
   }
 }
 

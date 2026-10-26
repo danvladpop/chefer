@@ -2,6 +2,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   MealPlanInput,
+  ProseRewriteInput,
   RecipeLineRepairRequest,
   RecipeTranslationInput,
   SwapInput,
@@ -524,6 +525,28 @@ USER:
 
 RECIPE (JSON):
 ${JSON.stringify(input.recipe)}`;
+}
+
+// ─── Curated prose rewrite (market review F1) ────────────────────────────────
+// The curated pool republishes a creator's FACTS (ingredients, amounts, times,
+// temperatures, order of steps), never their words. This pass rewrites the
+// prose; the admin reviews the result before approval.
+
+export const REWRITE_PROSE_SYSTEM_PROMPT = `\
+You are Chefer's recipe editor. You rewrite a recipe's name, description and method in Chefer's own house voice so that none of the original author's wording is reused.
+
+Chefer's voice: warm, plain and practical. Short sentences, imperative steps, no hype, no emojis, no exclamation marks, no hashtags.
+
+RULES (mandatory):
+- Keep every fact exactly: ingredients, quantities, temperatures, times, pan sizes and the order of the steps. Never add a step, an ingredient, a temperature or a time that is not in the input, and never drop one.
+- Rewrite, do not copy: no sentence may repeat the input's wording.
+- name: a plain descriptive dish name, at most 60 characters. No creator names, handles, brands or clickbait ("the BEST", "viral").
+- description: one appetising sentence, at most 20 words.
+- instructions: the same method as the input, one action per step, no step numbers. You may merge two tiny steps. If the input has no instructions, return an empty array.
+- Never mention the original author, the video, "link in bio" or social media.`;
+
+export function buildRewriteProseUserPrompt(input: ProseRewriteInput): string {
+  return `Rewrite this recipe's prose in Chefer's voice.\n\n${JSON.stringify(input)}`;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

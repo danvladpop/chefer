@@ -23,6 +23,7 @@ import {
   isStrengthTrackingType,
   loggedWorkoutFacts,
   loggedWorkoutSummaryLine,
+  profileDistanceUnit,
   toSessionSummary,
   trackingTypeOf,
 } from '@chefer/utils';
@@ -245,7 +246,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           // never weightKg × reps (which would read "0 kg × 0" otherwise).
           const cardio = meta ? !isStrengthTrackingType(trackingTypeOf(meta)) : false;
           const distanceUnit = cardio
-            ? distanceUnitFor(exercise.exerciseId, unit === 'LB' ? 'MI' : 'KM')
+            ? distanceUnitFor(exercise.exerciseId, profileDistanceUnit(bootstrap?.profile))
             : null;
           return (
             <TrainCard
