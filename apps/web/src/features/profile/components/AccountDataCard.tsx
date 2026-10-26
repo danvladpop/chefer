@@ -20,6 +20,7 @@ import {
   DATA_EXPORT_COPY as EXPORT_COPY,
   exportErrorMessage,
   exportSizeBucket,
+  PROGRESS_PHOTOS_COPY,
   todayIn,
   userFacingErrorMessage,
 } from '@chefer/utils';
@@ -73,6 +74,7 @@ export function AccountDataCard() {
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <h2 className="mb-1 font-semibold text-gray-800">Your data</h2>
       <p className="mb-4 text-sm text-gray-600">{EXPORT_COPY.intro}</p>
+      <p className="-mt-3 mb-4 text-xs text-gray-500">{PROGRESS_PHOTOS_COPY.exportNote}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button variant="outline" onClick={() => void downloadData()} disabled={exporting}>
           <Download aria-hidden="true" />
@@ -185,6 +187,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
             ))}
           </ul>
           <p className="text-xs text-gray-600">{COPY.backups}</p>
+          <p className="text-xs text-gray-600">{COPY.progressPhotos}</p>
         </div>
         {passwordless ? (
           <div className="space-y-2" data-testid="delete-account-reauth">

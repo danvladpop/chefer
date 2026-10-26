@@ -2413,6 +2413,32 @@ Progress screen.
 - **Analytics:** `body_measurement_logged { measures, units }` — which
   measures, never the values.
 
+### Progress photos (lane D4, on the phone only — ADR 0005)
+
+Owner decision 2026-10-22: progress photos never leave the phone unless the
+user shares one.
+
+- **App** (Stats under Body measurements, and the legacy Progress screen):
+  "Take photo" (camera; permission asked; a refusal says so and points to
+  "Choose photo") or "Choose photo" (library). The image is shrunk on the
+  device to a 1600 px long edge when the binary has the manipulator, then
+  copied into `documentDirectory/progress-photos/<userId>/` with an
+  `index.json` (`progress-photo-store.ts`). Each photo is dated today.
+- **Grid** newest first, 3 per row, each tile dated. Tap two photos and
+  "Compare" shows them side by side, oldest on the left. Long press opens one:
+  "Share" (iOS share sheet; Android via `expo-sharing` when the binary has it,
+  else "Couldn't share…") and "Delete photo" behind a confirm ("It's only on
+  this phone, so it can't be restored").
+- **Accounts on one phone:** each signed-in account has its own folder, so a
+  second account never sees the first one's photos.
+- **Web:** a card on `/progress` — "Progress photos live on your phone…".
+- **Export and deletion:** both platforms' "Your data" cards say photos stay
+  on the phone and aren't in the export; the delete sheet says deleting the
+  account in the app removes them (it does: `removeAllProgressPhotos` runs on
+  `user.deleteSelf` success) and deleting the app does too.
+- **Analytics:** `progress_photo_added { source }`, `progress_photos_compared`
+  — never the photo, never a count.
+
 ### Trend weight (lane D1, 2026-10-22)
 
 One smoothing for every surface, in `@chefer/utils` `weight-trend.ts`, so the

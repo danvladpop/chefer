@@ -25,6 +25,7 @@ import {
   DEFAULT_STATS_RANGE,
   isLoggedDay,
   localDateStr,
+  PROGRESS_PHOTOS_COPY,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
@@ -297,6 +298,17 @@ export default function ProgressPage() {
 
       {/* Body measurements: free, per-measure charts (lane D3) */}
       <BodyMeasurementsSection system={system} />
+
+      {/* Progress photos live on the phone only (lane D4, owner decision 2026-10-22) */}
+      <section
+        data-testid="progress-photos-web"
+        className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+      >
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+          {PROGRESS_PHOTOS_COPY.title}
+        </h2>
+        <p className="text-sm text-neutral-600">{PROGRESS_PHOTOS_COPY.web}</p>
+      </section>
     </div>
   );
 }
