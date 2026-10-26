@@ -319,7 +319,13 @@ describe('Shop tab: a shared household list (ADR 0003)', () => {
     expect(screen.getByTestId('shop-item-milk-who')).toHaveTextContent(
       HOUSEHOLD_SHARING_COPY.checkedBy({ name: 'Maria', isYou: false }),
     );
-    expect(calls.find((c) => c.path === 'shoppingList.sync')?.input).toEqual({ weekOffset: 0 });
+    // Sync asks about the same week the list shows (Shop opens on next week at weekends).
+    const shown = calls.find((c) => c.path === 'shoppingList.getForWeek')?.input as
+      | { weekOffset: number }
+      | undefined;
+    expect(calls.find((c) => c.path === 'shoppingList.sync')?.input).toEqual({
+      weekOffset: shown?.weekOffset,
+    });
   });
 
   it('a partner sees whose list it is', async () => {
