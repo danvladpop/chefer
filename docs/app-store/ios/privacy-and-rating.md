@@ -11,6 +11,12 @@ the user gives consent.
 > app, adding Sentry to it, adding ads, adding Sign in with Google/Apple, or adding payments each
 > changes the answers.
 
+> **2026-10-22: usage analytics is being switched on (Q18 reversed).** Before the
+> `EXPO_PUBLIC_POSTHOG_*` repo variables are set, apply
+> ["App Privacy once usage analytics is on"](#app-privacy-once-usage-analytics-is-on-q18-reversed-2026-10-22)
+> below. The next OTA turns analytics on in the binaries already in the store, so the label
+> must change first, not at the next submission.
+
 ---
 
 ## App Privacy (App Store Connect → App Privacy)
@@ -39,8 +45,9 @@ For **every** data type below, answer:
 **Do not declare:** Location, Contacts, Financial Info, Purchases, Browsing/Search History,
 Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
 
-- **Usage Data / Diagnostics:** today, **do not declare either** (see the next section for why
-  and for the exact change the day a key is configured). The web app uses PostHog and Sentry,
+- **Usage Data / Diagnostics:** not declared in the wave-4 answers above. Both change: Usage
+  Data when analytics is switched on, and Diagnostics because mobile Sentry is live (see
+  ["App Privacy once usage analytics is on"](#app-privacy-once-usage-analytics-is-on-q18-reversed-2026-10-22)). The web app uses PostHog and Sentry,
   but the iOS app ships neither SDK. When mobile Sentry lands (plan task M1-6), add
   _Diagnostics → Crash Data + Performance Data (App Functionality, not linked)_.
 - **Health information consent (wave 3, UX-26):** the Health row above is unchanged (same data
@@ -71,14 +78,14 @@ Device ID, Usage Data, Diagnostics, Sensitive Info, Audio.
 
 Verified from code on `master` (wave 4):
 
-| Question                              | Answer from the code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What is it?                           | `apps/mobile/src/lib/analytics-transport.ts`: an in-memory queue and `fetch` to `https://eu.i.posthog.com/batch/` every 30 s and when the app goes to the background. No PostHog SDK, no native module, no advertising id, no ATT prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Does it send anything in a build?     | **Only if `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` are both set at bundle time.** Unset = `enabled` is false, `enqueue` stores nothing and `fetch` is never called (unit test `no key configured…` in `apps/mobile/tests/unit/analytics.test.ts`). The host must be exactly `eu.i.posthog.com` or the app fails at startup.                                                                                                                                                                                                                                                                                                                                                                                        |
-| Are the variables set for production? | **No, not in anything the repository controls.** `apps/mobile/eas.json` → `build.production.env` sets only `APP_VARIANT` and `EXPO_PUBLIC_API_URL`; `apps/mobile/scripts/common.sh` (`use_production`) sets only `APP_VARIANT`, `EXPO_PUBLIC_API_URL`, `NODE_ENV`; the `mobile-update` job in `.github/workflows/deploy.yml` sets only `EXPO_TOKEN` and `EXPO_APPLE_TEAM_ID`. The owner's local `apps/mobile/.env` (sourced by the build scripts) has no PostHog variable on this machine (checked 30 Sep 2026, names only). **Owner must also confirm the EAS server-side environment variables** (expo.dev → project → Environment variables, or `eas env:list production`), which `eas build` injects and this repo cannot see. |
-| Opt-in or opt-out?                    | **Opt-out for anonymous counts, opt-in for linking.** Defaults are `anonymous: true`, `linked: false` (Q-8 default in `src/lib/analytics.ts`). Profile → Privacy & data → "Usage analytics" (**shown only in builds where the transport is enabled**, i.e. never in the App Store build, which has no PostHog key; App Review R-08) has two switches: "Send anonymous usage counts" (on by default) and "Link usage to my account" (off by default, disabled while the first is off). Turning the first off stops every network call at once (AC3) and turns linking off. Sign-out resets linking to off. Each change is also logged server-side (`privacy.recordAnalyticsConsent`, shown in Consent history).                     |
-| Distinct id                           | Unlinked: a random UUID created in memory at every cold start and never stored, so it is not a persistent device or user identifier. Linked: the account id (never name or email). **Known gap:** `setCurrentUserId()` is never called from the app (only defined in `analytics.ts`), so today even "Link usage to my account" still sends the random session id. Linking is therefore inert until that call is wired.                                                                                                                                                                                                                                                                                                             |
-| Properties sent                       | Only the typed `EventMap` (`packages/types/src/analytics-events.ts`) and the gym event map: counts, booleans and string-literal enums. A unit test fails if any event declares a free-text `string`, so no allergy, diet, weight, food name or message can be sent. No app version, OS, screen size or IP is added by the app; PostHog itself sees the request IP (see the PostHog project setting in the release checklist).                                                                                                                                                                                                                                                                                                      |
+| Question                              | Answer from the code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| What is it?                           | `apps/mobile/src/lib/analytics-transport.ts`: an in-memory queue and `fetch` to `https://eu.i.posthog.com/batch/` every 30 s and when the app goes to the background. No PostHog SDK, no native module, no advertising id, no ATT prompt.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Does it send anything in a build?     | **Only if `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` are both set at bundle time.** Unset = `enabled` is false, `enqueue` stores nothing and `fetch` is never called (unit test `no key configured…` in `apps/mobile/tests/unit/analytics.test.ts`). The host must be exactly `eu.i.posthog.com` or the app fails at startup.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Are the variables set for production? | **Not yet (2026-10-22).** The `mobile-update` job in `.github/workflows/deploy.yml` now exports `EXPO_PUBLIC_POSTHOG_KEY` / `_HOST` from the repo **variables** of the same names, only when both are set and the host is `https://eu.i.posthog.com` (a `::notice` in the job log says on or off). Neither variable is set yet; the owner sets them after the label change below. `apps/mobile/eas.json` sets none, and the local release scripts (`scripts/common.sh`) read them only from `apps/mobile/.env`. For the **next store binary**, put the same two values in the EAS `production` environment (`eas env:create --environment production --visibility plaintext`) or `apps/mobile/.env`, so the embedded bundle matches the OTA updates. Check with `eas env:list production`. |
+| Opt-in or opt-out?                    | **Opt-out for anonymous counts, opt-in for linking.** Defaults are `anonymous: true`, `linked: false` (Q-8 default in `src/lib/analytics.ts`). Profile → Privacy & data → "Usage analytics" (**shown only in builds where the transport is enabled**, i.e. never in the App Store build, which has no PostHog key; App Review R-08) has two switches: "Send anonymous usage counts" (on by default) and "Link usage to my account" (off by default, disabled while the first is off). Turning the first off stops every network call at once (AC3) and turns linking off. Sign-out resets linking to off. Each change is also logged server-side (`privacy.recordAnalyticsConsent`, shown in Consent history).                                                                             |
+| Distinct id                           | Unlinked: a random UUID created in memory at every cold start and never stored, so it is not a persistent device or user identifier, and the event creates no PostHog person (`$process_person_profile: false`). Linked: the account id (never name or email). **Wired 2026-10-22:** `SessionUserHost` calls `setCurrentUserId()` with `user.me`'s id on sign-in and `null` on sign-out; `signOut()` and a switch to another account turn linking off (tests: `analytics.test.ts`, `session-user-host.test.tsx`, `sign-out.test.ts`). "Link usage to my account" therefore really links.                                                                                                                                                                                                   |
+| Properties sent                       | Only the typed `EventMap` (`packages/types/src/analytics-events.ts`) and the gym event map: counts, booleans and string-literal enums. A unit test fails if any event declares a free-text `string`, so no allergy, diet, weight, food name or message can be sent. No app version, OS, screen size or IP is added by the app; PostHog itself sees the request IP (see the PostHog project setting in the release checklist).                                                                                                                                                                                                                                                                                                                                                              |
 
 **Answers for the build as it ships today (no key configured):** as in the table above. Do **not**
 declare Usage Data. Nothing is collected, so a "Yes" would be an over-declaration, and the
@@ -88,22 +95,51 @@ privacy policy says the same.
 hidden while no PostHog key is configured, so a reviewer never sees an "on by default" analytics switch
 next to an App Privacy label that declares no Usage Data. The card (and the policy's "In the app" text)
 only apply once a key is configured; do the Usage Data change below in the same release that adds it.
-Confirm `eas env:list production` has no `EXPO_PUBLIC_POSTHOG_*` before every submission.
+~~Confirm `eas env:list production` has no `EXPO_PUBLIC_POSTHOG_*` before every submission.~~
+Superseded on 2026-10-22 (Q18 reversed): the key is meant to be set. Before every submission,
+confirm instead that the label below declares Usage Data whenever the key is set.
 
-**The change to make the day a PostHog key is configured for a mobile build** (do it before the
-build that carries the key is submitted, and re-check on every later build):
+### App Privacy once usage analytics is on (Q18 reversed, 2026-10-22)
 
-1. App Store Connect → App Privacy → Edit → Data Types → **Usage Data → Product Interaction** →
-   tick it.
-2. Purposes: **Analytics** only.
-3. **Linked to the user's identity:**
-   - **No** while `setCurrentUserId()` is not wired (every event carries a random per-launch id).
-   - **Yes** the day it is wired, because "Link usage to my account" then ties events to the
-     account id when the user opts in (Apple counts optional linking as linked).
-4. **Used for tracking:** **No** (no ads, no data brokers, no combining with third-party data).
-5. Leave Device ID, Advertising Data, Diagnostics and Other Usage Data unticked.
-6. Update the privacy policy's "In the app" paragraph (already written to cover both states; see
-   `apps/web/src/app/privacy/page.tsx`) and [android/data-safety.md](../android/data-safety.md).
+**Apply this in App Store Connect before the `EXPO_PUBLIC_POSTHOG_KEY` / `_HOST` repo variables
+are set.** The deploy's OTA job then puts the key into the next update, which reaches the
+1.0.x binaries already in the store. A label that says "no Usage Data" would be wrong from that
+moment. The label applies to the app, not to a version, so you can save it now; it is published
+straight away for the live version. Re-check it on every later build.
+
+App Store Connect → App → App Privacy → Edit. Keep every row of the table at the top and change
+or add only these:
+
+| Data type (category → type)          | Collected     | Purposes (tick exactly these)      | Linked to the user? | Tracking? | Why                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------ | ------------- | ---------------------------------- | ------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Usage Data → Product Interaction** | **Yes**       | **Analytics** only                 | **Yes**             | **No**    | Typed events: which screens and features are used, as counts, booleans and fixed labels. "Link usage to my account" (opt-in) ties them to the account id. Apple counts data that is linked for some users as linked, so the answer is Yes even though linking is off by default and unlinked events carry a per-launch random id |
+| Identifiers → **User ID**            | Yes (already) | App Functionality, **+ Analytics** | Yes (already)       | No        | When linking is on, the account id is the PostHog distinct id. Add the Analytics purpose to the existing row                                                                                                                                                                                                                     |
+| Diagnostics → **Crash Data**         | **Yes**       | **App Functionality**              | **Yes**             | No        | Not about analytics, but due now: mobile Sentry has been live since 2026-10-16 (`EXPO_PUBLIC_SENTRY_DSN`). Crash reports carry the account id (`setCrashReportingUser`), so they are linked. The plan's earlier note said "not linked"; the code links them. **If this row is missing in App Store Connect today, add it now**   |
+
+Leave unticked: Usage Data → Advertising Data and Other Usage Data; Diagnostics → Performance
+Data (no tracing) and Other Diagnostic Data; Identifiers → **Device ID** (the per-launch id is
+made at every cold start and never stored, so it identifies no device; there is no advertising
+id or IDFV in any event); Browsing History; Search History.
+
+**"Used for tracking": No for every row.** No ads, no data brokers, no combining with other
+companies' data, no ATT prompt. PostHog is a processor working for Chefer, which Apple does not
+count as tracking.
+
+Then:
+
+1. Privacy policy: no change needed. The "In the app" paragraph in
+   `apps/web/src/app/privacy/page.tsx` already describes both switches, the per-launch id and
+   the optional account id. It does **not** mention crash reports from the app (owner to
+   decide: the "Security and error data" section covers the web and API).
+2. Play: apply the matching answers in [android/data-safety.md](../android/data-safety.md)
+   ("When analytics is switched on").
+3. Only then set the repo variables (the PR's owner checklist).
+
+**Deletion:** deleting the account also deletes the user's PostHog person when they had linking
+on (T-12.5, `posthogAdmin.deletePerson`; the mobile switch records that choice server-side through
+`privacy.recordAnalyticsConsent`). This only reaches the project named by the API's
+`POSTHOG_PROJECT_ID`, so mobile must use **the same PostHog project as web**. Unlinked events
+carry no account id and create no person.
 
 ### Native modules added since 1.0.0 (5): no data collection
 
