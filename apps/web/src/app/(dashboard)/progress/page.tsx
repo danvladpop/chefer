@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { WeightEntriesList } from '@/features/coach/components/WeightEntriesList';
-import { WeightLogForm } from '@/features/coach/components/WeightLogForm';
+import { BodyMeasurementsSection } from '@/features/coach/components/BodyMeasurementsSection';
+import { WeightTrendSection } from '@/features/coach/components/WeightTrendSection';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -21,18 +21,14 @@ import {
 } from 'recharts';
 import { ErrorState } from '@chefer/ui';
 import {
-  bodyWeightInUnit,
-  bodyWeightUnit,
   bucketDays,
   DEFAULT_STATS_RANGE,
-  formatBodyWeight,
   isLoggedDay,
   localDateStr,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
   statsBucketDays,
-  weightChangeTone,
   type StatsRangeDays,
 } from '@chefer/utils';
 import { hasEnoughDaysForAverage, moreDaysHint } from './average-gate';
@@ -96,15 +92,6 @@ export default function ProgressPage() {
 
   // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
   const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
-  const unit = bodyWeightUnit(system);
-  const since = Date.now() - range * 86_400_000;
-  const weightsInRange = (weightHistory ?? []).filter(
-    (w) => new Date(w.recordedAt).getTime() >= since,
-  );
-  const weightData = weightsInRange.map((w) => ({
-    date: format(new Date(w.recordedAt), 'dd MMM'),
-    weight: bodyWeightInUnit(w.weightKg, system),
-  }));
 
   // A day whose entries were all deleted keeps an empty log row: only days with
   // something in them count as logged.
@@ -119,14 +106,6 @@ export default function ProgressPage() {
   const averageHint = moreDaysHint(daysLogged);
   const target = monthly?.dailyCalorieTarget ?? 2000;
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
-
-  const latestWeight = weightHistory?.[weightHistory.length - 1]?.weightKg;
-  const firstWeight = weightsInRange.length > 1 ? weightsInRange[0]?.weightKg : undefined;
-  const weightDelta =
-    latestWeight != null && firstWeight != null ? latestWeight - firstWeight : null;
-  // Gain is good news for GAIN_MUSCLE — it used to be red for everyone (audit F-TRK-4-1).
-  const weightTone =
-    weightDelta != null ? weightChangeTone(weightDelta, preferences?.chefProfile?.goal) : 'neutral';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
@@ -308,80 +287,16 @@ export default function ProgressPage() {
         </>
       )}
 
-      {/* Weight section */}
-      <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          Weight Tracking
-        </p>
+      {/* Weight: weigh-ins plus the trend line (lane D1) */}
+      <WeightTrendSection
+        entries={weightHistory ?? []}
+        range={range}
+        system={system}
+        goal={preferences?.chefProfile?.goal}
+      />
 
-        {/* Stats */}
-        {latestWeight != null && (
-          <div className="mb-4 flex gap-4 text-sm">
-            <div>
-              <span className="text-neutral-500">Current: </span>
-              <span className="font-semibold">{formatBodyWeight(latestWeight, system)}</span>
-            </div>
-            {firstWeight != null && firstWeight !== latestWeight && (
-              <div>
-                <span className="text-neutral-500">Change: </span>
-                <span
-                  className={`font-semibold ${
-                    weightTone === 'positive'
-                      ? 'text-emerald-600'
-                      : weightTone === 'negative'
-                        ? 'text-red-500'
-                        : 'text-neutral-800'
-                  }`}
-                >
-                  {weightDelta !== null && formatBodyWeight(weightDelta, system, { signed: true })}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Chart */}
-        {weightData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={weightData}>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                interval={Math.floor(weightData.length / 6)}
-              />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                width={40}
-                domain={['auto', 'auto']}
-              />
-              <Tooltip formatter={(val) => [`${String(val)} ${unit}`]} />
-              <Line
-                type="monotone"
-                dataKey="weight"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={activeDot}
-                name={`Weight (${unit})`}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="mb-4 text-sm text-neutral-500">
-            No weight entries yet. Log your first entry below.
-          </p>
-        )}
-
-        {/* Log weight input */}
-        <div className="mt-4">
-          <WeightLogForm lastEntry={weightHistory?.[weightHistory.length - 1] ?? null} />
-        </div>
-        <WeightEntriesList entries={weightHistory ?? []} />
-      </div>
+      {/* Body measurements: free, per-measure charts (lane D3) */}
+      <BodyMeasurementsSection system={system} />
     </div>
   );
 }

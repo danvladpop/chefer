@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { getQueryKey } from '@trpc/react-query';
-import { weightUnitForSystem } from '@chefer/utils';
+import { profileDistanceUnit, weightUnitForSystem } from '@chefer/utils';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 
@@ -30,6 +30,9 @@ export function useViewerUnits(): ViewerUnits {
     getQueryKey(trpc.gym.bootstrap, undefined, 'query'),
   );
   const weight = cached?.profile?.unit ?? weightUnitForSystem(system);
-  const distance = cached?.profile?.distanceUnit ?? (weight === 'LB' ? 'MI' : 'KM');
+  const distance = profileDistanceUnit({
+    unit: weight,
+    distanceUnit: cached?.profile?.distanceUnit,
+  });
   return { weight, distance };
 }

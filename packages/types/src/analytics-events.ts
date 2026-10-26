@@ -1,3 +1,6 @@
+import type { BodyMeasure } from './body-measurements';
+import type { CoachReason } from './coach-review';
+import type { HealthPlatform, HealthSyncType } from './health-sync';
 import type { PremiumJobId, PremiumSource } from './plan-features';
 import type { PlanSlot } from './plan-shape';
 
@@ -123,7 +126,13 @@ export interface EventMap {
   };
 
   // ─── L-DATA's own events (T-12.4) ────────────────────────────────────────────
-  app_opened: Record<string, never>;
+  /**
+   * `launch`: a cold start, once the signed-in account is known, so a linked
+   * user's launch carries their account id. `resume`: back in the foreground
+   * after 30+ minutes away. D1/D7/D30 retention needs both, because iOS keeps a
+   * daily user's app alive for days without a cold start.
+   */
+  app_opened: { from: 'launch' | 'resume' };
   /** Mobile asked the OS for its native store rating sheet (ASO §5.1); the OS may still show nothing. */
   review_prompt_requested: {
     trigger: 'food_log' | 'shopping_tick' | 'gym_pr' | 'gym_third_workout';
@@ -144,6 +153,13 @@ export interface EventMap {
   meal_logged: {
     source: 'today' | 'plan' | 'log' | 'planned' | 'replaced' | 'quick' | 'snap';
     mealType?: PlanSlot;
+    /**
+     * How the food was entered, for the "off-plan log by method" breakdown (mobile):
+     * `search` (a recipe or ingredient row found by searching), `photo` (photo scan),
+     * `quick_add` (typed name and numbers), `recent` (Recent list), `cook` (cook
+     * mode). Omitted when a planned meal is ticked.
+     */
+    method?: 'search' | 'photo' | 'quick_add' | 'recent' | 'cook';
   };
 
   // ─── Beta funnel (WP-13, mobile) — counts and enum values only ──────────────
@@ -207,6 +223,39 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+  // Lane D2 (market review 2026-10): the explained coach.
+  day_incomplete_set: { incomplete: boolean };
+  coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
+  // Lane D3: which measures were saved (never the values) and the unit system.
+  body_measurement_logged: { measures: readonly BodyMeasure[]; units: 'metric' | 'imperial' };
+  // ─── Data portability (G1/G2, market review 2026-10) — enums and buckets only ─
+  /** "Download my data" produced a file the user kept (a cancelled share is not counted). */
+  data_export_downloaded: { format: 'zip' | 'json'; sizeBucket: '<100kb' | '100kb-1mb' | '1mb+' };
+  /** Workouts came in from another app's CSV (G2). Counts are bucketed; never names or weights. */
+  workout_import_completed: {
+    source: 'strong' | 'hevy';
+    workoutsBucket: '0' | '1-10' | '11-50' | '51-200' | '201+';
+    createdExercises: number;
+    reimport: boolean;
+  };
+  // ─── Health sync (C2, Apple Health / Health Connect) ─────────────────────────
+  /** A data type switched on or off on the "Connect health" screen. */
+  health_sync_toggled: { platform: HealthPlatform; type: HealthSyncType; on: boolean };
+  /** One import run: counts only, never weights. */
+  health_weights_imported: { platform: HealthPlatform; imported: number; skipped: number };
+  // ─── Funnel (market review 2026-10, lane B) — counts and enums only ──────────
+  /** Shopping items ticked as bought (`items` > 1 when a whole group is ticked); never on un-tick. */
+  list_item_checked: { items: number };
+  /** A recipe import was saved (link, pasted text or a cooking video). */
+  recipe_imported: { via: 'link' | 'text' | 'video' };
+  /** The client joined a trainer through an invite link. */
+  coaching_joined: Record<string, never>;
+  /** The client asked a trainer from the directory to coach them (the trainer accepts on their side). */
+  coaching_requested: Record<string, never>;
+
+  // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
+  /** A public "switching from X" page was opened; `source` is the app it addresses. */
+  switch_page_viewed: { source: 'mealime' };
 
   // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
   /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */

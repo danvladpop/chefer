@@ -9,7 +9,7 @@ export const ACCOUNT_DELETION_COPY = {
   listHeading: 'Deleted for good:',
   deleted: [
     'Your profile, preferences, allergies, goals and body metrics',
-    'Meal plans, shopping lists, food logs, weight entries and pantry',
+    'Meal plans, shopping lists, food logs, weight entries, body measurements and pantry',
     'Your own and imported recipes, uploaded photos, favourites and ratings',
     'Workouts, routines and custom exercises',
     'Household members, feedback, and your sign-in on every device',

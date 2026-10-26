@@ -120,6 +120,11 @@ const envSchema = z.object({
   // friendly "busy, try again in a minute" instead of a second download.
   VIDEO_IMPORT_CONCURRENCY: z.coerce.number().int().positive().max(8).default(1),
 
+  // Curated recipe ingest (market review F1): links an admin may send to the
+  // extractor per UTC day, first submits and retries together. The default
+  // matches Gemini's free tier (~20 requests a day); raise it with a paid key.
+  CURATED_INGEST_DAILY_CAP: z.coerce.number().int().min(0).max(1000).default(20),
+
   // Phase 1 guardrails: the daily uploads orphan sweeper
   // (workers/upload-sweeper.worker.ts). 'true' logs what it would delete
   // (files, ledger rows; the 30-day recipe purge is skipped) and deletes nothing.

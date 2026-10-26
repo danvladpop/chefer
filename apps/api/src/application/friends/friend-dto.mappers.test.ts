@@ -304,6 +304,7 @@ function fullSession(): FriendSessionRow {
     rotationAppliedAt: new Date(),
     loggedById: null,
     bookingId: null,
+    importSource: null,
     workoutType: null,
     createdAt: new Date(),
     updatedAt: new Date(),
