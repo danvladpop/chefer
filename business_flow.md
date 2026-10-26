@@ -48,6 +48,7 @@
 39. [Kitchen Progress (gamification P1)](#39-kitchen-progress-gamification-p1-docsgamification-2026-10)
 40. [Appearance: Night Mode (mobile)](#40-appearance-night-mode-mobile-ux-revamp-phase-4)
 41. [Curated Recipe Ingest & Pool Coverage (admin)](#41-curated-recipe-ingest--pool-coverage-admin-market-review-f1f2)
+42. [Language Flow (i18n, ADR 0004)](#42-language-flow-i18n-adr-0004)
 
 ---
 
@@ -6637,3 +6638,43 @@ Coverage (/admin/recipes/coverage, or pnpm recipes:coverage) ──► curatedAd
     the effective pool per common household (nut-free + dairy-free, vegan + nut-free, …),
     red = that household repeats a recipe within 2 weeks, amber = within 4
 ```
+
+## 42. Language Flow (i18n, ADR 0004)
+
+Chefer speaks English and Romanian. Which one a person sees is decided the same way on every surface:
+
+```
+explicit choice (User.locale, Settings › Language)
+  └─ none ("Same as my phone / browser") ──► device or browser languages, best first
+                                              └─ none we ship ──► English
+```
+
+**Where the choice lives.** On the account (`User.locale`) and, as a copy, on the device: mobile keeps it in
+`expo-sqlite/kv-store`, web in the `chefer_locale` cookie (so the server renders the first paint, and `<html lang>`, in
+it). Signed in, the account copy wins: a choice made on the phone reaches the browser on its next page, and the reverse
+(`LocaleSync` / `LocaleSyncHost`).
+
+**Changing it.**
+
+- Mobile: You › Account › Language (`/settings/language`; the legacy Settings hub row "Language / Limbă"). Tapping a
+  language switches every screen at once, then saves with `user.setLocale({ locale })`; "Same as my phone" saves
+  `null`.
+- Web: Preferences › Language (a select; saves on change, outside the form's Save) → `user.setLocale`, the cookie, and
+  a server re-render (`router.refresh()`).
+- Each language is written in itself ("English", "Română"), so a wrong pick can always be undone.
+
+**The device language** is what the client resolves from the OS (iOS `AppleLanguages` / Android `I18nManager` through
+React Native core, then `Intl` — no new native module, so it ships over the air) or the browser (`navigator.languages`, `Accept-Language`). Clients report it as `deviceLocale`:
+
+- at sign-up (`auth.register` / `auth.socialSignIn`), so the address-confirmation email is already in it;
+- whenever it differs from the account's copy (`user.setLocale({ deviceLocale })`, at most once per change).
+
+**Emails** (weekly "your week is ready", the Sunday recap, address confirmation, password reset) go out in
+`locale ?? deviceLocale ?? 'en'`: subject, body, day and month names, numbers and `<html lang>`.
+
+**Numbers, dates and money** on the clients follow the UI language, not the phone's region: a Romanian phone set to
+English reads "22 Oct", an English phone set to Romanian reads "22 oct.". When the phone already speaks the chosen
+language, its own regional style is kept (en-US stays "Oct 22").
+
+**Not translated yet** (phases 2–4 of Lane J): most screens, server error messages, AI chat replies and recipe text.
+Until a screen is converted it shows English in both languages.

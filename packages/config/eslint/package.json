@@ -19,6 +19,10 @@
     "./rules/no-forbidden-copy": {
       "types": "./rules/no-forbidden-copy.d.ts",
       "import": "./rules/no-forbidden-copy.js"
+    },
+    "./rules/no-hardcoded-ui-string": {
+      "types": "./rules/no-hardcoded-ui-string.d.ts",
+      "import": "./rules/no-hardcoded-ui-string.js"
     }
   },
   "dependencies": {

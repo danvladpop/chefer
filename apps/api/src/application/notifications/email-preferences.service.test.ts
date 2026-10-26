@@ -25,6 +25,8 @@ const PREFS = {
   weeklyEmailRecap: true,
   emailVerified: null as Date | null,
   email: 'ana@chefer.dev',
+  locale: null as string | null,
+  deviceLocale: null as string | null,
 };
 
 function makeRepo() {
@@ -105,6 +107,12 @@ describe('EmailPreferencesService', () => {
       const message = send.mock.calls[0]![0];
       expect(message.to).toBe('ana@chefer.dev');
       expect(message.text).toContain('https://app.test/verify-email?token=');
+    });
+
+    it("is written in the account's language (ADR 0004)", async () => {
+      repo.getPreferences.mockResolvedValueOnce({ ...PREFS, deviceLocale: 'ro' });
+      await service.sendConfirmation('u1', 'Ana');
+      expect(send.mock.calls[0]![0].subject).toBe('Confirmă-ți adresa de email pentru Chefer');
     });
 
     it('does nothing for a confirmed address', async () => {

@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@chefer/database": "workspace:*",
+    "@chefer/i18n": "workspace:*",
     "@chefer/types": "workspace:*",
     "@chefer/utils": "workspace:*",
     "@google/genai": "^1.47.0",

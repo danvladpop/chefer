@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IWeeklyEmailRepository, WeeklyEmailRecipient } from '@chefer/database';
+import { createTranslator } from '@chefer/i18n';
 import { EmailQuotaError } from '../../lib/email/types';
 import {
   defaultSendBudget,
@@ -40,6 +41,8 @@ const FREE_USER: WeeklyEmailRecipient = {
   role: 'USER',
   planTier: 'FREE',
   image: null,
+  locale: null,
+  deviceLocale: null,
 };
 const PREMIUM_USER: WeeklyEmailRecipient = {
   ...FREE_USER,
@@ -106,10 +109,17 @@ function makeDeps() {
 type Deps = ReturnType<typeof makeDeps>;
 const service = (deps: Deps) => new WeeklyEmailService(deps);
 
+const EN = createTranslator('en');
+const RO = createTranslator('ro');
+
 describe('pure helpers', () => {
   it('weekLabel spans a month boundary', () => {
-    expect(weekLabel(new Date('2026-09-21T00:00:00Z'))).toBe('21–27 Sep');
-    expect(weekLabel(new Date('2026-09-28T00:00:00Z'))).toBe('28 Sep – 4 Oct');
+    expect(weekLabel(EN, new Date('2026-09-21T00:00:00Z'))).toBe('21–27 Sep');
+    expect(weekLabel(EN, new Date('2026-09-28T00:00:00Z'))).toBe('28 Sep – 4 Oct');
+  });
+
+  it("weekLabel uses the recipient's language", () => {
+    expect(weekLabel(RO, new Date('2026-09-28T00:00:00Z'))).toBe('28 sept. – 4 oct.');
   });
 
   it("mondayLocal finds this week's and next week's Monday", () => {
@@ -124,10 +134,11 @@ describe('pure helpers', () => {
       ['r2', 'Lemon chicken'],
       ['r3', 'Lentil soup'],
     ]);
-    expect(planDinners(plan('USER').days, names)).toEqual([
+    expect(planDinners(EN, plan('USER').days, names)).toEqual([
       { day: 'Mon', name: 'Lemon chicken' },
       { day: 'Tue', name: 'Lentil soup' },
     ]);
+    expect(planDinners(RO, plan('USER').days, names)[0]?.day).toBe('Lun');
   });
 
   it('weekSource: the Sunday week is learned for premium, curated for free', () => {
@@ -152,10 +163,13 @@ describe('pure helpers', () => {
       { recordedAt: new Date('2026-09-15T07:00:00Z'), weightKg: 80 },
       { recordedAt: new Date('2026-09-24T07:00:00Z'), weightKg: 79.6 },
     ];
-    expect(weightChangeLabel(entries, weekStart, 'METRIC')).toBe(
+    expect(weightChangeLabel(EN, entries, weekStart, 'METRIC')).toBe(
       '−0.4 kg since your previous weigh-in',
     );
-    expect(weightChangeLabel(entries.slice(1), weekStart, 'METRIC')).toBeNull();
+    expect(weightChangeLabel(RO, entries, weekStart, 'METRIC')).toBe(
+      '−0,4 kg față de cântărirea anterioară',
+    );
+    expect(weightChangeLabel(EN, entries.slice(1), weekStart, 'METRIC')).toBeNull();
   });
 });
 

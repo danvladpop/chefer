@@ -36,6 +36,7 @@ export {
   formatKcal,
   formatNumber,
   formatQty,
+  setFormatLocale,
   type DateStyle,
   type FormatDateOptions,
 } from './format';

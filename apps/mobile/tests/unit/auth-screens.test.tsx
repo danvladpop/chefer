@@ -252,6 +252,7 @@ describe('Register', () => {
         acceptedTerms: true,
         ageConfirmed: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
+        deviceLocale: 'en',
       }),
     );
   });
@@ -275,6 +276,8 @@ describe('Register', () => {
         ageConfirmed: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         region: 'US',
+        // ADR 0004: the app's language, for the confirmation email.
+        deviceLocale: 'en',
       }),
     );
     mockRegion = null;

@@ -44,6 +44,8 @@ export interface IUserRepository {
   setAiDataConsent(id: string, at: Date | null): Promise<User>;
   /** T-39.3: marks the one-time "emails changed" notice as shown (idempotent). */
   markEmailDefaultsNoticeShown(id: string): Promise<User>;
+  /** ADR 0004: the UI language — a null `locale` (follow the device) must reach Prisma. */
+  setLocale(id: string, data: { locale?: string | null; deviceLocale?: string }): Promise<User>;
   findManyWithCount(options?: FindManyWithCountOptions): Promise<{ users: User[]; total: number }>;
   count(where?: Prisma.UserWhereInput): Promise<number>;
 }
@@ -98,6 +100,13 @@ export class PrismaUserRepository implements IUserRepository {
 
   async markEmailDefaultsNoticeShown(id: string): Promise<User> {
     return prisma.user.update({ where: { id }, data: { emailDefaultsNoticeAt: new Date() } });
+  }
+
+  async setLocale(
+    id: string,
+    data: { locale?: string | null; deviceLocale?: string },
+  ): Promise<User> {
+    return prisma.user.update({ where: { id }, data });
   }
 
   async findManyWithCount(

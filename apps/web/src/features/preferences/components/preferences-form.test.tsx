@@ -24,6 +24,8 @@ vi.mock('@/features/privacy/use-health-consent', () => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('./household-section', () => ({ HouseholdSection: () => null }));
+// Self-contained (its own mutation), covered by language-section.test.tsx.
+vi.mock('./language-section', () => ({ LanguageSection: () => null }));
 vi.mock('@/features/safety/components/SafetyReviewCard', () => ({ SafetyReviewCard: () => null }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({ UpgradeCard: () => null }));
 vi.mock('@/lib/trpc', () => {

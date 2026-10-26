@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createTranslator } from '@chefer/i18n';
 import {
   escapeHtml,
   renderVerifyEmail,
@@ -7,6 +8,9 @@ import {
   type WeeklyRecapEmailData,
   type WeekReadyEmailData,
 } from './templates';
+
+const EN = createTranslator('en');
+const RO = createTranslator('ro');
 
 const READY: WeekReadyEmailData = {
   firstName: 'Ana',
@@ -44,7 +48,7 @@ const RECAP: WeeklyRecapEmailData = {
 
 describe('renderWeekReadyEmail', () => {
   it('lists the dinners and the list total in subject, text and HTML', () => {
-    const email = renderWeekReadyEmail(READY);
+    const email = renderWeekReadyEmail(EN, READY);
     expect(email.subject).toBe('Your week is ready: 2 dinners, ~€74 shopping list');
     expect(email.text).toContain('- Mon: Lemon chicken');
     expect(email.text).toContain('Estimated shopping list: ~€74.');
@@ -54,42 +58,42 @@ describe('renderWeekReadyEmail', () => {
   });
 
   it('escapes recipe names in the HTML part (text stays literal)', () => {
-    const email = renderWeekReadyEmail(READY);
+    const email = renderWeekReadyEmail(EN, READY);
     expect(email.html).toContain('Mac &amp; cheese &lt;deluxe&gt;');
     expect(email.html).not.toContain('<deluxe>');
     expect(email.text).toContain('Mac & cheese <deluxe>');
   });
 
   it('carries the unsubscribe and preferences links in both parts', () => {
-    const email = renderWeekReadyEmail(READY);
+    const email = renderWeekReadyEmail(EN, READY);
     expect(email.text).toContain('Unsubscribe: https://app.test/unsubscribe?token=abc.def');
     expect(email.html).toContain('href="https://app.test/unsubscribe?token=abc.def"');
     expect(email.html).toContain('href="https://app.test/preferences"');
   });
 
   it('premium: the learned week names the rated dishes, no upsell', () => {
-    const email = renderWeekReadyEmail(READY);
+    const email = renderWeekReadyEmail(EN, READY);
     expect(email.text).toContain('around your targets and the 3 dishes you rated');
     expect(email.text).not.toContain('Premium weeks learn');
   });
 
   it('free: the curated week, plus a quiet premium line', () => {
-    const email = renderWeekReadyEmail({ ...READY, tier: 'FREE', source: 'curated' });
+    const email = renderWeekReadyEmail(EN, { ...READY, tier: 'FREE', source: 'curated' });
     expect(email.text).toContain('We picked a fresh week of recipes');
     expect(email.text).toContain('Premium weeks learn from the dishes you rate');
   });
 
   it('a template week and a self-made week say so', () => {
-    expect(renderWeekReadyEmail({ ...READY, source: 'template' }).text).toContain(
+    expect(renderWeekReadyEmail(EN, { ...READY, source: 'template' }).text).toContain(
       'The saved week you follow in My weeks repeats',
     );
-    expect(renderWeekReadyEmail({ ...READY, source: 'yours' }).text).toContain(
+    expect(renderWeekReadyEmail(EN, { ...READY, source: 'yours' }).text).toContain(
       "Here's the week you planned.",
     );
   });
 
   it('works without a price estimate or a first name', () => {
-    const email = renderWeekReadyEmail({ ...READY, listTotal: null, firstName: null });
+    const email = renderWeekReadyEmail(EN, { ...READY, listTotal: null, firstName: null });
     expect(email.subject).toBe('Your week is ready: 2 dinners planned');
     expect(email.text.startsWith('Hi,')).toBe(true);
     expect(email.text).toContain('Your shopping list is ready too.');
@@ -98,7 +102,7 @@ describe('renderWeekReadyEmail', () => {
 
 describe('renderWeeklyRecapEmail', () => {
   it('summarises meals, days on target, weight and workouts', () => {
-    const email = renderWeeklyRecapEmail(RECAP);
+    const email = renderWeeklyRecapEmail(EN, RECAP);
     expect(email.subject).toBe('Your week in review: 12 meals logged, 3 days on target');
     expect(email.text).toContain('- 12 meals logged across 5 days');
     expect(email.text).toContain('- 3 days on your calorie target');
@@ -108,13 +112,13 @@ describe('renderWeeklyRecapEmail', () => {
   });
 
   it('leaves out gym and weight lines when there is nothing to show', () => {
-    const email = renderWeeklyRecapEmail({ ...RECAP, gymSessions: null, weightChange: null });
+    const email = renderWeeklyRecapEmail(EN, { ...RECAP, gymSessions: null, weightChange: null });
     expect(email.text).not.toContain('workout');
     expect(email.text).not.toContain('Weight:');
   });
 
   it('a quiet food week is encouraged, never scolded', () => {
-    const email = renderWeeklyRecapEmail({
+    const email = renderWeeklyRecapEmail(EN, {
       ...RECAP,
       mealsLogged: 0,
       daysLogged: 0,
@@ -126,11 +130,11 @@ describe('renderWeeklyRecapEmail', () => {
   });
 
   it('premium: points to the chef review; free: the review is the upsell', () => {
-    const premium = renderWeeklyRecapEmail({ ...RECAP, tier: 'PREMIUM', hasChefReview: true });
+    const premium = renderWeeklyRecapEmail(EN, { ...RECAP, tier: 'PREMIUM', hasChefReview: true });
     expect(premium.text).toContain("Your chef's weekly review is waiting on Progress.");
     expect(premium.text).not.toContain('Premium adds');
 
-    const free = renderWeeklyRecapEmail(RECAP);
+    const free = renderWeeklyRecapEmail(EN, RECAP);
     expect(free.text).toContain('Premium adds a weekly chef review');
     expect(free.text).not.toContain("Your chef's weekly review");
   });
@@ -138,10 +142,42 @@ describe('renderWeeklyRecapEmail', () => {
 
 describe('renderVerifyEmail', () => {
   it('links to the confirmation URL', () => {
-    const email = renderVerifyEmail({ firstName: 'Ana', verifyUrl: 'https://app.test/v?t=1&x=2' });
+    const email = renderVerifyEmail(EN, {
+      firstName: 'Ana',
+      verifyUrl: 'https://app.test/v?t=1&x=2',
+    });
     expect(email.subject).toBe('Confirm your email for Chefer');
     expect(email.text).toContain('https://app.test/v?t=1&x=2');
     expect(email.html).toContain('href="https://app.test/v?t=1&amp;x=2"');
+  });
+});
+
+describe('Romanian (ADR 0004)', () => {
+  it('renders the Monday email in Romanian, with the right plural forms', () => {
+    const email = renderWeekReadyEmail(RO, { ...READY, listTotal: '~74 RON' });
+    expect(email.subject).toBe('Săptămâna ta este gata: 2 cine, listă de cumpărături de ~74 RON');
+    expect(email.text.startsWith('Bună, Ana,')).toBe(true);
+    expect(email.text).toContain('cele 3 preparate pe care le-ai notat');
+    expect(email.html).toContain('<html lang="ro">');
+    expect(email.html).toContain('<strong>21–27 Sep</strong>');
+  });
+
+  it('uses "de" from twenty up', () => {
+    const email = renderWeeklyRecapEmail(RO, { ...RECAP, mealsLogged: 21, daysOnTarget: 1 });
+    expect(email.subject).toBe('Săptămâna ta pe scurt: 21 de mese, 1 zi în obiectiv');
+    expect(email.text).toContain('- Ai înregistrat 21 de mese în 5 zile');
+  });
+
+  it('renders the confirmation email in Romanian', () => {
+    const email = renderVerifyEmail(RO, { firstName: null, verifyUrl: 'https://app.test/v' });
+    expect(email.subject).toBe('Confirmă-ți adresa de email pentru Chefer');
+    expect(email.text.startsWith('Bună,')).toBe(true);
+  });
+
+  it('English keeps <html lang="en">', () => {
+    expect(renderVerifyEmail(EN, { firstName: null, verifyUrl: 'x' }).html).toContain(
+      '<html lang="en">',
+    );
   });
 });
 

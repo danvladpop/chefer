@@ -18,6 +18,7 @@ import {
   applyGymQueryDefaults,
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
+import { LocaleSyncHost } from '../src/features/language/locale-sync-host';
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
@@ -264,6 +265,8 @@ export default function RootLayout() {
               <ShellFlagHost signedIn={token !== null} />
               {/* Trainer mode §5.1: caches "available" for the next cold start, falls back to personal. */}
               <TrainerModeHost signedIn={token !== null} />
+              {/* ADR 0004: the account's language choice wins; reports the phone's language. */}
+              <LocaleSyncHost signedIn={token !== null} />
               {/* M1-6 + analytics: crash reports and (when linked) usage events carry
                   the account id, never name/email; also fires `app_opened`. */}
               <SessionUserHost signedIn={token !== null} />

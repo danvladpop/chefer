@@ -9,8 +9,23 @@ import { formatQuantity, type UnitSystem } from './units';
 // otherwise follows the DEVICE locale: Hermes and every browser resolve the
 // default `Intl` locale from the OS language settings.
 
-/** The device's `Intl` locale tag ("en-GB", "ro-RO"); "en-US" when `Intl` can't say. */
+// Once the app picks a UI language (ADR 0004), numbers and dates follow it
+// rather than the phone: Romanian copy next to "October 22" reads as a bug.
+// Clients set this from their i18n layer; the server never does (it formats
+// per recipient through @chefer/i18n's translator instead).
+let uiLocaleTag: string | null = null;
+
+/** Make every formatter below follow the app's UI language (null = the device again). */
+export function setFormatLocale(tag: string | null): void {
+  uiLocaleTag = tag;
+}
+
+/**
+ * The tag formatters use: the UI language set by `setFormatLocale`, else the
+ * device's `Intl` locale ("en-GB", "ro-RO"); "en-US" when `Intl` can't say.
+ */
 export function deviceLocale(): string {
+  if (uiLocaleTag) return uiLocaleTag;
   try {
     return new Intl.NumberFormat().resolvedOptions().locale || 'en-US';
   } catch {

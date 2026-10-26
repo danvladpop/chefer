@@ -16,6 +16,9 @@ export interface WeeklyEmailRecipient {
   role: UserRole;
   planTier: PlanTier;
   image: string | null;
+  /** ADR 0004: the email goes out in locale ?? deviceLocale ?? 'en'. */
+  locale: string | null;
+  deviceLocale: string | null;
 }
 
 export interface WeeklyEmailPreferences {
@@ -23,6 +26,9 @@ export interface WeeklyEmailPreferences {
   weeklyEmailRecap: boolean;
   emailVerified: Date | null;
   email: string;
+  /** ADR 0004: the confirmation email's language. */
+  locale: string | null;
+  deviceLocale: string | null;
 }
 
 export interface WeekLogRow {
@@ -78,6 +84,8 @@ const PREFERENCE_SELECT = {
   weeklyEmailRecap: true,
   emailVerified: true,
   email: true,
+  locale: true,
+  deviceLocale: true,
 } as const;
 
 export class WeeklyEmailRepository implements IWeeklyEmailRepository {
@@ -101,6 +109,8 @@ export class WeeklyEmailRepository implements IWeeklyEmailRepository {
         role: true,
         planTier: true,
         image: true,
+        locale: true,
+        deviceLocale: true,
       },
       orderBy: { createdAt: 'asc' },
     });
