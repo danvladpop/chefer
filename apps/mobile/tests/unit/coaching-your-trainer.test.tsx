@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
-import { act, screen, userEvent } from '@testing-library/react-native';
-import { COACHING_COPY } from '@chefer/types';
+import { act, fireEvent, screen, userEvent } from '@testing-library/react-native';
+import { COACHING_COPY, COACHING_SHARING_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import YourTrainerRoute from '../../app/coaching/index';
 import { makeQueryClient, renderWithTrpc, trpcError } from './friends-core-harness';
@@ -184,5 +184,59 @@ describe('Your trainer', () => {
     await settle();
     expect(screen.getByTestId('your-trainer-unavailable')).toBeTruthy();
     expect(r.paths()).toEqual(['coaching.availability']);
+  });
+});
+
+// ─── Lane K1: "What you share with Ana" ───────────────────────────────────────
+
+/** RN's Switch carries `value` on iOS and `on` on Android (this file renders as Android). */
+const isOn = (el: { props: { value?: unknown; on?: unknown } }) => el.props.value ?? el.props.on;
+const coachedSharing = (food: boolean, weight: boolean) => ({
+  ...COACHED,
+  trainer: {
+    ...COACHED.trainer,
+    sharing: {
+      food,
+      weight,
+      foodSince: food ? '2026-10-02T09:00:00.000Z' : null,
+      weightSince: weight ? '2026-10-02T09:00:00.000Z' : null,
+    },
+  },
+});
+
+describe('Your trainer → What you share', () => {
+  it('shows the current switches and revokes one with a confirmation snackbar', async () => {
+    const calls: unknown[] = [];
+    await renderWithTrpc(<YourTrainerRoute />, {
+      ...ON,
+      'coaching.status': () => coachedSharing(true, false),
+      'coaching.setSharing': (input) => {
+        calls.push(input);
+        return coachedSharing(false, false).trainer.sharing;
+      },
+    });
+    await screen.findByTestId('your-trainer-share-food');
+    expect(screen.getByText(COACHING_SHARING_COPY.settingsHeading('Ana'))).toBeTruthy();
+    expect(isOn(screen.getByTestId('your-trainer-share-food'))).toBe(true);
+    await fireEvent(screen.getByTestId('your-trainer-share-food'), 'valueChange', false);
+    await settle();
+    expect(calls).toEqual([{ food: false }]);
+    expect(isOn(screen.getByTestId('your-trainer-share-food'))).toBe(false);
+    expect(screen.getByText(COACHING_SHARING_COPY.food.off('Ana'))).toBeTruthy();
+  });
+
+  it('a failed save rolls the switch back', async () => {
+    await renderWithTrpc(<YourTrainerRoute />, {
+      ...ON,
+      'coaching.status': () => coachedSharing(false, false),
+      'coaching.setSharing': () => {
+        throw trpcError('BAD_REQUEST', 400);
+      },
+    });
+    await settle();
+    await fireEvent(screen.getByTestId('your-trainer-share-weight'), 'valueChange', true);
+    await settle();
+    expect(isOn(screen.getByTestId('your-trainer-share-weight'))).toBe(false);
+    expect(screen.getByTestId('your-trainer-sharing-error')).toBeTruthy();
   });
 });

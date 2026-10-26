@@ -78,6 +78,8 @@ export interface UpsertDailyLogData {
 export interface IDailyLogRepository {
   findByDate(userId: string, date: Date): Promise<DailyLog | null>;
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
+  /** Lane K: the user's logs from `from` to `to` (both UTC-midnight `@db.Date` days, inclusive), oldest first. */
+  findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
   upsert(data: UpsertDailyLogData): Promise<DailyLog>;
   /**
    * Read-modify-write of one day's entries in a SERIALIZABLE transaction,
@@ -153,6 +155,13 @@ export class DailyLogRepository implements IDailyLogRepository {
     since.setUTCHours(0, 0, 0, 0);
     return prisma.dailyLog.findMany({
       where: { userId, date: { gte: since } },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
+    return prisma.dailyLog.findMany({
+      where: { userId, date: { gte: from, lte: to } },
       orderBy: { date: 'asc' },
     });
   }

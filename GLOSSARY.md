@@ -95,6 +95,10 @@ _Avoid_: Coach (as a noun for a person), link, subscription
 A single-use offer of coaching from a trainer that the client accepts.
 _Avoid_: Code, referral
 
+**Shared data**:
+What a client chooses to let their trainer see beyond training: their food log and / or their weight. Off unless the client turns it on, per coaching; it ends with the coaching.
+_Avoid_: Permissions, access (in user copy), sync
+
 **Coaching request**:
 A client's ask to be coached, which the trainer accepts or declines.
 _Avoid_: Application, follow request

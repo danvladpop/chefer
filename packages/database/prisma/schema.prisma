@@ -140,6 +140,9 @@ enum ConsentKind {
   // Trainer coaching (docs/trainer-platform/spec.md §5.2): written on join
   // (granted) and on leave / remove / trainer tools off (withdrawn), with the
   // CoachingLink id in `contextId`. Filtered out for clients below API level 6.
+  // `providers` names what the event is about: [] = the coaching itself;
+  // ['FOOD'] / ['WEIGHT'] = the client's opt-in to share that data with the
+  // trainer (lane K1), `contextId` = the link (or the request it was asked in).
   COACHING_SHARING
   // Apple Health / Health Connect sync (C2): every change to the data types the
   // user turned on, as `providers` (e.g. ["HEALTH_CONNECT", "weight", "steps"]);
@@ -1947,6 +1950,12 @@ model CoachingLink {
   /// The coaching consent copy version the client agreed to (COACHING_CONSENT_COPY_VERSION).
   /// Older links read 1 and get a one-time "what's new" notice (trainer-mode.md §10).
   consentCopyVersion Int                @default(1)
+  /// Lane K1 (market review 2026-10): the client shares their food log / body weight with
+  /// this trainer since then; null = not shared (the default). Separate opt-ins, revocable
+  /// at any time. Every change writes a COACHING_SHARING consent event with providers
+  /// ['FOOD'] or ['WEIGHT']. Cleared (with a withdrawn event) when the coaching ends.
+  shareFoodAt        DateTime?
+  shareWeightAt      DateTime?
 
   trainer User @relation("CoachingAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
   client  User @relation("CoachingAsClient", fields: [clientId], references: [id], onDelete: Cascade)
@@ -1977,6 +1986,8 @@ model CoachingRequest {
   expiresAt   DateTime // createdAt + 14 days
   respondedAt DateTime? // accepted / declined / cancelled / expired
   startedOn   String? // the client's device-local YYYY-MM-DD when asking; anchors the coaching's start if accepted
+  shareFood   Boolean               @default(false) // Lane K1: chosen on the consent screen; applied to the link on accept
+  shareWeight Boolean               @default(false)
 
   client  User @relation("CoachingRequestsMade", fields: [clientId], references: [id], onDelete: Cascade)
   trainer User @relation("CoachingRequestsGot", fields: [trainerId], references: [id], onDelete: Cascade)

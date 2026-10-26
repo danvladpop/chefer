@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COACHING_COPY } from '@chefer/types';
+import { COACHING_COPY, COACHING_SHARING_COPY } from '@chefer/types';
 import { ConsentScreen } from './ConsentScreen';
 
 afterEach(cleanup);
@@ -62,5 +62,25 @@ describe('ConsentScreen', () => {
   it('shows an error as an alert', () => {
     renderScreen({ error: 'Set up your training first, then join.' });
     expect(screen.getByRole('alert')).toHaveTextContent('Set up your training first');
+  });
+});
+
+describe('ConsentScreen: sharing switches (lane K1)', () => {
+  it('renders the two switches off, with the shared copy, and reports a change', () => {
+    const onShareChange = vi.fn();
+    renderScreen({ share: { food: false, weight: false }, onShareChange });
+    const food = screen.getByRole('switch', { name: COACHING_SHARING_COPY.food.label });
+    const weight = screen.getByRole('switch', { name: COACHING_SHARING_COPY.weight.label });
+    expect(food).toHaveAttribute('aria-checked', 'false');
+    expect(weight).toHaveAttribute('aria-checked', 'false');
+    expect(food).toHaveAccessibleDescription(COACHING_SHARING_COPY.food.body('Ana'));
+    expect(screen.getByText(COACHING_SHARING_COPY.footer)).toBeInTheDocument();
+    fireEvent.click(weight);
+    expect(onShareChange).toHaveBeenCalledWith({ weight: true });
+  });
+
+  it('without share props there are no switches (the screen reads as before)', () => {
+    renderScreen();
+    expect(screen.queryByRole('switch')).toBeNull();
   });
 });

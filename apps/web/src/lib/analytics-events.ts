@@ -23,3 +23,28 @@ export function trackOnboardingCompleted(
 ): void {
   capture('onboarding_completed', trainingStyles.length > 0 ? { jobs, trainingStyles } : { jobs });
 }
+
+type SharingWhere = EventMap['coaching_sharing_changed']['where'];
+
+/** `coaching_sharing_changed` (lane K1) — one event per switch that changed. */
+export function trackSharingChanged(
+  change: { food?: boolean | undefined; weight?: boolean | undefined },
+  where: SharingWhere,
+): void {
+  if (change.food !== undefined)
+    capture('coaching_sharing_changed', { data: 'food', on: change.food, where });
+  if (change.weight !== undefined) {
+    capture('coaching_sharing_changed', { data: 'weight', on: change.weight, where });
+  }
+}
+
+/** At join / request time: one event per switch the client turned ON (both start off). */
+export function trackSharingChosen(
+  share: { food: boolean; weight: boolean } | undefined,
+  where: 'join' | 'request',
+): void {
+  trackSharingChanged(
+    { ...(share?.food && { food: true }), ...(share?.weight && { weight: true }) },
+    where,
+  );
+}

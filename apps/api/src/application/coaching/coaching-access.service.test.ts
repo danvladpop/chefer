@@ -27,11 +27,15 @@ const STRANGER = 'cstranger000000000000001';
 type LinkState = 'none' | 'ended' | 'active';
 type NoteState = 'none' | 'visible' | 'hidden';
 
+/** Lane K1: which of the client's sharing switches are on (on the ACTIVE link). */
+type ShareState = 'none' | 'food' | 'weight' | 'both';
+
 interface World {
   flag: boolean;
   trainerOn: boolean;
   link: LinkState;
   note: NoteState;
+  share: ShareState;
 }
 
 function setup(world: World) {
@@ -55,6 +59,10 @@ function setup(world: World) {
     endedAt: null,
     endedBy: null,
     consentCopyVersion: 2,
+    shareFoodAt:
+      world.share === 'food' || world.share === 'both' ? new Date('2026-10-02T00:00:00Z') : null,
+    shareWeightAt:
+      world.share === 'weight' || world.share === 'both' ? new Date('2026-10-02T00:00:00Z') : null,
   };
   const note: CoachingNote = {
     trainerId: TRAINER.id,
@@ -88,12 +96,16 @@ function setup(world: World) {
   return { service, trainers, links, notes, link };
 }
 
-const SCOPES: CoachingScope[] = ['read', 'write', 'note'];
+const SCOPES: CoachingScope[] = ['read', 'write', 'note', 'food', 'weight'];
 
 function expectedFor(world: World, scope: CoachingScope, clientId: string): boolean {
   if (!world.flag || !world.trainerOn) return false; // rules 0, 1
   if (clientId === TRAINER.id) return false; // rule 2
   if (clientId !== CLIENT) return false; // a stranger has no link
+  // rule 3b (lane K1): food / weight need the ACTIVE link AND the client's matching switch
+  if (scope === 'food') return world.link === 'active' && ['food', 'both'].includes(world.share);
+  if (scope === 'weight')
+    return world.link === 'active' && ['weight', 'both'].includes(world.share);
   if (world.link === 'active') return true; // rule 3
   if (scope === 'note') return world.note === 'visible'; // note scope: an existing visible note
   return false;
@@ -119,7 +131,9 @@ describe('CoachingAccessService: the access matrix', () => {
     for (const trainerOn of [true, false]) {
       for (const link of ['none', 'ended', 'active'] as const) {
         for (const note of ['none', 'visible', 'hidden'] as const) {
-          worlds.push({ flag, trainerOn, link, note });
+          for (const share of ['none', 'food', 'weight', 'both'] as const) {
+            worlds.push({ flag, trainerOn, link, note, share });
+          }
         }
       }
     }
@@ -147,7 +161,13 @@ describe('CoachingAccessService: the access matrix', () => {
   );
 
   it('returns the resolved access: the trainer, the client and the ACTIVE link', async () => {
-    const { service, link } = setup({ flag: true, trainerOn: true, link: 'active', note: 'none' });
+    const { service, link } = setup({
+      flag: true,
+      trainerOn: true,
+      link: 'active',
+      note: 'none',
+      share: 'none',
+    });
     await expect(service.assert(TRAINER, CLIENT, 'write')).resolves.toEqual({
       trainerId: TRAINER.id,
       clientId: CLIENT,
@@ -157,12 +177,24 @@ describe('CoachingAccessService: the access matrix', () => {
   });
 
   it('a note-only access (no link, a visible note) carries no link, so it can read but never write', async () => {
-    const { service } = setup({ flag: true, trainerOn: true, link: 'none', note: 'visible' });
+    const { service } = setup({
+      flag: true,
+      trainerOn: true,
+      link: 'none',
+      note: 'visible',
+      share: 'none',
+    });
     expect(await service.assert(TRAINER, CLIENT, 'note')).toMatchObject({ link: null });
   });
 
   it('checks the link on the very next request: no cross-request cache', async () => {
-    const world: World = { flag: true, trainerOn: true, link: 'active', note: 'none' };
+    const world: World = {
+      flag: true,
+      trainerOn: true,
+      link: 'active',
+      note: 'none',
+      share: 'none',
+    };
     const { service } = setup(world);
     expect(await outcome(service, CLIENT, 'read')).toBe('allowed');
     world.link = 'ended';
@@ -175,6 +207,7 @@ describe('CoachingAccessService: the access matrix', () => {
       trainerOn: true,
       link: 'active',
       note: 'none',
+      share: 'none',
     });
     const memo = new CoachingAccessMemo();
     await service.assert(TRAINER, CLIENT, 'read', memo);
@@ -187,7 +220,13 @@ describe('CoachingAccessService: the access matrix', () => {
   });
 
   it('a failed lookup is not memoised: a retry asks again', async () => {
-    const { service, links } = setup({ flag: true, trainerOn: true, link: 'active', note: 'none' });
+    const { service, links } = setup({
+      flag: true,
+      trainerOn: true,
+      link: 'active',
+      note: 'none',
+      share: 'none',
+    });
     links.findActivePair.mockRejectedValueOnce(new Error('db down'));
     const memo = new CoachingAccessMemo();
     await expect(service.assert(TRAINER, CLIENT, 'read', memo)).rejects.toThrow('db down');
@@ -197,7 +236,49 @@ describe('CoachingAccessService: the access matrix', () => {
   });
 
   it('trainerProfile: null when tools are off', async () => {
-    const { service } = setup({ flag: true, trainerOn: false, link: 'none', note: 'none' });
+    const { service } = setup({
+      flag: true,
+      trainerOn: false,
+      link: 'none',
+      note: 'none',
+      share: 'none',
+    });
     expect(await service.trainerProfile(TRAINER.id)).toBeNull();
+  });
+});
+
+describe('CoachingAccessService: food and weight sharing (lane K1)', () => {
+  it('a revoke denies on the very next check: the switch is read from the link every time', async () => {
+    const world: World = {
+      flag: true,
+      trainerOn: true,
+      link: 'active',
+      note: 'none',
+      share: 'both',
+    };
+    const { service, link } = setup(world);
+    await expect(service.assert(TRAINER, CLIENT, 'food')).resolves.toMatchObject({ scope: 'food' });
+    // The client turns food sharing off (the repository returns the updated row).
+    link.shareFoodAt = null;
+    const denied = await outcome(service, CLIENT, 'food');
+    expect(denied).toBeInstanceOf(TRPCError);
+    expect((denied as TRPCError).code).toBe('NOT_FOUND');
+    expect((denied as TRPCError).message).toBe(COACHING_COPY.server.clientUnavailable);
+    await expect(service.assert(TRAINER, CLIENT, 'weight')).resolves.toMatchObject({
+      scope: 'weight',
+    });
+  });
+
+  it('sharing never outlives the coaching: no ACTIVE link, no food or weight', async () => {
+    const world: World = {
+      flag: true,
+      trainerOn: true,
+      link: 'ended',
+      note: 'visible',
+      share: 'both',
+    };
+    const { service } = setup(world);
+    expect(await outcome(service, CLIENT, 'food')).toBeInstanceOf(TRPCError);
+    expect(await outcome(service, CLIENT, 'weight')).toBeInstanceOf(TRPCError);
   });
 });

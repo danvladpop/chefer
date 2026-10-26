@@ -34,6 +34,8 @@ const link = (trainerId: string): CoachingLink => ({
   endedAt: null,
   endedBy: null,
   consentCopyVersion: 2,
+  shareFoodAt: null,
+  shareWeightAt: null,
 });
 
 const request = (over: Partial<CoachingRequest> = {}): CoachingRequest => ({
@@ -45,6 +47,8 @@ const request = (over: Partial<CoachingRequest> = {}): CoachingRequest => ({
   expiresAt: new Date(NOW.getTime() + 14 * DAY),
   respondedAt: null,
   startedOn: '2026-10-17',
+  shareFood: false,
+  shareWeight: false,
   ...over,
 });
 
