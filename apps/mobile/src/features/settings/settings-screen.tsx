@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
+import { COACHING_COPY, FRIENDS_COPY, type HealthPlatform } from '@chefer/types';
 import { Button, ListSection, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
@@ -9,6 +9,8 @@ import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
+import { HEALTH_PLATFORM_NAME } from '../health/health-copy';
+import { useHealthAvailability } from '../health/use-health-sync';
 import { legalHref } from '../legal/legal-docs';
 import { ShellPreviewSection } from '../shell/shell-preview-row';
 import { useShellV2 } from '../shell/shell-store';
@@ -140,6 +142,15 @@ const TRAINER_TOOLS_ROW: SettingsRow = {
   href: '/trainer',
 };
 
+// C2: Apple Health / Health Connect, only where useHealthAvailability says so.
+function healthSettingsRow(platform: HealthPlatform): SettingsRow {
+  return {
+    label: HEALTH_PLATFORM_NAME[platform],
+    testID: 'settings-health',
+    href: '/settings/health',
+  };
+}
+
 function groupsFor(
   friendsAvailable: boolean,
   hasTraining: boolean,
@@ -147,12 +158,14 @@ function groupsFor(
     yourTrainer: false,
     trainerTools: false,
   },
+  healthPlatform: HealthPlatform | null = null,
 ): SettingsGroup[] {
   const accountRows = [
     ...(friendsAvailable ? [FOLLOWING_ROW] : []),
     ...(coaching.yourTrainer ? [YOUR_TRAINER_ROW] : []),
     ...(coaching.trainerTools ? [TRAINER_TOOLS_ROW] : []),
     ...ACCOUNT_ROWS,
+    ...(healthPlatform ? [healthSettingsRow(healthPlatform)] : []),
   ];
   return [
     YOU_GROUP,
@@ -243,10 +256,16 @@ function LegacySettingsScreen() {
   // slow or failed load keeps the rows rather than flashing a setup prompt.
   const bootstrap = useGymBootstrap();
   const trainingSetUp = !(bootstrap.isSuccess && !bootstrap.data.profile);
-  const groups = groupsFor(friendsAvailable, trainingSetUp, {
-    yourTrainer: coachingAvailability.enabled,
-    trainerTools: coachingAvailability.canBeTrainer,
-  });
+  const health = useHealthAvailability();
+  const groups = groupsFor(
+    friendsAvailable,
+    trainingSetUp,
+    {
+      yourTrainer: coachingAvailability.enabled,
+      trainerTools: coachingAvailability.canBeTrainer,
+    },
+    health.status === 'available' ? health.store.platform : null,
+  );
   const signOut = useSignOut('settings-sign-out-confirm');
 
   return (

@@ -20,6 +20,7 @@ import { trpc } from '../../../lib/trpc';
 import { TrainingDayNote } from '../../dashboard/components/training-day-note';
 import { useGymReminders } from '../../gym/reminders/use-gym-reminders';
 import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
+import { TodayActivityLine } from '../../health/today-activity-line';
 import { NumbersModeProvider, useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../privacy/health-consent-notice';
@@ -263,6 +264,9 @@ export function TodayScreen() {
             <DayFitNote onChanged={() => void refetch()} />
 
             <TrainingSection />
+
+            {/* C2: steps and active energy from Apple Health / Health Connect. Self-gated, device only. */}
+            <TodayActivityLine />
 
             {/* B-31: weight tracking assumes a goal. */}
             {d.showNutrition ? <TodayWeight /> : null}

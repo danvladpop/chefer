@@ -16,6 +16,7 @@ import {
   type SessionSupersetSlot,
   type WorkoutAction,
 } from '@chefer/utils';
+import { mirrorFinishedWorkout } from '../health/health-sync';
 import {
   activeSessionStore,
   useActiveSessionRecord,
@@ -221,6 +222,8 @@ export async function finishWorkout(
   activeSessionStore.clear();
   skipRest();
   await applyFinishedLocally(queryClient, finished);
+  // C2: the phone's health store gets it too, when the user turned workouts on.
+  mirrorFinishedWorkout(finished);
   return finished;
 }
 
@@ -239,6 +242,7 @@ export async function saveLoggedSession(
   const saved = completeLoggedSession(draft, { isCardio, at: nowIso() });
   outbox.enqueue(saved, { ownerId: getGymOwner() });
   await applyFinishedLocally(queryClient, saved);
+  mirrorFinishedWorkout(saved);
   return saved;
 }
 

@@ -43,6 +43,10 @@ jest.mock('../../src/lib/trpc', () => ({
   },
 }));
 jest.mock('../../src/lib/sign-out', () => ({ signOut: jest.fn(() => Promise.resolve()) }));
+// C2: no health store in this test (the row has its own tests).
+jest.mock('../../src/features/health/use-health-sync', () => ({
+  useHealthAvailability: () => ({ status: 'unavailable' }),
+}));
 jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
 
 const { router } = jest.requireMock<{
