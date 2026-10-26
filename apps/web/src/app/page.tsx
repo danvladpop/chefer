@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { StoreBadges, StoreTrademarks } from '@/features/app-stores/components/StoreBadges';
+import { StoreBadges } from '@/features/app-stores/components/StoreBadges';
 import {
   serializeJsonLd,
   smartAppBanner,
   softwareApplicationJsonLd,
 } from '@/features/app-stores/store-metadata';
 import { getSessionUser } from '@/features/auth/lib/session';
+import { PublicFooter, PublicHeader } from '@/features/marketing/components/PublicChrome';
 import { env } from '@/lib/env';
 
 export const metadata: Metadata = {
@@ -143,23 +144,7 @@ export default async function HomePage() {
           __html: serializeJsonLd(softwareApplicationJsonLd(env.NEXT_PUBLIC_APP_URL)),
         }}
       />
-      {/* ── Top bar ── */}
-      <header className="flex h-16 items-center justify-between border-b border-orange-100 px-4 sm:px-8">
-        <div className="flex items-center gap-2">
-          <span className="text-xl" aria-hidden="true">
-            🍽️
-          </span>
-          <span className="font-serif text-lg font-semibold tracking-tight text-[#944a00]">
-            Chefer
-          </span>
-        </div>
-        <Link
-          href="/login"
-          className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
-        >
-          Sign in
-        </Link>
-      </header>
+      <PublicHeader />
 
       <main id="main" tabIndex={-1} className="flex-1 outline-none">
         {/* ── Hero ── */}
@@ -319,37 +304,7 @@ export default async function HomePage() {
         </section>
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="border-t px-4 py-8 text-center text-sm text-gray-600">
-        <p>
-          Chefer is a small independent project — feedback shapes it weekly, from the{' '}
-          <em>Send feedback</em> button inside the app.
-        </p>
-        <p className="mt-3">
-          <Link
-            href="/terms"
-            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
-          >
-            Terms of Service
-          </Link>{' '}
-          ·{' '}
-          <Link
-            href="/privacy"
-            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
-          >
-            Privacy Policy
-          </Link>{' '}
-          ·{' '}
-          <Link
-            href="/support"
-            className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-gray-700"
-          >
-            Support
-          </Link>
-        </p>
-        <p className="mt-3 text-xs">&copy; {new Date().getFullYear()} Chefer</p>
-        <StoreTrademarks className="mx-auto mt-2 max-w-xl" />
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

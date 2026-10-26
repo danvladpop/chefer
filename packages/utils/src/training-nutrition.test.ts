@@ -3,6 +3,7 @@ import {
   adjustedProteinWeightKg,
   applyTrainingDayBonus,
   buildTrainingDayNutrition,
+  goalGetsTrainingBump,
   goalWording,
   hasTrainingDayBump,
   isLifter,
@@ -83,10 +84,11 @@ describe('lifter protein by goal', () => {
     expect(t.proteinG * 4 + t.carbsG * 4).toBe(maintain.proteinG * 4 + maintain.carbsG * 4);
   });
 
-  it('only GAIN_MUSCLE lifters get the training-day bump', () => {
+  it('GAIN_MUSCLE and MAINTAIN lifters get the training-day bump; weight loss and the rest do not', () => {
     expect(hasTrainingDayBump('GAIN_MUSCLE')).toBe(true);
+    expect(hasTrainingDayBump('MAINTAIN')).toBe(true);
     expect(hasTrainingDayBump('LOSE_WEIGHT')).toBe(false);
-    expect(hasTrainingDayBump('MAINTAIN')).toBe(false);
+    expect(hasTrainingDayBump('EAT_HEALTHIER')).toBe(false);
     expect(hasTrainingDayBump(null)).toBe(false);
   });
 
@@ -96,7 +98,7 @@ describe('lifter protein by goal', () => {
     expect(lifterProteinGPerKg('PERFORMANCE')).toBe(1.8);
   });
 
-  it('neither RECOMP nor PERFORMANCE gets the GAIN_MUSCLE-only training-day bump', () => {
+  it('neither RECOMP nor PERFORMANCE gets the training-day bump', () => {
     expect(hasTrainingDayBump('RECOMP')).toBe(false);
     expect(hasTrainingDayBump('PERFORMANCE')).toBe(false);
   });
@@ -329,9 +331,10 @@ describe('copy + nudges', () => {
 // ─── UX-06: weekday kinds (T-06.10) ─────────────────────────────────────────────
 
 describe('hasTrainingDayBump — kinds and the widened gate (Q-3)', () => {
-  it('unwidened (default): GAIN_MUSCLE lift days only — today', () => {
+  it('unwidened (default): GAIN_MUSCLE and MAINTAIN lift days only — today', () => {
     expect(hasTrainingDayBump('GAIN_MUSCLE')).toBe(true);
     expect(hasTrainingDayBump('GAIN_MUSCLE', 'lift', false)).toBe(true);
+    expect(hasTrainingDayBump('MAINTAIN', 'lift', false)).toBe(true);
     expect(hasTrainingDayBump('RECOMP', 'lift', false)).toBe(false);
     expect(hasTrainingDayBump('PERFORMANCE', 'lift', false)).toBe(false);
     expect(hasTrainingDayBump('GAIN_MUSCLE', 'run', false)).toBe(false);
@@ -339,7 +342,7 @@ describe('hasTrainingDayBump — kinds and the widened gate (Q-3)', () => {
   });
 
   it('Q-3 (owner, 2026-09-30): the flag no longer widens — runs never bump, other goals never bump', () => {
-    for (const goal of ['RECOMP', 'PERFORMANCE', 'MAINTAIN', 'LOSE_WEIGHT']) {
+    for (const goal of ['RECOMP', 'PERFORMANCE', 'EAT_HEALTHIER', 'LOSE_WEIGHT']) {
       expect(hasTrainingDayBump(goal, 'lift', true)).toBe(false);
     }
     for (const goal of ['GAIN_MUSCLE', 'MAINTAIN', 'EAT_HEALTHIER', 'RECOMP', 'PERFORMANCE']) {
@@ -347,11 +350,45 @@ describe('hasTrainingDayBump — kinds and the widened gate (Q-3)', () => {
       expect(hasTrainingDayBump(goal, 'long_run', true)).toBe(false);
     }
     expect(hasTrainingDayBump('GAIN_MUSCLE', 'lift', true)).toBe(true);
+    expect(hasTrainingDayBump('MAINTAIN', 'lift', true)).toBe(true);
   });
 
   it('rest and no goal never bump', () => {
     expect(hasTrainingDayBump('GAIN_MUSCLE', 'rest', true)).toBe(false);
+    expect(hasTrainingDayBump('MAINTAIN', 'rest', true)).toBe(false);
     expect(hasTrainingDayBump(null, 'run', true)).toBe(false);
+  });
+});
+
+describe('goalGetsTrainingBump (owner decision 2026-10-22)', () => {
+  it('GAIN_MUSCLE and MAINTAIN only', () => {
+    expect(goalGetsTrainingBump('GAIN_MUSCLE')).toBe(true);
+    expect(goalGetsTrainingBump('MAINTAIN')).toBe(true);
+    for (const goal of [
+      'LOSE_WEIGHT',
+      'EAT_HEALTHIER',
+      'RECOMP',
+      'PERFORMANCE',
+      '',
+      null,
+      undefined,
+    ]) {
+      expect(goalGetsTrainingBump(goal)).toBe(false);
+    }
+  });
+
+  it('a MAINTAIN lifter gets the same bump as GAIN_MUSCLE on a training day and none on a rest day', () => {
+    const base = 2400;
+    const trainingDay = trainingDayBonus(base, 80, 'lift');
+    expect(trainingDay.kcalBonus).toBe(240);
+    expect(trainingDay.proteinBonus).toBeGreaterThan(0);
+    expect(hasTrainingDayBump('MAINTAIN', 'lift')).toBe(hasTrainingDayBump('GAIN_MUSCLE', 'lift'));
+    expect(hasTrainingDayBump('MAINTAIN', 'rest')).toBe(false);
+    expect(trainingDayBonus(base, 80, 'rest')).toEqual({
+      kcalBonus: 0,
+      proteinBonus: 0,
+      carbsBonus: 0,
+    });
   });
 });
 

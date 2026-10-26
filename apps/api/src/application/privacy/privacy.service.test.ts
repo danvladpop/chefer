@@ -22,6 +22,38 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('PrivacyService.recordHealthSync (C2)', () => {
+  it('logs the platform and the types now on as one HEALTH_SYNC row', async () => {
+    await privacyService.recordHealthSync({
+      userId: 'u1',
+      source: 'mobile',
+      platform: 'HEALTH_CONNECT',
+      types: ['weight', 'steps', 'weight'],
+    });
+    expect(consentEventRepository.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u1',
+        kind: 'HEALTH_SYNC',
+        granted: true,
+        providers: ['HEALTH_CONNECT', 'weight', 'steps'],
+        source: 'mobile',
+      }),
+    );
+  });
+
+  it('turning every type off is a withdrawal', async () => {
+    await privacyService.recordHealthSync({
+      userId: 'u1',
+      source: 'mobile',
+      platform: 'APPLE_HEALTH',
+      types: [],
+    });
+    expect(consentEventRepository.record).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'HEALTH_SYNC', granted: false, providers: ['APPLE_HEALTH'] }),
+    );
+  });
+});
+
 describe('PrivacyService.recordAnalyticsConsent', () => {
   it('logs only the switches that changed', async () => {
     const events = await privacyService.recordAnalyticsConsent({
