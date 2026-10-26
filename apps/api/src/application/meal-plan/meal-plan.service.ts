@@ -814,8 +814,8 @@ export class MealPlanService {
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, chefProfile ?? null);
     const liveTargets = resolveDailyTargets(chefProfile ?? null, lifterBodyweightKg);
     const liveCalorieTarget = liveTargets.dailyCalorieTarget;
-    // Lift-day bump: GAIN_MUSCLE-only unless the widened gate is on (Q-3,
-    // `trainingBumpFree`); other lifters get the g/kg protein base alone.
+    // Lift-day bump: GAIN_MUSCLE and MAINTAIN only (`hasTrainingDayBump`);
+    // other lifters get the g/kg protein base alone.
     // `fitTrainingDays: false` (T-06.7) turns the bias off for this call.
     // Premium-only context: when the caller did not say (a live-tailored day
     // of an instant week), the saved choice applies — the day matches the

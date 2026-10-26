@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DailyLog } from '@chefer/database';
 import { cookCandidate, mealCandidate, welcomeCandidate } from '@chefer/utils';
+import { sessionDoc, sessionRow } from '../gym/__test__/fixtures.js';
 import { makeWorld, tick, USER } from './__test__/fakes.js';
 import { ProgressRecorder } from './progress-recorder.js';
 
@@ -340,5 +341,20 @@ describe('ProgressRecorder.onDayChanged', () => {
     const w = makeWorld();
     await new ProgressRecorder(w.deps).onDayChanged(USER, '2026-10-22');
     expect(w.ledger.appendCalls).toHaveLength(0);
+  });
+});
+
+describe('ProgressRecorder.onWorkoutsCompleted (G2 imports)', () => {
+  it('scores a workout logged in Chefer, never one imported from Strong or Hevy', async () => {
+    const logged = sessionRow(sessionDoc({ localDate: '2026-10-21' }), USER);
+    const imported = {
+      ...sessionRow(sessionDoc({ localDate: '2026-10-20' }), USER),
+      importSource: 'STRONG' as const,
+    };
+    const world = makeWorld({
+      sessions: { findCompleted: () => Promise.resolve([imported, logged]) },
+    });
+    await new ProgressRecorder(world.deps).onWorkoutsCompleted(USER, [imported.id, logged.id]);
+    expect(world.ledger.ofKind('WORKOUT_COMPLETED').map((e) => e.sourceId)).toEqual([logged.id]);
   });
 });

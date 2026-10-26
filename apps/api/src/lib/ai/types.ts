@@ -187,6 +187,25 @@ export interface RecipeChange {
   description: string;
 }
 
+/**
+ * Curated ingest (market review F1): the facts of an extracted recipe, whose
+ * prose is rewritten in Chefer's own words before it can enter the shared pool.
+ */
+export interface ProseRewriteInput {
+  name: string;
+  description: string;
+  /** Ingredient names, for context only — they are not rewritten. */
+  ingredients: string[];
+  instructions: string[];
+}
+
+/** The rewritten prose: same facts, Chefer's voice. */
+export interface RewrittenProse {
+  name: string;
+  description: string;
+  instructions: string[];
+}
+
 export interface CheferizeInput {
   recipe: ExtractedRecipe;
   /** The user's preferred serving count — quantities rescale to it. */
@@ -390,6 +409,11 @@ export interface IAIService {
   extractRecipeAnnotated(source: RecipeExtractionSource): Promise<AnnotatedExtraction>;
   /** F5 Cheferize — adapts an extracted recipe to the user's safety prefs + servings. */
   cheferizeRecipe(input: CheferizeInput): Promise<CheferizedRecipe>;
+  /**
+   * Curated ingest (market review F1): rewrites a recipe's name, description
+   * and steps in Chefer's voice, keeping every fact. Additive.
+   */
+  rewriteRecipeProse(input: ProseRewriteInput): Promise<RewrittenProse>;
   /**
    * The Sunday coach review prose (F1). Plain text, 4-5 short lines. Callers
    * fall back to the deterministic template on any error, so implementations

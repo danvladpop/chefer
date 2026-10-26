@@ -100,6 +100,12 @@ export interface IDailyLogRepository {
     date: Date,
     mutate: (current: DayState) => DayState,
   ): Promise<DailyLog>;
+  /**
+   * Lane D2: marks the day as partly logged (or not) and returns the stored
+   * flag. Marking creates an empty row when the day has none yet, so the mark
+   * survives the first log; clearing never creates one.
+   */
+  setIncomplete(userId: string, date: Date, incomplete: boolean): Promise<boolean>;
 }
 
 /** The stored `skippedSlots` JSON as a typed list (tolerates null / junk). */
@@ -182,6 +188,27 @@ export class DailyLogRepository implements IDailyLogRepository {
         totalFat: data.totalFat,
       },
     });
+  }
+
+  async setIncomplete(userId: string, date: Date, incomplete: boolean): Promise<boolean> {
+    const d = new Date(date);
+    d.setUTCHours(0, 0, 0, 0);
+    if (!incomplete) {
+      await prisma.dailyLog.updateMany({ where: { userId, date: d }, data: { incomplete } });
+      return false;
+    }
+    const row = await prisma.dailyLog.upsert({
+      where: { userId_date: { userId, date: d } },
+      create: {
+        userId,
+        date: d,
+        loggedMeals: [],
+        ...dayTotals([]),
+        incomplete,
+      },
+      update: { incomplete },
+    });
+    return row.incomplete;
   }
 
   async mutateDay(

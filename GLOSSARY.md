@@ -137,6 +137,42 @@ _Avoid_: Trainer session
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
 
+## Your data
+
+**Data export**:
+The ZIP a user downloads from Privacy & data → "Download my data": `chefer-data.json` (everything), a README,
+and spreadsheet CSVs. Free for every account.
+_Avoid_: backup (we don't restore from it), GDPR request, data dump
+
+**Workout import**:
+Bringing past workouts from another app (Strong, Hevy) into Chefer's gym history from that app's CSV export.
+Imported workouts count like logged ones: PRs, e1RM charts and progression.
+_Avoid_: sync (nothing stays connected), migration
+
+## Curated recipes
+
+**Curated pool**:
+The shared, non-personalised recipes free plans are drawn from (`source=CURATED`): the authored fixtures plus
+approved ingested recipes.
+_Avoid_: free recipes, default recipes, seed recipes
+
+**Ingest**:
+An admin pasting a recipe-video or web link so its facts become a draft for the curated pool.
+_Avoid_: import (that is a user saving a recipe to their own collection), scrape
+
+**Curated draft**:
+An ingested recipe waiting for review; it is never served. Approval turns it into a curated recipe, rejection closes it.
+_Avoid_: pending recipe, candidate
+
+**Unpublish**:
+Taking an approved ingested recipe out of the curated pool; plans that already hold it keep it.
+_Avoid_: delete, retire
+
+**Pool coverage**:
+How many curated recipes a household with given restrictions can actually be served per meal type, and so how
+soon it repeats (a pool of N daily meals repeats within N ÷ 7 weeks).
+_Avoid_: recipe count, catalog size
+
 ## Kitchen progress
 
 **Kitchen progress**:
@@ -191,6 +227,20 @@ _Avoid_: notifications setting
 A cook-mode session the user finished, stored on the server as a CookLog.
 _Avoid_: made it (the button), cooking session
 
+## Health sync
+
+**Health sync**:
+Chefer exchanging data with the phone's health store — Apple Health on iOS, Health Connect on Android — one data type at a time, each switched on by the user.
+_Avoid_: Health integration, HealthKit sync, Google Fit
+
+**Health store**:
+The phone's shared health database: Apple Health (HealthKit) or Health Connect.
+_Avoid_: Health app, health provider
+
+**Imported weigh-in**:
+A weigh-in read from the health store (a smart scale, another app). It is an ordinary weigh-in in Chefer, marked with its source; the same sample is never imported twice.
+_Avoid_: Synced weight, external weight
+
 ## Appearance
 
 **Appearance**:
@@ -206,3 +256,27 @@ _Avoid_: dark mode (in user copy), dark theme
 A colour named for what it does (`canvas`, `label-secondary`, `brand`, `attention`…) with a Day and a Night
 value, from `@chefer/tokens`. Every colour on mobile is one.
 _Avoid_: palette colour, hex
+
+## Progress
+
+**Weigh-in**:
+One body-weight reading the user logged, with its date. Raw and noisy: water, salt and timing move it a kilo or more.
+_Avoid_: weight entry (in user copy), measurement
+
+**Trend weight**:
+The smoothed line through the weigh-ins (an exponentially weighted average, α = 0.1 a day, gaps handled in time); what
+charts draw bold and what the Adaptive Chef reads. "Trend" for short in copy.
+_Avoid_: average weight, moving average (in user copy), real weight
+
+**Partly logged day**:
+A logged day the user marked as incomplete. It still counts as logged, but the weekly review leaves it out of its
+averages.
+_Avoid_: missed day, bad day, incomplete day (in user copy)
+
+**Complete day**:
+A logged day not marked as partly logged; what the weekly review averages over.
+_Avoid_: full day, good day
+
+**Body measurement**:
+One day's entry of waist, hips, chest, upper arm, thigh and/or body fat, each optional; free for everyone.
+_Avoid_: body metrics (that is height, age, sex and activity on the profile), measurement (alone, in code)

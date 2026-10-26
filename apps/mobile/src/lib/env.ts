@@ -1,5 +1,19 @@
 import { z } from 'zod';
 
+/**
+ * `https://eu.i.posthog.com`, with or without a trailing slash. Never throws:
+ * zod runs a refinement even after `.url()` has failed, and a throw there
+ * escapes `.catch()`, so the parse itself happens inside the try.
+ */
+function isEuPostHogHost(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.host === 'eu.i.posthog.com';
+  } catch {
+    return false;
+  }
+}
+
 // EXPO_PUBLIC_* vars are inlined by the Expo bundler only when referenced as
 // static `process.env.EXPO_PUBLIC_X` expressions — keep them spelled out.
 const envSchema = z.object({
@@ -22,17 +36,14 @@ const envSchema = z.object({
    */
   EXPO_PUBLIC_POSTHOG_KEY: z.string().optional(),
   /**
-   * PostHog capture host. Rev 2 D24: EU only — must be `eu.i.posthog.com`
-   * (matching web's `apps/web/src/lib/analytics.ts`), so startup fails loudly
-   * rather than silently routing device data through a non-EU host.
+   * PostHog capture host. Rev 2 D24: EU only — must be `https://eu.i.posthog.com`
+   * (matching web's `apps/web/src/lib/analytics.ts`). Anything else (another
+   * host, plain http, empty, malformed) means analytics is OFF, never a
+   * startup throw: device data never goes to a non-EU host, and, as with the
+   * Sentry DSN, a typo in a CI variable can't take down every installed app
+   * over the air. The deploy workflow rejects such a value before bundling.
    */
-  EXPO_PUBLIC_POSTHOG_HOST: z
-    .string()
-    .url()
-    .refine((v) => new URL(v).host === 'eu.i.posthog.com', {
-      message: 'EXPO_PUBLIC_POSTHOG_HOST must be https://eu.i.posthog.com (rev 2 D24, EU only)',
-    })
-    .optional(),
+  EXPO_PUBLIC_POSTHOG_HOST: z.string().refine(isEuPostHogHost).optional().catch(undefined),
 });
 
 export const env = envSchema.parse({

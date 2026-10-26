@@ -388,7 +388,7 @@ for **production** builds with `EXPO_PUBLIC_SENTRY_DSN` (never the dev variant o
 query strings stripped from network breadcrumbs, default expo-updates context (OTA update id,
 channel, runtime). The root `ErrorBoundary` reports what it catches; global JS errors, promise
 rejections and native crashes come from the SDK's default handlers;
-`CrashReportingUserHost` tags the account id (not name/email). Builds without
+`SessionUserHost` tags the account id (not name/email). Builds without
 `SENTRY_AUTH_TOKEN` skip the upload (`SENTRY_DISABLE_AUTO_UPLOAD=true` from
 `scripts/common.sh`, and from `eas.json` for the development/preview profiles; EAS production
 builds upload with the EAS `SENTRY_AUTH_TOKEN` secret). The deploy's OTA job bundles with the

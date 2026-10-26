@@ -80,7 +80,7 @@ describe('GymExportService.exportCsv', () => {
 
     const lines = csv.split('\r\n');
     expect(lines[0]).toBe(
-      'Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes',
+      'Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes,Level,Incline (%),Calories (kcal)',
     );
     expect(lines).toHaveLength(2); // header + the fixture's one set
     expect(filename).toMatch(/^chefer-gym-history-\d{4}-\d{2}-\d{2}\.csv$/);
@@ -259,6 +259,9 @@ describe('GymExportService.exportCsv', () => {
               durationSec: 1200,
               distanceM: 5000,
               intensityRpe: 6,
+              resistanceLevel: 8,
+              inclinePct: 2.5,
+              caloriesKcal: 241.6,
             },
           ],
         },
@@ -274,10 +277,12 @@ describe('GymExportService.exportCsv', () => {
     const { csv } = await service.exportCsv(USER);
     const row = parseCsvLine(csv.split('\r\n')[1] ?? '');
 
-    // Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes
+    // Date,Session,Exercise,Set #,Warm-up,Weight (kg),Reps,RIR,Duration (s),Distance (m),Effort (RPE),Notes,Level,Incline (%),Calories (kcal)
     expect(row[8]).toBe('1200');
     expect(row[9]).toBe('5000');
     expect(row[10]).toBe('6');
+    // G3: machine level, incline and the calorie estimate, after Notes.
+    expect(row.slice(12)).toEqual(['8', '2.5', '242']);
   });
 
   it('renders 3+ for an RIR of 3 (the "3+" chip)', async () => {

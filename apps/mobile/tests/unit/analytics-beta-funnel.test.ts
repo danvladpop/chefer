@@ -36,10 +36,15 @@ interface Sent {
   properties: Record<string, unknown>;
 }
 
+/** The batch as sent, minus PostHog's `$process_person_profile` flag (tested in analytics.test.ts). */
 function sent(fetchMock: FetchMock): Sent[] {
   return fetchMock.mock.calls
     .map((call) => JSON.parse(call[1].body as string) as { batch: Sent[] })
-    .flatMap((body) => body.batch);
+    .flatMap((body) => body.batch)
+    .map(({ event, properties: { $process_person_profile: _flag, ...properties } }) => ({
+      event,
+      properties,
+    }));
 }
 
 describe('WP-13 beta funnel events', () => {

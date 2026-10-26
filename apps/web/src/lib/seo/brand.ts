@@ -15,4 +15,5 @@ export const PUBLIC_ROUTES = [
   '/privacy',
   '/terms',
   '/support',
+  '/switch/mealime',
 ] as const;

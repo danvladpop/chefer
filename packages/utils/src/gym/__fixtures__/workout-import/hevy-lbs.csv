@@ -1,0 +1,6 @@
+title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_lbs,reps,distance_miles,duration_seconds,rpe
+LOWER,"Jun 11, 2026, 1:01 PM","Jun 11, 2026, 2:04 PM",,Romanian Deadlift (Dumbbell),,,0,normal,30,10,,,7
+LOWER,"Jun 11, 2026, 1:01 PM","Jun 11, 2026, 2:04 PM",,Squat (Barbell),,,0,warmup,135,6,,,
+LOWER,"Jun 11, 2026, 1:01 PM","Jun 11, 2026, 2:04 PM",,Squat (Barbell),,,1,normal,225,5,,,8
+LOWER,"Jun 11, 2026, 1:01 PM","Jun 11, 2026, 2:04 PM",,Triceps Dip (Assisted),,,0,failure,42.51,12,,,
+LOWER,"Jun 11, 2026, 1:01 PM","Jun 11, 2026, 2:04 PM",,Treadmill,,,0,normal,,,1.5,900,
