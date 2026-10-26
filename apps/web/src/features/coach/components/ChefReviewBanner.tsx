@@ -12,6 +12,7 @@ import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
 import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { formatDate, formatWeightTrend, proteinAverageText, withoutKcalLines } from '@chefer/utils';
+import { CoachWhy } from './CoachWhy';
 
 // ─── Weekly chef review banner (F1, coach) ────────────────────────────────────
 // The upgraded Monday banner: shows while the latest review is fresh (the API
@@ -91,6 +92,10 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
             <p aria-hidden="true" className="mt-1 select-none text-sm text-gray-500 blur-[5px]">
               {TEASER_PLACEHOLDER}
             </p>
+            {/* Lane D2: the reasoning is free; the number stays premium. */}
+            {data.explanation && (
+              <CoachWhy explanation={data.explanation} tier="free" proteinOnly={proteinOnly} />
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <UpgradeButton source="coach-review" />
               <span className="flex items-center gap-1 text-xs text-gray-500">
@@ -207,6 +212,9 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
           <div className="space-y-2 text-sm leading-relaxed text-gray-700">
             {fullText.split('\n').map((line, i) => line.trim().length > 0 && <p key={i}>{line}</p>)}
           </div>
+          {r.explanation && (
+            <CoachWhy explanation={r.explanation} tier="premium" proteinOnly={proteinOnly} />
+          )}
         </div>
       </Sheet>
     </div>

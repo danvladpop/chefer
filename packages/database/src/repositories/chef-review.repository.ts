@@ -1,4 +1,4 @@
-import type { ChefReview } from '@prisma/client';
+import type { ChefReview, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,6 +19,8 @@ export interface UpsertChefReviewData {
   /** §2.11, T-35.4 (S13, rev 2) — the coach proposes, never overwrites. */
   proposedAdjustmentKcal?: number | null;
   proposalResolvedAt?: Date | null;
+  /** Lane D2: the deterministic "why" (@chefer/types coachExplanationSchema). */
+  explanation?: Prisma.InputJsonValue;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────

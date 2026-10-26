@@ -30,11 +30,16 @@ import {
   formatNumber,
   HIDE_NUMBERS_COPY,
   localDateStr,
+  MEASUREMENTS_COPY,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
   statsBucketDays,
+  summarizeWeightTrend,
+  TREND_WEIGHT_EXPLAINER,
+  trendChangeText,
   weightChangeTone,
+  weightTrendSeries,
   withoutKcalLines,
   type StatsRangeDays,
 } from '@chefer/utils';
@@ -42,12 +47,13 @@ import { AiGeneratedChip } from '../../../components/ai-generated-chip';
 import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
+import { BodyMeasurements } from '../../body/body-measurements';
+import { CoachWhy } from '../../coach/coach-why';
 import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { openPremium } from '../../premium/open-premium';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
 import { ActionButton, BoardCard, CardLink, SectionTitle } from '../today/parts';
-import { weightChangeText } from '../today/today-helpers';
 import { WeightField } from '../today/weight-card';
 import { eatingStats, MIN_LOGGED_DAYS, signedPct } from './stats-helpers';
 import { StrengthTab } from './strength-tab';
@@ -97,18 +103,24 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
   if (data.status === 'teaser') {
     const first = proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine;
     return (
-      <PressableScale
-        testID="stats-review-teaser"
-        accessibilityRole="button"
-        accessibilityHint="See what Premium adds"
-        onPress={() => openPremium('coach-review')}
-        className="min-h-12 flex-row items-center gap-3 rounded-card bg-brand-tint px-4 py-3"
-      >
-        <Icon name="chef" color={colors.brand} size={20} />
-        <Text numberOfLines={2} className="min-w-0 flex-1 text-callout text-label">
-          {first !== '' ? first : 'Your chef noticed something about your week…'}
-        </Text>
-      </PressableScale>
+      <View className="gap-1">
+        <PressableScale
+          testID="stats-review-teaser"
+          accessibilityRole="button"
+          accessibilityHint="See what Premium adds"
+          onPress={() => openPremium('coach-review')}
+          className="min-h-12 flex-row items-center gap-3 rounded-card bg-brand-tint px-4 py-3"
+        >
+          <Icon name="chef" color={colors.brand} size={20} />
+          <Text numberOfLines={2} className="min-w-0 flex-1 text-callout text-label">
+            {first !== '' ? first : 'Your chef noticed something about your week…'}
+          </Text>
+        </PressableScale>
+        {/* Lane D2: the reasoning is free; the number stays premium. */}
+        {data.explanation ? (
+          <CoachWhy explanation={data.explanation} tier="free" proteinOnly={proteinOnly} />
+        ) : null}
+      </View>
     );
   }
   const r = data.review;
@@ -117,28 +129,39 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
   const first = full.split('\n')[0] ?? '';
   const hasMore = full.trim() !== first.trim();
   return (
-    <PressableScale
-      testID="stats-review"
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityHint={hasMore ? (expanded ? 'Shows less' : 'Shows the full review') : undefined}
-      disabled={!hasMore}
-      onPress={() => setExpanded((e) => !e)}
-      className="gap-1 rounded-card bg-brand-tint px-4 py-3"
-    >
-      <View className="flex-row items-start gap-3">
-        <Icon name="chef" color={colors.brand} size={20} />
-        <Text
-          testID="stats-review-text"
-          numberOfLines={expanded ? undefined : 2}
-          className="min-w-0 flex-1 text-callout text-label"
-        >
-          {expanded ? full : first}
-        </Text>
-      </View>
-      {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
-      <AiGeneratedChip recipe={r} testID="stats-review-ai-chip" a11yLabel={AI_REVIEW_A11Y_LABEL} />
-    </PressableScale>
+    <View className="gap-1">
+      <PressableScale
+        testID="stats-review"
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityHint={
+          hasMore ? (expanded ? 'Shows less' : 'Shows the full review') : undefined
+        }
+        disabled={!hasMore}
+        onPress={() => setExpanded((e) => !e)}
+        className="gap-1 rounded-card bg-brand-tint px-4 py-3"
+      >
+        <View className="flex-row items-start gap-3">
+          <Icon name="chef" color={colors.brand} size={20} />
+          <Text
+            testID="stats-review-text"
+            numberOfLines={expanded ? undefined : 2}
+            className="min-w-0 flex-1 text-callout text-label"
+          >
+            {expanded ? full : first}
+          </Text>
+        </View>
+        {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
+        <AiGeneratedChip
+          recipe={r}
+          testID="stats-review-ai-chip"
+          a11yLabel={AI_REVIEW_A11Y_LABEL}
+        />
+      </PressableScale>
+      {r.explanation ? (
+        <CoachWhy explanation={r.explanation} tier="premium" proteinOnly={proteinOnly} />
+      ) : null}
+    </View>
   );
 }
 
@@ -265,23 +288,27 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
   );
   const barTop = niceTicks({ min: 0, max: barMax * 1.05 }).max;
 
-  // Every fetched weigh-in stays editable; the chart and the change follow the range.
+  // Every fetched weigh-in stays editable; the chart and the change follow the
+  // range. Lane D1: the bold line is the trend weight (@chefer/utils), fed by
+  // every fetched weigh-in so it has warmed up by the range start; the dots
+  // are the readings. The change is the trend's, never painted as a failure.
   const weights = weightQuery.data ?? [];
   const since = Date.now() - range * DAY_MS;
-  const inRange = weights.filter((w) => new Date(w.recordedAt).getTime() >= since);
+  const series = weightTrendSeries(weights);
+  const inRange = series.filter((p) => p.recordedAt.getTime() >= since);
   const latestWeight = weights.at(-1)?.weightKg;
-  const weightChange = weightChangeText(inRange, system, STATS_RANGE_SPAN[range]);
-  const firstInRange = inRange.at(0)?.weightKg;
-  const lastInRange = inRange.at(-1)?.weightKg;
-  const tone =
-    firstInRange != null && lastInRange != null && inRange.length > 1
-      ? weightChangeTone(lastInRange - firstInRange, preferences?.chefProfile?.goal)
-      : 'neutral';
+  const trendNow = series.length > 1 ? series.at(-1)?.trendKg : undefined;
+  const trendSummary = summarizeWeightTrend(series, { windowDays: range });
+  const weightChange = trendChangeText(trendSummary, system, STATS_RANGE_SPAN[range]);
+  const tone = trendSummary
+    ? weightChangeTone(trendSummary.changeKg, preferences?.chefProfile?.goal)
+    : 'neutral';
   // Time axis: x in days since epoch, so a two-week gap between weigh-ins looks like one.
-  const weightData = inRange.map((w) => ({
-    x: new Date(w.recordedAt).getTime() / DAY_MS,
-    y: bodyWeightInUnit(w.weightKg, system),
+  const weightData = inRange.map((p) => ({
+    x: p.recordedAt.getTime() / DAY_MS,
+    y: bodyWeightInUnit(p.weightKg, system),
   }));
+  const trendData = inRange.map((p) => bodyWeightInUnit(p.trendKg, system));
   const weightLabels = (() => {
     const firstX = weightData.at(0)?.x;
     const lastX = weightData.at(-1)?.x;
@@ -470,6 +497,11 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                   No weigh-ins yet.
                 </Text>
               )}
+              {trendNow != null ? (
+                <Text testID="progress-weight-trend" className="text-subhead text-label-secondary">
+                  {`Trend ${formatBodyWeight(trendNow, system)}`}
+                </Text>
+              ) : null}
               {weightChange ? (
                 <Text
                   testID="progress-weight-change"
@@ -505,18 +537,27 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
               <ActivityIndicator color={colors.brand} />
             </View>
           ) : inRange.length > 1 ? (
-            <LineChart
-              testID="progress-weight-chart"
-              accessibilityLabel={`Weight over the last ${STATS_RANGE_SPAN[range]}, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
-              data={weightData}
-              {...(weightLabels && { xLabels: weightLabels })}
-              color={colors.brand}
-              niceTicks
-              height={150}
-            />
+            <View className="gap-2">
+              <LineChart
+                testID="progress-weight-chart"
+                accessibilityLabel={`Weight over the last ${STATS_RANGE_SPAN[range]}, last weigh-in ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}${trendNow != null ? `, trend ${formatBodyWeight(trendNow, system)}` : ''}`}
+                data={weightData}
+                trend={trendData}
+                {...(weightLabels && { xLabels: weightLabels })}
+                color={colors.brand}
+                niceTicks
+                height={150}
+              />
+              <Text
+                testID="progress-weight-explainer"
+                className="text-caption text-label-secondary"
+              >
+                {TREND_WEIGHT_EXPLAINER}
+              </Text>
+            </View>
           ) : weights.length > 0 ? (
             <Text testID="progress-weight-few" className="text-subhead text-label-secondary">
-              {`Weigh in twice within ${STATS_RANGE_SPAN[range]} to see a trend here.`}
+              {`Weigh in twice within ${STATS_RANGE_SPAN[range]} to see your trend here.`}
             </Text>
           ) : null}
 
@@ -530,6 +571,14 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
               />
             </>
           ) : null}
+        </BoardCard>
+      </View>
+
+      {/* Body measurements: free, one chart per measure (lane D3) */}
+      <View className="gap-3">
+        <SectionTitle>{MEASUREMENTS_COPY.title}</SectionTitle>
+        <BoardCard>
+          <BodyMeasurements />
         </BoardCard>
       </View>
     </>

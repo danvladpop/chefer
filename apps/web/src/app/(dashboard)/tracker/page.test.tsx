@@ -338,6 +338,10 @@ vi.mock('@/lib/trpc', () => ({
           return { log: {}, skippedSlots: skippedOf(), rebalance };
         }),
       },
+      // Lane D2: the "Partly logged day" switch under a logged day.
+      setDayIncomplete: {
+        useMutation: mutation((vars: { date: string; incomplete: boolean }) => vars),
+      },
       unskipSlot: {
         useMutation: mutation((vars: SlotRefLike) => {
           m.unskipSlot(vars);

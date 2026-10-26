@@ -10,6 +10,7 @@ import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useProteinWeekAverage } from '../numbers-mode/use-protein-average';
 import { openPremium } from '../premium/open-premium';
+import { CoachWhy } from './coach-why';
 
 // Port of web features/coach/ChefReviewBanner (wave-2b). Renders nothing
 // until a fresh review exists. Free = blurred-style teaser (placeholder
@@ -113,6 +114,10 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
             <Text className="mt-1 text-sm text-label-tertiary opacity-50">
               {TEASER_PLACEHOLDER}
             </Text>
+            {/* Lane D2: the reasoning is free; the number stays premium. */}
+            {data.explanation ? (
+              <CoachWhy explanation={data.explanation} tier="free" proteinOnly={proteinOnly} />
+            ) : null}
             <Text className="mt-2 text-xs text-label-tertiary">
               The full review and auto-adjusting targets are part of Premium.
             </Text>
@@ -197,6 +202,9 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
               </Text>
             </Pressable>
           </View>
+          {r.explanation ? (
+            <CoachWhy explanation={r.explanation} tier="premium" proteinOnly={proteinOnly} />
+          ) : null}
           {explainMounted && (
             <ExplainSheet
               visible={explainOpen}
