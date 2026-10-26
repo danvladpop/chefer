@@ -29,6 +29,26 @@ describe('extractJsonLdRecipe', () => {
     expect(parsed['aggregateRating']).toBeUndefined();
   });
 
+  it('decodes HTML entities that a site left inside its JSON-LD strings', () => {
+    // The shape public mealime.com recipe pages serve (checked 2026-10-22):
+    // a top-level Recipe node, HowToStep instructions, escaped strings.
+    const page = `<script type="application/ld+json">${JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: 'Gnocchi with Tomatoes, Basil &amp; Parmesan',
+      recipeIngredient: ['1 &frac12; cups grape tomatoes'],
+      recipeInstructions: [{ '@type': 'HowToStep', text: 'It doesn&apos;t need to be hot.' }],
+    })}</script>`;
+    const parsed = JSON.parse(extractJsonLdRecipe(page) ?? '{}') as {
+      name: string;
+      recipeIngredient: string[];
+      recipeInstructions: { text: string }[];
+    };
+    expect(parsed.name).toBe('Gnocchi with Tomatoes, Basil & Parmesan');
+    expect(parsed.recipeIngredient).toEqual(['1 1/2 cups grape tomatoes']);
+    expect(parsed.recipeInstructions[0]?.text).toBe("It doesn't need to be hot.");
+  });
+
   it('returns null when the page has no Recipe JSON-LD', () => {
     expect(extractJsonLdRecipe(plainArticle)).toBeNull();
     expect(extractJsonLdRecipe(noRecipe)).toBeNull();

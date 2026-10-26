@@ -10,62 +10,75 @@ import {
   SocialCancelledError,
   type SocialSignInPayload,
 } from '@/features/auth/lib/social-web';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Download, LogOut, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet, Toast } from '@chefer/ui';
-import { PROGRESS_PHOTOS_COPY, userFacingErrorMessage } from '@chefer/utils';
+import {
+  deviceTimeZone,
+  DATA_EXPORT_COPY as EXPORT_COPY,
+  exportErrorMessage,
+  exportSizeBucket,
+  PROGRESS_PHOTOS_COPY,
+  todayIn,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 
 // ─── Your data ────────────────────────────────────────────────────────────────
 // Self-service export and account deletion (audit P0-6, F-PROF-1-1). The
 // privacy policy used to point users at a feedback box no admin could read.
-// T-39.5 (bug B-53): the export is named `chefer-export-YYYY-MM-DD.json`
-// (was `chefer-data-...`) and confirms with a snackbar, matching the mobile copy.
+// G1 (market review 2026-10): "Download my data" is a ZIP — the full JSON plus
+// spreadsheet-friendly CSVs and a README (`user.exportArchive`), named
+// `chefer-export-YYYY-MM-DD.zip` and confirmed with a toast (mobile parity:
+// account-data-card.tsx shares the same file).
 
-function exportFilename(): string {
-  return `chefer-export-${new Date().toISOString().slice(0, 10)}.json`;
+/** The archive arrives base64 over tRPC; the browser saves the bytes. */
+function saveZip(filename: string, base64: string): void {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function AccountDataCard() {
-  const utils = trpc.useUtils();
-  const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   // FB7-02: sign-out next to export/delete (parity with the mobile card).
   const { logout } = useAuth();
+  const exportArchive = trpc.user.exportArchive.useMutation({ meta: { silent: true } });
+  const exporting = exportArchive.isPending;
 
   async function downloadData() {
-    setExporting(true);
     setExportError(null);
     try {
-      const data = await utils.user.exportData.fetch();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = exportFilename();
-      a.click();
-      URL.revokeObjectURL(url);
+      const archive = await exportArchive.mutateAsync({ localDate: todayIn(deviceTimeZone()) });
+      saveZip(archive.filename, archive.base64);
+      capture('data_export_downloaded', {
+        format: 'zip',
+        sizeBucket: exportSizeBucket(archive.bytes),
+      });
       setExportReady(true);
-    } catch {
-      setExportError("Couldn't prepare your data. Please try again.");
-    } finally {
-      setExporting(false);
+    } catch (err) {
+      setExportError(exportErrorMessage(err));
     }
   }
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <h2 className="mb-1 font-semibold text-gray-800">Your data</h2>
-      <p className="mb-4 text-sm text-gray-600">
-        Download everything Chefer stores about you, or delete your account for good.
-      </p>
+      <p className="mb-4 text-sm text-gray-600">{EXPORT_COPY.intro}</p>
       <p className="-mt-3 mb-4 text-xs text-gray-500">{PROGRESS_PHOTOS_COPY.exportNote}</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button variant="outline" onClick={() => void downloadData()} disabled={exporting}>
           <Download aria-hidden="true" />
-          {exporting ? 'Preparing…' : 'Download my data'}
+          {exporting ? EXPORT_COPY.busy : EXPORT_COPY.button}
         </Button>
         <Button variant="outline" onClick={logout}>
           <LogOut aria-hidden="true" />
@@ -85,9 +98,7 @@ export function AccountDataCard() {
           {exportError}
         </p>
       )}
-      {exportReady && (
-        <Toast message="Your export is ready." onClose={() => setExportReady(false)} />
-      )}
+      {exportReady && <Toast message={EXPORT_COPY.ready} onClose={() => setExportReady(false)} />}
       <DeleteAccountSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </div>
   );

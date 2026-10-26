@@ -9,7 +9,12 @@ import {
   weightEntryRepository,
   type ConsentEvent,
 } from '@chefer/database';
-import { COACHING_API_LEVEL, HEALTH_CONSENT_VERSION } from '@chefer/types';
+import {
+  COACHING_API_LEVEL,
+  HEALTH_CONSENT_VERSION,
+  type HealthPlatform,
+  type HealthSyncType,
+} from '@chefer/types';
 import { consentService } from './consent.service.js';
 
 // ─── Privacy service (§2.8, §2.13, T-26.1, T-39.2) ─────────────────────────────
@@ -100,6 +105,27 @@ export class PrivacyService {
       );
     }
     return events;
+  }
+
+  /**
+   * C2: the Apple Health / Health Connect data types now on, as one HEALTH_SYNC
+   * event — `providers` is the platform followed by the types, granted when at
+   * least one type is on.
+   */
+  async recordHealthSync(input: {
+    userId: string;
+    source: ConsentSource;
+    platform: HealthPlatform;
+    types: HealthSyncType[];
+  }): Promise<ConsentEvent> {
+    const types = [...new Set(input.types)];
+    return consentService.record({
+      userId: input.userId,
+      kind: 'HEALTH_SYNC',
+      granted: types.length > 0,
+      providers: [input.platform, ...types],
+      source: input.source,
+    });
   }
 
   /**

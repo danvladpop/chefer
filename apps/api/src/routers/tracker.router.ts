@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { bodyMeasurementValuesSchema } from '@chefer/types';
+import {
+  bodyMeasurementValuesSchema,
+  HEALTH_WEIGHT_IMPORT_MAX,
+  healthPlatformSchema,
+} from '@chefer/types';
 import { BODY_WEIGHT_KG_MAX, BODY_WEIGHT_KG_MIN } from '@chefer/utils';
 import { bodyMeasurementService } from '../application/body/body-measurement.service.js';
 import { trackerService } from '../application/tracker/tracker.service.js';
@@ -361,6 +365,31 @@ export const trackerRouter = router({
     .use(requireHealthConsent()) // T-26.3: a weigh-in is health data
     .mutation(async ({ ctx, input }) => {
       return trackerService.logWeight(ctx.user.id, input.weightKg, input.date);
+    }),
+
+  /**
+   * C2 health sync: weigh-ins read from Apple Health / Health Connect, in pages
+   * of up to HEALTH_WEIGHT_IMPORT_MAX. A sample already imported (same
+   * externalId) is skipped. Same consent gate as a typed weigh-in.
+   */
+  importWeights: protectedProcedure
+    .input(
+      z.object({
+        source: healthPlatformSchema,
+        entries: z
+          .array(
+            z.object({
+              externalId: z.string().min(1).max(200),
+              weightKg: bodyWeightKgSchema,
+              date: weightDateSchema,
+            }),
+          )
+          .max(HEALTH_WEIGHT_IMPORT_MAX),
+      }),
+    )
+    .use(requireHealthConsent())
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.importWeights(ctx.user.id, input.source, input.entries);
     }),
 
   // Correct or remove a weigh-in (audit F-DASH-3-1). Owner-scoped: someone
