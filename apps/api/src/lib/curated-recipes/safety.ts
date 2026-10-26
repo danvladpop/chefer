@@ -86,6 +86,30 @@ function notAfter(qualifiers: string[]): string {
 const DAIRY_FREE = notAfter(['dairy-free', 'non-dairy', 'vegan', 'plant-based', 'milk-free']);
 const EGG_FREE = notAfter(['egg-free', 'vegan', 'plant-based']);
 const GLUTEN_FREE = notAfter(['gluten-free', 'wheat-free']);
+// Pasta and noodles that name a gluten-free base ("rice noodles", "chickpea
+// pasta", "zucchini noodles") are not wheat. Buckwheat is deliberately absent
+// (most soba is a wheat blend), and filled pasta, gnocchi and udon never take
+// this exemption: "potato gnocchi" is still bound with wheat flour.
+const GF_BASE = notAfter([
+  'rice',
+  'corn',
+  'maize',
+  'chickpea',
+  'lentil',
+  'pea',
+  'bean',
+  'quinoa',
+  'cassava',
+  'potato',
+  'konjac',
+  'shirataki',
+  'kelp',
+  'glass',
+  'cellophane',
+  'zucchini',
+  'courgette',
+]);
+const NOT_WHEAT_PASTA = `${GLUTEN_FREE}${GF_BASE}`;
 
 const DAIRY_PATTERNS = [
   `${PLANT}${DAIRY_FREE}\\bmilk`,
@@ -135,11 +159,19 @@ const EGG_PATTERNS = [
 ];
 
 const GLUTEN_PATTERNS = [
-  `${GLUTEN_FREE}\\bwheat`,
+  // "wholewheat" has no word boundary before "wheat"; buckwheat is not wheat.
+  `${GLUTEN_FREE}(?<!buck)wheat`,
   `${GLUTEN_FREE}\\bbread`,
   `${GLUTEN_FREE}\\btoast`,
-  `${GLUTEN_FREE}\\bpasta`,
-  `${GLUTEN_FREE}\\bnoodle`,
+  `${NOT_WHEAT_PASTA}\\bpasta`,
+  `${NOT_WHEAT_PASTA}\\bnoodle`,
+  // Pasta shapes and noodles named without "pasta"/"noodle" — "spaghetti"
+  // alone used to reach a gluten-free plan. Spaghetti squash is a vegetable.
+  `${NOT_WHEAT_PASTA}\\bspaghetti(?! squash)`,
+  `${NOT_WHEAT_PASTA}\\b(?:penne|fusilli|tagliatelle|linguine|fettuccine|pappardelle)`,
+  `${NOT_WHEAT_PASTA}\\b(?:rigatoni|farfalle|macaroni|lasagn|cannelloni|orzo|vermicelli)`,
+  `${NOT_WHEAT_PASTA}\\bramen`,
+  `${GLUTEN_FREE}\\b(?:tortellini|ravioli|gnocchi|udon|soba)\\b`,
   `${GLUTEN_FREE}\\bflour`,
   `${GLUTEN_FREE}\\bcouscous`,
   `${GLUTEN_FREE}\\bbulgur`,
@@ -152,11 +184,13 @@ const GLUTEN_PATTERNS = [
   `${GLUTEN_FREE}\\bbagel`,
   `${GLUTEN_FREE}\\bbun\\b`,
   `${GLUTEN_FREE}\\bwrap`,
-  `${GLUTEN_FREE}\\bpita`,
+  `${GLUTEN_FREE}\\bpitt?a`,
   `${GLUTEN_FREE}\\bcrouton`,
   `${GLUTEN_FREE}\\bcracker`,
   `${GLUTEN_FREE}\\bsourdough`,
   `${GLUTEN_FREE}\\bbaguette`,
+  `${GLUTEN_FREE}\\b(?:panko|naan|chapatt?i|croissant|brioche|pretzel)`,
+  `${GLUTEN_FREE}\\b(?:pastr(?:y|ies)|filo|phyllo)\\b`,
   // bug B-47 / T-01.9: "always-gluten" ingredients that the pattern list
   // above missed (spelt, seitan, semolina, farro, malt…) — never gluten-free
   // regardless of any "gluten-free" qualifier in front of them.
