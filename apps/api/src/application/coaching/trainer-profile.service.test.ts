@@ -33,6 +33,12 @@ function setup(
         activatedAt: NOW,
         gymLine: gymLine ?? null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       };
       return profile;
     }),
@@ -42,6 +48,11 @@ function setup(
       return profile;
     }),
     deactivate: vi.fn(async () => ({ endedClientIds: ['c1', 'c2'], declinedClientIds: ['c3'] })),
+    saveCheckInConfig: vi.fn(),
+    saveAlertsConfig: vi.fn(),
+    markQuietSeen: vi.fn(),
+    setQuietDigestEmail: vi.fn(),
+    listDigestRecipients: vi.fn(),
   };
   let following = opts.following ?? true;
   const socialProfiles = {
@@ -80,6 +91,12 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: 'Iron Gym, Cluj',
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
       clients: 3,
     });
@@ -160,6 +177,12 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
     });
     expect((await on.service.updateProfile(ME, { displayName: 'Ana P.' })).displayName).toBe(
@@ -198,6 +221,12 @@ describe('TrainerProfileService', () => {
         activatedAt: NOW,
         gymLine: null,
         disabledAt: null,
+        checkInEnabled: false,
+        checkInDay: 6,
+        checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
     });
     await service.deactivate(ME.id, 'web', { accountDeleted: true });
@@ -214,6 +243,12 @@ describe('TrainerProfileService', () => {
       activatedAt: NOW,
       gymLine: null,
       disabledAt: null,
+      checkInEnabled: false,
+      checkInDay: 6,
+      checkInQuestions: [],
+      quietAfterDays: 3,
+      quietDigestEmail: false,
+      quietSeenAt: null,
     };
 
     it('turns trainer tools off for an active trainer who is no longer listed', async () => {

@@ -32,7 +32,6 @@ import {
   type SafetyChecks,
   type TableSafety,
   type undoAddToWeekInputSchema,
-  type UserProfile,
 } from '@chefer/types';
 import {
   applyTrainingDayBonus,
@@ -753,7 +752,7 @@ export class MealPlanService {
         where: { id: userId },
         select: { planTier: true, role: true },
       });
-      access = user ? hasFeature(user as UserProfile, 'trainingDayTargets') : false;
+      access = user ? hasFeature(user, 'trainingDayTargets') : false;
     }
     const { trainingDays, basis } = await this.training.trainingWeek(
       userId,

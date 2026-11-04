@@ -52,6 +52,8 @@ export const KV_KEYS = {
    * included — the server keeps the newest change per item, so a lost replay only loses that tick).
    */
   shopOutbox: 'shop.outbox',
+  // Lane K3: "Later" on the weekly check-in card hides it until the next day (the local date it was hidden).
+  coachingCheckInLater: 'coaching.check-in-later',
   // (The device-local "routine seen" / "stopped dismissed" markers are gone: coaching notices are read on
   // the server since PRD 2026-10 §4.2. Their old values are wiped at the next sign-out.)
 } as const;

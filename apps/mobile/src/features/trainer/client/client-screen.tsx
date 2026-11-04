@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { BOOKING_COPY, COACHING_COPY, TEMPLATE_COPY, type CoachedExerciseDto } from '@chefer/types';
+import {
+  BOOKING_COPY,
+  COACHING_COPY,
+  COACHING_DATA_COPY,
+  TEMPLATE_COPY,
+  type CoachedExerciseDto,
+} from '@chefer/types';
 import {
   Badge,
   Button,
@@ -25,9 +31,12 @@ import { CoachingCard } from '../components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { AdherenceTab } from './adherence-tab';
 import { BookingsTab } from './bookings-tab';
+import { CheckInsCard } from './check-ins-card';
+import { FoodTab } from './food-tab';
 import { ExerciseHistorySheet } from './history-sheet';
 import { NotesTab } from './notes-tab';
 import { isClientUnavailable, useTrainerClientName } from './use-trainer-client';
+import { WeekSummaryCard } from './week-summary-card';
 import { WorkoutsTab } from './workouts-tab';
 
 // ─── One client (spec §2.5) ───────────────────────────────────────────────────
@@ -41,8 +50,10 @@ import { WorkoutsTab } from './workouts-tab';
 // ticked — only while trainer mode is available (flag off: this screen is unchanged).
 // Trainer mode M3 (§6.5): "Add a booking" (the editor with this client ticked) and a Bookings tab
 // (`trainer.client.bookings`), trainer mode only; `initialTab` opens a tab (Today's sessions delivered).
+// Lane K2: the "Last 7 days" card (workouts; food and weight only while shared) above the tabs, and a
+// Food tab while the client shares their food log or weight.
 
-export type ClientTab = 'workouts' | 'adherence' | 'notes' | 'bookings';
+export type ClientTab = 'workouts' | 'adherence' | 'notes' | 'bookings' | 'food';
 type Tab = ClientTab;
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
@@ -64,9 +75,13 @@ export function ClientScreen({
   const trainerMode = useTrainerModeAvailability();
   const bookingEditor = useBookingEditor();
   const trainerStatus = trpc.trainer.status.useQuery(undefined, { enabled: trainerMode });
-  // The Bookings tab exists in trainer mode only.
-  const shownTab: Tab = tab === 'bookings' && !trainerMode ? 'workouts' : tab;
   const overview = trpc.trainer.client.overview.useQuery({ clientId, today: localDate() });
+  // Lane K2: an older API sends no `sharing`, which reads as nothing shared.
+  const sharing = overview.data?.client.sharing ?? { food: false, weight: false };
+  const sharesData = sharing.food || sharing.weight;
+  // The Bookings tab exists in trainer mode only; the Food tab while the client shares something.
+  const shownTab: Tab =
+    (tab === 'bookings' && !trainerMode) || (tab === 'food' && !sharesData) ? 'workouts' : tab;
   const remove = trpc.trainer.clients.remove.useMutation({
     meta: { silent: true },
     onSuccess: () => {
@@ -168,6 +183,9 @@ export function ClientScreen({
           ) : null}
         </CoachingCard>
 
+        <WeekSummaryCard clientId={clientId} firstName={firstName} />
+        <CheckInsCard clientId={clientId} firstName={firstName} />
+
         <SegmentedControl<Tab>
           testID="trainer-client-tabs"
           accessibilityLabel="Client sections"
@@ -190,6 +208,15 @@ export function ClientScreen({
               label: COACHING_COPY.trainer.tabs.notes,
               testID: 'trainer-client-tab-notes',
             },
+            ...(sharesData
+              ? [
+                  {
+                    value: 'food' as const,
+                    label: COACHING_DATA_COPY.tab,
+                    testID: 'trainer-client-tab-food',
+                  },
+                ]
+              : []),
             ...(trainerMode
               ? [
                   {
@@ -217,6 +244,9 @@ export function ClientScreen({
           )
         ) : null}
         {shownTab === 'bookings' ? <BookingsTab clientId={clientId} /> : null}
+        {shownTab === 'food' ? (
+          <FoodTab clientId={clientId} firstName={firstName} sharing={sharing} />
+        ) : null}
         {shownTab === 'notes' ? <NotesTab clientId={clientId} firstName={firstName} /> : null}
 
         <Button

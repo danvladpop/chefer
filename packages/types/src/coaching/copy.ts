@@ -59,8 +59,10 @@ export const COACHING_COPY = {
     privateNotes: (trainer: string) =>
       `${trainer} can keep private notes about you. You won’t see them. Chefer never reads or uses them.`,
     neverHeading: (trainer: string) => `${trainer} will never see:`,
+    // Lane K1: food and weight are now the client's own opt-in (COACHING_SHARING_COPY, the switches
+    // under this line); everything else here stays never shared.
     never:
-      'Your food, meals, body weight or measurements, nutrition targets, your notes on workouts, heart rate or calorie estimates, your age or profile.',
+      'Your body measurements, allergies and diet settings, your notes on workouts, heart rate or calorie estimates, your age or profile. Your food and weight too, unless you choose to share them.',
     oneTrainer: (trainer: string) =>
       `One trainer at a time. Leave whenever you want: ${trainer} loses access at once and your routine stays yours.`,
     switchLine: (current: string) => `You’ll stop being coached by ${current}.`,
