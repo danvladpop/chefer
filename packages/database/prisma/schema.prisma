@@ -220,6 +220,7 @@ model User {
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
   savedMeals           SavedMeal[]
+  shareCards           ShareCard[]
   weightEntries        WeightEntry[]
   bodyMeasurements     BodyMeasurement[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
@@ -380,6 +381,10 @@ model ChefProfile {
   // WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (numbersModeSchema, @chefer/types).
   // Null = FULL. A string + Zod enum, so a new mode is never a migration.
   numbersMode            String?
+  // Lane E1 (market review 2026-10): meal-time reminders, { enabled, times }
+  // (mealRemindersSchema, @chefer/types). Null = never chosen. Only the phone
+  // schedules them (local notifications); web shows and edits the choice.
+  mealReminders          Json?
   // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
   // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
   // others are set by training.setDayKinds (wave 1).
@@ -645,6 +650,25 @@ model MealRating {
   @@unique([userId, recipeId])
   @@index([userId])
   @@map("meal_ratings")
+}
+
+// Lane E2 (market review 2026-10): a share card the user chose to share — a
+// snapshot of ONLY what the card shows (shareCardPayload, @chefer/types:
+// never allergies, weight, logged meals, notes or names). Public by its
+// unguessable id at /s/<id>; deleted with the account.
+model ShareCard {
+  id        String   @id
+  userId    String
+  // 'recipe' | 'cook' | 'workout' | 'recap' (SHARE_CARD_KINDS) — a string, so
+  // a new kind is never a migration.
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("share_cards")
 }
 
 model DailyLog {

@@ -32,6 +32,7 @@ import {
   cookCandidate,
   dateOnlyKey,
   DEFAULT_ACTIVE_DAY_GOAL,
+  hiddenAchievements,
   levelForXp,
   lowIntakeSignal,
   nextRank,
@@ -448,9 +449,10 @@ export class ProgressService {
   async achievements(userId: string): Promise<AchievementsDto> {
     const r = this.repos;
     const today = await this.deps.recorder.userToday(userId);
-    const [counters, unlocks] = await Promise.all([
+    const [counters, unlocks, profile] = await Promise.all([
       this.deps.recorder.counters(userId, today),
       r.unlocks.list(userId),
+      r.profiles.findByUserId(userId),
     ]);
     return buildAchievements(
       counters,
@@ -468,6 +470,7 @@ export class ProgressService {
             ]
           : [];
       }),
+      hiddenAchievements(profile?.numbersMode),
     );
   }
 

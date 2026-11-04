@@ -44,8 +44,11 @@ export function moreActionsLabel(mealType: string): string {
 export function youHadText(
   entry: { custom?: { name: string } | undefined; kcal: number; protein?: number | undefined },
   proteinOnly = false,
+  /** Lane E3 "Hide numbers": just the name. */
+  noNumbers = false,
 ): string {
   const name = entry.custom?.name ?? 'Something else';
+  if (noNumbers) return `You had: ${name}`;
   if (proteinOnly) {
     return entry.protein === undefined
       ? `You had: ${name}`

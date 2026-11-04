@@ -84,6 +84,10 @@ export interface UpsertDailyLogData {
 export interface IDailyLogRepository {
   findByDate(userId: string, date: Date): Promise<DailyLog | null>;
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
+  /** Lane E2 recap: the logs with `from` ≤ date < `to` (UTC-midnight dates), oldest first. */
+  findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
+  /** Lane E2 recap: every recipe id logged on a day before `before` ("new recipes tried"). */
+  findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>>;
   upsert(data: UpsertDailyLogData): Promise<DailyLog>;
   /**
    * Read-modify-write of one day's entries in a SERIALIZABLE transaction,
@@ -161,6 +165,29 @@ export class DailyLogRepository implements IDailyLogRepository {
       where: { userId, date: { gte: since } },
       orderBy: { date: 'asc' },
     });
+  }
+
+  async findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
+    return prisma.dailyLog.findMany({
+      where: { userId, date: { gte: from, lt: to } },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>> {
+    const rows = await prisma.dailyLog.findMany({
+      where: { userId, date: { lt: before } },
+      select: { loggedMeals: true },
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (!Array.isArray(row.loggedMeals)) continue;
+      for (const entry of row.loggedMeals) {
+        const recipeId = (entry as { recipeId?: unknown } | null)?.recipeId;
+        if (typeof recipeId === 'string') ids.add(recipeId);
+      }
+    }
+    return ids;
   }
 
   async upsert(data: UpsertDailyLogData): Promise<DailyLog> {
