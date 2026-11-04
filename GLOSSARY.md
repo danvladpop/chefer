@@ -124,6 +124,46 @@ _Avoid_: Natural-language logging, AI log, chat log (that is the AI chef chat)
 What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
 _Avoid_: No allergens, allergen-free
 
+## Household
+
+**Household**:
+The people one account plans meals for: the household owner and their member profiles, some of which may be claimed
+by partners. It is anchored on the owner's account (ADR 0003).
+_Avoid_: family, group, team
+
+**Household owner**:
+The account the household's member profiles, week plan and shopping list belong to. Only the owner generates the
+week, follows a saved week or removes partners.
+_Avoid_: admin, host, main account
+
+**Member profile**:
+One person at the table that the owner added: a name, a portion and safety terms. It may or may not be claimed by a
+partner.
+_Avoid_: member account, dependant, eater (in user copy)
+
+**Partner**:
+A person with their own Chefer account who joined a household by claiming a member profile. A partner sees and edits
+the shared week and list; their food logs, weight and targets stay their own.
+_Avoid_: co-owner, guest, family member, collaborator
+
+**Household invite**:
+A single-use link the owner makes for one member profile; redeeming it makes the redeemer that profile's partner.
+_Avoid_: share code, referral, family link
+
+**Claim**:
+What a partner does to a member profile on joining: confirm its safety terms and link it to their account. Leaving
+unclaims it; the profile stays.
+_Avoid_: adopt, merge, take over
+
+**Shared week**:
+The household owner's week plan as both owner and partners see it. A partner sees it at their own portion and
+against their own targets.
+_Avoid_: family plan, joint plan
+
+**Shared list**:
+The shopping list of the shared week; ticks show for everyone in the household within seconds, with who ticked them.
+_Avoid_: family list, synced list
+
 ## Training
 
 **Workout**:
