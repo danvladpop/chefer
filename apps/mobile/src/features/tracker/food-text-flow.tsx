@@ -17,6 +17,7 @@ import {
 import { track } from '../../lib/analytics';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Lane A4: "Type what you ate" in the Log sheet. The sentence goes to
 // tracker.parseFoodText (AI consent first; free 10 a day, premium unlimited),
@@ -33,6 +34,7 @@ export interface FoodTextFlowProps {
 }
 
 export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodTextFlowProps) {
+  const { noNumbers } = useNumbersMode();
   const colors = useThemeColors();
   const requestAiConsent = useAiConsent();
   const [text, setText] = useState('');
@@ -145,13 +147,15 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
                   {item.unit === 'g' ? 'g' : 'servings'}
                 </Text>
               </View>
-              <Text className="text-xs text-label-secondary">
-                {logged
-                  ? proteinOnly
-                    ? `${logged.protein} g protein`
-                    : `${logged.kcal} kcal · ${logged.protein} g P`
-                  : '—'}
-              </Text>
+              {noNumbers ? null : (
+                <Text className="text-xs text-label-secondary">
+                  {logged
+                    ? proteinOnly
+                      ? `${logged.protein} g protein`
+                      : `${logged.kcal} kcal · ${logged.protein} g P`
+                    : '—'}
+                </Text>
+              )}
             </View>
           );
         })}
@@ -166,7 +170,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
           disabled={ready.length === 0}
           onPress={log}
         >
-          {proteinOnly
+          {proteinOnly || noNumbers
             ? `Log ${ready.length} ${ready.length === 1 ? 'item' : 'items'}`
             : `Log ${ready.length} ${ready.length === 1 ? 'item' : 'items'} · ${total} kcal`}
         </Button>

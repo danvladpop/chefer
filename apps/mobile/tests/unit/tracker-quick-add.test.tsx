@@ -983,3 +983,61 @@ describe('QuickAddSheet — type what you ate (lane A4)', () => {
     expect(screen.queryByTestId('log-sheet-type-it')).not.toBeOnTheScreen();
   });
 });
+
+describe('QuickAddSheet — "Hide numbers" on the packaged and typed flows (lanes A + E3)', () => {
+  jest.setTimeout(30_000);
+
+  async function renderHidden() {
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <NumbersModeProvider mode="NONE">
+          <QuickAddSheet visible date="2026-09-26" onClose={onClose} onLogged={onLogged} />
+        </NumbersModeProvider>
+      </SafeAreaProvider>,
+    );
+  }
+
+  it('a scanned product shows no kcal, protein or macros and still logs', async () => {
+    const user = userEvent.setup();
+    mockLookupBarcode.mockResolvedValue({
+      status: 'found',
+      product: OAT_DRINK,
+      origin: 'off',
+      warnings: [],
+      stale: false,
+    });
+    await renderHidden();
+    await user.press(screen.getByTestId('log-sheet-scan-barcode'));
+    await user.type(screen.getByTestId('product-barcode-input'), '7394376616037');
+    await user.press(screen.getByTestId('product-barcode-find'));
+    await screen.findByTestId('product-name');
+
+    expect(screen.queryByTestId('product-live-nutrition')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('product-card')).not.toHaveTextContent(/kcal|protein|\d g [PCF]\b/);
+    expect(screen.getByTestId('product-log')).toHaveTextContent('Log it');
+    await user.press(screen.getByTestId('product-log'));
+    expect(mockLogProduct).toHaveBeenCalled();
+  });
+
+  it('typed items show no figures and the log button carries no kcal total', async () => {
+    const user = userEvent.setup();
+    mockParsedItems = [
+      {
+        key: '0',
+        text: '2 eggs',
+        name: 'Egg',
+        source: 'ingredient',
+        unit: 'g',
+        grams: 100,
+        per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+      },
+    ];
+    await renderHidden();
+    await user.press(screen.getByTestId('log-sheet-type-it'));
+    await user.type(screen.getByTestId('food-text-input'), '2 eggs');
+    await user.press(screen.getByTestId('food-text-read'));
+
+    expect(screen.getByTestId('food-text-item-0')).not.toHaveTextContent(/kcal|protein|\d g P/);
+    expect(screen.getByTestId('food-text-log')).toHaveTextContent('Log 1 item');
+  });
+});
