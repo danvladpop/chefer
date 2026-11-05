@@ -18,6 +18,7 @@ import {
 } from '@chefer/ui-mobile';
 import {
   formatNumber,
+  HIDE_NUMBERS_COPY,
   productAllergenLine,
   productAllergenWarningText,
   productAmountGrams,
@@ -25,6 +26,7 @@ import {
   productMaxGrams,
   scaleProduct,
 } from '@chefer/utils';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { RecipeImage } from '../../recipes/recipe-image';
 
 // A packaged product, ready to log (ADR 0006): allergen warnings first (they
@@ -67,6 +69,7 @@ export function ProductCard({
   onCompleteNumbers,
 }: ProductCardProps) {
   const colors = useThemeColors();
+  const { noNumbers } = useNumbersMode();
   const hasServing = product.servingSizeG !== null;
   const [unit, setUnit] = useState<Unit>(hasServing ? 'serving' : 'g');
   const [amountText, setAmountText] = useState(hasServing ? '1' : '100');
@@ -104,7 +107,9 @@ export function ProductCard({
                 ? 'Your product · from a label photo'
                 : 'Your product'
               : complete
-                ? `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
+                ? noNumbers
+                  ? HIDE_NUMBERS_COPY.recipeNutritionHidden
+                  : `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
                 : 'No calories yet'}
           </Text>
         </View>
@@ -174,26 +179,28 @@ export function ProductCard({
             />
             <Text className="text-sm text-muted-foreground">{unit === 'g' ? 'g' : 'servings'}</Text>
           </View>
-          <Text
-            testID="product-live-nutrition"
-            accessibilityLiveRegion="polite"
-            className="text-xs text-label-secondary"
-          >
-            {tooMuch
-              ? `One entry holds up to ${formatNumber(maxGrams)} g.`
-              : scaled
-                ? proteinOnly
-                  ? `${scaled.protein} g protein`
-                  : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
-                : '—'}
-          </Text>
+          {noNumbers && !tooMuch ? null : (
+            <Text
+              testID="product-live-nutrition"
+              accessibilityLiveRegion="polite"
+              className="text-xs text-label-secondary"
+            >
+              {tooMuch
+                ? `One entry holds up to ${formatNumber(maxGrams)} g.`
+                : scaled
+                  ? proteinOnly
+                    ? `${scaled.protein} g protein`
+                    : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
+                  : '—'}
+            </Text>
+          )}
           <Button
             testID="product-log"
             loading={logging}
             disabled={!scaled}
             onPress={() => onLog(amount)}
           >
-            {scaled && !proteinOnly ? `Log ${scaled.kcal} kcal` : 'Log it'}
+            {scaled && !proteinOnly && !noNumbers ? `Log ${scaled.kcal} kcal` : 'Log it'}
           </Button>
         </>
       ) : (

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { capture } from '@/lib/analytics';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { X } from 'lucide-react';
@@ -31,6 +32,7 @@ export interface FoodTextFlowProps {
 }
 
 export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodTextFlowProps) {
+  const { noNumbers } = useNumbersMode();
   const requestAiConsent = useAiConsent();
   const [text, setText] = useState('');
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
@@ -152,13 +154,15 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
                 />
                 <span className="shrink-0">{item.unit === 'g' ? 'g' : 'servings'}</span>
               </label>
-              <p className="text-xs text-neutral-500">
-                {logged
-                  ? proteinOnly
-                    ? `${logged.protein} g protein`
-                    : `${logged.kcal} kcal · ${logged.protein} g P`
-                  : '—'}
-              </p>
+              {noNumbers ? null : (
+                <p className="text-xs text-neutral-500">
+                  {logged
+                    ? proteinOnly
+                      ? `${logged.protein} g protein`
+                      : `${logged.kcal} kcal · ${logged.protein} g P`
+                    : '—'}
+                </p>
+              )}
             </div>
           );
         })}
@@ -172,7 +176,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
         >
           {logMutation.isPending
             ? 'Logging…'
-            : proteinOnly
+            : proteinOnly || noNumbers
               ? `Log ${countLabel}`
               : `Log ${countLabel} · ${total} kcal`}
         </button>
