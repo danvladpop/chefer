@@ -34,6 +34,7 @@ import { SignInMethodsCard } from '../src/features/profile/sign-in-methods-card'
 import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
 import { TrainButton } from '../src/features/shell/train/train-button';
 import { track } from '../src/lib/analytics';
+import { useT } from '../src/lib/i18n';
 import { trpc } from '../src/lib/trpc';
 
 // Profile — port of apps/web (dashboard)/profile/page.tsx (M2-8). Same
@@ -57,14 +58,16 @@ const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 const PILL = 'rounded-full px-2 text-caption font-semibold';
 
 function StatRow({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const { t } = useT();
   const pct = limit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
   return (
     <View className="gap-1">
       <View className="flex-row justify-between gap-3">
         <Text className="min-w-0 flex-1 text-subhead text-label">{label}</Text>
         <Text className="text-subhead text-label-secondary">
-          {used}
-          {limit !== null ? ` / ${limit}` : ' · unlimited'}
+          {limit !== null
+            ? t('today.settings.profile.usage.ofLimit', { used, limit })
+            : t('today.settings.profile.usage.unlimited', { used })}
         </Text>
       </View>
       {limit !== null && (
@@ -84,20 +87,24 @@ function StatRow({ label, used, limit }: { label: string; used: number; limit: n
  * used to be reachable only from More.
  */
 function HouseholdRow() {
+  const { t } = useT();
   const colors = useThemeColors();
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
   // ADR 0003: the newest household notice ("Maria joined your household") under the summary.
   const latestNotice = useHouseholdNotices()[0];
   const summary =
     members.length === 0
-      ? 'Just you — add the people you cook for'
-      : `${members.length + 1} at the table: you, ${members.map((m) => m.name).join(', ')}`;
+      ? t('today.settings.profile.household.justYou')
+      : t('today.settings.profile.household.atTable', {
+          count: members.length + 1,
+          names: members.map((m) => m.name).join(', '),
+        });
   return (
     <PressableScale
       pressScale="card"
       testID="profile-household"
       accessibilityRole="button"
-      accessibilityLabel="Your household"
+      accessibilityLabel={t('today.settings.profile.household.title')}
       onPress={() => router.push('/household')}
       className="min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4"
     >
@@ -105,7 +112,9 @@ function HouseholdRow() {
         <Icon name="following" size={22} color={colors.brand} />
       </View>
       <View className="min-w-0 flex-1">
-        <Text className="text-headline font-semibold text-label">Your household</Text>
+        <Text className="text-headline font-semibold text-label">
+          {t('today.settings.profile.household.title')}
+        </Text>
         {/* T-21.13: no numberOfLines cap — a household of several names (or
             the same names at a large Dynamic Type size) needs more than one
             line; the row's min-h-11 is a floor, not a fixed height, so it
@@ -124,8 +133,9 @@ function HouseholdRow() {
 
 export default function ProfileScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
-  const title = useSectionTitle('Profile');
+  const title = useSectionTitle(t('today.settings.profile.title'));
   const userQuery = trpc.user.me.useQuery();
   const { data: user } = userQuery;
   const { state: userState, retry: retryUser } = useQueryState(userQuery);
@@ -177,7 +187,7 @@ export default function ProfileScreen() {
       <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
         <IconButton
           testID="profile-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/you'))}
           className="-ml-2"
@@ -198,7 +208,7 @@ export default function ProfileScreen() {
         {userState === 'error' && (
           <ErrorState
             testID="profile-load-error"
-            title="Couldn't load your profile"
+            title={t('today.settings.profile.loadError')}
             onRetry={retryUser}
           />
         )}
@@ -233,7 +243,9 @@ export default function ProfileScreen() {
                     hasPremiumAccess ? 'bg-brand text-brand-on' : 'bg-brand-tint text-brand',
                   )}
                 >
-                  {hasPremiumAccess ? 'Premium' : 'Free plan'}
+                  {hasPremiumAccess
+                    ? t('today.settings.profile.tier.premium')
+                    : t('today.settings.profile.tier.free')}
                 </Text>
               </View>
             </View>
@@ -313,7 +325,7 @@ export default function ProfileScreen() {
                 {PREMIUM_PITCH_COPY.allowancesTitle}
               </Text>
               <Text className="text-subhead text-label-secondary">
-                Allowances reset at {dailyAllowanceResetTime()} your time.
+                {t('today.settings.profile.usage.resetAt', { time: dailyAllowanceResetTime() })}
               </Text>
             </View>
             {(() => {
@@ -332,14 +344,14 @@ export default function ProfileScreen() {
                 ...(isPremiumTier
                   ? [
                       {
-                        label: 'AI meal plans',
+                        label: t('today.settings.profile.usage.aiMealPlans'),
                         used: usage.aiMealPlans,
                         limit: lim('planGenerationsPerDay'),
                       },
                       ...(usage.curatedPlans > 0
                         ? [
                             {
-                              label: 'Plans from our recipes',
+                              label: t('today.settings.profile.usage.curatedPlans'),
                               used: usage.curatedPlans,
                               limit: lim('planGenerationsPerDay'),
                             },
@@ -348,23 +360,23 @@ export default function ProfileScreen() {
                     ]
                   : [
                       {
-                        label: 'Plans from our recipes',
+                        label: t('today.settings.profile.usage.curatedPlans'),
                         used: usage.curatedPlans,
                         limit: lim('planGenerationsPerDay'),
                       },
                     ]),
                 {
-                  label: 'Chat messages',
+                  label: t('today.settings.profile.usage.chat'),
                   used: usage.today.CHAT,
                   limit: lim('chatMessagesPerDay'),
                 },
                 {
-                  label: 'Recipe imports read',
+                  label: t('today.settings.profile.usage.imports'),
                   used: usage.today.RECIPE_IMPORT,
                   limit: lim('recipeImportsPerDay'),
                 },
                 {
-                  label: 'Meal photo scans',
+                  label: t('today.settings.profile.usage.scans'),
                   used: usage.today.SCAN,
                   limit: lim('mealScansPerDay'),
                 },
@@ -376,12 +388,13 @@ export default function ProfileScreen() {
                 ));
             })()}
             <Text testID="profile-usage-helper" className="text-caption text-label-secondary">
-              {isPremiumTier
-                ? 'Plans from our recipes use no AI. An import counts when we read it; saving it is free'
-                : 'Plans from our recipes use no AI, and free accounts can build a few a day'}
-              {isPremiumTier && usage.importsSaved > 0
-                ? ` (${usage.importsSaved} saved today).`
-                : '.'}
+              {!isPremiumTier
+                ? t('today.settings.profile.usage.helperFree')
+                : usage.importsSaved > 0
+                  ? t('today.settings.profile.usage.helperPremiumSaved', {
+                      count: usage.importsSaved,
+                    })
+                  : t('today.settings.profile.usage.helperPremium')}
             </Text>
           </View>
         ) : null}

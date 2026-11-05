@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { GYM_MAX_WEIGHT_KG, TEMPLATE_COPY, type WeightUnit } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import { GYM_MAX_WEIGHT_KG, type WeightUnit } from '@chefer/types';
 import { cn, kgToUnit, unitLabel, unitToKg } from '@chefer/utils';
 
 /** Text the field shows for a stored kg value (empty = none). */
@@ -26,6 +27,7 @@ export function DefaultLoadField({
   exerciseName: string;
   onChange: (kg: number | null) => void;
 }) {
+  const { t } = useT();
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -68,7 +70,7 @@ export function DefaultLoadField({
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {TEMPLATE_COPY.editor.defaultLoad} ({unitLabel(unit)})
+        {t('trainer.templates.editor.defaultLoadUnit', { unit: unitLabel(unit) })}
         <span className="sr-only">: {exerciseName}</span>
       </label>
       <input
@@ -88,11 +90,14 @@ export function DefaultLoadField({
         data-testid="template-default-load"
       />
       <p id={hintId} className="text-xs text-gray-500">
-        {TEMPLATE_COPY.editor.defaultLoadHint}
+        {t('trainer.templates.editor.defaultLoadHint')}
       </p>
       {invalid && (
         <p id={errorId} role="alert" className="text-xs text-red-700">
-          Enter a weight between 0 and {kgToUnit(GYM_MAX_WEIGHT_KG, unit)} {unitLabel(unit)}.
+          {t('trainer.templates.editor.defaultLoadInvalid', {
+            max: kgToUnit(GYM_MAX_WEIGHT_KG, unit),
+            unit: unitLabel(unit),
+          })}
         </p>
       )}
     </div>

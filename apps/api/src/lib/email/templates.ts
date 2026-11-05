@@ -11,8 +11,8 @@
 // recipient's Translator (ADR 0004), so the subject, body and <html lang>
 // follow User.locale ?? User.deviceLocale ?? 'en'.
 
-import { createTranslator, type Translator } from '@chefer/i18n';
-import { CHECK_IN_COPY, QUIET_COPY, QUIET_LIMITS } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { QUIET_LIMITS } from '@chefer/types';
 
 export interface RenderedEmail {
   subject: string;
@@ -419,9 +419,6 @@ export function renderPasswordResetEmail(
   };
 }
 
-// Coaching emails are still English; Lane J phase 4 moves their copy into the catalogs.
-const EN = createTranslator('en');
-
 // ─── Lane K3: a trainer's weekly check-in ─────────────────────────────────────
 
 export interface CheckInEmailData {
@@ -433,31 +430,33 @@ export interface CheckInEmailData {
 }
 
 /** "Ana's weekly check-in": no question or answer in the email itself, only the way in. */
-export function renderCheckInEmail(data: CheckInEmailData): RenderedEmail {
-  const copy = CHECK_IN_COPY.email;
-  const body = copy.body(data.trainerName);
+export function renderCheckInEmail(tr: Translator, data: CheckInEmailData): RenderedEmail {
+  const trainer = data.trainerName;
+  const body = tr.t('coaching.email.checkIn.body', { trainer });
+  const cta = tr.t('coaching.email.checkIn.cta');
+  const unsubscribe = tr.t('coaching.email.checkIn.unsubscribe');
   const text = [
-    greeting(EN, data.firstName),
+    greeting(tr, data.firstName),
     '',
     body,
     '',
-    `${copy.cta}: ${data.answerUrl}`,
+    `${cta}: ${data.answerUrl}`,
     '',
-    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+    `${unsubscribe}: ${data.unsubscribeUrl}`,
   ].join('\n');
   const bodyHtml = [
-    paragraph(escapeHtml(greeting(EN, data.firstName))),
+    paragraph(escapeHtml(greeting(tr, data.firstName))),
     paragraph(escapeHtml(body)),
-    `<p style="margin:0 0 16px;">${button(copy.cta, data.answerUrl)}</p>`,
+    `<p style="margin:0 0 16px;">${button(cta, data.answerUrl)}</p>`,
   ].join('');
   return {
-    subject: copy.subject(data.trainerName),
+    subject: tr.t('coaching.email.checkIn.subject', { trainer }),
     text,
     html: layout({
-      lang: 'en',
-      preheader: copy.preheader,
+      lang: tr.locale,
+      preheader: tr.t('coaching.email.checkIn.preheader'),
       bodyHtml,
-      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(unsubscribe)}</a>`,
     }),
   };
 }
@@ -473,41 +472,42 @@ export interface QuietDigestEmailData {
   unsubscribeUrl: string;
 }
 
-export function renderQuietDigestEmail(data: QuietDigestEmailData): RenderedEmail {
-  const copy = QUIET_COPY.email;
+export function renderQuietDigestEmail(tr: Translator, data: QuietDigestEmailData): RenderedEmail {
   const shown = data.clients.slice(0, QUIET_LIMITS.digestMaxNames);
   const more = data.clients.length - shown.length;
   const lines = [
-    ...shown.map((c) => copy.line(c.name, c.days)),
-    ...(more > 0 ? [copy.more(more)] : []),
+    ...shown.map((c) => tr.t('coaching.email.quiet.line', { name: c.name, count: c.days })),
+    ...(more > 0 ? [tr.t('coaching.email.quiet.more', { count: more })] : []),
   ];
-  const intro = copy.intro(data.quietAfterDays);
+  const intro = tr.t('coaching.email.quiet.intro', { count: data.quietAfterDays });
+  const cta = tr.t('coaching.email.quiet.cta');
+  const unsubscribe = tr.t('coaching.email.quiet.unsubscribe');
   const text = [
-    greeting(EN, data.firstName),
+    greeting(tr, data.firstName),
     '',
     intro,
     ...lines.map((l) => `- ${l}`),
     '',
-    `${copy.cta}: ${data.clientsUrl}`,
+    `${cta}: ${data.clientsUrl}`,
     '',
-    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+    `${unsubscribe}: ${data.unsubscribeUrl}`,
   ].join('\n');
   const bodyHtml = [
-    paragraph(escapeHtml(greeting(EN, data.firstName))),
+    paragraph(escapeHtml(greeting(tr, data.firstName))),
     paragraph(escapeHtml(intro)),
     `<ul style="margin:0 0 16px;padding-left:20px;color:${INK};font-size:15px;line-height:1.5;">${lines
       .map((l) => `<li>${escapeHtml(l)}</li>`)
       .join('')}</ul>`,
-    `<p style="margin:0 0 16px;">${button(copy.cta, data.clientsUrl)}</p>`,
+    `<p style="margin:0 0 16px;">${button(cta, data.clientsUrl)}</p>`,
   ].join('');
   return {
-    subject: copy.subject(data.clients.length),
+    subject: tr.t('coaching.email.quiet.subject', { count: data.clients.length }),
     text,
     html: layout({
-      lang: 'en',
-      preheader: copy.preheader,
+      lang: tr.locale,
+      preheader: tr.t('coaching.email.quiet.preheader'),
       bodyHtml,
-      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(unsubscribe)}</a>`,
     }),
   };
 }

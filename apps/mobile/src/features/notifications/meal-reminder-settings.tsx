@@ -3,9 +3,10 @@ import { Pressable, Switch, View } from 'react-native';
 import type { MealReminders, PlanSlot } from '@chefer/types';
 import { MEAL_REMINDER_DEFAULT_TIMES, MEAL_REMINDER_SLOTS } from '@chefer/types';
 import { Button, Sheet, Text, TimePicker, useThemeColors, type TimeOfDay } from '@chefer/ui-mobile';
-import { activeReminderSlots, ENGAGEMENT_COPY, mealReminderLabel } from '@chefer/utils';
+import { activeReminderSlots } from '@chefer/utils';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import {
   refreshNotificationPermission,
@@ -72,6 +73,7 @@ function ReminderSwitch(props: {
 
 export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const query = trpc.notifications.getMealReminders.useQuery();
   const save = useSaveMealReminders();
   const permission = useNotificationPermission();
@@ -114,14 +116,14 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
     <View className="gap-1" testID={testIDPrefix}>
       <View className="min-h-11 flex-row items-center justify-between gap-3 py-1">
         <View className="min-w-0 flex-1">
-          <Text className="text-body text-label">{ENGAGEMENT_COPY.remindersMasterLabel}</Text>
+          <Text className="text-body text-label">{t('today.reminders.masterLabel')}</Text>
           <Text className="mt-0.5 text-subhead text-label-secondary">
-            {ENGAGEMENT_COPY.remindersCardBody}
+            {t('today.reminders.cardBody')}
           </Text>
         </View>
         <ReminderSwitch
           testID={`${testIDPrefix}-master`}
-          label={ENGAGEMENT_COPY.remindersMasterLabel}
+          label={t('today.reminders.masterLabel')}
           value={on}
           onChange={setEnabled}
         />
@@ -129,7 +131,8 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
       {on &&
         MEAL_REMINDER_SLOTS.map((slot) => {
           const time = reminders.times[slot];
-          const label = mealReminderLabel(slot);
+          const label = t(`today.reminders.slots.${slot}`);
+          const reminder = t(`today.engagement.reminderSettings.reminder.${slot}`);
           return (
             <View
               key={slot}
@@ -140,7 +143,10 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
                 <Pressable
                   testID={`${testIDPrefix}-${slot}-time`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${label} reminder time, ${time}. Change`}
+                  accessibilityLabel={t('today.engagement.reminderSettings.timeLabel', {
+                    reminder,
+                    time,
+                  })}
                   onPress={() => {
                     setDraftTime(fromTime(time));
                     setEditing(slot);
@@ -155,7 +161,7 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
               )}
               <ReminderSwitch
                 testID={`${testIDPrefix}-${slot}`}
-                label={`${label} reminder`}
+                label={reminder}
                 value={time !== null}
                 onChange={(next) => setSlot(slot, next ? MEAL_REMINDER_DEFAULT_TIMES[slot] : null)}
               />
@@ -163,15 +169,12 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
           );
         })}
       {denied && (
-        <NotificationsOffRow
-          testID={`${testIDPrefix}-off`}
-          message={ENGAGEMENT_COPY.remindersOff}
-        />
+        <NotificationsOffRow testID={`${testIDPrefix}-off`} message={t('today.reminders.off')} />
       )}
       <Sheet
         visible={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing ? `${mealReminderLabel(editing)} reminder` : ''}
+        title={editing ? t(`today.engagement.reminderSettings.reminder.${editing}`) : ''}
         testID={`${testIDPrefix}-time-sheet`}
       >
         <View className="gap-4 pb-2">
@@ -187,7 +190,7 @@ export function MealReminderSettings({ testIDPrefix }: { testIDPrefix: string })
               setEditing(null);
             }}
           >
-            Save time
+            {t('today.engagement.reminderSettings.saveTime')}
           </Button>
         </View>
       </Sheet>

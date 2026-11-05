@@ -1,6 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { RecipeImage } from '../../recipes/recipe-image';
 import { MealTypeBadge } from './meal-type-badge';
@@ -13,6 +14,7 @@ import { MealTypeBadge } from './meal-type-badge';
 type Tomorrow = NonNullable<RouterOutputs['dashboard']['summary']['tomorrow']>;
 
 export function TomorrowCard({ meal }: { meal: Tomorrow }) {
+  const { t } = useT();
   const openRecipe = () => router.push(`/recipe/${meal.recipe.id}`);
 
   return (
@@ -20,7 +22,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
       <Pressable
         testID="tomorrow-card-open"
         accessibilityRole="button"
-        accessibilityLabel={`Tomorrow: ${meal.recipe.name}`}
+        accessibilityLabel={t('today.home.nextMeal.tomorrowLabel', { name: meal.recipe.name })}
         onPress={openRecipe}
         className="active:opacity-80"
       >
@@ -33,7 +35,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
           <View className="flex-row flex-wrap gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
               <Text className="text-xs font-semibold uppercase text-primary-foreground">
-                Tomorrow
+                {t('today.home.nextMeal.tomorrow')}
               </Text>
             </View>
             <MealTypeBadge mealType={meal.mealType} />
@@ -43,7 +45,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
       </Pressable>
       <View className="p-4 pt-2">
         <Button testID="tomorrow-view-recipe" variant="outline" onPress={openRecipe}>
-          View recipe
+          {t('today.home.nextMeal.viewRecipe')}
         </Button>
       </View>
     </Card>

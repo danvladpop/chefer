@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
-import { BOOKING_COPY, COACHING_COPY, type ClientBookingDto } from '@chefer/types';
+import type { ClientBookingDto } from '@chefer/types';
 import { Badge, EmptyState, ErrorState, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
-import {
-  bookingDayTimeRange,
-  bookingOthersText,
-  bookingZoneHint,
-  cn,
-  deviceTimeZone,
-  todayIn,
-} from '@chefer/utils';
+import { cn, deviceTimeZone, todayIn } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
+import {
+  bookingDayTimeRangeText,
+  bookingOthersLabel,
+  bookingZoneHintText,
+} from '../../trainer-mode/bookings/booking-model';
 import { useCoachingAvailability } from '../../trainer/api/use-coaching-availability';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TrainerHeader } from '../../trainer/components/trainer-header';
@@ -35,6 +34,8 @@ function Row({ label, value, testID }: { label: string; value: string; testID: s
 
 export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const [zone] = useState(deviceTimeZone);
   const { enabled } = useCoachingAvailability();
   const utils = trpc.useUtils();
@@ -48,7 +49,10 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
     },
   );
   const header = (
-    <TrainerHeader testID="client-booking-header" title={BOOKING_COPY.client.detailTitle} />
+    <TrainerHeader
+      testID="client-booking-header"
+      title={t('trainer.bookings.client.detailTitle')}
+    />
   );
 
   if (query.isPending) {
@@ -70,7 +74,7 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
           <EmptyState
             testID="client-booking-missing"
             icon={<Icon name="calendar" color={colors.labelTertiary} size={40} />}
-            title={BOOKING_COPY.server.notFound}
+            title={t('trainer.bookings.detail.notFound')}
           />
         ) : (
           <ErrorState testID="client-booking-error" onRetry={() => void query.refetch()} />
@@ -81,7 +85,7 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
 
   const b: ClientBookingDto = query.data;
   const cancelled = b.cancelledAt !== null;
-  const hint = bookingZoneHint(b, zone);
+  const hint = bookingZoneHintText(tr, b, zone);
   return (
     <Screen edges={EDGES} className="bg-canvas px-0" testID="client-booking">
       {header}
@@ -95,7 +99,7 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
                 cancelled ? 'text-label-secondary line-through' : 'text-label',
               )}
             >
-              {bookingDayTimeRange(b, zone, todayIn(zone))}
+              {bookingDayTimeRangeText(tr, b, zone, todayIn(zone))}
             </Text>
             {hint ? (
               <Text testID="client-booking-zone" className="text-caption text-label-secondary">
@@ -105,7 +109,7 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
             {cancelled ? (
               <View className="flex-row">
                 <Badge testID="client-booking-cancelled" variant="warning">
-                  {BOOKING_COPY.client.cancelled}
+                  {t('trainer.bookings.client.cancelled')}
                 </Badge>
               </View>
             ) : null}
@@ -115,25 +119,29 @@ export function ClientBookingScreen({ bookingId }: { bookingId: string }) {
           </View>
           <Row
             testID="client-booking-trainer"
-            label={COACHING_COPY.yourTrainer.title}
-            value={[b.trainer.name, bookingOthersText(b)].filter(Boolean).join(', ')}
+            label={t('coaching.yourTrainer.title')}
+            value={[b.trainer.name, bookingOthersLabel(tr, b)].filter(Boolean).join(', ')}
           />
           {b.workoutName ? (
             <Row
               testID="client-booking-workout"
-              label={BOOKING_COPY.editor.workout}
+              label={t('trainer.bookings.editor.workout')}
               value={b.workoutName}
             />
           ) : null}
           {b.location ? (
             <Row
               testID="client-booking-location"
-              label={BOOKING_COPY.editor.location}
+              label={t('trainer.bookings.editor.location')}
               value={b.location}
             />
           ) : null}
           {b.note ? (
-            <Row testID="client-booking-note" label={BOOKING_COPY.editor.note} value={b.note} />
+            <Row
+              testID="client-booking-note"
+              label={t('trainer.bookings.editor.note')}
+              value={b.note}
+            />
           ) : null}
         </CoachingCard>
       </ScrollView>

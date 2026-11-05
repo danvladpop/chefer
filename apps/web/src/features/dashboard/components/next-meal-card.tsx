@@ -11,6 +11,8 @@ import {
 } from '@/features/tracker/lib/rebalance-storage';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ArrowRight, Check, ChefHat, Clock, Flame } from 'lucide-react';
 import {
@@ -21,6 +23,7 @@ import {
   slotPortion,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { mealTypeLabel } from './today-slot-notes';
 
 // ─── Today: next meal with one-tap "I ate this" (P2-2, F-PM-7 / F-PM-10) ─────
 // Logging a planned meal used to take Home → More → Tracker → ✓ → Save. The
@@ -49,6 +52,7 @@ interface NextMealCardProps {
 }
 
 export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardProps) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { proteinOnly } = useNumbersMode();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
@@ -110,7 +114,12 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
     ? portion !== undefined
       ? formatPortion(portion)
       : null
-    : `${meal.recipe.kcal} kcal${portion !== undefined ? ` · ${formatPortion(portion)}` : ''}`;
+    : portion !== undefined
+      ? t('today.home.nextMeal.sizeWithPortion.kcal', {
+          kcal: meal.recipe.kcal,
+          portion: formatPortion(portion),
+        })
+      : t('today.home.nextMeal.size.kcal', { kcal: meal.recipe.kcal });
   const recipeHref = `/recipes/${meal.recipe.id}${portion !== undefined ? `?portion=${portion}` : ''}`;
   const cookHref = `/recipes/${meal.recipe.id}/cook?meal=${meal.mealType}${portion !== undefined ? `&portion=${portion}` : ''}`;
 
@@ -125,7 +134,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
         <Link
           href={recipeHref}
           className="relative block h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32"
-          aria-label={`Open ${meal.recipe.name}`}
+          aria-label={t('today.home.nextMeal.open', { name: meal.recipe.name })}
         >
           <RecipeThumbnail
             imageUrl={meal.recipe.imageUrl}
@@ -138,7 +147,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
           <div className="min-w-0">
             <div className="mb-1 flex flex-wrap gap-2">
               <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
-                {isTomorrow ? 'Tomorrow' : 'Next meal'}
+                {isTomorrow ? t('today.home.nextMeal.tomorrow') : t('today.home.nextMeal.badge')}
               </span>
               <span
                 className={cn(
@@ -146,7 +155,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                   MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600',
                 )}
               >
-                {meal.mealType}
+                {mealTypeLabel(t, meal.mealType)}
               </span>
             </div>
             <h2 className="font-serif text-lg font-bold leading-snug text-gray-900">
@@ -158,7 +167,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
               <span className="flex items-center gap-1 text-xs text-gray-500">
                 <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                {totalMins} min
+                {t('today.home.nextMeal.minutes', { minutes: totalMins })}
               </span>
               {/* WP-08: protein-only mode shows no kcal on the card. */}
               {mealSizeLine && (
@@ -175,7 +184,8 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
               href={recipeHref}
               className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] sm:ml-auto sm:w-auto"
             >
-              View recipe <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {t('today.home.nextMeal.viewRecipe')}{' '}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : (
             <div className="flex items-start gap-2 sm:justify-end">
@@ -200,7 +210,11 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                   className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
                 >
                   <Check className="h-4 w-4" aria-hidden="true" />
-                  {logMutation.isPending ? 'Logging…' : holding ? 'Logged ✓' : 'I ate this'}
+                  {logMutation.isPending
+                    ? t('today.home.nextMeal.logging')
+                    : holding
+                      ? t('today.home.nextMeal.logged')
+                      : t('today.home.nextMeal.ateThis')}
                 </button>
                 {holding ? (
                   <button
@@ -217,7 +231,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                     }
                     className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
                   >
-                    Undo
+                    {t('today.home.nextMeal.undo')}
                   </button>
                 ) : (
                   <Link
@@ -225,7 +239,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                     className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
                   >
                     <ChefHat className="h-4 w-4" aria-hidden="true" />
-                    Cook it
+                    {t('today.home.nextMeal.cookIt')}
                   </Link>
                 )}
               </div>
@@ -251,7 +265,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
 
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">
-          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
+          {t('today.home.nextMeal.logError', { error: userFacingErrorMessage(logMutation.error) })}
         </p>
       )}
       {lastLogged && !logMutation.isError && (
@@ -261,10 +275,10 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
           className="flex flex-wrap items-center gap-x-2 border-t bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800 sm:px-5"
         >
           <span className="min-w-0">
-            Logged <strong>{lastLogged}</strong>.
+            {rich(t, 'today.home.nextMeal.loggedName', { name: <strong>{lastLogged}</strong> })}
           </span>
           <Link href="/tracker" className="touch-target relative font-semibold underline">
-            Change it in your full day
+            {t('today.home.nextMeal.changeInFullDay')}
           </Link>
         </p>
       )}

@@ -12,6 +12,7 @@ import {
 } from '@chefer/ui-mobile';
 import { localDateStr } from '@chefer/utils';
 import { Icon, type IconName } from '../../components/icon';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { QuickAddSheet } from '../tracker/quick-add-sheet';
 import { LogWorkoutSheet } from './log-workout-sheet';
@@ -25,46 +26,47 @@ import { LogWorkoutSheet } from './log-workout-sheet';
 // 10 Oct redesign: titles only (less text), and a Training group with "Log a
 // workout", which opens the shared Log a workout sheet the same way.
 
-type AddChoice = { key: string; title: string; icon: IconName } & (
-  | { href: Href }
-  | { quickAdd: true }
-  | { logWorkout: true }
-);
+type AddChoice = {
+  key: string;
+  titleKey: `today.shell.add.${'search' | 'snap' | 'copy' | 'recipe' | 'logWorkout'}`;
+  icon: IconName;
+} & ({ href: Href } | { quickAdd: true } | { logWorkout: true });
 
 const CHOICES: readonly AddChoice[] = [
   {
     key: 'search',
-    title: 'Search foods',
+    titleKey: 'today.shell.add.search',
     icon: 'search',
     quickAdd: true,
   },
   {
     key: 'snap',
-    title: 'Snap a meal',
+    titleKey: 'today.shell.add.snap',
     icon: 'camera',
     href: '/tracker?snap=1',
   },
   {
     key: 'copy',
-    title: 'Copy yesterday',
+    titleKey: 'today.shell.add.copy',
     icon: 'copy',
     href: '/tracker?copy=1',
   },
   {
     key: 'recipe',
-    title: 'Save a recipe',
+    titleKey: 'today.shell.add.recipe',
     icon: 'recipes',
     href: '/import-recipe',
   },
 ];
 
 const TRAINING_CHOICES: readonly AddChoice[] = [
-  { key: 'workout', title: 'Log a workout', icon: 'barbell', logWorkout: true },
+  { key: 'workout', titleKey: 'today.shell.add.logWorkout', icon: 'barbell', logWorkout: true },
 ];
 
 /** Today's header + button and the sheet it opens. Self-contained. */
 export function AddAction() {
   const colors = useThemeColors();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -90,7 +92,7 @@ export function AddAction() {
     <>
       <IconButton
         testID="shell-add"
-        accessibilityLabel="Add food"
+        accessibilityLabel={t('today.shell.chrome.addLabel')}
         variant="filled"
         icon={<Icon name="add" color={colors.onBrand} size={26} />}
         onPress={() => setOpen(true)}
@@ -99,26 +101,26 @@ export function AddAction() {
         visible={open}
         onClose={() => setOpen(false)}
         onExited={onExited}
-        title="Add to today"
+        title={t('today.shell.add.title')}
         testID="add-sheet"
       >
-        <ListSection title="Food" className="mb-3">
+        <ListSection title={t('today.shell.add.food')} className="mb-3">
           {CHOICES.map((choice) => (
             <ListRow
               key={choice.key}
               testID={`add-${choice.key}`}
-              title={choice.title}
+              title={t(choice.titleKey)}
               icon={<Icon name={choice.icon} color={colors.brand} />}
               onPress={() => choose(choice)}
             />
           ))}
         </ListSection>
-        <ListSection title="Training" className="mb-4">
+        <ListSection title={t('today.shell.add.training')} className="mb-4">
           {TRAINING_CHOICES.map((choice) => (
             <ListRow
               key={choice.key}
               testID={`add-${choice.key}`}
-              title={choice.title}
+              title={t(choice.titleKey)}
               icon={<Icon name={choice.icon} color={colors.brand} />}
               onPress={() => choose(choice)}
             />
@@ -146,11 +148,12 @@ export function AddAction() {
  */
 export function AskChefAction() {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <PressableScale
       testID="shell-ask-chef"
       accessibilityRole="button"
-      accessibilityLabel="Ask the chef"
+      accessibilityLabel={t('today.shell.chrome.askChefLabel')}
       hitSlop={4}
       onPress={() => {
         haptics.selection();
@@ -159,7 +162,9 @@ export function AskChefAction() {
       className="min-h-11 flex-row items-center gap-1.5 rounded-full bg-brand-tint pl-3 pr-3.5"
     >
       <Icon name="chef" color={colors.brand} size={20} />
-      <Text className="text-callout font-semibold text-brand">Ask Chef</Text>
+      <Text className="text-callout font-semibold text-brand">
+        {t('today.shell.chrome.askChef')}
+      </Text>
     </PressableScale>
   );
 }

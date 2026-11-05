@@ -1,5 +1,6 @@
 import { ActivityIndicator, View } from 'react-native';
 import { ErrorState, Sheet, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { formatCoachedSet, formatWeekdayDate, rirText } from '../format';
 
@@ -14,6 +15,7 @@ export function ExerciseHistorySheet({
   exercise: { exerciseId: string; name: string } | null;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const query = trpc.trainer.client.exerciseHistory.useQuery(
     { clientId, exerciseId: exercise?.exerciseId ?? '' },
     { enabled: exercise !== null },
@@ -30,24 +32,29 @@ export function ExerciseHistorySheet({
       ) : query.isError ? (
         <ErrorState testID="trainer-history-error" onRetry={() => void query.refetch()} />
       ) : query.data.entries.length === 0 ? (
-        <Text className="text-subhead text-label-secondary">No history yet.</Text>
+        <Text className="text-subhead text-label-secondary">
+          {t('coaching.trainer.workouts.noHistory')}
+        </Text>
       ) : (
         <View className="gap-3">
-          {query.data.entries.map((entry) => (
-            <View
-              key={entry.localDate}
-              testID={`trainer-history-${entry.localDate}`}
-              className="gap-0.5"
-            >
-              <Text className="font-medium">{formatWeekdayDate(entry.localDate)}</Text>
-              <Text className="text-sm">{entry.sets.map(formatCoachedSet).join('  ·  ')}</Text>
-              {rirText(entry.lastSetRir) ? (
-                <Text className="text-caption text-label-secondary">
-                  {rirText(entry.lastSetRir)}
+          {query.data.entries.map((entry) => {
+            const effort = rirText(entry.lastSetRir, t);
+            return (
+              <View
+                key={entry.localDate}
+                testID={`trainer-history-${entry.localDate}`}
+                className="gap-0.5"
+              >
+                <Text className="font-medium">{formatWeekdayDate(entry.localDate, t)}</Text>
+                <Text className="text-sm">
+                  {entry.sets.map((set) => formatCoachedSet(set, t)).join('  ·  ')}
                 </Text>
-              ) : null}
-            </View>
-          ))}
+                {effort ? (
+                  <Text className="text-caption text-label-secondary">{effort}</Text>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       )}
     </Sheet>

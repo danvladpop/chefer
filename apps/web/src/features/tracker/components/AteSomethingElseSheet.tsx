@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Camera, Pencil } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -18,6 +19,7 @@ import {
   formatEatOutProtein,
   HIDE_NUMBERS_COPY,
   proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
   type EatOutCuisine,
   type EatOutSize,
 } from '@chefer/utils';
@@ -38,11 +40,7 @@ import type { ReplacementInput, SlotTarget } from '../lib/use-slot-actions';
 
 type Tab = 'estimate' | 'recent' | 'describe';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'estimate', label: 'Quick estimate' },
-  { id: 'recent', label: 'Recent' },
-  { id: 'describe', label: 'Describe or snap' },
-];
+const TABS: Tab[] = ['estimate', 'recent', 'describe'];
 
 const LAST_KEY = 'chefer.ate-else.last';
 
@@ -87,6 +85,7 @@ export function AteSomethingElseSheet({
   onDescribe,
   onSnap,
 }: AteSomethingElseSheetProps) {
+  const { t } = useT();
   // WP-08: protein-only mode asks protein first and never shows a calorie figure.
   const { proteinOnly, noNumbers } = useNumbersMode();
   const [tab, setTab] = useState<Tab>('estimate');
@@ -107,7 +106,9 @@ export function AteSomethingElseSheet({
   );
 
   const estimate = cuisine ? eatOutEstimate(cuisine, size) : null;
-  const label = target?.label ?? 'meal';
+  // The slot's meal as it sits in a sentence ("in place of dinner").
+  const mealType = QUICK_ADD_MEAL_TYPES.find((m) => m === target?.mealType) ?? 'snack';
+  const label = t(`tracker.mealInSentence.${mealType}`);
 
   const logEstimate = () => {
     if (!target || !cuisine || !estimate) return;
@@ -135,8 +136,8 @@ export function AteSomethingElseSheet({
     <Sheet
       open={open && target !== null}
       onClose={onClose}
-      title="Ate something else"
-      description={`In place of ${label.toLowerCase()}. A rough number is fine.`}
+      title={t('tracker.ateElse.title')}
+      description={t('tracker.ateElse.inPlaceOf', { meal: label })}
       size="sm"
       footer={
         tab === 'estimate' ? (
@@ -147,7 +148,7 @@ export function AteSomethingElseSheet({
             disabled={!estimate}
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            Log it
+            {t('tracker.ateElse.logIt')}
           </button>
         ) : undefined
       }
@@ -155,29 +156,33 @@ export function AteSomethingElseSheet({
       <div className="space-y-4 px-5 pb-4">
         <div
           role="tablist"
-          aria-label="How to log it"
+          aria-label={t('tracker.ateElse.tabsLabel')}
           className="flex gap-1 rounded-xl bg-neutral-100 p-1"
         >
-          {TABS.map((t) => (
+          {TABS.map((id) => (
             <button
-              key={t.id}
+              key={id}
               type="button"
               role="tab"
-              aria-selected={tab === t.id}
-              data-testid={`ate-else-tab-${t.id}`}
-              onClick={() => setTab(t.id)}
+              aria-selected={tab === id}
+              data-testid={`ate-else-tab-${id}`}
+              onClick={() => setTab(id)}
               className={`min-h-11 min-w-0 flex-1 rounded-lg px-1 text-xs font-semibold ${
-                tab === t.id ? 'bg-white text-[#944a00] shadow-sm' : 'text-neutral-600'
+                tab === id ? 'bg-white text-[#944a00] shadow-sm' : 'text-neutral-600'
               }`}
             >
-              {t.label}
+              {t(`tracker.ateElse.tabs.${id}`)}
             </button>
           ))}
         </div>
 
         {tab === 'estimate' && (
           <div className="space-y-4">
-            <div role="group" aria-label="What did you have?" className="flex flex-wrap gap-2">
+            <div
+              role="group"
+              aria-label={t('tracker.ateElse.cuisinesLabel')}
+              className="flex flex-wrap gap-2"
+            >
               {EAT_OUT_CUISINES.map((c) => (
                 <button
                   key={c}
@@ -191,7 +196,11 @@ export function AteSomethingElseSheet({
                 </button>
               ))}
             </div>
-            <div role="group" aria-label="How much?" className="grid grid-cols-3 gap-2">
+            <div
+              role="group"
+              aria-label={t('tracker.ateElse.sizeLabel')}
+              className="grid grid-cols-3 gap-2"
+            >
               {EAT_OUT_SIZES.map((s) => (
                 <button
                   key={s}
@@ -225,23 +234,23 @@ export function AteSomethingElseSheet({
                   : proteinOnly
                     ? formatEatOutProtein(estimate)
                     : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
-                : 'Pick what you had'}
+                : t('tracker.ateElse.pick')}
             </p>
           </div>
         )}
 
         {tab === 'recent' && (
           <div className="space-y-1.5">
-            {recents.isLoading && <p className="py-2 text-sm text-neutral-500">Loading…</p>}
+            {recents.isLoading && (
+              <p className="py-2 text-sm text-neutral-500">{t('common.states.loading')}</p>
+            )}
             {recents.isError && (
               <p role="alert" className="py-2 text-sm text-neutral-600">
-                Couldn&apos;t load your recent meals. Try the quick estimate instead.
+                {t('tracker.ateElse.recentError')}
               </p>
             )}
             {recents.data?.length === 0 && (
-              <p className="py-2 text-sm text-neutral-500">
-                Nothing logged yet. Try a quick estimate, or describe it.
-              </p>
+              <p className="py-2 text-sm text-neutral-500">{t('tracker.ateElse.recentEmpty')}</p>
             )}
             {recents.data?.map((r) => (
               <div
@@ -252,14 +261,16 @@ export function AteSomethingElseSheet({
                   <p className="truncate text-sm font-medium text-neutral-800">{r.name}</p>
                   {noNumbers ? null : (
                     <p className="text-xs text-neutral-500">
-                      {proteinOnly ? proteinLabel(r.protein) : `${Math.round(r.kcal)} kcal`}
+                      {proteinOnly
+                        ? proteinLabel(r.protein)
+                        : t('tracker.ateElse.recentKcal', { kcal: Math.round(r.kcal) })}
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
                   data-testid={`ate-else-recent-${r.key}`}
-                  aria-label={`Log ${r.name} for ${label.toLowerCase()}`}
+                  aria-label={t('tracker.ateElse.logFor', { name: r.name, meal: label })}
                   onClick={() => {
                     if (!target) return;
                     onLog(target, {
@@ -275,7 +286,7 @@ export function AteSomethingElseSheet({
                   }}
                   className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
                 >
-                  Log
+                  {t('tracker.ateElse.log')}
                 </button>
               </div>
             ))}
@@ -291,7 +302,7 @@ export function AteSomethingElseSheet({
               className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 text-left text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
             >
               <Pencil className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
-              <span className="min-w-0">Describe it</span>
+              <span className="min-w-0">{t('tracker.ateElse.describe')}</span>
             </button>
             <button
               type="button"
@@ -300,7 +311,7 @@ export function AteSomethingElseSheet({
               className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 text-left text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
             >
               <Camera className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
-              <span className="min-w-0">Snap a photo</span>
+              <span className="min-w-0">{t('tracker.ateElse.snap')}</span>
             </button>
           </div>
         )}

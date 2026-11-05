@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   Button,
   Chip,
@@ -66,11 +65,12 @@ export interface CookbookRecipe {
 export function cookbookFromLabel(
   recipe: Pick<CookbookRecipe, 'creator' | 'origin'>,
 ): string | null {
-  if (recipe.creator) return FRIENDS_COPY.recipe.from(recipe.creator.firstName);
+  const { t } = getTranslator();
+  if (recipe.creator) return t('friends.recipe.from', { first: recipe.creator.firstName });
   if (recipe.origin) {
     return recipe.origin.creatorFirstName
-      ? FRIENDS_COPY.recipe.from(recipe.origin.creatorFirstName)
-      : FRIENDS_COPY.recipe.fromGone;
+      ? t('friends.recipe.from', { first: recipe.origin.creatorFirstName })
+      : t('friends.recipe.fromGone');
   }
   return null;
 }

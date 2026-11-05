@@ -3,13 +3,16 @@ import { notFound } from 'next/navigation';
 import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { safeNextPath } from '@/features/coaching/lib/next-path';
 import { SignedOutHouseholdInvite } from '@/features/household-sharing/components/SignedOutHouseholdInvite';
-import { HOUSEHOLD_SHARING_COPY } from '@chefer/types';
+import { getServerTranslator } from '@/lib/i18n/server';
 
-export const metadata: Metadata = {
-  ...smartAppBanner(),
-  title: HOUSEHOLD_SHARING_COPY.joinPageTitle,
-  robots: { index: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return {
+    ...smartAppBanner(),
+    title: t('household.sharing.joinPageTitle'),
+    robots: { index: false },
+  };
+}
 
 // Never linked to: middleware.ts rewrites a signed-out phone's /household/join/<code>
 // here, so the visible address stays the invite link.

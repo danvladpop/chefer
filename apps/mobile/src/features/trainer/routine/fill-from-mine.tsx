@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { COACHING_COPY, type RoutineDto, type RoutineListItemDto } from '@chefer/types';
+import type { RoutineDto, RoutineListItemDto } from '@chefer/types';
 import { ErrorState, Sheet, Text } from '@chefer/ui-mobile';
 import { normalizeSupersets } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { newId } from '../../gym/offline/ids';
 import { MAX_DAYS, MAX_EXERCISES_PER_DAY, type RoutineDraft } from '../../gym/routine/types';
@@ -60,13 +61,14 @@ export function FillFromMineSheet({
   onClose: () => void;
   onPick: (routine: RoutineListItemDto) => void;
 }) {
+  const { t } = useT();
   const list = trpc.gym.routine.list.useQuery(undefined, { enabled: visible });
   const routines = (list.data ?? []).filter((r) => !r.archived && r.dayCount > 0);
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={COACHING_COPY.trainer.fillFromMine}
+      title={t('coaching.trainer.fillFromMine')}
       testID="trainer-fill"
     >
       {list.isPending ? (
@@ -75,7 +77,7 @@ export function FillFromMineSheet({
         <ErrorState testID="trainer-fill-error" onRetry={() => void list.refetch()} />
       ) : routines.length === 0 ? (
         <Text testID="trainer-fill-empty" className="text-subhead text-label-secondary">
-          You have no routines of your own to copy yet.
+          {t('coaching.trainer.fillFromMineEmptyCopy')}
         </Text>
       ) : (
         <View>
@@ -84,7 +86,10 @@ export function FillFromMineSheet({
               key={routine.id}
               testID={`trainer-fill-${routine.id}`}
               accessibilityRole="button"
-              accessibilityLabel={`${routine.name}, ${routine.dayCount} days`}
+              accessibilityLabel={t('coaching.trainer.routineDays', {
+                name: routine.name,
+                days: t('common.counts.days', { count: routine.dayCount }),
+              })}
               onPress={() => onPick(routine)}
               className="min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted"
             >
@@ -92,7 +97,7 @@ export function FillFromMineSheet({
                 {routine.name}
               </Text>
               <Text className="text-caption text-label-secondary">
-                {routine.dayCount} {routine.dayCount === 1 ? 'day' : 'days'}
+                {t('common.counts.days', { count: routine.dayCount })}
               </Text>
             </Pressable>
           ))}

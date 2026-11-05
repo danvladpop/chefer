@@ -1,7 +1,8 @@
 'use client';
 
 import { useId } from 'react';
-import { COACHING_COPY, COACHING_LIMITS } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import { COACHING_LIMITS } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 /**
@@ -23,7 +24,7 @@ export function TrainerNoteField({
   label?: string;
   hint?: string;
 }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -32,7 +33,7 @@ export function TrainerNoteField({
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {label ?? copy.noteForClient(clientName)}
+        {label ?? t('coaching.trainer.noteForClient', { client: clientName })}
       </label>
       <textarea
         id={id}
@@ -48,7 +49,7 @@ export function TrainerNoteField({
       />
       <div className="flex min-w-0 items-start justify-between gap-2">
         <p id={hintId} className="min-w-0 text-xs text-gray-500">
-          {hint ?? copy.noteForClientHint(clientName)}
+          {hint ?? t('coaching.trainer.noteForClientHint', { client: clientName })}
         </p>
         <p className={cn('shrink-0 text-xs', tooLong ? 'text-red-700' : 'text-gray-500')}>
           {value.length} / {max}
@@ -56,7 +57,7 @@ export function TrainerNoteField({
       </div>
       {tooLong && (
         <p id={errorId} role="alert" className="text-xs text-red-700">
-          Keep the note to {max} characters or fewer.
+          {t('coaching.trainer.noteTooLong', { max })}
         </p>
       )}
     </div>

@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
+import {
+  formatKcal,
+  localDateStr,
+  slotPortion,
+  userFacingErrorMessage,
+  verifiedLabels,
+} from '@chefer/utils';
 import { trackMealLogged } from '../../../lib/analytics-events';
+import { useT } from '../../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { RecipeImage } from '../../recipes/recipe-image';
@@ -52,6 +59,7 @@ export function TonightCard({
   /** WP-06: opens the dinner's actions — the overflow next to "I ate this". */
   onSlotActions?: (() => void) | undefined;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
   const { proteinOnly, noNumbers } = useNumbersMode();
@@ -103,7 +111,7 @@ export function TonightCard({
       <Card testID="tonight-card-skipped" className="py-1">
         <SlotStatusLine
           testID="tonight-skipped"
-          text={`Dinner · ${SLOT_COPY.skippedLabel}`}
+          text={t('today.home.tonight.dinnerLine', { status: SLOT_COPY.skippedLabel })}
           actionLabel={SLOT_COPY.undo}
           onAction={slot.onUndo}
         />
@@ -118,7 +126,13 @@ export function TonightCard({
         <Card testID="tonight-card-done" className="py-1">
           <SlotStatusLine
             testID="tonight-replaced"
-            text={`Dinner done · ${youHadText({ custom: { name: slot.name }, kcal: slot.kcal, protein: slot.protein }, proteinOnly, noNumbers)}`}
+            text={t('today.home.tonight.done', {
+              name: youHadText(
+                { custom: { name: slot.name }, kcal: slot.kcal, protein: slot.protein },
+                proteinOnly,
+                noNumbers,
+              ),
+            })}
             actionLabel={slot.onRemove ? SLOT_COPY.remove : undefined}
             onAction={slot.onRemove}
           />
@@ -130,7 +144,7 @@ export function TonightCard({
         <View className="flex-row items-center gap-2.5">
           <Text className="text-base">✓</Text>
           <Text className="min-w-0 flex-1 text-sm font-medium text-label" numberOfLines={1}>
-            Dinner done · {meal.recipe.name}
+            {t('today.home.tonight.done', { name: meal.recipe.name })}
           </Text>
           {canRate && !rateOpen && (
             <Pressable
@@ -139,15 +153,17 @@ export function TonightCard({
               onPress={() => setRateOpen(true)}
               className="min-h-11 justify-center px-2"
             >
-              <Text className="text-xs font-semibold text-primary">Rate it</Text>
+              <Text className="text-xs font-semibold text-primary">
+                {t('today.home.tonight.rateIt')}
+              </Text>
             </Pressable>
           )}
         </View>
         {rateOpen && (
           <StarRating
             recipeId={meal.recipe.id}
-            title="How was it?"
-            hint="Your rating shapes what the chef cooks up next week."
+            title={t('today.home.tonight.rateTitle')}
+            hint={t('today.home.tonight.rateHint')}
             className="border-0 p-0 shadow-none"
           />
         )}
@@ -160,7 +176,10 @@ export function TonightCard({
       <Pressable
         testID="tonight-card-open"
         accessibilityRole="button"
-        accessibilityLabel={`Tonight: ${meal.recipe.name}, for ${meal.recipe.servings}.`}
+        accessibilityLabel={t('today.home.tonight.cardLabel', {
+          name: meal.recipe.name,
+          servings: String(meal.recipe.servings),
+        })}
         onPress={() => router.push(`/recipe/${meal.recipe.id}`)}
         className="active:opacity-80"
       >
@@ -173,7 +192,7 @@ export function TonightCard({
           <View className="flex-row flex-wrap items-center gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
               <Text className="text-xs font-semibold uppercase text-primary-foreground">
-                Tonight · Dinner
+                {t('today.home.tonight.badge')}
               </Text>
             </View>
             {verifiedLabels(meal.safetyChecks).length > 0 && (
@@ -185,19 +204,26 @@ export function TonightCard({
           </View>
           <Text className="text-lg font-bold leading-snug text-label">{meal.recipe.name}</Text>
           <Text className="text-xs text-label-tertiary">
-            {meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)} min · for{' '}
-            {meal.recipe.servings}
-            {showNutrition && !proteinOnly ? ` · ${meal.recipe.kcal} kcal` : ''}
+            {showNutrition && !proteinOnly
+              ? t('today.home.tonight.metaWith.kcal', {
+                  minutes: String(meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)),
+                  servings: String(meal.recipe.servings),
+                  value: formatKcal(meal.recipe.kcal),
+                })
+              : t('today.home.tonight.meta', {
+                  minutes: String(meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)),
+                  servings: String(meal.recipe.servings),
+                })}
           </Text>
         </View>
       </Pressable>
 
       <View className="flex-row gap-2 p-4">
         <Button testID="tonight-cook-it" className="flex-1" onPress={openCookMode}>
-          Cook it
+          {t('today.home.tonight.cookIt')}
         </Button>
         <Button testID="tonight-swap" variant="outline" className="flex-1" onPress={openSwap}>
-          Swap
+          {t('today.home.tonight.swap')}
         </Button>
       </View>
       {showNutrition && (
@@ -218,7 +244,9 @@ export function TonightCard({
             className="min-h-12 min-w-0 flex-1 items-center justify-center py-2.5"
           >
             <Text className="text-sm font-semibold text-primary">
-              {logMutation.isPending ? 'Logging…' : 'I ate this'}
+              {logMutation.isPending
+                ? t('today.home.tonight.logging')
+                : t('today.home.tonight.ateThis')}
             </Text>
           </Pressable>
           {onSlotActions && (
@@ -233,7 +261,7 @@ export function TonightCard({
       )}
       {logMutation.isError && (
         <Text className="px-4 pb-3 text-xs text-danger">
-          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
+          {t('today.home.tonight.logError', { error: userFacingErrorMessage(logMutation.error) })}
         </Text>
       )}
     </Card>
@@ -241,11 +269,14 @@ export function TonightCard({
 }
 
 export function NothingTonightCard() {
+  const { t } = useT();
   return (
     <Card testID="nothing-tonight-card">
-      <Text className="text-sm font-semibold text-label">Nothing planned tonight</Text>
+      <Text className="text-sm font-semibold text-label">
+        {t('today.home.tonight.nothingTitle')}
+      </Text>
       <Text variant="muted" className="mt-0.5 text-xs">
-        Pick something quick from your recipes
+        {t('today.home.tonight.nothingBody')}
       </Text>
       <Pressable
         testID="nothing-tonight-find-recipe"
@@ -253,7 +284,9 @@ export function NothingTonightCard() {
         onPress={() => router.push('/recipes')}
         className="mt-2 min-h-11 justify-center self-start"
       >
-        <Text className="text-sm font-semibold text-primary">Find a recipe</Text>
+        <Text className="text-sm font-semibold text-primary">
+          {t('today.home.tonight.findRecipe')}
+        </Text>
       </Pressable>
     </Card>
   );

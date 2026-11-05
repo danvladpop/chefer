@@ -16,6 +16,7 @@ import {
 import { localDateStr } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useIsPremium } from '../../../hooks/use-is-premium';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { TrainingDayNote } from '../../dashboard/components/training-day-note';
 import { useGymReminders } from '../../gym/reminders/use-gym-reminders';
@@ -55,8 +56,14 @@ import { YourDayCard } from './your-day-card';
 // and the "See full day" link (replaced by "Open your day").
 
 function TodaySkeleton() {
+  const { t } = useT();
   return (
-    <View testID="today-loading" accessible accessibilityLabel="Loading today" className="gap-4">
+    <View
+      testID="today-loading"
+      accessible
+      accessibilityLabel={t('today.shell.today.loading')}
+      className="gap-4"
+    >
       <Skeleton className="h-72 w-full rounded-card" />
       <Skeleton className="h-40 w-full rounded-card" />
       <Skeleton className="h-36 w-full rounded-card" />
@@ -65,6 +72,7 @@ function TodaySkeleton() {
 }
 
 export function TodayScreen() {
+  const { t } = useT();
   const colors = useThemeColors();
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1);
   // the previous summary stays on screen while a new hour's loads (UX-FOOD-23).
@@ -121,7 +129,7 @@ export function TodayScreen() {
         <View className="px-4 pt-3">{topBar}</View>
         <ErrorState
           testID="today-load-error"
-          title="Couldn't load your day"
+          title={t('today.shell.today.loadError')}
           icon={<Icon name="refresh" color={colors.labelTertiary} size={40} />}
           onRetry={() => void refetch()}
         />
@@ -162,11 +170,13 @@ export function TodayScreen() {
             {/* PW-5: this week's plan was prepared before the week started. */}
             {d.weekReady && d.today.dayOfWeek === 0 ? (
               <BoardCard testID="today-week-ready" className="gap-0.5 bg-brand-tint">
-                <Text className="text-callout font-semibold text-label">Your week is ready</Text>
+                <Text className="text-callout font-semibold text-label">
+                  {t('today.shell.today.weekReady.title')}
+                </Text>
                 <Text className="text-subhead text-label-secondary">
                   {d.weekReady.ratedCount > 0
-                    ? `Built from ${d.weekReady.ratedCount} dish${d.weekReady.ratedCount === 1 ? '' : 'es'} you rated.`
-                    : 'The chef prepared it on Sunday.'}
+                    ? t('today.shell.today.weekReady.rated', { count: d.weekReady.ratedCount })
+                    : t('today.shell.today.weekReady.sunday')}
                 </Text>
               </BoardCard>
             ) : null}
@@ -179,12 +189,12 @@ export function TodayScreen() {
               <PressableScale
                 testID="profile-nudge"
                 accessibilityRole="button"
-                accessibilityHint="Your goals, body metrics and dietary needs shape your plans"
+                accessibilityHint={t('today.shell.today.profileNudge.hint')}
                 onPress={() => router.push('/onboarding')}
                 className="min-h-12 flex-row items-center justify-between gap-2 rounded-card bg-brand-tint px-4 py-3"
               >
                 <Text className="min-w-0 flex-1 text-callout font-semibold text-brand">
-                  Complete your profile
+                  {t('today.shell.today.profileNudge.label')}
                 </Text>
                 <Icon name="chevronRight" color={colors.brand} size={18} />
               </PressableScale>
@@ -224,7 +234,7 @@ export function TodayScreen() {
             ) : null}
 
             <View className="gap-3">
-              <SectionTitle>Next meal</SectionTitle>
+              <SectionTitle>{t('today.shell.today.nextMeal')}</SectionTitle>
               {d.nextMeal ? (
                 <NextMealCard
                   meal={d.nextMeal}
@@ -236,17 +246,19 @@ export function TodayScreen() {
               ) : (
                 <BoardCard testID="today-no-meal" className="flex-row items-center gap-3">
                   <Text className="min-w-0 flex-1 text-callout text-label-secondary">
-                    {hasPlan ? "You're all caught up for today." : 'No meals planned yet.'}
+                    {hasPlan ? t('today.shell.today.caughtUp') : t('today.shell.today.noMeals')}
                   </Text>
                   {hasPlan ? null : (
                     <PressableScale
                       testID="today-open-plan"
                       accessibilityRole="link"
-                      accessibilityLabel="Open Meals"
+                      accessibilityLabel={t('today.shell.today.openMeals')}
                       onPress={() => router.navigate('/plan')}
                       className="min-h-11 justify-center"
                     >
-                      <Text className="text-callout font-semibold text-brand">Open Meals</Text>
+                      <Text className="text-callout font-semibold text-brand">
+                        {t('today.shell.today.openMeals')}
+                      </Text>
                     </PressableScale>
                   )}
                 </BoardCard>

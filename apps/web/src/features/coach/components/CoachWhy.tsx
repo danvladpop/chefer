@@ -3,9 +3,11 @@
 import { useId, useState } from 'react';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { ChevronDown } from 'lucide-react';
 import type { CoachExplanation } from '@chefer/types';
-import { cn, COACH_WHY_TITLE, coachExplanationText } from '@chefer/utils';
+import { cn } from '@chefer/utils';
+import { coachExplanationCopy } from '../coach-copy';
 
 // ─── "Why this suggestion" (market review 2026-10, lane D2) ──────────────────
 // The weekly review's deterministic explanation: a few plain sentences and
@@ -28,7 +30,8 @@ export function CoachWhy({
   const system = useUnitSystem();
   const [open, setOpen] = useState(defaultOpen);
   const panelId = useId();
-  const { lines, data } = coachExplanationText(explanation, system, { proteinOnly });
+  const tr = useT();
+  const { lines, data } = coachExplanationCopy(tr, explanation, system, { proteinOnly });
 
   return (
     <div data-testid="coach-why" className="mt-3 rounded-xl bg-white/70 p-3">
@@ -42,7 +45,7 @@ export function CoachWhy({
         }}
         className="flex min-h-11 w-full items-center justify-between gap-2 text-left text-sm font-semibold text-gray-800"
       >
-        {COACH_WHY_TITLE}
+        {tr.t('today.coachWhy.title')}
         <ChevronDown
           aria-hidden="true"
           className={cn(

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { rangeLabel, rangeSpan } from '@/features/coach/coach-copy';
 import { BodyMeasurementsSection } from '@/features/coach/components/BodyMeasurementsSection';
 import { WeightTrendSection } from '@/features/coach/components/WeightTrendSection';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
 import {
   Bar,
@@ -26,14 +28,11 @@ import {
   DEFAULT_STATS_RANGE,
   isLoggedDay,
   localDateStr,
-  PROGRESS_PHOTOS_COPY,
-  STATS_RANGE_LABELS,
-  STATS_RANGE_SPAN,
   STATS_RANGES,
   statsBucketDays,
   type StatsRangeDays,
 } from '@chefer/utils';
-import { hasEnoughDaysForAverage, moreDaysHint } from './average-gate';
+import { hasEnoughDaysForAverage, MIN_LOGGED_DAYS_FOR_AVERAGE } from './average-gate';
 
 // T-21.1 (bugs B-06/B-33): `d.date` is a `YYYY-MM-DD` calendar day (the
 // user's local day, not UTC). `parseISO('2026-09-26')` parses a date-only
@@ -57,6 +56,8 @@ export default function ProgressPage() {
   // and needs a different fix.
   /** Slightly larger than the default, so the point under a fingertip reads. */
   const activeDot = { r: 6 };
+  const tr = useT();
+  const { t } = tr;
 
   // UX-FOOD-20: the window is the user's to pick, anchored on their own local
   // "today"; switching keeps the old chart until the new one lands. Same
@@ -86,7 +87,7 @@ export default function ProgressPage() {
   // Past a month each point is a week: the daily average of its logged days.
   const weekly = statsBucketDays(range) === 7;
   const chartData = bucketDays(monthly?.days ?? [], statsBucketDays(range)).map((d) => ({
-    date: format(localDate(d.date), 'dd MMM'),
+    date: tr.date(localDate(d.date), 'short'),
     logged: isLoggedDay(d) ? d.totalKcal : null,
     target: monthly?.dailyCalorieTarget ?? 2000,
     protein: isLoggedDay(d) ? Math.round(d.totalProtein) : null,
@@ -107,7 +108,13 @@ export default function ProgressPage() {
       : 0;
   // T-11.6: an average from one or two days is noise — show it from three.
   const enoughDays = hasEnoughDaysForAverage(daysLogged);
-  const averageHint = moreDaysHint(daysLogged);
+  // moreDaysHint() (./average-gate) in the reader's language.
+  const averageHint = enoughDays
+    ? null
+    : t('today.progress.page.moreDays', {
+        count: MIN_LOGGED_DAYS_FOR_AVERAGE - Math.max(0, daysLogged),
+      });
+  const span = rangeSpan(tr, range);
   const target = monthly?.dailyCalorieTarget ?? 2000;
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
 
@@ -115,8 +122,12 @@ export default function ProgressPage() {
     <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
       {/* Header */}
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">INSIGHTS</p>
-        <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Progress</h1>
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+          {t('today.progress.page.eyebrow')}
+        </p>
+        <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">
+          {t('today.progress.page.title')}
+        </h1>
       </div>
 
       {/* Stat summary */}
@@ -124,7 +135,7 @@ export default function ProgressPage() {
         {[
           {
             icon: <Flame className="h-4 w-4 text-[#944a00]" />,
-            label: 'Days logged',
+            label: t('today.progress.page.daysLogged'),
             value: `${daysLogged}`,
           },
           ...(noNumbers
@@ -132,12 +143,12 @@ export default function ProgressPage() {
             : [
                 {
                   icon: <TrendingUp className="h-4 w-4 text-blue-500" />,
-                  label: 'Avg kcal',
-                  value: enoughDays && avgKcal > 0 ? avgKcal.toLocaleString() : '—',
+                  label: t('today.progress.page.avg.kcal'),
+                  value: enoughDays && avgKcal > 0 ? tr.number(avgKcal) : '—',
                 },
                 {
                   icon: <Scale className="h-4 w-4 text-emerald-500" />,
-                  label: 'vs target',
+                  label: t('today.progress.page.vsTarget'),
                   value: enoughDays && avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—',
                 },
               ]),
@@ -154,7 +165,7 @@ export default function ProgressPage() {
 
       <div
         role="group"
-        aria-label="Time range"
+        aria-label={t('today.progress.page.timeRange')}
         className="mb-6 inline-flex rounded-xl bg-neutral-100 p-1"
       >
         {STATS_RANGES.map((n) => (
@@ -168,7 +179,7 @@ export default function ProgressPage() {
               range === n ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
             }`}
           >
-            {STATS_RANGE_LABELS[n]}
+            {rangeLabel(tr, n)}
           </button>
         ))}
       </div>
@@ -190,7 +201,7 @@ export default function ProgressPage() {
       {/* A failed load is not an empty history (audit F-X-3-1). */}
       {!isLoading && isError && !monthly && (
         <ErrorState
-          title="Couldn't load your progress"
+          title={t('today.progress.page.loadError')}
           onRetry={() => void refetch()}
           retrying={isRefetching}
         />
@@ -201,18 +212,24 @@ export default function ProgressPage() {
           {/* Calorie line chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              {`Calories — ${weekly ? 'Weekly Averages, ' : ''}Last ${STATS_RANGE_SPAN[range]}`}
+              {weekly
+                ? t('today.progress.page.calories.titleWeekly', { span })
+                : t('today.progress.page.calories.title', { span })}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
-                No log data yet — start tracking in the{' '}
-                <a
-                  href="/tracker"
-                  className="touch-target relative ml-1 text-[#944a00] hover:underline"
-                >
-                  Tracker
-                </a>
-                .
+                <span>
+                  {rich(t, 'today.progress.page.noData', {
+                    tracker: (
+                      <a
+                        href="/tracker"
+                        className="touch-target relative text-[#944a00] hover:underline"
+                      >
+                        {t('today.progress.page.trackerLink')}
+                      </a>
+                    ),
+                  })}
+                </span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -233,12 +250,20 @@ export default function ProgressPage() {
                     domain={[0, 'auto']}
                     allowDecimals={false}
                   />
-                  <Tooltip formatter={(val) => [`${String(val)} kcal`]} />
+                  <Tooltip
+                    formatter={(val) => [
+                      t('today.progress.page.calories.tooltip.kcal', { value: String(val) }),
+                    ]}
+                  />
                   <ReferenceLine
                     y={target}
                     stroke="#d1d5db"
                     strokeDasharray="4 4"
-                    label={{ value: 'Target', position: 'right', fontSize: 10 }}
+                    label={{
+                      value: t('today.progress.page.calories.target'),
+                      position: 'right',
+                      fontSize: 10,
+                    }}
                   />
                   <Line
                     type="monotone"
@@ -248,7 +273,7 @@ export default function ProgressPage() {
                     dot={{ r: 3 }}
                     activeDot={activeDot}
                     connectNulls={false}
-                    name="Logged"
+                    name={t('today.progress.page.calories.logged')}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -258,11 +283,13 @@ export default function ProgressPage() {
           {/* Macro stacked bar chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              {`Macros — ${weekly ? 'Weekly Averages, ' : ''}Last ${STATS_RANGE_SPAN[range]} (g)`}
+              {weekly
+                ? t('today.progress.page.macros.titleWeekly', { span })
+                : t('today.progress.page.macros.title', { span })}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
-                No log data yet.
+                {t('today.progress.page.macros.empty')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -285,9 +312,25 @@ export default function ProgressPage() {
                   />
                   <Tooltip />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="protein" name="Protein" stackId="a" fill="#3b82f6" />
-                  <Bar dataKey="carbs" name="Carbs" stackId="a" fill="#10b981" />
-                  <Bar dataKey="fat" name="Fat" stackId="a" fill="#f59e0b" radius={[2, 2, 0, 0]} />
+                  <Bar
+                    dataKey="protein"
+                    name={t('today.progress.page.macros.protein')}
+                    stackId="a"
+                    fill="#3b82f6"
+                  />
+                  <Bar
+                    dataKey="carbs"
+                    name={t('today.progress.page.macros.carbs')}
+                    stackId="a"
+                    fill="#10b981"
+                  />
+                  <Bar
+                    dataKey="fat"
+                    name={t('today.progress.page.macros.fat')}
+                    stackId="a"
+                    fill="#f59e0b"
+                    radius={[2, 2, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -312,9 +355,9 @@ export default function ProgressPage() {
         className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
       >
         <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          {PROGRESS_PHOTOS_COPY.title}
+          {t('today.photos.title')}
         </h2>
-        <p className="text-sm text-neutral-600">{PROGRESS_PHOTOS_COPY.web}</p>
+        <p className="text-sm text-neutral-600">{t('today.photos.web')}</p>
       </section>
     </div>
   );

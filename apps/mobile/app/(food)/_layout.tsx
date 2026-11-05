@@ -12,6 +12,7 @@ import { useShellV2 } from '../../src/features/shell/shell-store';
 import { landingShellModeSync } from '../../src/features/trainer-mode/mode-store';
 import { TRAINER_TODAY_HREF } from '../../src/features/trainer-mode/switch-mode';
 import { getToken } from '../../src/lib/auth-store';
+import { useT } from '../../src/lib/i18n';
 import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
@@ -28,6 +29,7 @@ const TAB_COUNT = 5;
 
 export default function FoodTabsLayout() {
   const colors = useThemeColors();
+  const { t } = useT();
   // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
   // T-04.3) — the persisted mode (today's behaviour, gym_plan.md D3) plus,
   // for an account that's never explicitly switched, a jobs-based default
@@ -82,8 +84,8 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Today', 0, TAB_COUNT),
+          title: t('nav.items.today'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.today'), 0, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size + 2} />
           ),
@@ -92,8 +94,8 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="meal-plan"
         options={{
-          title: 'Plan',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Plan', 1, TAB_COUNT),
+          title: t('nav.items.plan'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.plan'), 1, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" color={color} size={size + 2} />
           ),
@@ -102,8 +104,8 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="shopping-list"
         options={{
-          title: 'Shop',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Shop', 2, TAB_COUNT),
+          title: t('nav.items.shop'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.shop'), 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cart-outline" color={color} size={size + 2} />
           ),
@@ -112,8 +114,8 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="recipes"
         options={{
-          title: 'Cookbook',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Cookbook', 3, TAB_COUNT),
+          title: t('nav.items.cookbook'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.cookbook'), 3, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="book-outline" color={color} size={size + 2} />
           ),
@@ -122,8 +124,13 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
+          title: t('nav.items.more'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(
+            t('nav.items.more'),
+            4,
+            TAB_COUNT,
+            badgeCount,
+          ),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.brand,

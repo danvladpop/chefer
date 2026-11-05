@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ErrorState, Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatDate, pastWeeks } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { BoardCard, SectionTitle } from '../shell/today/parts';
@@ -19,6 +20,7 @@ const HISTORY_LIMIT = 50;
 
 export function PastWeeksSection() {
   const colors = useThemeColors();
+  const { t } = useT();
   const {
     data: plans = [],
     isLoading,
@@ -33,7 +35,7 @@ export function PastWeeksSection() {
   return (
     <View testID="past-weeks" className="gap-3">
       <View className="mt-2">
-        <SectionTitle>Past weeks</SectionTitle>
+        <SectionTitle>{t('plan.history.pastWeeks')}</SectionTitle>
       </View>
 
       {isLoading ? (
@@ -42,7 +44,7 @@ export function PastWeeksSection() {
         </View>
       ) : isError && plans.length === 0 ? (
         <ErrorState
-          title="Couldn't load your past weeks"
+          title={t('plan.history.loadError')}
           icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
@@ -50,7 +52,7 @@ export function PastWeeksSection() {
         <BoardCard testID="past-weeks-empty" className="items-center border-dashed py-8">
           <Ionicons name="time-outline" size={32} color={colors.labelTertiary} />
           <Text className="px-4 text-center text-subhead text-label-secondary">
-            Once a planned week is over it shows up here, ready to cook again.
+            {t('plan.history.empty')}
           </Text>
         </BoardCard>
       ) : (
@@ -62,13 +64,13 @@ export function PastWeeksSection() {
             <BoardCard key={plan.id} testID={`past-week-${plan.id}`}>
               <View className="flex-row items-center justify-between gap-2">
                 <Text className="min-w-0 flex-1 text-headline font-semibold text-label">
-                  {weekLabel} – {formatDate(weekEnd, 'short')}
+                  {t('plan.history.range', { start: weekLabel, end: formatDate(weekEnd, 'short') })}
                 </Text>
                 {/* Only a replaced week needs a badge; "ACTIVE" on every past
                     week read as if the week were still running. */}
                 {plan.status !== 'ACTIVE' && (
                   <Text className="rounded-full bg-surface-sunken px-2 text-caption font-semibold text-label-secondary">
-                    Replaced
+                    {t('plan.history.replaced')}
                   </Text>
                 )}
               </View>
@@ -82,8 +84,15 @@ export function PastWeeksSection() {
               {noNumbers ? null : (
                 <Text className="text-caption text-label-tertiary">
                   {proteinOnly
-                    ? `${plan.macroSummary.avgProtein} g protein avg`
-                    : `${plan.macroSummary.avgKcal} kcal avg · ${plan.macroSummary.avgProtein}g P · ${plan.macroSummary.avgCarbs}g C · ${plan.macroSummary.avgFat}g F`}
+                    ? t('plan.history.proteinAvg', {
+                        protein: String(plan.macroSummary.avgProtein),
+                      })
+                    : t('plan.history.kcalMacrosAvgLine', {
+                        kcal: String(plan.macroSummary.avgKcal),
+                        protein: String(plan.macroSummary.avgProtein),
+                        carbs: String(plan.macroSummary.avgCarbs),
+                        fat: String(plan.macroSummary.avgFat),
+                      })}
                 </Text>
               )}
 
@@ -93,7 +102,7 @@ export function PastWeeksSection() {
               <View className="flex-row gap-2">
                 <TrainButton
                   testID={`past-week-view-${plan.id}`}
-                  label="View week"
+                  label={t('plan.history.viewWeek')}
                   variant="outline"
                   className="flex-1"
                   onPress={() =>
@@ -105,7 +114,7 @@ export function PastWeeksSection() {
                 />
                 <TrainButton
                   testID={`past-week-restore-${plan.id}`}
-                  label="Use again"
+                  label={t('plan.history.useAgain')}
                   variant="tinted"
                   className="flex-1"
                   loading={restore.pendingPlanId === plan.id}

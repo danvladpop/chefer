@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
 import { clearAllPendingJoins, readPendingJoinPath } from '../lib/pending-join';
@@ -18,6 +19,7 @@ import { ConsentUpdateNotice } from './ConsentUpdateNotice';
  * the consent v2 notice and the upcoming-booking card (§6.9) come first.
  */
 export function CoachingNotices() {
+  const { t } = useT();
   const { enabled } = useCoachingAvailability();
   const status = trpc.coaching.status.useQuery(undefined, {
     enabled,
@@ -45,7 +47,7 @@ export function CoachingNotices() {
       {extras}
       <div className="mb-4 flex flex-col gap-2" data-testid="coaching-notices">
         {views.length > 0 && (
-          <ul className="flex flex-col gap-2" aria-label="Coaching notices">
+          <ul className="flex flex-col gap-2" aria-label={t('coaching.notices.label')}>
             {views.map((v) => (
               <NoticeCard key={v.id} notice={v} onDismiss={dismiss} />
             ))}
@@ -57,11 +59,11 @@ export function CoachingNotices() {
               href={joiningPath}
               className="flex min-h-11 min-w-0 flex-1 items-center font-medium underline underline-offset-2"
             >
-              Carry on joining your trainer
+              {t('coaching.join.carryOn')}
             </Link>
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t('coaching.join.dismiss')}
               onClick={() => {
                 clearAllPendingJoins();
                 setPending(null);

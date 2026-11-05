@@ -75,6 +75,18 @@ describe('RecapService.week', () => {
     });
   });
 
+  it('writes the week label in the reader’s language', async () => {
+    const { service } = makeService();
+    const recap = await service.week(USER, { localDate: '2026-10-19' }, 'ro');
+    expect(recap.label).toBe('12–18 oct.');
+    const across = await service.week(
+      USER,
+      { weekStart: '2026-09-28', localDate: '2026-10-19' },
+      'ro',
+    );
+    expect(across.label).toBe('28 sept. – 4 oct.');
+  });
+
   it('with a goal, counts protein days; gym facts pass through', async () => {
     const gymWeek = { sessions: 3, prCount: 1, prs: [], streakWeeks: 2 };
     const { service } = makeService({ goal: 'GAIN_MUSCLE', gym: gymWeek });

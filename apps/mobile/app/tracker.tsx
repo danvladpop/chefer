@@ -40,6 +40,7 @@ import {
   portionOptionsFor,
   useTrackerDay,
 } from '../src/features/tracker/use-tracker-day';
+import { useT } from '../src/lib/i18n';
 
 // Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4), with the
 // search-first Log sheet, edit/undo and one-save model (T-19.1/2/3/4, UX-19).
@@ -66,6 +67,7 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
 /** Legacy (Food|Gym shell) tracker — unchanged behaviour; logic in useTrackerDay. */
 function LegacyTrackerScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   const {
     snap,
     utils,
@@ -124,19 +126,19 @@ function LegacyTrackerScreen() {
           <Pressable
             testID="tracker-close"
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel={t('common.actions.back')}
             onPress={() => router.back()}
             className="h-11 w-11 items-center justify-center"
           >
             <Ionicons name="arrow-back" size={20} color={colors.label} />
           </Pressable>
           <Text testID="tracker-title" variant="title" className="flex-1">
-            Tracker
+            {t('tracker.page.title')}
           </Text>
           <Pressable
             testID="tracker-meal-actions"
             accessibilityRole="button"
-            accessibilityLabel="Save or copy a meal"
+            accessibilityLabel={t('tracker.savedMeals.actionsTitle')}
             onPress={() => setMealActionsOpen(true)}
             className="h-11 w-11 items-center justify-center"
           >
@@ -145,7 +147,11 @@ function LegacyTrackerScreen() {
           <Pressable
             testID="tracker-copy-day"
             accessibilityRole="button"
-            accessibilityLabel={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+            accessibilityLabel={
+              isToday
+                ? t('tracker.page.copyToToday', { from: copyLabel })
+                : t('tracker.page.copyToThisDay', { from: copyLabel })
+            }
             onPress={() => {
               copyDayMutation.reset();
               setCopyDayOpen(true);
@@ -161,19 +167,19 @@ function LegacyTrackerScreen() {
           <Pressable
             testID="tracker-prev-day"
             accessibilityRole="button"
-            accessibilityLabel="Previous day"
+            accessibilityLabel={t('tracker.page.prevDay')}
             onPress={() => changeDate(-1)}
             className="h-11 w-11 items-center justify-center rounded-lg border border-border"
           >
             <Ionicons name="chevron-back" size={18} color={colors.labelTertiary} />
           </Pressable>
           <Text className="text-sm font-medium text-label-secondary">
-            {isToday ? 'Today' : formatDate(selectedDate, 'weekday-long-short')}
+            {isToday ? t('tracker.page.today') : formatDate(selectedDate, 'weekday-long-short')}
           </Text>
           <Pressable
             testID="tracker-next-day"
             accessibilityRole="button"
-            accessibilityLabel="Next day"
+            accessibilityLabel={t('tracker.page.nextDay')}
             disabled={isToday}
             onPress={() => changeDate(1)}
             className={cn(
@@ -191,7 +197,7 @@ function LegacyTrackerScreen() {
           </View>
         ) : isError && !data && !isFuture ? (
           <ErrorState
-            title="Couldn't load this day"
+            title={t('tracker.page.loadError')}
             icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
@@ -214,13 +220,13 @@ function LegacyTrackerScreen() {
             >
               <View className="mb-1 flex-row items-center justify-between">
                 <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-                  Logged {isToday ? 'Today' : 'This Day'}
+                  {isToday ? t('tracker.page.loggedToday') : t('tracker.page.loggedThisDay')}
                 </Text>
                 {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
                 <Pressable
                   testID="tracker-why-target"
                   accessibilityRole="button"
-                  accessibilityLabel="Why this target"
+                  accessibilityLabel={t('tracker.page.whyTarget')}
                   onPress={() => setExplainOpen(true)}
                   className="h-11 w-11 items-center justify-center"
                 >
@@ -235,24 +241,28 @@ function LegacyTrackerScreen() {
               <View className="gap-3">
                 {!proteinOnly && (
                   <TargetBar
-                    label="Calories"
+                    label={t('tracker.page.bars.kcal')}
                     value={loggedKcal}
                     target={dayTargets?.dailyCalorieTarget ?? 2000}
                   />
                 )}
                 <TargetBar
-                  label="Protein (g)"
+                  label={t('tracker.page.barsGrams.protein')}
                   value={loggedProtein}
                   target={dayTargets?.proteinG ?? 125}
                 />
                 {!proteinOnly && (
                   <>
                     <TargetBar
-                      label="Carbs (g)"
+                      label={t('tracker.page.barsGrams.carbs')}
                       value={loggedCarbs}
                       target={dayTargets?.carbsG ?? 225}
                     />
-                    <TargetBar label="Fat (g)" value={loggedFat} target={dayTargets?.fatG ?? 65} />
+                    <TargetBar
+                      label={t('tracker.page.barsGrams.fat')}
+                      value={loggedFat}
+                      target={dayTargets?.fatG ?? 65}
+                    />
                   </>
                 )}
               </View>
@@ -284,12 +294,12 @@ function LegacyTrackerScreen() {
                       variant="muted"
                       className="text-center text-sm"
                     >
-                      No plan today — log from Recent or search below.
+                      {t('tracker.page.emptyNoPlan')}
                     </Text>
                   </>
                 ) : (
                   <Text testID="tracker-empty-plan-text" variant="muted">
-                    No planned meals for this day.
+                    {t('tracker.page.emptyNoMealsPlain')}
                   </Text>
                 )}
               </View>
@@ -322,7 +332,7 @@ function LegacyTrackerScreen() {
                               ? () =>
                                   slotFlow.actions.removeReplacement({
                                     entryId,
-                                    name: entry.custom?.name ?? 'Something else',
+                                    name: entry.custom?.name ?? t('tracker.slot.somethingElse'),
                                     estimatedBy: entry.custom?.estimatedBy ?? 'manual',
                                     kcal: entry.kcal,
                                     protein: entry.protein,
@@ -335,7 +345,7 @@ function LegacyTrackerScreen() {
                           }
                         />
                         <Text numberOfLines={1} className="text-xs text-label-tertiary">
-                          Planned: {meal.recipeName}
+                          {t('tracker.page.plannedName', { name: meal.recipeName })}
                         </Text>
                       </View>
                     );
@@ -398,7 +408,9 @@ function LegacyTrackerScreen() {
                                 // Lane E3 "Hide numbers": the portion stands in for the figures.
                                 noNumbers && portionLabel(portion),
                                 planPortionOf(meal) !== 1 &&
-                                  `plan ${formatPortion(planPortionOf(meal))}`,
+                                  t('tracker.page.planPortion', {
+                                    portion: formatPortion(planPortionOf(meal)),
+                                  }),
                               )}
                             </Text>
                           </View>
@@ -461,7 +473,7 @@ function LegacyTrackerScreen() {
                   accessibilityRole="header"
                   className="text-xs font-semibold uppercase tracking-widest text-label-tertiary"
                 >
-                  Also eaten
+                  {t('tracker.page.alsoEaten')}
                 </Text>
                 {alsoEaten.map((group) => (
                   <View
@@ -476,7 +488,7 @@ function LegacyTrackerScreen() {
                           key={item.m.entryId ?? `${item.m.recipeId}:${item.m.mealType}`}
                           testID={`tracker-off-plan-${item.m.entryId ?? item.m.recipeId}`}
                           accessibilityRole="button"
-                          accessibilityLabel={`Edit ${item.m.recipeName}`}
+                          accessibilityLabel={t('tracker.page.edit', { name: item.m.recipeName })}
                           disabled={!item.m.entryId}
                           onPress={() => setEditingRecipeEntryId(item.m.entryId ?? null)}
                           className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
@@ -498,7 +510,9 @@ function LegacyTrackerScreen() {
                           {item.m.entryId && (
                             <Pressable
                               accessibilityRole="button"
-                              accessibilityLabel={`Delete ${item.m.recipeName}`}
+                              accessibilityLabel={t('tracker.page.delete', {
+                                name: item.m.recipeName,
+                              })}
                               disabled={deleteEntriesMutation.isPending}
                               onPress={(e) => {
                                 e.stopPropagation();
@@ -519,7 +533,7 @@ function LegacyTrackerScreen() {
                           key={item.row.entryIndex}
                           testID={`tracker-custom-${item.row.entryIndex}`}
                           accessibilityRole="button"
-                          accessibilityLabel={`Edit ${item.row.name}`}
+                          accessibilityLabel={t('tracker.page.edit', { name: item.row.name })}
                           onPress={() => setEditingEntry(item.row)}
                           className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
                         >
@@ -543,7 +557,7 @@ function LegacyTrackerScreen() {
                           </View>
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={`Delete ${item.row.name}`}
+                            accessibilityLabel={t('tracker.page.delete', { name: item.row.name })}
                             disabled={deleteCustomMutation.isPending}
                             onPress={(e) => {
                               e.stopPropagation();
@@ -570,7 +584,9 @@ function LegacyTrackerScreen() {
               className="h-11 flex-row items-center justify-center gap-1.5 rounded-md border border-border"
             >
               <Ionicons name="add" size={18} color={colors.brand} />
-              <Text className="text-sm font-medium text-primary">Log something</Text>
+              <Text className="text-sm font-medium text-primary">
+                {t('tracker.quickAdd.trigger')}
+              </Text>
             </Pressable>
 
             {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
@@ -658,21 +674,29 @@ function LegacyTrackerScreen() {
         <ConfirmSheet
           visible={copyDayOpen}
           onClose={() => setCopyDayOpen(false)}
-          title="Copy day"
-          body={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
+          title={t('tracker.page.copyDayTitle')}
+          body={
+            isToday
+              ? t('tracker.page.copyDayBodyToday', { from: copyLabel })
+              : t('tracker.page.copyDayBodyThisDay', { from: copyLabel })
+          }
           confirmLabel={
             copyDayMutation.isPending
-              ? 'Copying…'
-              : `Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`
+              ? t('tracker.page.copying')
+              : isToday
+                ? t('tracker.page.copyToToday', { from: copyLabel })
+                : t('tracker.page.copyToThisDay', { from: copyLabel })
           }
-          cancelLabel="Cancel"
+          cancelLabel={t('common.actions.cancel')}
           onConfirm={confirmCopyDay}
           // UX-X-13: a failed copy stays in the sheet with the reason (and a
           // retry) instead of closing and flashing a snackbar.
           busy={copyDayMutation.isPending}
           error={
             copyDayMutation.isError
-              ? `Couldn't copy the day. ${userFacingErrorMessage(copyDayMutation.error)}`
+              ? t('tracker.page.copyFailed', {
+                  error: userFacingErrorMessage(copyDayMutation.error),
+                })
               : null
           }
           testID="tracker-copy-day-confirm"

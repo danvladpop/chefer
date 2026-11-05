@@ -5,6 +5,7 @@ import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { ShellV2Forward } from '../../src/features/shell/shell-forward';
 import { useShellV2 } from '../../src/features/shell/shell-store';
+import { useT } from '../../src/lib/i18n';
 import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 /** Tabs below, for each tab's spoken "N of 5" (iOS). */
@@ -16,6 +17,7 @@ const TAB_COUNT = 5;
 // food More tab; Gym's is `gym-more`.
 export default function GymTabsLayout() {
   const colors = useThemeColors();
+  const { t } = useT();
   // Same in-app Following badge as Food's More tab (pending requests + unread
   // Activity, hidden at 0). Shares the useFriendsMe cache with the Food layout.
   const { badgeCount } = useFriendsMe();
@@ -34,8 +36,8 @@ export default function GymTabsLayout() {
       <Tabs.Screen
         name="today"
         options={{
-          title: 'Today',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Today', 0, TAB_COUNT),
+          title: t('nav.items.today'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.today'), 0, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size + 2} />
           ),
@@ -44,8 +46,8 @@ export default function GymTabsLayout() {
       <Tabs.Screen
         name="routine"
         options={{
-          title: 'Routine',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Routine', 1, TAB_COUNT),
+          title: t('nav.items.routine'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.routine'), 1, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" color={color} size={size + 2} />
           ),
@@ -54,8 +56,8 @@ export default function GymTabsLayout() {
       <Tabs.Screen
         name="exercises"
         options={{
-          title: 'Exercises',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Exercises', 2, TAB_COUNT),
+          title: t('nav.items.exercises'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.exercises'), 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="barbell-outline" color={color} size={size + 2} />
           ),
@@ -64,8 +66,8 @@ export default function GymTabsLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Stats',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('Stats', 3, TAB_COUNT),
+          title: t('nav.items.stats'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.stats'), 3, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="stats-chart-outline" color={color} size={size + 2} />
           ),
@@ -74,8 +76,13 @@ export default function GymTabsLayout() {
       <Tabs.Screen
         name="gym-more"
         options={{
-          title: 'More',
-          tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
+          title: t('nav.items.more'),
+          tabBarAccessibilityLabel: tabAccessibilityLabel(
+            t('nav.items.more'),
+            4,
+            TAB_COUNT,
+            badgeCount,
+          ),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.brand,

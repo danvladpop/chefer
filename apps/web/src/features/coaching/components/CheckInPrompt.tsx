@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
-import { CHECK_IN_COPY } from '@chefer/types';
+import { trainerNameOrFallbackT } from '../lib/copy';
 import { useCoachingAvailability } from '../use-coaching-availability';
 
 // ─── "Ana's weekly check-in" (lane K3) ────────────────────────────────────────
@@ -24,6 +25,7 @@ function readLater(): string | null {
 }
 
 export function CheckInPrompt() {
+  const { t } = useT();
   const { enabled } = useCoachingAvailability();
   const status = trpc.coaching.status.useQuery(undefined, { enabled, retry: false });
   const today = localDate();
@@ -35,25 +37,29 @@ export function CheckInPrompt() {
   );
   const open = current.data;
   if (!open || open.answered || later === today) return null;
-  const copy = CHECK_IN_COPY.client;
+  const title = t('coaching.checkIn.client.cardTitle', {
+    trainer: trainerNameOrFallbackT(open.trainerName, t),
+  });
   return (
     <div
       className="mb-4 flex min-w-0 items-start gap-2 rounded-xl bg-amber-50 px-3 py-2"
       data-testid="coaching-check-in-prompt"
     >
       <div className="min-w-0 flex-1 py-1">
-        <p className="text-sm font-semibold text-gray-900">{copy.cardTitle(open.trainerName)}</p>
-        <p className="text-sm text-gray-700">{copy.cardBody(open.questions.length)}</p>
+        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        <p className="text-sm text-gray-700">
+          {t('coaching.checkIn.client.cardBody', { count: open.questions.length })}
+        </p>
         <Link
           href="/coaching/check-in"
           className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline"
         >
-          {copy.answer}
+          {t('coaching.checkIn.client.answer')}
         </Link>
       </div>
       <button
         type="button"
-        aria-label={`${copy.later}: ${copy.cardTitle(open.trainerName)}`}
+        aria-label={t('coaching.checkIn.client.laterLabel', { title })}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-amber-100"
         onClick={() => {
           try {

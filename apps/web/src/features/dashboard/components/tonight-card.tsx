@@ -14,9 +14,16 @@ import {
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
-import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
+import {
+  formatKcal,
+  localDateStr,
+  slotPortion,
+  userFacingErrorMessage,
+  verifiedLabels,
+} from '@chefer/utils';
 
 // ─── Tonight card (UX-04 §3, T-04.7) ────────────────────────────────────────────
 // Web parity of mobile's tonight-card.tsx — today's DINNER slot specifically,
@@ -59,6 +66,7 @@ export function TonightCard({
   /** WP-06: the "Ate something else" / "Skipped it" overflow; absent = none. */
   flow?: SlotFlow | undefined;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
   const { proteinOnly, noNumbers } = useNumbersMode();
@@ -93,17 +101,20 @@ export function TonightCard({
         className="flex items-center gap-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-1"
       >
         <p className="min-w-0 flex-1 py-2 text-sm text-neutral-700">
-          <span className="font-semibold">Dinner</span> · {SKIPPED_LABEL}
+          <span className="font-semibold">{t('today.home.mealTypes.dinner')}</span> ·{' '}
+          {SKIPPED_LABEL}
         </p>
         {flow && (
           <button
             type="button"
             data-testid="tonight-undo-skip"
-            aria-label="Undo for dinner"
+            aria-label={t('today.home.slotNotes.undoFor', {
+              meal: t('today.home.mealInSentence.dinner'),
+            })}
             onClick={() => flow.unskip(target)}
             className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
           >
-            Undo
+            {t('today.home.slotNotes.undo')}
           </button>
         )}
       </div>
@@ -120,7 +131,7 @@ export function TonightCard({
       >
         <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
         <p className="min-w-0 flex-1 py-2 text-sm text-gray-800">
-          <span className="font-semibold">Dinner</span>
+          <span className="font-semibold">{t('today.home.mealTypes.dinner')}</span>
           {' · '}
           {youHadLine(
             slot.replacedBy.name,
@@ -134,11 +145,13 @@ export function TonightCard({
           <button
             type="button"
             data-testid="tonight-undo-replaced"
-            aria-label="Undo for dinner"
+            aria-label={t('today.home.slotNotes.undoFor', {
+              meal: t('today.home.mealInSentence.dinner'),
+            })}
             onClick={() => flow.undoReplacement(entryId, target)}
             className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
           >
-            Undo
+            {t('today.home.slotNotes.undo')}
           </button>
         )}
       </div>
@@ -154,7 +167,7 @@ export function TonightCard({
         <div className="flex items-center gap-2.5">
           <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">
-            Dinner done · {meal.recipe.name}
+            {t('today.home.tonight.done', { name: meal.recipe.name })}
           </p>
           {canRate && !rateOpen && (
             <button
@@ -163,7 +176,7 @@ export function TonightCard({
               onClick={() => setRateOpen(true)}
               className="flex min-h-11 shrink-0 items-center px-2 text-xs font-semibold text-[#944a00] hover:underline"
             >
-              Rate it
+              {t('today.home.tonight.rateIt')}
             </button>
           )}
         </div>
@@ -189,7 +202,7 @@ export function TonightCard({
         <Link
           href={`/recipes/${meal.recipe.id}`}
           className="relative block h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32"
-          aria-label={`Open ${meal.recipe.name}`}
+          aria-label={t('today.home.tonight.open', { name: meal.recipe.name })}
         >
           <RecipeThumbnail
             imageUrl={meal.recipe.imageUrl}
@@ -202,7 +215,7 @@ export function TonightCard({
           <div className="min-w-0">
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
-                Tonight · Dinner
+                {t('today.home.tonight.badge')}
               </span>
               {verifiedLabels(meal.safetyChecks).length > 0 && (
                 <CheckedForChip labels={verifiedLabels(meal.safetyChecks)} />
@@ -214,9 +227,16 @@ export function TonightCard({
               </Link>
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              {meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)} min · for{' '}
-              {meal.recipe.servings}
-              {showNutrition && !proteinOnly ? ` · ${meal.recipe.kcal} kcal` : ''}
+              {showNutrition && !proteinOnly
+                ? t('today.home.tonight.metaWith.kcal', {
+                    minutes: String(meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)),
+                    servings: String(meal.recipe.servings),
+                    value: formatKcal(meal.recipe.kcal),
+                  })
+                : t('today.home.tonight.meta', {
+                    minutes: String(meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)),
+                    servings: String(meal.recipe.servings),
+                  })}
             </p>
           </div>
 
@@ -227,7 +247,7 @@ export function TonightCard({
               className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00]"
             >
               <ChefHat className="h-4 w-4" aria-hidden="true" />
-              Cook it
+              {t('today.home.tonight.cookIt')}
             </Link>
             {onSwap ? (
               <button
@@ -237,7 +257,7 @@ export function TonightCard({
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
               >
                 <Repeat className="h-4 w-4" aria-hidden="true" />
-                Swap
+                {t('today.home.tonight.swap')}
               </button>
             ) : (
               <Link
@@ -248,7 +268,7 @@ export function TonightCard({
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
               >
                 <Repeat className="h-4 w-4" aria-hidden="true" />
-                Swap
+                {t('today.home.tonight.swap')}
               </Link>
             )}
           </div>
@@ -272,7 +292,9 @@ export function TonightCard({
             disabled={logMutation.isPending}
             className="flex min-h-11 min-w-0 flex-1 items-center justify-center text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
           >
-            {logMutation.isPending ? 'Logging…' : 'I ate this'}
+            {logMutation.isPending
+              ? t('today.home.tonight.logging')
+              : t('today.home.tonight.ateThis')}
           </button>
           {/* WP-06: "Ate something else" / "Skipped it". */}
           {flow && (
@@ -288,7 +310,7 @@ export function TonightCard({
       )}
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">
-          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
+          {t('today.home.tonight.logError', { error: userFacingErrorMessage(logMutation.error) })}
         </p>
       )}
     </div>
@@ -296,19 +318,20 @@ export function TonightCard({
 }
 
 export function NothingTonightCard() {
+  const { t } = useT();
   return (
     <div
       data-testid="nothing-tonight-card"
       className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm"
     >
-      <p className="font-medium text-gray-700">Nothing planned tonight</p>
-      <p className="text-sm text-gray-500">Pick something quick from your recipes</p>
+      <p className="font-medium text-gray-700">{t('today.home.tonight.nothingTitle')}</p>
+      <p className="text-sm text-gray-500">{t('today.home.tonight.nothingBody')}</p>
       <Link
         href="/recipes"
         data-testid="nothing-tonight-find-recipe"
         className="text-sm font-semibold text-[#944a00] hover:underline"
       >
-        Find a recipe
+        {t('today.home.tonight.findRecipe')}
       </Link>
     </div>
   );

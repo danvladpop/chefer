@@ -9,7 +9,8 @@ import {
   type LoggedMealEntry,
   type TargetChange,
 } from '@chefer/database';
-import { parseStoredNumbersMode } from '@chefer/types';
+import { createTranslator } from '@chefer/i18n';
+import { parseStoredNumbersMode, type SupportedLocale } from '@chefer/types';
 import type {
   NumbersMode,
   NutritionTargets,
@@ -37,6 +38,7 @@ import {
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { hasFeature, isPremiumUser } from '../../lib/entitlements.js';
+import { userLocale } from '../../lib/user-locale.js';
 import { atPortion, householdPlanScope } from '../meal-plan/plan-for-date.js';
 import type { DailyTargets } from '../preferences/preferences.service.js';
 import { safetyService } from '../safety/safety.service.js';
@@ -330,12 +332,20 @@ export function getNextMealType(currentHour: number, availableTypes: string[]): 
 }
 
 /**
- * "Friday, September 25". A client-supplied local date arrives as UTC
- * midnight (see getSummary), so it is formatted in UTC to keep its weekday.
+ * "Friday, September 25" ("vineri, 25 septembrie"), in the viewer's language.
+ * A client-supplied local date arrives as UTC midnight (see getSummary), so it
+ * is formatted in UTC to keep its weekday. English keeps its US order, as before.
  */
-function formatDayLabel(now: Date): string {
+function formatDayLabel(now: Date, locale: SupportedLocale): string {
   const isUtcMidnight =
     now.getUTCHours() === 0 && now.getUTCMinutes() === 0 && now.getUTCSeconds() === 0;
+  if (locale !== 'en') {
+    return createTranslator(locale).date(
+      now,
+      'weekday-long-date',
+      isUtcMidnight ? 'UTC' : undefined,
+    );
+  }
   return now.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -470,6 +480,7 @@ export class DashboardService {
         jobs,
         include,
         trainingExtras,
+        viewer ? userLocale(viewer) : 'en',
       );
     }
 
@@ -723,7 +734,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: chefProfile?.displayName ?? null },
       today: {
-        date: formatDayLabel(now),
+        date: formatDayLabel(now, viewer ? userLocale(viewer) : 'en'),
         dayOfWeek: todayIndex,
         slots: todaySlots,
       },
@@ -898,6 +909,7 @@ export class DashboardService {
     jobs: OnboardingJob[],
     include: Set<DashboardIncludeOption>,
     trainingExtras: Pick<DashboardSummary, 'weekGlance' | 'refuelSnacks'>,
+    locale: SupportedLocale,
   ): Promise<DashboardSummary> {
     const targetsExtras = include.has('targets')
       ? await this.targetsExtrasFor(userId, 0, targets.dailyCalorieTarget)
@@ -905,7 +917,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: null },
       today: {
-        date: formatDayLabel(now),
+        date: formatDayLabel(now, locale),
         dayOfWeek: todayIndex,
       },
       planId: null,

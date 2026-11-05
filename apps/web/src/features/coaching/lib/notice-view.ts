@@ -1,10 +1,8 @@
-import {
-  BOOKING_COPY,
-  COACHING_COPY,
-  routineChangesLine,
-  type CoachingNoticeDto,
-} from '@chefer/types';
-import { bookingWhen, deviceTimeZone, formatShortDay } from '@chefer/utils';
+import { createTranslator, type Translator } from '@chefer/i18n';
+import { BOOKING_COPY, type CoachingNoticeDto } from '@chefer/types';
+import { bookingWhen, deviceTimeZone } from '@chefer/utils';
+import { routineChangesLineT, trainerNameOrFallbackT } from './copy';
+import { formatShortDayT } from './dates';
 
 // ─── Coaching notices → cards (PRD 2026-10 §4.2, §4.3) ────────────────────────
 // `coaching.notices` returns both sides' notices in one list. Each side's cards
@@ -24,18 +22,22 @@ export interface NoticeView {
   testId: string;
 }
 
-const copy = COACHING_COPY.notices;
+type T = Translator['t'];
 
-function changesDetail(notice: CoachingNoticeDto): string | null {
+// English when no translator is passed (tests, older callers).
+const EN = createTranslator('en').t;
+
+function changesDetail(notice: CoachingNoticeDto, t: T): string | null {
   const changes = notice.changes ?? [];
-  return changes.length > 0 ? routineChangesLine(changes) : null;
+  return changes.length > 0 ? routineChangesLineT(changes, t) : null;
 }
 
 /** "Tue 21 Oct, 18:00" for a booking notice, in the viewer's zone. */
-function noticeWhen(notice: CoachingNoticeDto, timeZone: string): string {
+function noticeWhen(notice: CoachingNoticeDto, timeZone: string, t: T): string {
+  // `bookingWhen` and BOOKING_COPY belong to the bookings screens (namespace `trainer`).
   return notice.booking
     ? bookingWhen(notice.booking.startsAt, timeZone)
-    : formatShortDay(notice.at);
+    : formatShortDayT(notice.at, t);
 }
 
 function bookingHref(notice: CoachingNoticeDto): string | null {
@@ -48,9 +50,10 @@ function bookingHref(notice: CoachingNoticeDto): string | null {
 export function clientNoticeView(
   notice: CoachingNoticeDto,
   timeZone: string = deviceTimeZone(),
+  t: T = EN,
 ): NoticeView | null {
   if (notice.read || notice.other.role !== 'TRAINER') return null;
-  const name = notice.other.name;
+  const name = trainerNameOrFallbackT(notice.other.name, t);
   const base = { id: notice.id, detail: null, href: null, testId: 'coaching-notice' };
   const b = BOOKING_COPY.notices;
   switch (notice.kind) {
@@ -59,22 +62,22 @@ export function clientNoticeView(
       return {
         ...base,
         text: notice.booking?.weekly
-          ? b.createdSeries(name, noticeWhen(notice, timeZone))
-          : b.created(name, noticeWhen(notice, timeZone)),
+          ? b.createdSeries(name, noticeWhen(notice, timeZone, t))
+          : b.created(name, noticeWhen(notice, timeZone, t)),
         href: bookingHref(notice),
         testId: 'coaching-booking-notice',
       };
     case 'BOOKING_CHANGED':
       return {
         ...base,
-        text: b.changed(name, noticeWhen(notice, timeZone)),
+        text: b.changed(name, noticeWhen(notice, timeZone, t)),
         href: bookingHref(notice),
         testId: 'coaching-booking-notice',
       };
     case 'BOOKING_CANCELLED':
       return {
         ...base,
-        text: b.cancelled(name, noticeWhen(notice, timeZone)),
+        text: b.cancelled(name, noticeWhen(notice, timeZone, t)),
         detail: notice.booking?.reason ?? null,
         href: bookingHref(notice),
         testId: 'coaching-booking-notice',
@@ -91,8 +94,8 @@ export function clientNoticeView(
     case 'ROUTINE_UPDATED':
       return {
         ...base,
-        text: copy.routineUpdated(name),
-        detail: changesDetail(notice),
+        text: t('coaching.notices.routineUpdated', { name }),
+        detail: changesDetail(notice, t),
         href: '/gym/routine',
         testId: 'coaching-routine-updated',
       };
@@ -103,20 +106,20 @@ export function clientNoticeView(
         ...base,
         text:
           notice.endedBy === 'SYSTEM' && notice.other.id === null
-            ? copy.trainerGone
-            : copy.endedByTrainer(name),
+            ? t('coaching.notices.trainerGone')
+            : t('coaching.notices.endedByTrainer', { trainer: name }),
       };
     case 'REQUEST_ACCEPTED':
-      return { ...base, text: copy.requestAccepted(name) };
+      return { ...base, text: t('coaching.notices.requestAccepted', { trainer: name }) };
     case 'REQUEST_DECLINED':
-      return { ...base, text: copy.requestDeclined(name) };
+      return { ...base, text: t('coaching.notices.requestDeclined', { trainer: name }) };
     case 'REQUEST_RECEIVED':
       return null;
   }
 }
 
 /** A trainer's card for a notice about one of their clients, or null when it has none. */
-export function trainerNoticeView(notice: CoachingNoticeDto): NoticeView | null {
+export function trainerNoticeView(notice: CoachingNoticeDto, t: T = EN): NoticeView | null {
   if (notice.read || notice.other.role !== 'CLIENT') return null;
   const name = notice.other.name;
   const base = { id: notice.id, detail: null, href: null, testId: 'trainer-notice' };
@@ -124,8 +127,8 @@ export function trainerNoticeView(notice: CoachingNoticeDto): NoticeView | null 
     case 'ROUTINE_UPDATED':
       return {
         ...base,
-        text: copy.clientUpdated(name),
-        detail: changesDetail(notice),
+        text: t('coaching.notices.clientUpdated', { client: name }),
+        detail: changesDetail(notice, t),
         href:
           notice.other.id === null
             ? null
@@ -134,9 +137,13 @@ export function trainerNoticeView(notice: CoachingNoticeDto): NoticeView | null 
     case 'COACHING_ENDED':
       // The trainer's own "End coaching" needs no card.
       if (notice.endedBy === 'TRAINER') return null;
-      return { ...base, text: copy.endedByClient(name) };
+      return { ...base, text: t('coaching.notices.endedByClient', { client: name }) };
     case 'REQUEST_RECEIVED':
-      return { ...base, text: copy.requestReceived(name), href: '#trainer-requests' };
+      return {
+        ...base,
+        text: t('coaching.notices.requestReceived', { client: name }),
+        href: '#trainer-requests',
+      };
     // Answers go to the client; the M3 kinds are client-side too (a trainer never gets them).
     case 'REQUEST_ACCEPTED':
     case 'REQUEST_DECLINED':
@@ -148,9 +155,15 @@ export function trainerNoticeView(notice: CoachingNoticeDto): NoticeView | null 
   }
 }
 
-export function noticeViews(notices: readonly CoachingNoticeDto[], side: NoticeSide): NoticeView[] {
+export function noticeViews(
+  notices: readonly CoachingNoticeDto[],
+  side: NoticeSide,
+  t: T = EN,
+): NoticeView[] {
   const view =
-    side === 'client' ? (n: CoachingNoticeDto) => clientNoticeView(n) : trainerNoticeView;
+    side === 'client'
+      ? (n: CoachingNoticeDto) => clientNoticeView(n, deviceTimeZone(), t)
+      : (n: CoachingNoticeDto) => trainerNoticeView(n, t);
   return notices.flatMap((n) => {
     const v = view(n);
     return v ? [v] : [];

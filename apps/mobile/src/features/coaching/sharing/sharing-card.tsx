@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-import {
-  COACHING_SHARING_COPY,
-  type CoachingShareChoice,
-  type CoachingSharingDto,
-} from '@chefer/types';
+import type { CoachingShareChoice, CoachingSharingDto } from '@chefer/types';
 import { Text, useSnackbar } from '@chefer/ui-mobile';
 import { trackSharingChanged } from '../../../lib/analytics-events';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { SharingSwitches } from './sharing-switches';
@@ -28,6 +25,8 @@ export function SharingCard({
   /** `coaching.status.trainer.sharing`; absent from an older API = both off. */
   sharing: CoachingSharingDto | undefined;
 }) {
+  const { t } = useT();
+  const trainer = trainerName;
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const [value, setValue] = useState<CoachingShareChoice>(() => toChoice(sharing));
@@ -37,10 +36,9 @@ export function SharingCard({
     onSuccess: (next, vars) => {
       setValue(toChoice(next));
       trackSharingChanged(vars, 'settings');
-      const copy =
-        vars.food !== undefined ? COACHING_SHARING_COPY.food : COACHING_SHARING_COPY.weight;
+      const what = vars.food !== undefined ? 'food' : 'weight';
       const on = vars.food ?? vars.weight ?? false;
-      snackbar.show({ message: on ? copy.on(trainerName) : copy.off(trainerName) });
+      snackbar.show({ message: t(`coaching.sharing.${what}.${on ? 'on' : 'off'}`, { trainer }) });
     },
     onError: () => setValue(toChoice(sharing)),
     onSettled: () => void utils.coaching.status.invalidate(),
@@ -49,7 +47,7 @@ export function SharingCard({
   return (
     <CoachingCard testID="your-trainer-sharing" className="gap-3">
       <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-        {COACHING_SHARING_COPY.settingsHeading(trainerName)}
+        {t('coaching.sharing.settingsHeading', { trainer })}
       </Text>
       <SharingSwitches
         testID="your-trainer-share"
@@ -63,7 +61,7 @@ export function SharingCard({
       />
       {save.isError ? (
         <Text testID="your-trainer-sharing-error" className="text-subhead text-danger">
-          {COACHING_SHARING_COPY.saveError}
+          {t('coaching.sharing.saveError')}
         </Text>
       ) : null}
     </CoachingCard>

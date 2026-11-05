@@ -21,11 +21,12 @@ import {
 } from '@chefer/utils';
 import { Icon, type IconName } from '../../../components/icon';
 import { trackMealLogged } from '../../../lib/analytics-events';
+import { useT } from '../../../lib/i18n';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
+import { mealTypeName } from '../../dashboard/components/meal-type-badge';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { BoardCard } from './parts';
-import { mealTypeLabel } from './today-helpers';
 
 // Today's "Next meal" (10 Oct redesign, board Home): the framed photo, the
 // meal, and four labelled actions in one row — Eaten, Cook now, Swap, Skip.
@@ -106,6 +107,7 @@ export function NextMealCard({
   onSkip,
   skipping = false,
 }: NextMealCardProps) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const colors = useThemeColors();
@@ -149,7 +151,11 @@ export function NextMealCard({
       refreshDay();
     },
     onError: (error) =>
-      snackbar.show({ message: `Couldn't undo that. ${userFacingErrorMessage(error)}` }),
+      snackbar.show({
+        message: t('today.home.nextMeal.snackUndoError', {
+          error: userFacingErrorMessage(error),
+        }),
+      }),
   });
 
   const log = trpc.tracker.logRecipe.useMutation({
@@ -166,14 +172,18 @@ export function NextMealCard({
       holdTimer.current = setTimeout(release, HERO_LOGGED_HOLD_MS);
       refreshDay();
       snackbar.show({
-        message: `Logged ${logged.recipe.name}`,
+        message: t('today.home.nextMeal.snackLogged', { name: logged.recipe.name }),
         tone: 'success',
-        actionLabel: 'Undo',
+        actionLabel: t('today.home.nextMeal.undo'),
         onAction: () => unlog.mutate({ date: variables.date, ...slotArgs(logged) }),
       });
     },
     onError: (error) =>
-      snackbar.show({ message: `Couldn't log it. ${userFacingErrorMessage(error)}` }),
+      snackbar.show({
+        message: t('today.home.nextMeal.snackLogError', {
+          error: userFacingErrorMessage(error),
+        }),
+      }),
   });
 
   const holding = held !== null;
@@ -182,8 +192,15 @@ export function NextMealCard({
   const portion = meal.portion;
   const logPortion = Math.min(2, Math.max(0.5, slotPortion(portion)));
   const totalMins = meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0);
-  const portionText = portion !== undefined ? `${formatPortion(portion)} portion` : null;
-  const meta = [proteinOnly ? null : `${meal.recipe.kcal} kcal`, `${totalMins} min`, portionText]
+  const portionText =
+    portion !== undefined
+      ? t('today.home.nextMeal.portion', { portion: formatPortion(portion) })
+      : null;
+  const meta = [
+    proteinOnly ? null : t('today.home.nextMeal.size.kcal', { kcal: meal.recipe.kcal }),
+    t('today.home.nextMeal.minutes', { minutes: totalMins }),
+    portionText,
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -214,7 +231,7 @@ export function NextMealCard({
       },
     });
 
-  const label = mealTypeLabel(meal.mealType);
+  const label = mealTypeName(t, meal.mealType);
 
   return (
     <BoardCard testID="next-meal-card">
@@ -222,8 +239,12 @@ export function NextMealCard({
         testID="next-meal-open"
         pressScale="card"
         accessibilityRole="button"
-        accessibilityLabel={`${label}: ${meal.recipe.name}, ${meta}`}
-        accessibilityHint="Opens the recipe"
+        accessibilityLabel={t('today.home.nextMeal.openLabel', {
+          meal: label,
+          name: meal.recipe.name,
+          meta,
+        })}
+        accessibilityHint={t('today.home.nextMeal.openHint')}
         onPress={openRecipe}
         className="flex-row items-center gap-3"
       >
@@ -254,11 +275,15 @@ export function NextMealCard({
         <View className="relative min-w-0 flex-1 flex-row">
           <MealAction
             testID="next-meal-eaten"
-            label={holding ? 'Eaten ✓' : 'Eaten'}
+            label={holding ? t('today.home.nextMeal.eatenDone') : t('today.home.nextMeal.eaten')}
             icon="checkmark"
             primary
             disabled={holding || log.isPending}
-            accessibilityLabel={holding ? `${meal.recipe.name} logged` : `Mark ${label} as eaten`}
+            accessibilityLabel={
+              holding
+                ? t('today.home.nextMeal.eatenLabel', { name: meal.recipe.name })
+                : t('today.home.nextMeal.markEaten', { meal: label })
+            }
             onPress={() =>
               log.mutate({
                 date: localDateStr(),
@@ -271,32 +296,32 @@ export function NextMealCard({
           {proteinOnly ? null : (
             <FloatUp play={eatenFloat}>
               <Text className="text-caption font-bold text-positive">
-                {`+${formatNumber(meal.recipe.kcal)} kcal`}
+                {t('today.home.nextMeal.eatenFloat.kcal', { kcal: formatNumber(meal.recipe.kcal) })}
               </Text>
             </FloatUp>
           )}
         </View>
         <MealAction
           testID="next-meal-cook"
-          label="Cook now"
+          label={t('today.home.nextMeal.cookNow')}
           icon="cook"
-          accessibilityLabel={`Cook ${meal.recipe.name} now`}
+          accessibilityLabel={t('today.home.nextMeal.cookNowLabel', { name: meal.recipe.name })}
           onPress={cookNow}
         />
         <MealAction
           testID="next-meal-swap"
-          label="Swap"
+          label={t('today.home.nextMeal.swap')}
           icon="swap"
           disabled={holding}
-          accessibilityLabel={`Swap ${label}`}
+          accessibilityLabel={t('today.home.nextMeal.swapLabel', { meal: label })}
           onPress={swap}
         />
         <MealAction
           testID="next-meal-skip"
-          label="Skip"
+          label={t('today.home.nextMeal.skip')}
           icon="skip"
           disabled={holding || skipping}
-          accessibilityLabel={`Skip ${label}`}
+          accessibilityLabel={t('today.home.nextMeal.skipLabel', { meal: label })}
           onPress={() => onSkip({ mealType: meal.mealType, slotIndex: meal.slotIndex ?? 0 })}
         />
       </View>

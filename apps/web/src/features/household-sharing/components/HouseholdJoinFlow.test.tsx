@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOUSEHOLD_SHARING_COPY as COPY, type HouseholdInvitePreview } from '@chefer/types';
@@ -196,5 +197,28 @@ describe('HouseholdJoinFlow', () => {
     expect(screen.getByTestId('household-invite-message')).toHaveTextContent(
       COPY.inviteState.NOT_FOUND,
     );
+  });
+
+  it('speaks Romanian when the UI language is Romanian', () => {
+    m.preview = {
+      data: { ...OK, profile: { ...OK.profile!, portionFactor: 0.5 } },
+      isLoading: false,
+      isError: false,
+    };
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <HouseholdJoinFlow code="ABCD234567" />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Intră în gospodărie cu Dan',
+    );
+    expect(
+      screen.getByText(
+        'Mănânci jumătate de porție din fiecare masă. Poți schimba asta mai târziu.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Intră în gospodărie' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Adaugă la alergii')).toBeInTheDocument();
   });
 });

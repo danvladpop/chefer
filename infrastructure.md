@@ -1522,15 +1522,20 @@ UI copy for every surface, in English (source) and Romanian — [ADR 0004](./doc
 Raw TS source like the other packages (no build step); consumed by `apps/api`, `apps/web` (`transpilePackages`) and
 `apps/mobile` (Jest maps it to `src/index.ts`). No native code, so it is OTA-safe.
 
-| Module             | What it holds                                                                                                                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `catalog/en/*.ts`  | The source catalog, one file per namespace (`common`, `settings`, `email`, …), `as const`                                                                                                                          |
-| `catalog/ro/*.ts`  | Romanian, typed `Catalog['<namespace>']` — a missing/extra key is a type error                                                                                                                                     |
-| `translator.ts`    | `createTranslator(locale, deviceTags?)` → `{ locale, intlTag, t, number, date, currency }`. `t(key, params)` is typed: only real keys, exactly the English placeholders, `{ count }` for plurals; English fallback |
-| `plural.ts`        | CLDR plural rules for `en` (one/other) and `ro` (one/few/other) — no `Intl.PluralRules` (Hermes lacks it)                                                                                                          |
-| `resolve.ts`       | `resolveLocale({ choice, deviceTags, deviceLocale })` (choice → device → `en`), `matchLocale`, `deviceLanguageTags()`, `deviceSupportedLocale()`, `intlTagFor`                                                     |
-| `review-status.ts` | `roReviewStatus`: per namespace `'machine-draft'` or `'owner-reviewed'`; `pnpm --filter @chefer/i18n review-sheet` writes `docs/i18n/ro-review.md`                                                                 |
-| `catalog.test.ts`  | The CI catalog check: same keys, same placeholders, complete plural forms, ș/ț with comma below, „…” quotes, a review status per namespace                                                                         |
+| Module                     | What it holds                                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `catalog/en/*.ts`          | The source catalog, one file per namespace (`common`, `settings`, `email`, …), `as const`                                                                                                                          |
+| `catalog/ro/*.ts`          | Romanian, typed `Catalog['<namespace>']` — a missing/extra key is a type error                                                                                                                                     |
+| `translator.ts`            | `createTranslator(locale, deviceTags?)` → `{ locale, intlTag, t, number, date, currency }`. `t(key, params)` is typed: only real keys, exactly the English placeholders, `{ count }` for plurals; English fallback |
+| `plural.ts`                | CLDR plural rules for `en` (one/other) and `ro` (one/few/other) — no `Intl.PluralRules` (Hermes lacks it)                                                                                                          |
+| `resolve.ts`               | `resolveLocale({ choice, deviceTags, deviceLocale })` (choice → device → `en`), `matchLocale`, `deviceLanguageTags()`, `deviceSupportedLocale()`, `intlTagFor`                                                     |
+| `review-status.ts`         | `roReviewStatus`: per namespace `'machine-draft'` or `'owner-reviewed'`; `pnpm --filter @chefer/i18n review-sheet` writes `docs/i18n/ro-review.md`                                                                 |
+| `catalog.test.ts`          | The CI catalog check: same keys, same placeholders, complete plural forms, ș/ț with comma below, „…” quotes, a review status per namespace                                                                         |
+| `today-copy-audit.test.ts` | Lane E3's no-guilt / no-compensation wording rule over every `today` string, in English (`FORBIDDEN_PHRASES`) and Romanian (`FORBIDDEN_PHRASES_RO`)                                                                |
+
+Namespaces: `common`, `settings`, `email`, `auth`, `legal`, `consent`, `recipes`, `cook`, `gym`, `friends`, `nav`
+(phases 1–2), and `tracker`, `plan`, `household`, `today`, `coaching`, `trainer` (phase 4). `today` is split into
+`catalog/<locale>/today/*.ts` (home, shell, progress, engagement, settings, share, shared), combined in `today.ts`.
 
 Clients:
 

@@ -2,17 +2,19 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   conflictText,
+  formatKcal,
   formatPortion,
-  PLAN_MEAL_MENU_COPY,
   planMealMacroLine,
-  planMealMetaLine,
+  planMealMacros,
   slotPortion,
   verifiedLabels,
 } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
+import { useT } from '../../lib/i18n';
 import type { RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
@@ -21,6 +23,45 @@ import { CheckedForChip } from '../safety/checked-for-chip';
 import { MealCardView } from './meal-card-view';
 
 type PlanMeal = RouterOutputs['mealPlan']['getById']['days'][number]['meals'][number];
+
+// The API names a leftover's source day in English ("Monday"); show it in the UI language.
+const LEFTOVER_DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+function leftoverDay(t: Translator['t'], raw: string): string {
+  const key = DAY_KEYS[LEFTOVER_DAYS.indexOf(raw)];
+  return key === undefined ? raw : t(`common.weekdays.${key}`);
+}
+
+/** "10 min · 687 kcal" (FB7-11), "· 32 g protein" in protein-only mode, "· 1½ portions" in "Hide numbers". */
+export function planMealMetaText(
+  t: Translator['t'],
+  minutes: number,
+  nutrition: PlanMeal['recipe']['nutritionInfo'],
+  portion: number,
+  proteinOnly: boolean,
+  noNumbers: boolean,
+): string {
+  const n = planMealMacros(nutrition, portion);
+  const time = t('plan.card.minutes', { minutes: Math.max(0, Math.round(minutes)) });
+  const tail = noNumbers
+    ? t('plan.card.portionCount', {
+        count: portion > 1 ? 2 : 1,
+        amount: formatPortion(portion).replace(/×$/, ''),
+      })
+    : proteinOnly
+      ? t('plan.card.protein', { grams: Math.round(n.protein) })
+      : t('plan.card.kcal', { kcal: formatKcal(n.kcal) });
+  return `${time} · ${tail}`;
+}
 
 /**
  * One planned meal (the owner's view, wrapping the presentational
@@ -66,6 +107,7 @@ export function PlanMealCard({
   hideTypeBadge?: boolean;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
   // Lane E3 "Hide numbers": time and portion only, no figures.
   const { proteinOnly, noNumbers } = useNumbersMode();
@@ -99,7 +141,7 @@ export function PlanMealCard({
             testID={`${testID}-pinned`}
             accessible
             accessibilityRole="image"
-            accessibilityLabel={PLAN_MEAL_MENU_COPY.pinnedBadge}
+            accessibilityLabel={t('plan.mealMenu.pinnedBadge')}
             className="h-6 w-6 items-center justify-center rounded-full bg-surface/90"
           >
             <Ionicons name="bookmark" size={13} color={colors.brand} />
@@ -121,31 +163,31 @@ export function PlanMealCard({
           {eaten && (
             <View
               testID={`${testID}-eaten`}
-              accessibilityLabel="Eaten"
+              accessibilityLabel={t('plan.card.eaten')}
               className="flex-row items-center gap-1 rounded-full bg-positive/10 px-2 py-0.5"
             >
               <Ionicons name="checkmark-circle" size={12} color={colors.positive} />
-              <Text className="text-xs font-semibold text-positive">Eaten</Text>
+              <Text className="text-xs font-semibold text-positive">{t('plan.card.eaten')}</Text>
             </View>
           )}
           {meal.leftoverOf && (
             <View className="rounded-full bg-surface-sunken px-2 py-0.5">
               <Text className="text-xs uppercase text-label-tertiary">
-                Leftovers · {meal.leftoverOf}
+                {t('plan.card.leftoversShort', { day: leftoverDay(t, meal.leftoverOf) })}
               </Text>
             </View>
           )}
           {side && (
             <View testID={`${testID}-side`} className="rounded-full bg-surface-sunken px-2 py-0.5">
               <Text className="text-xs font-semibold text-label-secondary">
-                {PLAN_MEAL_MENU_COPY.sideBadge}
+                {t('plan.mealMenu.sideBadge')}
               </Text>
             </View>
           )}
           {portion !== 1 && (
             <View testID={`${testID}-portion`} className="rounded-full bg-accent px-2 py-0.5">
               <Text className="text-xs font-semibold text-primary">
-                {formatPortion(portion)} portion
+                {t('plan.card.portion', { portion: formatPortion(portion) })}
               </Text>
             </View>
           )}
@@ -156,7 +198,8 @@ export function PlanMealCard({
           <View className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-0.5">
             <AiGeneratedChip recipe={meal.recipe} variant="icon" />
             <Text testID={`${testID}-nutrition`} className="text-xs text-label-tertiary">
-              {planMealMetaLine(
+              {planMealMetaText(
+                t,
                 meal.recipe.prepTimeMins + meal.recipe.cookTimeMins,
                 meal.recipe.nutritionInfo,
                 portion,

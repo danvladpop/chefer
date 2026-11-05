@@ -7052,8 +7052,17 @@ pnpm recipes:translate approve <ids> | --all  →  REVIEWED
 the English recipe changes  →  translation stale  →  English shown until the next run redoes it
 ```
 
-**Not translated yet** (phases 2–4 of Lane J): most screens, server error messages, AI chat replies and recipe text.
-Until a screen is converted it shows English in both languages.
+**What is in Romanian** (Lane J phases 1–4): emails (weekly, recap, address confirmation, password reset, the
+trainer check-in and went-quiet digest), sign-in, legal and consent, recipes and cook mode, gym workouts, Following,
+settings and navigation, the tracker and food logging, the meal plan, past weeks and the shopping list, household
+sharing, Today, progress and body, reminders, the weekly recap and share pages, Hide numbers, coaching (client and
+trainer), trainer mode, bookings and templates. Curated recipe text follows the reader's language once
+`pnpm recipes:translate` has drafted it (English fallback).
+
+**Not translated yet:** the rest of the gym screens (routine editor, library, stats), onboarding outside V4, chat, the
+admin screens, server error messages (`TRPCError` text), AI chat replies, allergy and diet names, and some shared
+helpers in `@chefer/utils` that still return English sentences. Until a screen is converted it shows English in both
+languages; the lint rule `chefer/no-hardcoded-ui-string` lists what is left and stays a warning until then.
 
 ## 43. Weekly Recap & Share Cards (market review 2026-10, lane E2)
 

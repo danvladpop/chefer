@@ -7,7 +7,7 @@ import {
 } from '@/features/trainer-bookings/components/ClientBookings';
 import { LogWorkoutButton } from '@/features/trainer-coach/components/LogWorkoutButton';
 import { AssignFromClientButton } from '@/features/trainer-templates/components/AssignFromClientButton';
-import { COACHING_COPY } from '@chefer/types';
+import { useT } from '@/lib/i18n';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { firstName } from '../format';
@@ -30,6 +30,7 @@ export function ClientView({
   clientId: string;
   tab: 'workouts' | 'adherence' | 'bookings' | 'food';
 }) {
+  const { t } = useT();
   const overview = useClientOverview(clientId);
   // Templates live in trainer mode: without it (flag off) the header is unchanged.
   const trainerMode = useOptionalAppMode()?.trainerModeAvailable ?? false;
@@ -39,7 +40,7 @@ export function ClientView({
     return (
       <div className="mx-auto w-full max-w-lg px-4 py-6 sm:px-6">
         <h1 className="font-serif text-2xl font-bold text-gray-900">
-          {COACHING_COPY.trainer.clients}
+          {t('coaching.trainer.clients')}
         </h1>
         <p role="alert" className="mt-3 text-sm text-gray-700">
           {userFacingErrorMessage(overview.error)}
@@ -50,7 +51,7 @@ export function ClientView({
           className="mt-4 min-h-11"
           onClick={() => void overview.refetch()}
         >
-          {COACHING_COPY.common.retry}
+          {t('coaching.common.retry')}
         </Button>
       </div>
     );
@@ -58,7 +59,7 @@ export function ClientView({
   if (!overview.data) {
     return (
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
-        <h1 className="sr-only">{COACHING_COPY.trainer.clients}</h1>
+        <h1 className="sr-only">{t('coaching.trainer.clients')}</h1>
         <div className="h-48 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </div>
     );

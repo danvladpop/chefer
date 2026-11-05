@@ -3,7 +3,7 @@ import { ActivityIndicator, View, type LayoutChangeEvent } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { keepPreviousData } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
 import {
   BarChart,
   enterFromSide,
@@ -28,25 +28,21 @@ import {
   formatBodyWeight,
   formatDate,
   formatNumber,
-  HIDE_NUMBERS_COPY,
   localDateStr,
-  MEASUREMENTS_COPY,
-  PROGRESS_PHOTOS_COPY,
-  STATS_RANGE_LABELS,
-  STATS_RANGE_SPAN,
   STATS_RANGES,
   statsBucketDays,
   summarizeWeightTrend,
-  TREND_WEIGHT_EXPLAINER,
-  trendChangeText,
   weightChangeTone,
   weightTrendSeries,
   withoutKcalLines,
   type StatsRangeDays,
+  type UnitSystem,
+  type WeightTrendSummary,
 } from '@chefer/utils';
 import { AiGeneratedChip } from '../../../components/ai-generated-chip';
 import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { BodyMeasurements } from '../../body/body-measurements';
 import { ProgressPhotos } from '../../body/progress-photos';
@@ -55,6 +51,7 @@ import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { openPremium } from '../../premium/open-premium';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
+import { macroLabels } from '../today/nutrition-labels';
 import { ActionButton, BoardCard, CardLink, SectionTitle } from '../today/parts';
 import { WeightField } from '../today/weight-card';
 import { eatingStats, MIN_LOGGED_DAYS, signedPct } from './stats-helpers';
@@ -70,15 +67,28 @@ import { StrengthTab } from './strength-tab';
 // anything (T-11.6).
 
 type StatsTabKey = 'eating' | 'strength';
-const TAB_OPTIONS: { value: StatsTabKey; label: string; testID: string }[] = [
-  { value: 'eating', label: 'Eating', testID: 'stats-tab-eating' },
-  { value: 'strength', label: 'Strength', testID: 'stats-tab-strength' },
-];
-const RANGE_OPTIONS = STATS_RANGES.map((n) => ({
-  value: String(n),
-  label: STATS_RANGE_LABELS[n],
-  testID: `progress-range-${n}`,
-}));
+const TAB_KEYS: readonly StatsTabKey[] = ['eating', 'strength'];
+/** The catalog's name for each range (STATS_RANGE_LABELS / STATS_RANGE_SPAN). */
+const RANGE_KEY = { 7: 'w1', 30: 'm1', 90: 'm3', 365: 'y1' } as const satisfies Record<
+  StatsRangeDays,
+  string
+>;
+/** Trend moves smaller than this read as steady (trendChangeText in @chefer/utils). */
+const STEADY_KG = 0.05;
+
+/** trendChangeText() in the UI language: "Trend −0.6 kg over 30 days" / "Trend steady over 7 days". */
+function trendChange(
+  t: Translator['t'],
+  summary: WeightTrendSummary | null,
+  system: UnitSystem,
+  span: string,
+): string | null {
+  if (!summary) return null;
+  if (Math.abs(summary.changeKg) < STEADY_KG) return t('today.shell.stats.trendSteady', { span });
+  // A real minus sign reads better than a hyphen next to a number.
+  const change = formatBodyWeight(summary.changeKg, system, { signed: true }).replace('-', '−');
+  return t('today.shell.stats.trendChange', { change, span });
+}
 const DAY_MS = 86_400_000;
 /** Weigh-ins fetched: the range, but never under 90 days, so Edit entries keeps them. */
 const MIN_WEIGHT_DAYS = 90;
@@ -98,6 +108,7 @@ function shortDate(value: string | Date): string {
 
 /** The chef's weekly review in one line (it moved here from Today). */
 function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const [expanded, setExpanded] = useState(false);
@@ -109,13 +120,13 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
         <PressableScale
           testID="stats-review-teaser"
           accessibilityRole="button"
-          accessibilityHint="See what Premium adds"
+          accessibilityHint={t('today.shell.stats.review.teaserHint')}
           onPress={() => openPremium('coach-review')}
           className="min-h-12 flex-row items-center gap-3 rounded-card bg-brand-tint px-4 py-3"
         >
           <Icon name="chef" color={colors.brand} size={20} />
           <Text numberOfLines={2} className="min-w-0 flex-1 text-callout text-label">
-            {first !== '' ? first : 'Your chef noticed something about your week…'}
+            {first !== '' ? first : t('today.shell.stats.review.teaserFallback')}
           </Text>
         </PressableScale>
         {/* Lane D2: the reasoning is free; the number stays premium. */}
@@ -137,7 +148,11 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         accessibilityHint={
-          hasMore ? (expanded ? 'Shows less' : 'Shows the full review') : undefined
+          hasMore
+            ? expanded
+              ? t('today.shell.stats.review.showLess')
+              : t('today.shell.stats.review.showFull')
+            : undefined
         }
         disabled={!hasMore}
         onPress={() => setExpanded((e) => !e)}
@@ -157,7 +172,7 @@ function WeeklyReviewLine({ proteinOnly }: { proteinOnly: boolean }) {
         <AiGeneratedChip
           recipe={r}
           testID="stats-review-ai-chip"
-          a11yLabel={AI_REVIEW_A11Y_LABEL}
+          a11yLabel={t('consent.aiGenerated.reviewA11y')}
         />
       </PressableScale>
       {r.explanation ? (
@@ -198,6 +213,7 @@ function TargetLine({ value, top, label }: { value: number; top: number; label: 
 }
 
 export function StatsScreen() {
+  const { t } = useT();
   // Train's "Strength stats" opens straight on Strength (`?tab=strength`).
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<StatsTabKey>(tabParam === 'strength' ? 'strength' : 'eating');
@@ -205,9 +221,19 @@ export function StatsScreen() {
     if (tabParam === 'strength' || tabParam === 'eating') setTab(tabParam);
   }, [tabParam]);
   const [range, setRange] = useState<StatsRangeDays>(DEFAULT_STATS_RANGE);
+  const tabOptions = TAB_KEYS.map((value) => ({
+    value,
+    label: t(`today.shell.stats.tabs.${value}`),
+    testID: `stats-tab-${value}`,
+  }));
+  const rangeOptions = STATS_RANGES.map((n) => ({
+    value: String(n),
+    label: t(`today.shell.stats.range.${RANGE_KEY[n]}`),
+    testID: `progress-range-${n}`,
+  }));
 
   return (
-    <ShellChromeProvider value={{ kind: 'pushed', fallback: '/home', title: 'Stats' }}>
+    <ShellChromeProvider value={{ kind: 'pushed', fallback: '/home', title: t('nav.items.stats') }}>
       <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
         <KeyboardAwareScrollView
           testID="stats-scroll"
@@ -216,15 +242,15 @@ export function StatsScreen() {
           <ShellTopBar />
           <SegmentedControl
             testID="stats-tab"
-            accessibilityLabel="Stats for"
-            options={TAB_OPTIONS}
+            accessibilityLabel={t('today.shell.stats.tabsLabel')}
+            options={tabOptions}
             value={tab}
             onChange={setTab}
           />
           <SegmentedControl
             testID="progress-range"
-            accessibilityLabel="Time range"
-            options={RANGE_OPTIONS}
+            accessibilityLabel={t('today.shell.stats.rangeLabel')}
+            options={rangeOptions}
             value={String(range)}
             onChange={(v) => setRange(Number(v) as StatsRangeDays)}
           />
@@ -243,6 +269,7 @@ export function StatsScreen() {
 }
 
 function EatingTab({ range }: { range: StatsRangeDays }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const [logOpen, setLogOpen] = useState(false);
   const [entriesOpen, setEntriesOpen] = useState(false);
@@ -301,7 +328,8 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
   const latestWeight = weights.at(-1)?.weightKg;
   const trendNow = series.length > 1 ? series.at(-1)?.trendKg : undefined;
   const trendSummary = summarizeWeightTrend(series, { windowDays: range });
-  const weightChange = trendChangeText(trendSummary, system, STATS_RANGE_SPAN[range]);
+  const span = t(`today.shell.stats.span.${RANGE_KEY[range]}`);
+  const weightChange = trendChange(t, trendSummary, system, span);
   const tone = trendSummary
     ? weightChangeTone(trendSummary.changeKg, preferences?.chefProfile?.goal)
     : 'neutral';
@@ -326,13 +354,13 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
         value: eat.enoughDays ? String(eat.avgProtein) : '—',
         count: eat.enoughDays ? eat.avgProtein : undefined,
         unit: eat.enoughDays ? 'g' : undefined,
-        label: 'avg protein / day',
+        label: t('today.shell.stats.avg.protein'),
       }
     : {
         value: eat.enoughDays ? formatNumber(eat.avgKcal) : '—',
         count: eat.enoughDays ? eat.avgKcal : undefined,
         unit: undefined,
-        label: 'avg kcal / day',
+        label: t('today.shell.stats.avg.kcal'),
       };
   const proteinPct =
     proteinTarget > 0 && eat.enoughDays
@@ -346,7 +374,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
 
       {/* Eating */}
       <View testID="stats-eating" className="gap-3">
-        <SectionTitle>Eating</SectionTitle>
+        <SectionTitle>{t('today.shell.stats.eating')}</SectionTitle>
         {isLoading ? (
           <View className="items-center py-12">
             <ActivityIndicator size="large" color={colors.brand} />
@@ -355,7 +383,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
           // A failed load is not an empty history (audit F-X-3-1).
           <ErrorState
             testID="progress-error"
-            title="Couldn't load your eating stats"
+            title={t('today.shell.stats.loadError')}
             icon={<Icon name="refresh" color={colors.labelTertiary} size={40} />}
             onRetry={() => void refetch()}
           />
@@ -368,11 +396,11 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                 icon={<Icon name="checkmark" color={colors.brand} size={18} />}
                 value={monthly ? String(eat.daysLogged) : '—'}
                 {...(monthly && { count: eat.daysLogged })}
-                label="days logged"
+                label={t('today.shell.stats.daysLogged')}
               />
             </StatTiles>
             <Text className="text-caption text-label-secondary">
-              {HIDE_NUMBERS_COPY.recipeNutritionHidden}
+              {t('today.hideNumbers.recipeNutritionHidden')}
             </Text>
           </BoardCard>
         ) : (
@@ -391,25 +419,25 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                 icon={<Icon name="checkmark" color={colors.brand} size={18} />}
                 value={monthly ? String(eat.daysLogged) : '—'}
                 {...(monthly && { count: eat.daysLogged })}
-                label="days logged"
+                label={t('today.shell.stats.daysLogged')}
               />
               <StatTile
                 testID="stats-vs-target"
                 icon={<Icon name="trendDown" color={colors.brand} size={18} />}
                 value={eat.enoughDays ? signedPct(proteinOnly ? proteinPct : eat.diffPct) : '—'}
-                label="vs target"
+                label={t('today.shell.stats.vsTarget')}
               />
             </StatTiles>
             {monthly && !eat.enoughDays ? (
               <Text testID="progress-more-days" className="text-subhead text-label-secondary">
-                {`Log ${daysToGo} more ${daysToGo === 1 ? 'day' : 'days'} to see your averages`}
+                {t('today.shell.stats.moreDays', { count: daysToGo })}
               </Text>
             ) : null}
 
             {eat.daysLogged === 0 ? (
               <View className="items-center gap-1 py-6">
                 <Text className="text-center text-callout text-label-secondary">
-                  Nothing logged yet in these days.
+                  {t('today.shell.stats.nothingLogged')}
                 </Text>
                 <PressableScale
                   testID="progress-open-tracker"
@@ -417,7 +445,9 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                   onPress={() => router.push('/tracker')}
                   className="min-h-11 justify-center px-3"
                 >
-                  <Text className="text-callout font-semibold text-brand">Open your day</Text>
+                  <Text className="text-callout font-semibold text-brand">
+                    {t('today.shell.stats.openDay')}
+                  </Text>
                 </PressableScale>
               </View>
             ) : (
@@ -425,7 +455,20 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                 <View>
                   <BarChart
                     testID="stats-chart"
-                    accessibilityLabel={`${proteinOnly ? 'Protein' : 'Calories'} logged on ${eat.daysLogged} of the last ${eat.windowDays} days${weekly ? ', as weekly averages,' : ''} against a target of ${formatNumber(chartTarget)}`}
+                    accessibilityLabel={t(
+                      weekly
+                        ? proteinOnly
+                          ? 'today.shell.stats.chart.weekly.protein'
+                          : 'today.shell.stats.chart.weekly.kcal'
+                        : proteinOnly
+                          ? 'today.shell.stats.chart.daily.protein'
+                          : 'today.shell.stats.chart.daily.kcal',
+                      {
+                        logged: eat.daysLogged,
+                        count: eat.windowDays,
+                        target: formatNumber(chartTarget),
+                      },
+                    )}
                     data={barData}
                     seriesColors={{ value: colors.brand }}
                     // A zero-height band keeps the target inside the y domain;
@@ -439,13 +482,17 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                     value={chartTarget}
                     top={barTop}
                     label={
-                      proteinOnly ? `${formatNumber(chartTarget)} g` : formatNumber(chartTarget)
+                      proteinOnly
+                        ? t('today.shell.stats.targetLineProtein', {
+                            value: formatNumber(chartTarget),
+                          })
+                        : formatNumber(chartTarget)
                     }
                   />
                 </View>
                 {weekly ? (
                   <Text testID="stats-chart-weekly" className="text-caption text-label-secondary">
-                    Each bar is a week: the daily average of the days you logged
+                    {t('today.shell.stats.weeklyBars')}
                   </Text>
                 ) : null}
               </View>
@@ -458,6 +505,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                   macro="protein"
                   value={eat.avgProtein}
                   target={macroTargets?.proteinG ?? 0}
+                  labels={macroLabels(t).protein}
                 />
                 {proteinOnly ? null : (
                   <>
@@ -466,17 +514,19 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                       macro="carbs"
                       value={eat.avgCarbs}
                       target={macroTargets?.carbsG ?? 0}
+                      labels={macroLabels(t).carbs}
                     />
                     <MacroRow
                       testID="stats-macro-fat"
                       macro="fat"
                       value={eat.avgFat}
                       target={macroTargets?.fatG ?? 0}
+                      labels={macroLabels(t).fat}
                     />
                   </>
                 )}
                 <Text className="text-caption text-label-secondary">
-                  Daily averages on logged days
+                  {t('today.shell.stats.dailyAverages')}
                 </Text>
               </View>
             ) : null}
@@ -486,7 +536,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
 
       {/* Weight */}
       <View testID="progress-weight" className="gap-3">
-        <SectionTitle>Weight</SectionTitle>
+        <SectionTitle>{t('today.shell.stats.weight')}</SectionTitle>
         <BoardCard>
           <View className="flex-row items-start justify-between gap-3">
             <View className="min-w-0 flex-1">
@@ -496,12 +546,12 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                 </Text>
               ) : (
                 <Text testID="progress-weight-empty" className="text-callout text-label-secondary">
-                  No weigh-ins yet.
+                  {t('today.shell.stats.noWeighIns')}
                 </Text>
               )}
               {trendNow != null ? (
                 <Text testID="progress-weight-trend" className="text-subhead text-label-secondary">
-                  {`Trend ${formatBodyWeight(trendNow, system)}`}
+                  {t('today.shell.stats.trend', { weight: formatBodyWeight(trendNow, system) })}
                 </Text>
               ) : null}
               {weightChange ? (
@@ -518,9 +568,11 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
             </View>
             <ActionButton
               testID="stats-log-weight"
-              label="Log weight"
+              label={t('today.shell.stats.logWeight')}
               icon={logOpen ? 'close' : 'add'}
-              accessibilityLabel={logOpen ? 'Close weigh-in' : 'Log weight'}
+              accessibilityLabel={
+                logOpen ? t('today.shell.stats.closeWeighIn') : t('today.shell.stats.logWeight')
+              }
               onPress={() => setLogOpen((o) => !o)}
             />
           </View>
@@ -531,7 +583,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
           {weightQuery.isError && weights.length === 0 ? (
             <ErrorState
               testID="progress-weight-error"
-              title="Couldn't load your weigh-ins"
+              title={t('today.shell.stats.weightLoadError')}
               onRetry={() => void weightQuery.refetch()}
             />
           ) : weightQuery.isLoading ? (
@@ -542,7 +594,16 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
             <View className="gap-2">
               <LineChart
                 testID="progress-weight-chart"
-                accessibilityLabel={`Weight over the last ${STATS_RANGE_SPAN[range]}, last weigh-in ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}${trendNow != null ? `, trend ${formatBodyWeight(trendNow, system)}` : ''}`}
+                accessibilityLabel={(() => {
+                  const weight = latestWeight != null ? formatBodyWeight(latestWeight, system) : '';
+                  return trendNow != null
+                    ? t('today.shell.stats.weightChartTrend', {
+                        span,
+                        weight,
+                        trend: formatBodyWeight(trendNow, system),
+                      })
+                    : t('today.shell.stats.weightChart', { span, weight });
+                })()}
                 data={weightData}
                 trend={trendData}
                 {...(weightLabels && { xLabels: weightLabels })}
@@ -554,12 +615,12 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
                 testID="progress-weight-explainer"
                 className="text-caption text-label-secondary"
               >
-                {TREND_WEIGHT_EXPLAINER}
+                {t('today.shell.stats.trendExplainer')}
               </Text>
             </View>
           ) : weights.length > 0 ? (
             <Text testID="progress-weight-few" className="text-subhead text-label-secondary">
-              {`Weigh in twice within ${STATS_RANGE_SPAN[range]} to see your trend here.`}
+              {t('today.shell.stats.weighInTwice', { span })}
             </Text>
           ) : null}
 
@@ -568,7 +629,11 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
               {entriesOpen ? <WeightEntriesList entries={weights} /> : null}
               <CardLink
                 testID="stats-edit-entries"
-                label={entriesOpen ? 'Hide entries' : 'Edit entries'}
+                label={
+                  entriesOpen
+                    ? t('today.shell.stats.hideEntries')
+                    : t('today.shell.stats.editEntries')
+                }
                 onPress={() => setEntriesOpen((o) => !o)}
               />
             </>
@@ -578,7 +643,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
 
       {/* Body measurements: free, one chart per measure (lane D3) */}
       <View className="gap-3">
-        <SectionTitle>{MEASUREMENTS_COPY.title}</SectionTitle>
+        <SectionTitle>{t('today.measurements.title')}</SectionTitle>
         <BoardCard>
           <BodyMeasurements />
         </BoardCard>
@@ -586,7 +651,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
 
       {/* Progress photos: on this phone only (lane D4) */}
       <View className="gap-3">
-        <SectionTitle>{PROGRESS_PHOTOS_COPY.title}</SectionTitle>
+        <SectionTitle>{t('today.photos.title')}</SectionTitle>
         <BoardCard>
           <ProgressPhotos />
         </BoardCard>

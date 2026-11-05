@@ -10,10 +10,11 @@ Google Play texts.
 - **Character counts.** The number in brackets after each text is its character count, counted as Unicode code points,
   the way Apple and Google count. Each store's limit is in the section heading.
 
-**When to publish it.** Add the Romanian localization only once the app's main screens are in Romanian (after Lane J
-phase 4). Until then a Romanian reader would get a Romanian page and an app that is still mostly English. Phase 1 already
-covers emails and the language setting; phase 2 covers sign-in, legal, consent, recipes, cook mode, gym workouts,
-Following and settings.
+**When to publish it.** Add the Romanian localization once the main screens are in Romanian. After Lane J phase 4
+they are: Today, the meal plan, the shopping list, food logging, recipes and cook mode, gym workouts, progress, coaching
+and trainer mode, settings, emails and the language setting. Still English: the rest of the gym screens (routine
+editor, exercise library, stats), the pre-V4 onboarding, chat and some shared helper text. Decide whether that is enough
+before publishing; until then a Romanian reader still meets English on those screens.
 
 **Terms used.** The rest of the listing follows these:
 

@@ -13,6 +13,41 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 /** Below this the round cap would still paint a dot at the start — hide it. */
 const VISIBLE_EPSILON = 0.002;
 
+/** The figures a spoken sentence is built from, already formatted. */
+export interface CalorieGaugeFigures {
+  value: string;
+  target: string;
+  /** kcal left (0 once over target). */
+  remaining: string;
+  /** kcal over target (0 until over). */
+  overBy: string;
+  over: boolean;
+}
+
+/**
+ * The gauge's words. The kit stays language-free: the app passes translated
+ * labels (the English defaults below serve every other caller).
+ */
+export interface CalorieGaugeLabels {
+  /** Under the right end: the target figure's name. */
+  target: string;
+  /** Under the left end while under target. */
+  left: string;
+  /** Under the left end once over target (neutral words, never an alarm). */
+  over: string;
+  /** The one accessibility sentence for the whole gauge. */
+  spoken: (figures: CalorieGaugeFigures) => string;
+}
+
+function englishSpoken(caption: string) {
+  return ({ value, target, remaining, overBy, over }: CalorieGaugeFigures) =>
+    target === ''
+      ? `${value} ${caption}`
+      : `${value} of ${target} kcal ${caption.replace(/^kcal /, '')}, ${
+          over ? `${overBy} over` : `${remaining} left`
+        }`;
+}
+
 export interface CalorieGaugeProps {
   /** kcal eaten (or planned) so far. */
   value: number;
@@ -20,6 +55,11 @@ export interface CalorieGaugeProps {
   target: number;
   /** Caption under the big number (default "kcal eaten"). */
   caption?: string;
+  /**
+   * Translated words for the ends and the spoken sentence (default English).
+   * `spoken` gets `target: ''` when there is no target.
+   */
+  labels?: Partial<CalorieGaugeLabels>;
   /** Gauge width in pt; the height follows (half a ring). */
   width?: number;
   strokeWidth?: number;
@@ -44,6 +84,7 @@ export function CalorieGauge({
   value,
   target,
   caption = 'kcal eaten',
+  labels,
   width = 240,
   strokeWidth = 18,
   className,
@@ -72,12 +113,20 @@ export function CalorieGauge({
 
   const remaining = Math.max(0, target - value);
   const overBy = Math.max(0, value - target);
-  const label =
-    target > 0
-      ? `${fmt(value)} of ${fmt(target)} kcal ${caption.replace(/^kcal /, '')}, ${
-          over ? `${fmt(overBy)} over` : `${fmt(remaining)} left`
-        }`
-      : `${fmt(value)} ${caption}`;
+  const words: CalorieGaugeLabels = {
+    target: 'target',
+    left: 'left',
+    over: 'over',
+    spoken: englishSpoken(caption),
+    ...labels,
+  };
+  const label = words.spoken({
+    value: fmt(value),
+    target: target > 0 ? fmt(target) : '',
+    remaining: fmt(remaining),
+    overBy: fmt(overBy),
+    over,
+  });
 
   return (
     <View
@@ -127,11 +176,13 @@ export function CalorieGauge({
             >
               {fmt(over ? overBy : remaining)}
             </Text>
-            <Text className="text-caption text-label-secondary">{over ? 'over' : 'left'}</Text>
+            <Text className="text-caption text-label-secondary">
+              {over ? words.over : words.left}
+            </Text>
           </View>
           <View className="items-end">
             <Text className="text-headline font-bold text-label">{fmt(target)}</Text>
-            <Text className="text-caption text-label-secondary">target</Text>
+            <Text className="text-caption text-label-secondary">{words.target}</Text>
           </View>
         </View>
       ) : null}

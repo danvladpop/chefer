@@ -1,15 +1,14 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { weekdayLongT, weekdayNameT } from '@/features/coaching/lib/dates';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import {
-  CHECK_IN_COPY,
   CHECK_IN_LIMITS,
   CHECK_IN_QUESTION_KEYS,
-  CHECK_IN_QUESTIONS,
-  COACHING_SHARING_COPY,
   type CheckInConfigDto,
   type CheckInQuestion,
 } from '@chefer/types';
@@ -20,7 +19,7 @@ import { cn } from '@chefer/utils';
 // One check-in for every client: on / off, the weekday it opens and up to 6
 // questions. Mirrors mobile check-in-settings-card.tsx.
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 function Chip({
   label,
@@ -52,7 +51,7 @@ function Chip({
 }
 
 export function CheckInSettings() {
-  const copy = CHECK_IN_COPY.trainer;
+  const { t } = useT();
   const id = useId();
   const utils = trpc.useUtils();
   const config = trpc.trainer.checkIns.config.useQuery(undefined, { retry: false });
@@ -68,9 +67,9 @@ export function CheckInSettings() {
         questions: saved.questions.length,
       });
       void utils.trainer.checkIns.config.invalidate();
-      showAppToast({ message: copy.saved, type: 'success' });
+      showAppToast({ message: t('coaching.checkIn.trainer.saved'), type: 'success' });
     },
-    onError: () => showAppToast({ message: COACHING_SHARING_COPY.saveError }),
+    onError: () => showAppToast({ message: t('coaching.sharing.saveError') }),
   });
   if (!draft) return null;
   const toggle = (q: CheckInQuestion) =>
@@ -88,12 +87,12 @@ export function CheckInSettings() {
       className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
     >
       <h2 id={`${id}-title`} className="font-semibold text-gray-900">
-        {copy.settingsTitle}
+        {t('coaching.checkIn.trainer.settingsTitle')}
       </h2>
-      <p className="text-sm text-gray-600">{copy.settingsBody}</p>
+      <p className="text-sm text-gray-600">{t('coaching.checkIn.trainer.settingsBody')}</p>
       <div className="flex items-center justify-between gap-3">
         <p id={`${id}-enable`} className="min-w-0 text-sm font-semibold text-gray-900">
-          {copy.enable}
+          {t('coaching.checkIn.trainer.enable')}
         </p>
         <Switch
           aria-labelledby={`${id}-enable`}
@@ -103,31 +102,35 @@ export function CheckInSettings() {
       </div>
       {draft.enabled && (
         <>
-          <p className="text-xs font-semibold text-gray-600">{copy.dayLabel}</p>
+          <p className="text-xs font-semibold text-gray-600">
+            {t('coaching.checkIn.trainer.dayLabel')}
+          </p>
           <div className="flex flex-wrap gap-2">
-            {DAYS.map((label, day) => (
+            {DAYS.map((day) => (
               <Chip
-                key={label}
-                label={label}
-                a11y={CHECK_IN_COPY.weekday(day)}
+                key={day}
+                label={weekdayNameT(day, t)}
+                a11y={weekdayLongT(day, t)}
                 selected={draft.day === day}
                 onClick={() => setDraft({ ...draft, day })}
               />
             ))}
           </div>
-          <p className="text-xs font-semibold text-gray-600">{copy.questionsLabel}</p>
+          <p className="text-xs font-semibold text-gray-600">
+            {t('coaching.checkIn.trainer.questionsLabel')}
+          </p>
           <div className="flex flex-wrap gap-2">
             {CHECK_IN_QUESTION_KEYS.map((q) => (
               <Chip
                 key={q}
-                label={CHECK_IN_QUESTIONS[q].label}
-                a11y={CHECK_IN_QUESTIONS[q].label}
+                label={t(`coaching.checkIn.questions.${q}.label`)}
+                a11y={t(`coaching.checkIn.questions.${q}.label`)}
                 selected={draft.questions.includes(q)}
                 onClick={() => toggle(q)}
               />
             ))}
           </div>
-          <p className="text-xs text-gray-600">{copy.noteAlways}</p>
+          <p className="text-xs text-gray-600">{t('coaching.checkIn.trainer.noteAlways')}</p>
         </>
       )}
       <div>
@@ -140,7 +143,7 @@ export function CheckInSettings() {
             save.mutate({ enabled: draft.enabled, day: draft.day, questions: draft.questions })
           }
         >
-          {copy.save}
+          {t('coaching.checkIn.trainer.save')}
         </Button>
       </div>
     </section>

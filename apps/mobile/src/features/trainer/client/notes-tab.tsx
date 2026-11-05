@@ -1,20 +1,29 @@
 import { ActivityIndicator, View } from 'react-native';
-import { COACHING_COPY, COACHING_LIMITS } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { COACHING_LIMITS } from '@chefer/types';
 import { Button, ErrorState, FormField, Input, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { CoachingCard } from '../components/coaching-card';
 import { usePrivateNote, type NoteStatus } from './use-private-note';
 
 // ─── Client › Notes (spec §2.5 "Private notes") ───────────────────────────────
 // One free-text note per client, autosaved. Never shown to the client, never read by Chefer.
 
-const STATUS_TEXT: Record<NoteStatus, string> = {
-  idle: '',
-  saving: 'Saving…',
-  saved: 'Saved',
-  error: 'Could not save yet.',
-};
+function statusText(status: NoteStatus, t: Translator['t']): string {
+  switch (status) {
+    case 'idle':
+      return '';
+    case 'saving':
+      return t('common.states.saving');
+    case 'saved':
+      return t('common.states.saved');
+    case 'error':
+      return t('coaching.trainer.privateNoteNotYet');
+  }
+}
 
 export function NotesTab({ clientId, firstName }: { clientId: string; firstName: string }) {
+  const { t } = useT();
   const note = usePrivateNote(clientId);
   if (note.isLoading) {
     return (
@@ -30,12 +39,12 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
     <CoachingCard testID="trainer-notes" className="gap-2">
       <FormField
         testID="trainer-notes-field"
-        label={COACHING_COPY.trainer.privateNote}
-        hint={COACHING_COPY.trainer.privateNoteHint(firstName)}
+        label={t('coaching.trainer.privateNote')}
+        hint={t('coaching.trainer.privateNoteHint', { client: firstName })}
       >
         <Input
           testID="trainer-notes-input"
-          label={COACHING_COPY.trainer.privateNote}
+          label={t('coaching.trainer.privateNote')}
           value={note.body}
           multiline
           maxLength={COACHING_LIMITS.noteMaxChars}
@@ -51,7 +60,7 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
           className="min-w-0 flex-1 text-caption text-label-secondary"
           accessibilityLiveRegion="polite"
         >
-          {STATUS_TEXT[note.status]}
+          {statusText(note.status, t)}
         </Text>
         {note.status === 'error' ? (
           <Button
@@ -60,7 +69,7 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
             variant="outline"
             onPress={() => void note.flush()}
           >
-            {COACHING_COPY.common.retry}
+            {t('coaching.common.retry')}
           </Button>
         ) : null}
       </View>

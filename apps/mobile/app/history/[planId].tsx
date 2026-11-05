@@ -25,6 +25,7 @@ import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { BoardCard } from '../../src/features/shell/today/parts';
 import { TrainButton } from '../../src/features/shell/train/train-button';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // Past-week detail — port of apps/web (dashboard)/history/[planId]
@@ -34,7 +35,7 @@ import { trpc } from '../../src/lib/trpc';
 // is where you decide a week is worth bringing back — "Use this week again"
 // (into this or next week) or "Save as a week" (a My weeks template).
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 export default function HistoryPlanScreen() {
@@ -45,6 +46,7 @@ export default function HistoryPlanScreen() {
   const { proteinOnly, noNumbers } = useNumbersMode();
   const snackbar = useSnackbar();
   const colors = useThemeColors();
+  const { t } = useT();
 
   const {
     data: plan,
@@ -61,7 +63,10 @@ export default function HistoryPlanScreen() {
   const saveAsWeek = trpc.mealPlan.saveAsTemplate.useMutation({
     meta: { silent: true },
     onSuccess: (saved) =>
-      snackbar.show({ message: `Saved as “${saved.name}” in My weeks.`, tone: 'success' }),
+      snackbar.show({
+        message: t('plan.history.detail.savedAs', { name: saved.name }),
+        tone: 'success',
+      }),
     onError: (err) => snackbar.show({ message: userFacingErrorMessage(err) }),
   });
 
@@ -82,14 +87,14 @@ export default function HistoryPlanScreen() {
       <View className="min-h-11 flex-row items-center gap-1 px-4 py-2">
         <IconButton
           testID="history-plan-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/my-weeks'))}
           className="-ml-2"
         />
         <View className="min-w-0 flex-1">
           <Text className="text-subhead font-semibold text-label-secondary" numberOfLines={1}>
-            Read-only view
+            {t('plan.history.detail.readOnly')}
           </Text>
           <Text
             testID="history-plan-title"
@@ -97,7 +102,9 @@ export default function HistoryPlanScreen() {
             className="text-title1 font-bold text-label"
             numberOfLines={1}
           >
-            {weekStart ? `Week of ${formatDate(weekStart, 'medium')}` : 'Past week'}
+            {weekStart
+              ? t('plan.history.detail.weekOf', { date: formatDate(weekStart, 'medium') })
+              : t('plan.history.detail.pastWeek')}
           </Text>
         </View>
       </View>
@@ -112,30 +119,34 @@ export default function HistoryPlanScreen() {
         isError && error.data?.code !== 'NOT_FOUND' ? (
           <ErrorState
             testID="history-plan-error"
-            title="Couldn't load this week"
+            title={t('plan.history.detail.loadError')}
             icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
         ) : (
           <EmptyState
             testID="history-plan-not-found"
-            title="Plan not found"
-            description="It may have been removed. Your other weeks are still in My weeks."
-            action={{ label: 'Back to My weeks', onPress: () => router.back() }}
+            title={t('plan.history.detail.notFoundTitle')}
+            description={t('plan.history.detail.notFoundBody')}
+            action={{
+              label: t('plan.history.detail.notFoundAction'),
+              onPress: () => router.back(),
+            }}
           />
         )
       ) : (
         <>
           {/* Day chips */}
           <View className="flex-row justify-between px-4 pb-2">
-            {DAY_LABELS.map((label, i) => {
+            {DAY_KEYS.map((dayKey, i) => {
+              const label = t(`common.weekdaysShort.${dayKey}`);
               const isSelected = selectedDay === i;
               const hasMeals = plan.days.some((d) => d.dayOfWeek === i && d.meals.length > 0);
               const date = new Date(plan.weekStartDate);
               date.setDate(date.getDate() + i);
               return (
                 <Pressable
-                  key={label}
+                  key={dayKey}
                   testID={`history-day-${i}`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
@@ -177,7 +188,7 @@ export default function HistoryPlanScreen() {
             {meals.length === 0 ? (
               <BoardCard className="items-center py-8">
                 <Text className="text-body text-label-secondary">
-                  No meals planned for this day.
+                  {t('plan.history.detail.noMeals')}
                 </Text>
               </BoardCard>
             ) : (
@@ -185,8 +196,10 @@ export default function HistoryPlanScreen() {
                 {noNumbers ? null : (
                   <Text testID="history-day-kcal" className="text-subhead text-label-secondary">
                     {proteinOnly
-                      ? `Day total · ${dayTotals.protein} g protein`
-                      : `Day total · ${formatKcal(dayKcal)} kcal`}
+                      ? t('plan.history.detail.dayTotalProtein', {
+                          protein: String(dayTotals.protein),
+                        })
+                      : t('plan.history.detail.dayTotalKcal', { kcal: formatKcal(dayKcal) })}
                   </Text>
                 )}
                 {/* Lane E3: a shortfall is stated in neutral text, never an alarm colour. */}
@@ -195,7 +208,7 @@ export default function HistoryPlanScreen() {
                     testID="history-day-protein-gap"
                     className="text-subhead text-label-secondary"
                   >
-                    Protein short by {day.proteinGapG} g
+                    {t('plan.history.detail.proteinShortBy', { grams: String(day.proteinGapG) })}
                   </Text>
                 )}
                 {meals.map((meal, i) => (
@@ -218,13 +231,13 @@ export default function HistoryPlanScreen() {
             )}
             <TrainButton
               testID="history-plan-restore"
-              label="Use this week again"
+              label={t('plan.history.detail.useAgain')}
               loading={restore.pendingPlanId === plan.planId}
               onPress={() => restore.requestRestore(plan.planId, weekLabel ?? '')}
             />
             <TrainButton
               testID="history-plan-save-week"
-              label="Save as a week"
+              label={t('plan.history.detail.saveAsWeek')}
               variant="ghost"
               loading={saveAsWeek.isPending}
               onPress={() => {

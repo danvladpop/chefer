@@ -1,7 +1,10 @@
+import type { Translator } from '@chefer/i18n';
+
 // Mobile-only strings of household sharing (ADR 0003) that have no shared `HOUSEHOLD_SHARING_COPY`
 // entry: app chrome the web flow draws differently (the in-app signed-out step, the way back to the
 // Meals tab, offline lines). Everything a partner reads about the sharing itself comes from the
-// shared copy.
+// shared copy. Screens render both through `household.sharing.*` catalog keys (`app.*` for these);
+// the English here stays for tests until the lead prunes it.
 
 export const HOUSEHOLD_MOBILE_COPY = {
   goToMeals: 'Go to Meals',
@@ -27,4 +30,15 @@ export function joinPortionPhrase(portionFactor: number): string {
   if (whole === 0 && glyph) return glyph;
   const amount = glyph ? `${whole}${glyph}` : String(Math.round(portionFactor * 100) / 100);
   return `${amount} portions`;
+}
+
+/** `joinPortionPhrase` in the UI language: the `{portion}` of `household.sharing.joinPortion`. */
+export function joinPortionText(t: Translator['t'], portionFactor: number): string {
+  const whole = Math.floor(portionFactor);
+  const frac = Math.round((portionFactor - whole) * 100) / 100;
+  const glyph = FRACTIONS[String(frac)];
+  if (portionFactor === 1) return t('household.sharing.portion.full');
+  if (whole === 0 && glyph) return glyph;
+  const amount = glyph ? `${whole}${glyph}` : String(Math.round(portionFactor * 100) / 100);
+  return t('household.sharing.portion.many', { value: amount });
 }

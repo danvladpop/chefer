@@ -511,4 +511,45 @@ export const gym: Catalog['gym'] = {
     },
     // @@SESSION
   },
+  todaysWorkout: {
+    title: 'Antrenamentul de azi',
+    startStrength: 'Începe antrenamentul de forță',
+    setup: 'O configurare de 90 de secunde îți alege un program.',
+    done: 'Gata ✓',
+    donePrs: {
+      one: 'Gata ✓ · {count} record',
+      few: 'Gata ✓ · {count} recorduri',
+      other: 'Gata ✓ · {count} de recorduri',
+    },
+    freestyle: 'Antrenament liber',
+    next: 'Urmează: {day}',
+    exercises: {
+      one: '{count} exercițiu',
+      few: '{count} exerciții',
+      other: '{count} de exerciții',
+    },
+    exercisesMin: {
+      one: '{count} exercițiu · ~{min} min',
+      few: '{count} exerciții · ~{min} min',
+      other: '{count} de exerciții · ~{min} min',
+    },
+    noRoutine: 'Nicio rutină activă',
+    setupLine: 'Începe să te antrenezi — configurare în 90 de secunde',
+    doneNext: 'Gata azi ✓ · Urmează: {day}, {weekday}',
+    eyebrow: {
+      upNext: 'URMEAZĂ',
+      tonight: 'ANTRENAMENT DISEARĂ',
+      today: 'ANTRENAMENT AZI',
+    },
+    meta: {
+      one: '~{min} min · {count} exercițiu',
+      few: '~{min} min · {count} exerciții',
+      other: '~{min} min · {count} de exerciții',
+    },
+    metaUsually: {
+      one: 'De obicei {weekday} · ~{min} min · {count} exercițiu',
+      few: 'De obicei {weekday} · ~{min} min · {count} exerciții',
+      other: 'De obicei {weekday} · ~{min} min · {count} de exerciții',
+    },
+  },
 };

@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type ClientRowDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ClientRowDto } from '@chefer/types';
 import { Badge, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   clientRowNextBooking,
@@ -10,7 +11,8 @@ import {
   todayIn,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
-import { formatStampDate } from '../../gym/routine/attribution';
+import { getTranslator, useT } from '../../../lib/i18n';
+import { formatShortDayT } from '../../coaching/copy';
 import { firstNameOf, formatWeekdayDate } from '../format';
 
 // One active client on a card (spec §2.4): name, label, last workout, this week's sessions against the
@@ -24,24 +26,25 @@ function nextBookingLine(row: ClientRowDto): string | null {
   return clientRowNextBooking(row, zone, todayIn(zone));
 }
 
-export function clientRowLabel(row: ClientRowDto): string {
+export function clientRowLabel(row: ClientRowDto, t: Translator['t'] = getTranslator().t): string {
   const parts = [
     row.name,
     row.lastWorkoutDate
-      ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
-      : COACHING_COPY.trainer.noWorkoutYet,
-    COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal),
+      ? t('coaching.trainer.lastWorkout', { date: formatWeekdayDate(row.lastWorkoutDate, t) })
+      : t('coaching.trainer.noWorkoutYet'),
+    t('coaching.trainer.weekProgress', { sessions: row.week.sessions, goal: row.week.goal }),
   ];
   if (isQuietClient(row)) {
-    parts.push(COACHING_COPY.trainer.quiet(quietDaysOf(row)));
+    parts.push(t('coaching.trainer.quiet', { count: quietDaysOf(row) }));
   }
-  if (row.keepItSimple) parts.push(COACHING_COPY.trainerProfile.keepItSimple);
+  if (row.keepItSimple) parts.push(t('coaching.trainer.profile.keepItSimple'));
   const next = nextBookingLine(row);
   if (next) parts.push(next);
   return parts.join('. ');
 }
 
 export function ClientRow({ row }: { row: ClientRowDto }) {
+  const { t } = useT();
   const colors = useThemeColors();
   // Lane K4: the server's verdict by the trainer's own threshold (food included while shared).
   const quiet = isQuietClient(row);
@@ -50,7 +53,7 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
     <PressableScale
       testID={`trainer-client-${row.clientId}`}
       accessibilityRole="button"
-      accessibilityLabel={clientRowLabel(row)}
+      accessibilityLabel={clientRowLabel(row, t)}
       onPress={() => router.push(`/trainer/${row.clientId}`)}
       className="min-h-14 gap-1 rounded-card border border-separator bg-surface px-4 py-3"
     >
@@ -59,7 +62,10 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
           {row.name}
         </Text>
         <Text className="text-subhead text-label-secondary">
-          {COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal)}
+          {t('coaching.trainer.weekProgress', {
+            sessions: row.week.sessions,
+            goal: row.week.goal,
+          })}
         </Text>
         <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
       </View>
@@ -70,8 +76,10 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
       ) : null}
       <Text className="min-w-0 text-subhead text-label-secondary">
         {row.lastWorkoutDate
-          ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
-          : COACHING_COPY.trainer.noWorkoutYet}
+          ? t('coaching.trainer.lastWorkout', {
+              date: formatWeekdayDate(row.lastWorkoutDate, t),
+            })
+          : t('coaching.trainer.noWorkoutYet')}
       </Text>
       {row.nextBookingAt ? (
         <Text
@@ -85,12 +93,12 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
         <View className="flex-row flex-wrap gap-1.5">
           {quiet ? (
             <Badge testID={`trainer-client-${row.clientId}-quiet`} variant="warning">
-              {COACHING_COPY.trainer.quiet(quietDaysOf(row))}
+              {t('coaching.trainer.quiet', { count: quietDaysOf(row) })}
             </Badge>
           ) : null}
           {row.keepItSimple ? (
             <Badge testID={`trainer-client-${row.clientId}-keep-it-simple`} variant="secondary">
-              {COACHING_COPY.trainerProfile.keepItSimple}
+              {t('coaching.trainer.profile.keepItSimple')}
             </Badge>
           ) : null}
         </View>
@@ -100,10 +108,10 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
           testID={`trainer-client-${row.clientId}-changed`}
           className="min-w-0 text-caption text-label-secondary"
         >
-          {COACHING_COPY.trainer.routineChangedByClient(
-            firstNameOf(row.name),
-            formatStampDate(row.routineChangedByClientAt),
-          )}
+          {t('coaching.trainer.routineChangedByClient', {
+            name: firstNameOf(row.name),
+            date: formatShortDayT(row.routineChangedByClientAt, t),
+          })}
         </Text>
       ) : null}
     </PressableScale>
