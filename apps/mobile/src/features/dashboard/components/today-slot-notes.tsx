@@ -24,7 +24,7 @@ export function TodaySlotNotes({
   onRemoveReplacement: (entryId: string) => void;
   onUndoSkip: (slot: { mealType: string; slotIndex: number }) => void;
 }) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
   return (
@@ -55,6 +55,7 @@ export function TodaySlotNotes({
                           protein: replacedBy.protein,
                         },
                         proteinOnly,
+                        noNumbers,
                       )
                     : 'You had something else'
                 }

@@ -64,6 +64,13 @@ describe('renderWeekReadyEmail', () => {
     expect(email.text).toContain('Mac & cheese <deluxe>');
   });
 
+  it("lane E2: links to last week's recap when given, in both parts", () => {
+    const email = renderWeekReadyEmail(EN, { ...READY, recapUrl: 'https://app.test/recap' });
+    expect(email.text).toContain('Look back at last week: https://app.test/recap');
+    expect(email.html).toContain('href="https://app.test/recap"');
+    expect(renderWeekReadyEmail(EN, READY).text).not.toContain('/recap');
+  });
+
   it('carries the unsubscribe and preferences links in both parts', () => {
     const email = renderWeekReadyEmail(EN, READY);
     expect(email.text).toContain('Unsubscribe: https://app.test/unsubscribe?token=abc.def');

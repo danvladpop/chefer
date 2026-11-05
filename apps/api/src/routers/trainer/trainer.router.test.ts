@@ -361,7 +361,10 @@ describe.each([
 ] as const)('trainer.%s', (_name, call, reaches) => {
   it('an active trainer reaches the service with their own id', async () => {
     await call();
-    expect(reaches()).toHaveBeenCalledWith(ME, ...(_name === 'badges' ? [] : ['2026-10-18']));
+    expect(reaches()).toHaveBeenCalledWith(
+      ME,
+      ...(_name === 'badges' ? [undefined] : ['2026-10-18']),
+    );
   });
 
   it('coaching off: NOT_FOUND; trainer tools off: FORBIDDEN TRAINER_TOOLS_OFF', async () => {

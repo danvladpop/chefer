@@ -289,6 +289,7 @@ describe('overview', () => {
       name: 'Maria Pop',
       since: '2026-10-07T09:00:00.000Z',
       keepItSimple: false,
+      sharing: { food: false, weight: false },
     });
     expect(content.listCompleted).toHaveBeenCalledWith(CLIENT, {
       fromLocalDate: WINDOW_START,

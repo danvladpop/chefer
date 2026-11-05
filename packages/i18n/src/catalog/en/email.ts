@@ -29,6 +29,7 @@ export const email = {
     seeWeek: 'See your week',
     openList: 'Open the shopping list',
     shoppingList: 'Shopping list',
+    lookBack: 'Look back at last week',
     upsell: 'Premium weeks learn from the dishes you rate and what is already in your pantry.',
     preheader: '{dinners} planned for {week}.',
   },

@@ -214,6 +214,22 @@ describe('ProgressService.summary', () => {
     expect(shown.todaysThree?.quests.map((q) => q.kind)).toContain('PROTEIN');
   });
 
+  // Lane E3: the protein reward leaves the shelf with the quest.
+  it('leaves Protein pro off the achievements shelf for numbers mode NONE', async () => {
+    const profile = (numbersMode: string) =>
+      ({ numbersMode, biologicalSex: null, timeZone: null }) as never;
+    const ids = async (numbersMode: string) => {
+      const { service } = setup(
+        {},
+        makeWorld({ profiles: { findByUserId: () => Promise.resolve(profile(numbersMode)) } }),
+      );
+      const dto = await service.achievements(USER);
+      return dto.groups.flatMap((g) => g.items.map((i) => i.id));
+    };
+    expect(await ids('NONE')).not.toContain('PROTEIN_PRO');
+    expect(await ids('FULL')).toContain('PROTEIN_PRO');
+  });
+
   it('offers a recap on Sunday only once, and only for a week with activity', async () => {
     const world = makeWorld();
     world.ledger.weekStats = () =>

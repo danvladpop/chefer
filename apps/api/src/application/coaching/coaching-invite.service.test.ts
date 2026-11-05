@@ -29,6 +29,12 @@ const trainer = (over: Partial<TrainerProfile> = {}): TrainerProfile => ({
   activatedAt: NOW,
   gymLine: null,
   disabledAt: null,
+  checkInEnabled: false,
+  checkInDay: 6,
+  checkInQuestions: [],
+  quietAfterDays: 3,
+  quietDigestEmail: false,
+  quietSeenAt: null,
   ...over,
 });
 const link = (trainerId: string): CoachingLink => ({
@@ -44,6 +50,8 @@ const link = (trainerId: string): CoachingLink => ({
   endedAt: null,
   endedBy: null,
   consentCopyVersion: 2,
+  shareFoodAt: null,
+  shareWeightAt: null,
 });
 
 interface Opts {
