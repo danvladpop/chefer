@@ -223,6 +223,30 @@ export interface EventMap {
   friend_recipe_added_to_week: { replaced: boolean; reusedCopy: boolean };
   friend_text_rejected: { field: 'name' | 'recipe' };
   notification_opened: { kind: 'follow_request' | 'new_follower' | 'request_accepted' };
+
+  // ─── Packaged foods (ADR 0006, lane A) — enums and booleans only ────────────
+  // Never a barcode, a product name or a brand.
+  /** A barcode was submitted: from a photo, typed, or (later) the live scanner. */
+  barcode_scan: { via: 'photo' | 'typed' | 'live' };
+  barcode_found: { source: 'own' | 'cache' | 'off'; allergenWarning: boolean };
+  barcode_not_found: { via: 'photo' | 'typed' | 'live' | 'unreadable' };
+  /** A reviewed label scan (`label`) or a typed product (`manual`) was saved. */
+  label_scan_saved: { edited: boolean };
+  packaged_product_created: { source: 'label' | 'manual' };
+  packaged_product_logged: { unit: 'g' | 'serving'; allergenWarning: boolean };
+
+  // ─── Saved meals + copy meal (lane A2) — counts and booleans only ───────────
+  saved_meal_created: { itemCount: number };
+  saved_meal_logged: { itemCount: number };
+  meal_copied: { itemCount: number; sameDay: boolean };
+
+  // ─── Hidden fat on photo scans (lane A3) ─────────────────────────────────────
+  /** The answer to "Cooked with oil or butter?" when a Snap-to-Log estimate is logged. */
+  snap_hidden_fat: { level: 'none' | 'a-little' | 'a-lot' };
+
+  // ─── Typed "I ate…" logging (lane A4) — counts only, never the sentence ─────
+  food_text_parsed: { itemCount: number; estimated: number };
+  food_text_logged: { itemCount: number; edited: boolean };
   // Lane D2 (market review 2026-10): the explained coach.
   day_incomplete_set: { incomplete: boolean };
   coach_why_viewed: { tier: 'free' | 'premium'; reason: CoachReason };
@@ -266,4 +290,7 @@ export interface EventMap {
   share_card_shared: { kind: 'recipe' | 'cook' | 'workout' | 'recap'; completed: boolean };
   /** E2: the weekly recap screen opened. */
   weekly_recap_viewed: { from: 'today' | 'link' | 'menu'; empty: boolean };
+  // Lane D4: on-device progress photos (never the photo, never a count of them).
+  progress_photo_added: { source: 'camera' | 'library' };
+  progress_photos_compared: Record<string, never>;
 }

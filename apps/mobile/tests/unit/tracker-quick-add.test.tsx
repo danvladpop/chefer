@@ -13,10 +13,23 @@ const mockLogRecipe = jest.fn();
 const mockLogCustom = jest.fn();
 const mockInvalidate = jest.fn();
 const mockRecordRebalance = jest.fn();
-const mockSnackbarShow = jest.fn();
+const mockSnackbarShow = jest.fn<undefined, [unknown]>();
 let mockRecents: unknown[] = [];
 let mockRecipes: unknown[] = [];
 let mockIngredients: unknown[] = [];
+let mockProducts: unknown[] = [];
+let mockSavedMeals: unknown[] = [];
+const mockParseFoodText = jest.fn<undefined, [unknown]>();
+const mockLogItems = jest.fn<undefined, [unknown]>();
+let mockParsedItems: unknown[] = [];
+const mockLogSaved = jest.fn();
+const mockUndoEntries = jest.fn();
+const mockLookupBarcode = jest.fn();
+const mockLogProduct = jest.fn();
+const mockCreateProduct = jest.fn<undefined, [unknown]>();
+const mockTrack = jest.fn<undefined, unknown[]>();
+const mockOpenPremium = jest.fn();
+let mockCanScanLabel = false;
 const mockSearchState = { isFetching: false, isError: false };
 const mockRefetch = jest.fn();
 const mockLogRecipeState: { isError: boolean; error: { message: string } | null } = {
@@ -43,9 +56,71 @@ jest.mock('@chefer/ui-mobile', () => {
 
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
+const OAT_DRINK = {
+  id: 'p1',
+  barcode: '7394376616037',
+  name: 'Oat Drink',
+  brand: 'Oatly',
+  per100g: {
+    kcal: 46,
+    protein: 1,
+    carbs: 6.7,
+    fat: 1.5,
+    fiber: null,
+    sugar: 4,
+    saturatedFat: 0.2,
+    salt: 0.1,
+  },
+  servingSizeG: 250,
+  allergens: { status: 'listed', contains: [{ id: 'gluten', label: 'Gluten' }], mayContain: [] },
+  source: 'OFF',
+  isOwn: false,
+  imageUrl: null,
+};
+const GLUTEN_WARNING = { allergenId: 'gluten', label: 'Gluten', kind: 'contains', who: ['you'] };
+
+jest.mock('../../src/lib/analytics', () => ({
+  track: (...args: unknown[]) => {
+    mockTrack(...args);
+  },
+}));
+jest.mock('../../src/hooks/use-entitlement', () => ({
+  useEntitlement: () => ({ enabled: mockCanScanLabel, limit: 0, isPremium: mockCanScanLabel }),
+}));
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+}));
+jest.mock('../../src/features/premium/open-premium', () => ({
+  openPremium: (source: string) => {
+    mockOpenPremium(source);
+  },
+}));
+
+/** A tRPC mutation stub whose mutate(vars, { onSuccess }) answers with `respond(vars)`. */
+function mockMutation(spy: (vars: unknown) => void, respond: (vars: unknown) => unknown) {
+  return {
+    useMutation: () => ({
+      isPending: false,
+      mutate: (
+        vars: unknown,
+        cb?: { onSuccess?: (data: unknown) => void; onError?: (err: unknown) => void },
+      ) => {
+        spy(vars);
+        cb?.onSuccess?.(respond(vars));
+      },
+      mutateAsync: (vars: unknown) => {
+        spy(vars);
+        return Promise.resolve(respond(vars));
+      },
+    }),
+  };
+}
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
+      products: { lookupBarcode: { fetch: mockLookupBarcode } },
+      savedMeals: { list: { invalidate: jest.fn() } },
       tracker: {
         getDay: { invalidate: mockInvalidate },
         weeklySummary: { invalidate: mockInvalidate },
@@ -62,7 +137,70 @@ jest.mock('../../src/lib/trpc', () => ({
         useQuery: () => ({ data: mockIngredients, refetch: mockRefetch, ...mockSearchState }),
       },
     },
+    products: {
+      search: { useQuery: () => ({ data: mockProducts, ...mockSearchState }) },
+      lookupBarcodePhoto: mockMutation(
+        () => undefined,
+        () => ({ status: 'unreadable' }),
+      ),
+      scanLabel: mockMutation(
+        () => undefined,
+        () => ({}),
+      ),
+      create: mockMutation(
+        (v) => {
+          mockCreateProduct(v);
+        },
+        (vars) => ({
+          product: {
+            ...OAT_DRINK,
+            name: (vars as { name: string }).name,
+            id: 'own1',
+            isOwn: true,
+            source: 'USER',
+          },
+          warnings: [],
+        }),
+      ),
+    },
+    savedMeals: { list: { useQuery: () => ({ data: mockSavedMeals }) } },
     tracker: {
+      parseFoodText: mockMutation(
+        (v) => {
+          mockParseFoodText(v);
+        },
+        () => ({ items: mockParsedItems }),
+      ),
+      logItems: mockMutation(
+        (v) => {
+          mockLogItems(v);
+        },
+        () => ({ log: {}, entryIds: ['t1', 't2'], rebalance }),
+      ),
+      logSavedMeal: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          isPending: false,
+          isError: false,
+          mutate: (vars: unknown) => {
+            mockLogSaved(vars);
+            opts.onSuccess?.({ log: {}, entryIds: ['n1', 'n2'], rebalance }, vars);
+          },
+        }),
+      },
+      deleteEntries: {
+        useMutation: () => ({
+          mutate: (vars: unknown) => {
+            mockUndoEntries(vars);
+          },
+          isPending: false,
+        }),
+      },
+      logProduct: mockMutation(
+        (v) => {
+          mockLogProduct(v);
+        },
+        () => ({ log: {}, entryId: 'e9', rebalance }),
+      ),
       recents: { useQuery: () => ({ data: mockRecents }) },
       logRecipe: {
         useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
@@ -119,6 +257,9 @@ beforeEach(() => {
   mockRecents = [];
   mockRecipes = [];
   mockIngredients = [];
+  mockProducts = [];
+  mockSavedMeals = [];
+  mockCanScanLabel = false;
   mockSearchState.isFetching = false;
   mockSearchState.isError = false;
   mockLogRecipeState.isError = false;
@@ -317,9 +458,116 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     expect(screen.getByTestId('log-sheet-api-error')).toHaveTextContent(/Recipe not found/);
   });
 
-  it('B-29/AC6: never shows a barcode or branded-product affordance', async () => {
+  it('ADR 0006 (replaces B-29): offers "Scan barcode" next to the other ways to log', async () => {
     await renderSheet();
-    expect(screen.queryByText(/barcode/i)).not.toBeOnTheScreen();
+    expect(screen.getByTestId('log-sheet-scan-barcode')).toHaveTextContent(/Scan barcode/);
+  });
+});
+
+describe('QuickAddSheet — packaged products (ADR 0006)', () => {
+  // Several typed fields per test: userEvent typing is slow on a busy runner.
+  jest.setTimeout(30_000);
+  it('typed barcode → product card with the allergen warning and OFF attribution → logs servings', async () => {
+    const user = userEvent.setup();
+    mockLookupBarcode.mockResolvedValue({
+      status: 'found',
+      product: OAT_DRINK,
+      origin: 'off',
+      warnings: [GLUTEN_WARNING],
+      stale: false,
+    });
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-scan-barcode'));
+    await user.type(screen.getByTestId('product-barcode-input'), '7394 3766 16037');
+    await user.press(screen.getByTestId('product-barcode-find'));
+
+    expect(mockLookupBarcode).toHaveBeenCalledWith({ barcode: '7394376616037' });
+    expect(await screen.findByTestId('product-name')).toHaveTextContent('Oatly Oat Drink');
+    expect(screen.getByTestId('product-allergen-warnings')).toHaveTextContent(
+      /Contains gluten: you avoid it\./,
+    );
+    expect(screen.getByTestId('product-off-attribution')).toHaveTextContent(/Open Food Facts/);
+    expect(mockTrack).toHaveBeenCalledWith('barcode_found', {
+      source: 'off',
+      allergenWarning: true,
+    });
+
+    // Defaults to 1 serving (250 g); 2 servings logs 500 g worth.
+    await user.press(screen.getByTestId('product-amount-2'));
+    expect(screen.getByTestId('product-live-nutrition')).toHaveTextContent(/230 kcal/);
+    await user.press(screen.getByTestId('product-log'));
+    expect(mockLogProduct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-09-26',
+        productId: 'p1',
+        amount: { unit: 'serving', servings: 2 },
+        rebalanceMode: 'preview',
+      }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith('packaged_product_logged', {
+      unit: 'serving',
+      allergenWarning: true,
+    });
+    expect(onLogged).toHaveBeenCalled();
+    expect(mockSnackbarShow).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Logged Oat Drink' }),
+    );
+  });
+
+  it('a wrong check digit is explained without calling the API', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-scan-barcode'));
+    await user.type(screen.getByTestId('product-barcode-input'), '7394376616038');
+    await user.press(screen.getByTestId('product-barcode-find'));
+    expect(mockLookupBarcode).not.toHaveBeenCalled();
+    expect(screen.getByTestId('product-flow-error')).toHaveTextContent(/doesn’t look right/);
+  });
+
+  it('not found (free): the label scan points to Premium; "Enter it yourself" saves a USER product', async () => {
+    const user = userEvent.setup();
+    mockLookupBarcode.mockResolvedValue({ status: 'not_found', barcode: '96385074' });
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-scan-barcode'));
+    await user.type(screen.getByTestId('product-barcode-input'), '96385074');
+    await user.press(screen.getByTestId('product-barcode-find'));
+
+    expect(await screen.findByTestId('product-not-found')).toBeOnTheScreen();
+    expect(mockTrack).toHaveBeenCalledWith('barcode_not_found', { via: 'typed' });
+    expect(screen.getByTestId('product-photograph-label')).toHaveTextContent(/Premium/);
+    await user.press(screen.getByTestId('product-photograph-label'));
+    expect(mockOpenPremium).toHaveBeenCalledWith('snap-scan');
+
+    await user.press(screen.getByTestId('product-enter-manually'));
+    await user.type(screen.getByTestId('product-form-name'), 'Rye crackers');
+    await user.press(screen.getByTestId('product-form-save'));
+    expect(screen.getByTestId('product-form-error')).toHaveTextContent(/calories per 100 g/);
+    expect(mockCreateProduct).not.toHaveBeenCalled();
+
+    await user.type(screen.getByTestId('product-form-kcal'), '380');
+    await user.press(screen.getByTestId('product-form-allergen-gluten'));
+    await user.press(screen.getByTestId('product-form-save'));
+    expect(mockCreateProduct.mock.calls[0]?.[0]).toMatchObject({
+      source: 'USER',
+      barcode: '96385074',
+      name: 'Rye crackers',
+      per100g: { kcal: 380, protein: null },
+      allergens: { known: true, contains: ['gluten'] },
+    });
+    expect(mockTrack).toHaveBeenCalledWith('packaged_product_created', { source: 'manual' });
+    // The saved product opens on its card, ready to log — with no OFF attribution.
+    expect(await screen.findByTestId('product-name')).toHaveTextContent(/Rye crackers/);
+    expect(screen.queryByTestId('product-off-attribution')).not.toBeOnTheScreen();
+  });
+
+  it('a "Packaged products" search row opens that product', async () => {
+    const user = userEvent.setup();
+    mockProducts = [{ product: OAT_DRINK, warnings: [] }];
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'oat');
+    await user.press(await screen.findByTestId('log-sheet-product-p1'));
+    expect(screen.getByTestId('product-name')).toHaveTextContent('Oatly Oat Drink');
+    expect(screen.getByTestId('product-allergen-line')).toHaveTextContent('Contains: Gluten.');
   });
 });
 
@@ -607,5 +855,131 @@ describe('QuickAddSheet — keyboard (tester feedback 2026-10-04)', () => {
     expect(dismiss).not.toHaveBeenCalled();
     await fireEvent(screen.getByTestId('quick-add-protein'), 'submitEditing');
     expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('QuickAddSheet — saved meals (lane A2)', () => {
+  const MEAL = {
+    id: 's1',
+    name: 'Weekday breakfast',
+    items: [
+      { name: 'Porridge', portionMultiplier: 1, kcal: 400, protein: 20, carbs: 50, fat: 10 },
+      { name: 'Coffee', portionMultiplier: 1, kcal: 40, protein: 2, carbs: 4, fat: 1.5 },
+    ],
+    totals: { kcal: 440, protein: 22, carbs: 54, fat: 11.5 },
+    lastLoggedAt: null,
+  };
+
+  it('logs a saved meal in one tap, with an Undo that deletes exactly its entries', async () => {
+    const user = userEvent.setup();
+    mockSavedMeals = [MEAL];
+    await renderSheet();
+    expect(screen.getByText('2 items · 440 kcal')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('log-sheet-saved-add-s1'));
+    expect(mockLogSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-09-26', savedMealId: 's1', rebalanceMode: 'preview' }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith('saved_meal_logged', { itemCount: 2 });
+    const snack = mockSnackbarShow.mock.calls.at(-1)?.[0] as {
+      message: string;
+      onAction: () => void;
+    };
+    expect(snack.message).toBe('Logged Weekday breakfast');
+    snack.onAction();
+    expect(mockUndoEntries).toHaveBeenCalledWith({ date: '2026-09-26', entryIds: ['n1', 'n2'] });
+  });
+
+  it('is not offered when the sheet replaces a plan slot', async () => {
+    mockSavedMeals = [MEAL];
+    await renderSheet({ targetSlot: { mealType: 'lunch', slotIndex: 1 } });
+    expect(screen.queryByTestId('log-sheet-saved-add-s1')).not.toBeOnTheScreen();
+  });
+});
+
+describe('QuickAddSheet — type what you ate (lane A4)', () => {
+  jest.setTimeout(30_000);
+
+  it('parses the sentence, lets the user fix amounts and drop items, then logs them all with Undo', async () => {
+    const user = userEvent.setup();
+    mockParsedItems = [
+      {
+        key: '0',
+        text: '2 eggs',
+        name: 'Egg',
+        source: 'ingredient',
+        unit: 'g',
+        grams: 100,
+        per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+      },
+      {
+        key: '1',
+        text: 'mystery stew',
+        name: 'Mystery stew',
+        source: 'estimate',
+        unit: 'g',
+        grams: 300,
+        per100g: { kcal: 120, protein: null, carbs: 10, fat: 5 },
+      },
+      {
+        key: '2',
+        text: 'coffee',
+        name: 'Coffee',
+        source: 'estimate',
+        unit: 'g',
+        grams: 240,
+        per100g: { kcal: 1, protein: 0.1, carbs: 0, fat: 0 },
+      },
+    ];
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-type-it'));
+    await user.type(screen.getByTestId('food-text-input'), '2 eggs, mystery stew, coffee');
+    await user.press(screen.getByTestId('food-text-read'));
+    expect(mockParseFoodText).toHaveBeenCalledWith({ text: '2 eggs, mystery stew, coffee' });
+    expect(mockTrack).toHaveBeenCalledWith('food_text_parsed', { itemCount: 3, estimated: 2 });
+    expect(screen.getByTestId('food-text-item-1')).toHaveTextContent(/Estimate/);
+
+    await user.press(screen.getByTestId('food-text-remove-2'));
+    await user.clear(screen.getByTestId('food-text-amount-0'));
+    await user.type(screen.getByTestId('food-text-amount-0'), '150');
+    expect(screen.getByTestId('food-text-log')).toHaveTextContent('Log 2 items · 575 kcal');
+    await user.press(screen.getByTestId('food-text-log'));
+
+    expect(mockLogItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-09-26',
+        rebalanceMode: 'preview',
+        items: [
+          expect.objectContaining({ name: 'Egg, 150 g', estimatedBy: 'manual', kcal: 215 }),
+          expect.objectContaining({
+            name: 'Mystery stew, 300 g',
+            estimatedBy: 'vision',
+            unknownMacros: ['protein'],
+          }),
+        ],
+      }),
+    );
+    expect(mockTrack).toHaveBeenCalledWith('food_text_logged', { itemCount: 2, edited: true });
+    const snack = mockSnackbarShow.mock.calls.at(-1)?.[0] as {
+      message: string;
+      onAction: () => void;
+    };
+    expect(snack.message).toBe('Logged 2 items');
+    snack.onAction();
+    expect(mockUndoEntries).toHaveBeenCalledWith({ date: '2026-09-26', entryIds: ['t1', 't2'] });
+  });
+
+  it('says so when nothing in the sentence is food', async () => {
+    const user = userEvent.setup();
+    mockParsedItems = [];
+    await renderSheet();
+    await user.press(screen.getByTestId('log-sheet-type-it'));
+    await user.type(screen.getByTestId('food-text-input'), 'hello there');
+    await user.press(screen.getByTestId('food-text-read'));
+    expect(screen.getByTestId('food-text-error')).toHaveTextContent(/couldn’t find any food/);
+  });
+
+  it('is not offered when the sheet replaces a plan slot', async () => {
+    await renderSheet({ targetSlot: { mealType: 'lunch', slotIndex: 1 } });
+    expect(screen.queryByTestId('log-sheet-type-it')).not.toBeOnTheScreen();
   });
 });

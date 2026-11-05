@@ -154,7 +154,26 @@ jest.mock('../../src/lib/trpc', () => {
       },
       recipe: { list: { useQuery: () => ({ data: [] }) } },
       ingredients: { search: { useQuery: () => ({ data: [] }) } },
+      products: { search: { useQuery: () => ({ data: [] }) } },
+      savedMeals: {
+        list: { useQuery: () => ({ data: [] }) },
+        createFromDay: {
+          useMutation: () => ({
+            mutate: jest.fn(),
+            reset: jest.fn(),
+            isPending: false,
+            error: null,
+          }),
+        },
+        delete: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      },
       tracker: {
+        copyMeal: {
+          useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+        },
+        logSavedMeal: {
+          useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+        },
         getDay: {
           useQuery: () => ({
             data: useSyncExternalStore(mockSubscribe, () => mockCache),

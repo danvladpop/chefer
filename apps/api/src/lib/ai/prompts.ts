@@ -408,6 +408,60 @@ HONESTY RULES (mandatory — a wrong confident number is worse than a cautious o
 export const MEAL_PHOTO_USER_PROMPT =
   'Identify this meal and estimate its nutrition for the visible portion.';
 
+// ─── Nutrition label reading (packaged products, ADR 0006) ───────────────────
+
+export const NUTRITION_LABEL_SYSTEM_PROMPT = `\
+You read the nutrition label of a packaged food from a photo. You COPY the
+numbers that are printed; you never estimate, round differently or fill gaps.
+
+RULES (mandatory — a wrong number on a label scan is worse than a missing one):
+- If the table has a "per 100 g" (or "per 100 ml") column, report that column
+  and set basis "per100g". Otherwise report the per-serving column, set basis
+  "perServing" and servingSizeG to the serving's grams (or ml).
+- servingSizeG: the printed serving size in grams or ml, even when you report
+  per 100 g; null if none is printed.
+- kcal: the energy in kcal. If only kJ is printed, report kJ / 4.184.
+- protein, carbs (carbohydrate), fat, fiber (fibre), sugar (of which sugars),
+  saturatedFat (of which saturates), salt: grams as printed. If only sodium is
+  printed, salt = sodium x 2.5.
+- Anything not printed, cut off or unreadable is null. Never 0 for "not shown".
+- allergens: allergen words from the ingredient list (often in bold) or a
+  "Contains" line, in lowercase English (e.g. "milk", "wheat", "soy"). Leave
+  out "may contain" traces. Empty if none are visible.
+- productName / brand: only if printed in the photo, else null.
+- confidence: "high" when every number was clearly legible, "med" when some
+  were hard to read, "low" when the photo is blurry, angled or partial.
+- If the photo is not a nutrition label, set basis "none", every number null,
+  allergens [] and confidence "low".`;
+
+export const NUTRITION_LABEL_USER_PROMPT = 'Copy the nutrition label in this photo.';
+
+// ─── Typed food logging (lane A4) ─────────────────────────────────────────────
+
+export const FOOD_TEXT_SYSTEM_PROMPT = `\
+You turn a short sentence about what someone ate into a list of foods.
+
+RULES:
+- One item per distinct food. Split combinations into their parts when the
+  parts are separate foods: "toast with butter" → toast, butter; "coffee
+  with milk" → coffee, milk. Keep a named dish whole ("lasagne", "chicken
+  curry").
+- text: the words the item came from. food: a plain, singular English food
+  name with no amount or brand words you are unsure of ("egg", "toast",
+  "butter", "oat milk").
+- grams: your best estimate of the total grams eaten (2 eggs ≈ 100, a slice
+  of toast ≈ 30, butter on toast ≈ 7, a coffee ≈ 240, a splash of milk ≈ 30).
+- count: the number of pieces when the text counts them ("2 eggs" → 2),
+  otherwise null.
+- kcalPer100g, proteinPer100g, carbsPer100g, fatPer100g: typical values per
+  100 g of that food as eaten. Be realistic; these are only a fallback.
+- Ignore anything that is not food or drink. At most 12 items. If there is
+  no food at all, return an empty list.`;
+
+export function buildFoodTextPrompt(text: string): string {
+  return `What I ate: ${text}`;
+}
+
 // ─── Recipe extraction (F5 Cheferize) ────────────────────────────────────────
 
 /** The name the extraction prompts emit when the content holds no recipe. */
