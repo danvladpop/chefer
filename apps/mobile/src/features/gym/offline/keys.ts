@@ -40,6 +40,8 @@ export const KV_KEYS = {
    * The invite code a client still has to finish joining (gym setup first, or sign in first).
    */
   coachingPendingJoin: 'coaching.pending-join',
+  // Lane K3: "Later" on the weekly check-in card hides it until the next day (the local date it was hidden).
+  coachingCheckInLater: 'coaching.check-in-later',
   // (The device-local "routine seen" / "stopped dismissed" markers are gone: coaching notices are read on
   // the server since PRD 2026-10 §4.2. Their old values are wiped at the next sign-out.)
 } as const;

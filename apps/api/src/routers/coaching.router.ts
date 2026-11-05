@@ -4,6 +4,7 @@ import {
   cancelCoachingRequestInputSchema,
   COACHING_COPY,
   COACHING_LIMITS,
+  currentCheckInInputSchema,
   dismissCoachingNoticeInputSchema,
   findTrainersInputSchema,
   joinInputSchema,
@@ -11,10 +12,12 @@ import {
   previewInviteInputSchema,
   requestCoachingInputSchema,
   setCoachingSharingInputSchema,
+  submitCheckInInputSchema,
   trainerIdInputSchema,
   type CoachingAvailabilityDto,
 } from '@chefer/types';
 import { bookingService } from '../application/coaching/booking.service.js';
+import { coachingCheckInService } from '../application/coaching/coaching-check-in.service.js';
 import { coachingInviteService } from '../application/coaching/coaching-invite.service.js';
 import { coachingLinkService } from '../application/coaching/coaching-link.service.js';
 import { coachingNoticeService } from '../application/coaching/coaching-notice.service.js';
@@ -138,6 +141,19 @@ export const coachingRouter = router({
       }
       return { ok: true as const };
     }),
+
+  // ─── Weekly check-ins, the client's side (lane K3) ───────────────────────────
+  checkIn: router({
+    /** The open check-in (null: no trainer, check-ins off, or not open yet). `today` = device-local. */
+    current: coachingProcedure
+      .input(currentCheckInInputSchema)
+      .query(({ ctx, input }) => coachingCheckInService.current(ctx.user.id, input.today)),
+    /** Answers the open check-in; answering again changes the answers until the next one opens. */
+    submit: coachingProcedure.input(submitCheckInInputSchema).mutation(async ({ ctx, input }) => {
+      assertWithinRateLimit('coaching.checkIn.submit', ctx.user.id, 20, HOUR_MS);
+      return (await coachingCheckInService.submit(ctx.user.id, input)).checkIn;
+    }),
+  }),
 
   // ─── Bookings, the client's side (trainer mode M3, §6.9) ────────────────────
   bookings: router({

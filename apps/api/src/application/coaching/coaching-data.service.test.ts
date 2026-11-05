@@ -117,6 +117,12 @@ function setup(opts: { numbersMode?: string | null; logs?: DailyLog[] } = {}) {
       loadLifter: vi.fn(async () => ({ lifterBodyweightKg: null })),
       trainingWeek: vi.fn(async () => ({ trainingDays: [], basis: null })),
     },
+    content: {
+      countSessions: vi.fn(async () => new Map([['client1', 2]])),
+      gymProfiles: vi.fn(
+        async () => new Map([['client1', { weeklyGoal: 3, goalHistory: null }]]),
+      ) as unknown as CoachingDataDeps['content']['gymProfiles'],
+    },
   };
   return { service: new CoachingDataService(deps), deps };
 }
@@ -189,6 +195,34 @@ describe('CoachingDataService.weight', () => {
     await expect(
       service.weight(access(link({ shareWeightAt: null }), 'weight'), TODAY),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(deps.weights.findInRange).not.toHaveBeenCalled();
+  });
+});
+
+describe('CoachingDataService.weekSummary (lane K2)', () => {
+  it('training always; food and weight only when the link shares them', async () => {
+    const { service, deps } = setup();
+    const both = await service.weekSummary(access(link(), 'food'), TODAY);
+    expect(both).toMatchObject({
+      from: '2026-10-16',
+      to: TODAY,
+      workouts: { done: 2, goal: 3 },
+      sharing: { food: true, weight: true },
+      food: { daysLogged: 1, mealsLogged: 2, avgKcal: 1100, avgProteinG: 55 },
+      weight: { latest: { date: '2026-10-22', weightKg: 80.1 }, changeKg: null },
+    });
+
+    vi.clearAllMocks();
+    const none = await service.weekSummary(
+      access(link({ shareFoodAt: null, shareWeightAt: null }), 'food'),
+      TODAY,
+    );
+    expect(none).toMatchObject({
+      sharing: { food: false, weight: false },
+      food: null,
+      weight: null,
+    });
+    expect(deps.logs.findRange).not.toHaveBeenCalled();
     expect(deps.weights.findInRange).not.toHaveBeenCalled();
   });
 });
