@@ -2493,6 +2493,14 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
        │    prompt demands honesty about what a photo can't show
        └─ mock: deterministic fixture (520 kcal chicken plate)
 → confirm Sheet: every number editable, confidence badge + portion note shown
+  └─ "Cooked with oil or butter?" None / A little / A lot (lane A3, both
+     platforms): photos can't see hidden fat — a 2026 study found photo apps
+     underestimate meals by ~250–345 kcal and ~30 g fat. A little = 14 g fat
+     (+126 kcal, ~1 tbsp oil), a lot = 35 g (+315 kcal); added on top of the
+     (possibly edited) estimate, capped at the entry limits, shown as
+     "+126 kcal and 14 g fat for the oil or butter (estimate)" and in the Log
+     button total. `withHiddenFat` / `HIDDEN_FAT_GRAMS` (@chefer/utils);
+     analytics snap_hidden_fat { level } on log
   ├─ confirm → tracker.logCustomMeal (custom entry, estimatedBy: 'vision')
   │    → analytics meal_scanned { confirmed: true }
   └─ discard → nothing logged; meal_scanned { confirmed: false }
@@ -5441,8 +5449,10 @@ chips ½ ¾ 1 1½ 2, log at a chosen portion), and **Ingredients (per 100 g)**
 `per100g`). "Enter calories yourself" is the old calories-only form, kept as
 the fallback when nothing matches — gated by the macro sanity check above
 (`Fix` focuses the calories field, `Log anyway` bypasses it for that submit).
-Never a branded product or barcode (B-29, AC6): the Ingredients group is
-Chefer's own catalog only.
+The Ingredients group is Chefer's own reviewed catalog only. B-29 ("never a
+branded product or barcode") was superseded on 2026-10-22 by ADR 0006:
+packaged products are logged too, as their own search group and the "Scan
+barcode" view (below), and never enter the catalog.
 
 **Edit any entry, undo any delete (bug B-34, T-19.2, both platforms).** Every
 custom entry (quick-add, photo scan) is tappable → `edit-entry-sheet.tsx` /
@@ -5469,6 +5479,115 @@ sheet naming the previous day (`yesterday`, or a short date further back) and
 calls `tracker.copyDay`; the result's snackbar/toast `Copied {n} entries` +
 `Undo` calls the new `tracker.deleteEntries` with the returned
 `copiedEntryIds` — deleting exactly the copies, never the originals.
+
+**Packaged products: barcode + label scan (ADR 0006, lane A1, both platforms).**
+Free barcode logging; the label scan is premium. Kept outside the reviewed
+ingredient catalog (`PackagedProduct` table, §6 of infrastructure.md).
+
+```
+Log sheet → "Scan barcode"
+  ├─ photo of the barcode (mobile: expo-image-picker camera/library; web: file
+  │    input with capture) → shrunk on the device → products.lookupBarcodePhoto
+  │    (base64) → zxing-wasm decodes EAN-13 / EAN-8 / UPC-A on the server
+  │    └─ nothing readable → { status: 'unreadable' } ("Try again closer, or type it")
+  └─ typed number → barcodeSchema (digits, GTIN check digit) → products.lookupBarcode
+products.lookupBarcode({ barcode })          ← also what lane C's live scanner calls
+  ├─ UPC-A padded to EAN-13 (one canonical form)
+  ├─ the user's own product (LABEL / USER)        → found, origin 'own'
+  ├─ cached OFF row fetched < 30 days ago          → found, origin 'cache'
+  ├─ Open Food Facts v2 GET /api/v2/product/{code} (User-Agent "Chefer/1.0 …",
+  │    ≤ 60/min, misses remembered 24 h) → normalised (missing = null, kcal
+  │    from kJ only) → upsert the shared cache row      → found, origin 'off'
+  ├─ not on OFF → { status: 'not_found', barcode }
+  └─ OFF down / rate-limited → stale cache row (stale: true) or SERVICE_UNAVAILABLE
+found → product card: allergen WARNINGS (owner + household allergies, and
+  diets such as vegan / dairy-free; Shellfish covers crustaceans + molluscs;
+  traces = "may contain") — never a block · allergen line ("Allergens
+  unknown — check the pack" when OFF can't say) · grams or servings with a
+  live preview (scaleProduct, the same function the server logs with) ·
+  "Data from Open Food Facts · ODbL" link on OFF rows
+  └─ Log → tracker.logProduct({ date, productId, amount: {unit:'g',grams} |
+       {unit:'serving',servings}, mealType, replacesSlot?, rebalanceMode })
+       → server scales per-100 g values (unknown macros → 0 g + unknownMacros),
+         refuses > 5,000 kcal, no serving size for servings, or no kcal
+       → appends a custom entry "Brand Name, 2 servings (60 g)" (estimatedBy
+         'manual') + product: { id, grams } → Recents carry productId
+not_found →
+  ├─ "Photograph the label" (premium; free users get the snap-scan pitch)
+  │    → AI consent ('meal-scan' sheet) → products.scanLabel (aiConsentProcedure)
+  │    → reserveMealScan (the Snap-to-Log quota; refunded on capacity failure)
+  │    → aiService.readNutritionLabel (vision workload) → copied numbers, per
+  │      serving converted to per 100 g, allergen words → taxonomy ids
+  │    → the review form (every number editable, notes + confidence shown)
+  └─ "Enter it yourself" (free) → the same form, blank, barcode kept
+  → products.create({ source: 'LABEL' | 'USER', … }) → private row (wins
+    over the cache for its owner) → product card → log as above
+Log sheet search (≥ 2 chars) → products.search → "Packaged products" group:
+  cached OFF rows + the user's own, own first, with a warning icon on clashes
+```
+
+Analytics (no barcode, name or brand ever): `barcode_scan { via }`,
+`barcode_found { source, allergenWarning }`, `barcode_not_found { via }`,
+`label_scan_saved { edited }`, `packaged_product_created { source }`,
+`packaged_product_logged { unit, allergenWarning }`, plus `meal_logged`
+(`quick` / `replaced`).
+
+**Saved meals + copy meal (lane A2, both platforms, free).** The day screens
+(mobile Your day + the legacy tracker, web tracker) get a "Save or copy a
+meal" action (bookmark icon next to Copy day) that opens one sheet:
+
+```
+pick a meal of the day being viewed (opens on the first meal with entries;
+  "n entries logged" / "Nothing logged for this meal yet")
+├─ Save as a meal: name (1–60 chars) → savedMeals.createFromDay({ name, date, mealType })
+│    → snapshots every entry with that mealType (recipe entries named after the
+│      recipe, product refs kept); CONFLICT on a name the user already has,
+│      BAD_REQUEST when the meal is empty, > 20 items or the user has 50
+│    → analytics saved_meal_created { itemCount }
+├─ Copy to…: today or one of the 6 days before it × a meal (never the same day
+│    AND meal) → tracker.copyMeal({ fromDate, fromMealType, toDate, toMealType })
+│    → the copies get fresh ids, the target meal type, no plan slot / replacement
+│    → snackbar/toast "Copied 2 entries to dinner, today" + Undo
+│      (tracker.deleteEntries with the returned copiedEntryIds)
+│    → analytics meal_copied { itemCount, sameDay }
+└─ Your saved meals: each with a delete (savedMeals.delete)
+Log sheet → "Saved meals" group (first 5 by last use, or matching the search;
+  hidden when the sheet replaces a plan slot — a slot takes one entry)
+  └─ "+" → tracker.logSavedMeal({ date, savedMealId, mealType }) → the items as
+     fresh entries (recipe items as recipe entries) → "Logged Weekday
+     breakfast" + Undo (deleteEntries with the returned entryIds); the meal's
+     lastLoggedAt moves it to the top → analytics saved_meal_logged { itemCount }
+```
+
+**Typed log: "I ate…" outside the chat (lane A4, both platforms).** Free with
+a daily cap of 10 (`PLAN_FEATURES.foodTextPerDay`), unlimited on premium; AI
+consent first (new consent feature `food-text`). Voice is the keyboard's own
+dictation — no native module.
+
+```
+Log sheet → "Type what you ate" (hidden when the sheet replaces one plan slot)
+  → one line, e.g. "2 eggs, toast with butter, coffee with milk" → Read it
+  → AI consent sheet ('food-text': "turn what you typed into food entries")
+  → tracker.parseFoodText({ text ≤ 300 chars })            [aiConsentProcedure]
+      ├─ reserveFoodText (AiCallLog FOOD_TEXT; free 10/day → TOO_MANY_REQUESTS,
+      │    premium unlimited but logged and inside the AI budget; refunded on a
+      │    capacity failure)
+      ├─ aiService.parseFoodText → ≤ 12 items { text, food, grams, count,
+      │    per-100 g estimate } ("toast with butter" → toast + butter)
+      └─ each item's numbers from the most trusted match:
+           1. a recent log with that name (servings × its own numbers)
+           2. the user's own packaged product, or a cached one with that exact name
+           3. the ingredient catalog (a whole-word name match: "egg" ≠ "Eggplant")
+           4. the AI's per-100 g estimate — marked "Estimate", logged as estimatedBy 'vision'
+      → { items } — NOTHING is logged
+  → review list: each item with its source, an editable amount (g or
+    servings), a remove button; "Log 2 items · 575 kcal"
+  → tracker.logItems({ date, mealType, items[1–12] })  → custom entries
+    (product refs kept, unknown macros flagged) → snackbar/toast + Undo
+    (deleteEntries with the returned entryIds)
+analytics (counts only, never the sentence): food_text_parsed { itemCount,
+  estimated }, food_text_logged { itemCount, edited }
+```
 
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,

@@ -177,3 +177,26 @@ describe('ScanMealButton — free-tier demo copy (WP-07)', () => {
     expect(text).not.toMatch(/rebalanc|rest of your week|training/i);
   });
 });
+
+describe('ScanMealButton hidden fat (lane A3)', () => {
+  it('asks about oil or butter and logs the estimate with the hidden fat added', async () => {
+    await scanOnePhoto();
+    expect(screen.queryByTestId('scan-hidden-fat-added')).toBeNull();
+    fireEvent.click(screen.getByTestId('scan-hidden-fat-a-little'));
+    expect(screen.getByTestId('scan-hidden-fat-added').textContent).toBe(
+      '+126 kcal and 14 g fat for the oil or butter (estimate)',
+    );
+    fireEvent.click(screen.getByText('Log 646 kcal'));
+    expect(m.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ estimatedBy: 'vision', kcal: 646, protein: 38, fat: 28 }),
+    );
+    act(() => m.onSuccess?.({ rebalance: null }, { name: 'Grilled chicken', mealType: 'lunch' }));
+    expect(capture).toHaveBeenCalledWith('snap_hidden_fat', { level: 'a-little' });
+  });
+
+  it('"None" logs the estimate unchanged', async () => {
+    await scanOnePhoto();
+    fireEvent.click(screen.getByText('Log 520 kcal'));
+    expect(m.mutate).toHaveBeenCalledWith(expect.objectContaining({ kcal: 520, fat: 14 }));
+  });
+});
