@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { TRAINER_MODE_LIMITS } from '@chefer/types';
 import { isNetworkError, isServerError, isTrainerModeAvailable } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { localDate } from '../gym/offline/ids';
 import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { setTrainerModeAvailableCache, useTrainerModeAvailableCached } from './mode-store';
 
@@ -58,6 +59,8 @@ function useTrainerModeAnswer(): { available: boolean; live: boolean | undefined
 export type TrainerBadgesState = {
   /** Pending coaching requests: the Clients tab badge. */
   requests: number;
+  /** Lane K4: clients who went quiet since the trainer last opened Today (the Today tab's badge). */
+  quiet: number;
   /** Everything waiting in trainer mode: personal mode's You badge and switch row. */
   total: number;
   /** A `trainer.badges` answer has arrived (0s before that mean "unknown"). */
@@ -74,17 +77,22 @@ export type TrainerBadgesState = {
  */
 export function useTrainerBadges(): TrainerBadgesState {
   const available = useTrainerModeAnswer().live === true;
-  const query = trpc.trainer.badges.useQuery(undefined, {
-    enabled: available,
-    refetchInterval: available ? TRAINER_MODE_LIMITS.badgePollMs : false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: 'always',
-    retry: false,
-  });
+  // Lane K4: the device-local day judges who is quiet (an older API ignores it).
+  const query = trpc.trainer.badges.useQuery(
+    { today: localDate() },
+    {
+      enabled: available,
+      refetchInterval: available ? TRAINER_MODE_LIMITS.badgePollMs : false,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: 'always',
+      retry: false,
+    },
+  );
   const data = available ? query.data : undefined;
   const { refetch } = query;
   return {
     requests: Math.max(0, data?.requests ?? 0),
+    quiet: Math.max(0, data?.quietClients ?? 0),
     total: Math.max(0, data?.total ?? 0),
     loaded: data !== undefined,
     refetch: () => (available ? refetch() : Promise.resolve()),

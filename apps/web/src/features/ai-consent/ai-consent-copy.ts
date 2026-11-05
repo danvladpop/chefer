@@ -30,6 +30,7 @@ const FEATURE_LINES: Record<AiConsentFeature, readonly MessageKey[]> = {
   chat: ['consent.ai.features.chat.line1', 'consent.ai.features.chat.line2'],
   'shopping-list': ['consent.ai.features.shopping-list.line1'],
   'ingredient-estimate': ['consent.ai.features.ingredient-estimate.line1'],
+  'food-text': ['consent.ai.features.food-text.line1'],
 };
 
 /** What the sheet lists under "What gets sent" for this action. */

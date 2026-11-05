@@ -32,8 +32,8 @@ export interface ProgressRingProps {
   color?: string;
   trackColor?: string;
   /**
-   * Over-target colour, e.g. `overTargetColor` from @chefer/tokens for
-   * calories. Omit where "more than planned" is not a warning.
+   * Over-target colour. Nutrition never passes one (lane E3: over target is
+   * said in words, never coloured as a warning); kept for non-food rings.
    */
   overColor?: string;
   /** Colour of the second lap past 100% (default amber-800). */

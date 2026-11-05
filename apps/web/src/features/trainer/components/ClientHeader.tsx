@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useTrainerClientsHref } from '@/features/nav/mode-context';
 import { ArrowLeft } from 'lucide-react';
-import { BOOKING_COPY, COACHING_COPY } from '@chefer/types';
+import { BOOKING_COPY, COACHING_COPY, COACHING_DATA_COPY } from '@chefer/types';
 import { Badge } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { firstName } from '../format';
 
-export type ClientTab = 'routine' | 'workouts' | 'adherence' | 'bookings';
+export type ClientTab = 'routine' | 'workouts' | 'adherence' | 'bookings' | 'food';
 
 /**
  * One client: back to the list, the name (the page's one h1) and the tabs
@@ -24,6 +24,7 @@ export function ClientHeader({
   confirmLeave,
   actions,
   showBookings = false,
+  showFood = false,
 }: {
   clientId: string;
   name: string;
@@ -36,6 +37,8 @@ export function ClientHeader({
   actions?: React.ReactNode;
   /** Trainer mode M3: the Bookings tab (§6.5). */
   showBookings?: boolean;
+  /** Lane K2: the Food tab, while the client shares their food log or weight. */
+  showFood?: boolean;
 }) {
   const guard = (e: React.MouseEvent) => {
     if (confirmLeave && !confirmLeave()) e.preventDefault();
@@ -47,6 +50,9 @@ export function ClientHeader({
     { key: 'routine', label: tabs.routine, href: `${base}/routine` },
     { key: 'workouts', label: tabs.workouts, href: base },
     { key: 'adherence', label: tabs.adherence, href: `${base}?tab=adherence` },
+    ...(showFood
+      ? [{ key: 'food' as const, label: COACHING_DATA_COPY.tab, href: `${base}?tab=food` }]
+      : []),
     ...(showBookings
       ? [
           {

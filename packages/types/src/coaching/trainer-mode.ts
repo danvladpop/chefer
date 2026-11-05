@@ -49,6 +49,11 @@ export interface TrainerBadgesDto {
   bookingChanges: number;
   /** The sum: what personal mode's badges show. */
   total: number;
+  /**
+   * Additive (lane K4): clients who went quiet since the trainer last looked at Today (the Today
+   * tab's badge). Not part of `total`: installed bundles never clear it.
+   */
+  quietClients?: number;
 }
 
 // ─── trainer.dashboard.summary (§6.1, Q8) ─────────────────────────────────────
@@ -65,6 +70,7 @@ export interface TrainerQuietClientDto {
   name: string;
   /** Device-local date of the last completed workout, or null. */
   lastWorkoutDate: string | null;
+  /** Lane K4: days with nothing logged (workouts; food while shared). Was workouts only. */
   inactiveDays: number;
 }
 
@@ -78,8 +84,10 @@ export interface TrainerDashboardSummaryDto {
    * last 7 days ÷ weekly goal), 0–1. Null when no client has a goal.
    */
   averageAdherence: number | null;
-  /** Most inactive first. */
+  /** Most inactive first. Lane K4: by the trainer's `quietAfterDays`, food included while shared. */
   quietClients: TrainerQuietClientDto[];
+  /** Additive (lane K4): the trainer's threshold ("3+ days with nothing logged"). */
+  quietAfterDays?: number;
   /** Bookings this week (scheduled vs done; blocked time and cancelled ones excluded). Null from an M1 server. */
   bookingsThisWeek: { scheduled: number; done: number } | null;
   /** Additive (M3): the next booking that has not ended, today or later. */

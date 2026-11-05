@@ -67,6 +67,22 @@ export {
   type IHouseholdMemberRepository,
   type CreateHouseholdMemberData,
   type UpdateHouseholdMemberData,
+  HouseholdSharingRepository,
+  householdSharingRepository,
+  householdDisplayName,
+  unionSafetyTerms,
+  type IHouseholdSharingRepository,
+  type ActiveHouseholdLink,
+  type ConfirmedSafety,
+  type CreateHouseholdInviteData,
+  type HouseholdEndedByValue,
+  type HouseholdInviteWithMember,
+  type JoinHouseholdData,
+  type JoinHouseholdResult,
+  HOUSEHOLD_NOTIFICATION_KINDS,
+  HouseholdNoticeRepository,
+  householdNoticeRepository,
+  type HouseholdNotificationKindDb,
   PantryItemRepository,
   pantryItemRepository,
   type IPantryItemRepository,
@@ -122,6 +138,11 @@ export {
   trainingPauseRepository,
   type ITrainingPauseRepository,
   type CreateTrainingPauseData,
+  // Lane E2: share-card snapshots
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
   // Weekly emails (audit P2-5)
   WeeklyEmailRepository,
   weeklyEmailRepository,
@@ -259,6 +280,12 @@ export {
   friendRecipeRepository,
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
+  // Lane K3: weekly check-ins
+  CoachingCheckInRepository,
+  coachingCheckInRepository,
+  type ICoachingCheckInRepository,
+  type UpsertCheckInData,
+  type CheckInEmailRecipient,
   // Trainer coaching (docs/trainer-platform/spec.md §5)
   TrainerProfileRepository,
   trainerProfileRepository,
@@ -276,6 +303,9 @@ export {
   type JoinLinkData,
   type JoinLinkResult,
   type EndLinkData,
+  type SetSharingData,
+  type ShareChoice,
+  endSharingTx,
   type CoachingTx,
   type StartLinkData,
   startLinkTx,
@@ -337,6 +367,17 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
+  // Packaged products (ADR 0006)
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
+  // Saved meals (lane A2)
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
   ProgressEventRepository,
   progressEventRepository,
@@ -474,6 +515,7 @@ export type {
   Notification,
   // Trainer coaching (docs/trainer-platform/spec.md §5.1)
   TrainerProfile,
+  CoachingCheckIn,
   WorkoutTemplate,
   WorkoutTemplateExercise,
   Booking,
@@ -494,6 +536,10 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  // Packaged products (ADR 0006)
+  PackagedProduct,
+  // Saved meals (lane A2)
+  SavedMeal,
   // Lane J phase 3 (ADR 0004)
   RecipeTranslation,
   CuratedRecipeDraft,
@@ -506,6 +552,7 @@ export {
   IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
+  PackagedProductSource,
   TranslationStatus,
   UserRole,
   PostStatus,

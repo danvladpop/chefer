@@ -1,12 +1,24 @@
 import { z } from 'zod';
-import { planSettingsInputSchema, planShapeSchema, removeSlotInputSchema } from '@chefer/types';
+import {
+  planSettingsInputSchema,
+  planShapeSchema,
+  removeSlotInputSchema,
+  type UserProfile,
+} from '@chefer/types';
+import type { HouseholdScope } from '../application/household/household-access.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
 import { recipeTranslationService } from '../application/recipe/recipe-translation.service.js';
+import { assertAiConsent } from '../lib/ai-consent-gate.js';
 import { checkUserAiBudget } from '../lib/ai/budget-gate.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
+import {
+  householdOwnerProcedure,
+  householdPlanProcedure,
+  householdScopedProcedure,
+} from '../lib/household-middleware.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 import { userLocale } from '../lib/user-locale.js';
@@ -22,6 +34,21 @@ const planView = (user: Parameters<typeof hasFeature>[0]) => ({
   // UX-06 (T-06.1): whether the training-day bump is applied or only previewed.
   trainingAccess: hasFeature(user, 'trainingDayTargets'),
 });
+
+// ADR 0003: what a READ of the plan shows. The plan, its cost and safety are
+// the household owner's (`planUserId`); a partner sees their own targets and
+// training days, every slot at their own portion.
+function sharedView(user: UserProfile, scope: HouseholdScope, planUser: UserProfile) {
+  return {
+    householdScaling: hasFeature(planUser, 'householdPlans'),
+    trainingAccess: hasFeature(user, 'trainingDayTargets'),
+    ...(scope.role === 'PARTNER' && { viewer: { userId: user.id, portion: scope.portion } }),
+  };
+}
+
+// ADR 0003: the recipe the client expects in the slot it is changing. Optional
+// and additive — shipped builds omit it and keep last-write-wins.
+const expectedRecipeIdSchema = z.string().min(1).optional();
 
 // A slot's index in `day.meals` (a curated day can hold two snacks). Optional
 // and additive: shipped mobile builds omit it and get the first slot of
@@ -61,7 +88,7 @@ export const mealPlanRouter = router({
    * Only the plan for the specified week is archived — other weeks are untouched.
    * weekOffset: 0 = current week, 1 = next week (past weeks are rejected).
    */
-  generate: protectedProcedure
+  generate: householdOwnerProcedure
     .input(
       z.object({
         weekOffset: z.number().int().min(0).max(52).default(0),
@@ -115,7 +142,7 @@ export const mealPlanRouter = router({
    * see `MealPlanService.planDay` — so it's reserved against the same
    * `CURATED_PLAN` daily quota `generate`'s free path uses, for every tier.
    */
-  planDay: protectedProcedure
+  planDay: householdOwnerProcedure
     .input(z.object({ planId: z.string().min(1), dayOfWeek: z.number().int().min(0).max(6) }))
     .mutation(async ({ ctx, input }) => {
       const reservation = await reservePlanGeneration(ctx.user, false);
@@ -133,7 +160,7 @@ export const mealPlanRouter = router({
    * quota reservation: it completes the generation the user already paid
    * for (see MealPlanService.resumeTailoring). Returns the plan.
    */
-  resumeTailoring: protectedProcedure
+  resumeTailoring: householdOwnerProcedure
     .input(z.object({ planId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return mealPlanService.resumeTailoring(
@@ -148,8 +175,8 @@ export const mealPlanRouter = router({
    * §T-07.1: the user's "how you cook" plan shape (legacy default when unset),
    * plus `leftovers` and the saved `fitTrainingDays` (null = not chosen).
    */
-  getShape: protectedProcedure.query(async ({ ctx }) => {
-    return planShapeService.getShape(ctx.user.id);
+  getShape: householdScopedProcedure.query(async ({ ctx }) => {
+    return planShapeService.getShape(ctx.household.planUserId);
   }),
 
   /**
@@ -158,12 +185,14 @@ export const mealPlanRouter = router({
    * saved `fitTrainingDays` (T-06.7 follow-up — omitted = left as stored)
    * live on the same DietaryPreferences row.
    */
-  setShape: protectedProcedure.input(planSettingsInputSchema).mutation(async ({ ctx, input }) => {
-    return planShapeService.setShape(ctx.user.id, input);
-  }),
+  setShape: householdOwnerProcedure
+    .input(planSettingsInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return planShapeService.setShape(ctx.user.id, input);
+    }),
 
   /** §T-07.4: toggles `Your pick` on an existing slot. */
-  setSlotPinned: protectedProcedure
+  setSlotPinned: householdPlanProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -171,11 +200,20 @@ export const mealPlanRouter = router({
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
         slotIndex: slotIndexSchema,
         pinned: z.boolean(),
+        expectedRecipeId: expectedRecipeIdSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await mealPlanService.assertSlotUnchanged(
+        ctx.planUser.id,
+        input.planId,
+        input.dayOfWeek,
+        input.mealType,
+        input.slotIndex,
+        input.expectedRecipeId,
+      );
       await mealPlanService.setSlotPinned(
-        ctx.user.id,
+        ctx.planUser.id,
         input.planId,
         input.dayOfWeek,
         input.mealType,
@@ -190,16 +228,27 @@ export const mealPlanRouter = router({
    * unless another slot of the same meal type remains that day. Re-indexes
    * that day's tracker state.
    */
-  removeSlot: protectedProcedure.input(removeSlotInputSchema).mutation(async ({ ctx, input }) => {
-    return mealPlanService.removeSlot(ctx.user.id, input);
-  }),
+  removeSlot: householdPlanProcedure
+    .input(removeSlotInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { expectedRecipeId, ...slot } = input;
+      await mealPlanService.assertSlotUnchanged(
+        ctx.planUser.id,
+        slot.planId,
+        slot.dayOfWeek,
+        slot.mealType,
+        slot.slotIndex,
+        expectedRecipeId,
+      );
+      return mealPlanService.removeSlot(ctx.planUser.id, slot);
+    }),
 
   /**
    * §T-11.3: previews (default) or applies scaling every slot of one day by
    * `factor` (0.75–1.5×; each slot's own resulting portion is still capped
    * to the plan's 0.75–2× steps, T-11.4).
    */
-  scaleDay: protectedProcedure
+  scaleDay: householdOwnerProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -221,10 +270,13 @@ export const mealPlanRouter = router({
   /**
    * Returns the user's current active meal plan with all recipes, or null.
    */
-  getActive: protectedProcedure.query(async ({ ctx }) => {
+  getActive: householdPlanProcedure.query(async ({ ctx }) => {
     // ADR 0004: curated recipes in the reader's language (English fallback).
     return recipeTranslationService.localizeWeekPlan(
-      await mealPlanService.getActive(ctx.user.id, planView(ctx.user)),
+      await mealPlanService.getActive(
+        ctx.household.planUserId,
+        sharedView(ctx.user, ctx.household, ctx.planUser),
+      ),
       userLocale(ctx.user),
     );
   }),
@@ -232,7 +284,7 @@ export const mealPlanRouter = router({
   /**
    * Returns the meal plan for a given week offset (0 = current, -1 = last week, 1 = next week).
    */
-  getForWeek: protectedProcedure
+  getForWeek: householdPlanProcedure
     .input(
       z.object({
         weekOffset: z.number().int().min(-52).max(52).default(0),
@@ -240,7 +292,11 @@ export const mealPlanRouter = router({
     )
     .query(async ({ ctx, input }) => {
       return recipeTranslationService.localizeWeekPlan(
-        await mealPlanService.getForWeek(ctx.user.id, input.weekOffset, planView(ctx.user)),
+        await mealPlanService.getForWeek(
+          ctx.household.planUserId,
+          input.weekOffset,
+          sharedView(ctx.user, ctx.household, ctx.planUser),
+        ),
         userLocale(ctx.user),
       );
     }),
@@ -263,7 +319,7 @@ export const mealPlanRouter = router({
    * Only the premium swap reaches the AI (free swaps are curated), so only
    * that one needs AI-data consent (R-10) — checked before the quota is reserved.
    */
-  swapRecipe: protectedProcedure
+  swapRecipe: householdPlanProcedure
     .use(requireAiConsent(({ user }) => isPremiumUser(user)))
     .input(
       z.object({
@@ -272,19 +328,34 @@ export const mealPlanRouter = router({
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
         slotIndex: slotIndexSchema,
         reason: z.string().optional(),
+        expectedRecipeId: expectedRecipeIdSchema,
         ...dayFitInput,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const reservation = await reserveAiSwap(ctx.user);
+      // ADR 0003: a partner's swap runs on the owner's tier and quota; the AI
+      // call is the partner's action, so it needs the partner's consent too.
+      const planUser = ctx.planUser;
+      if (planUser.id !== ctx.user.id && isPremiumUser(planUser)) {
+        await assertAiConsent({ userId: ctx.user.id });
+      }
+      await mealPlanService.assertSlotUnchanged(
+        planUser.id,
+        input.planId,
+        input.dayOfWeek,
+        input.mealType,
+        input.slotIndex,
+        input.expectedRecipeId,
+      );
+      const reservation = await reserveAiSwap(planUser);
       try {
         return await mealPlanService.swapRecipe(
-          ctx.user.id,
+          planUser.id,
           input.planId,
           input.dayOfWeek,
           input.mealType,
           input.reason,
-          isPremiumUser(ctx.user),
+          isPremiumUser(planUser),
           input.slotIndex,
           dayFitRequest(input),
         );
@@ -297,7 +368,7 @@ export const mealPlanRouter = router({
   /**
    * Replaces a single meal slot with a specific saved recipe chosen by the user.
    */
-  replaceRecipe: protectedProcedure
+  replaceRecipe: householdPlanProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -318,12 +389,21 @@ export const mealPlanRouter = router({
          * absent = false) so an undone swap doesn't leave the slot pinned.
          */
         pinned: z.boolean().optional(),
+        expectedRecipeId: expectedRecipeIdSchema,
         ...dayFitInput,
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await mealPlanService.assertSlotUnchanged(
+        ctx.planUser.id,
+        input.planId,
+        input.dayOfWeek,
+        input.mealType,
+        input.slotIndex,
+        input.expectedRecipeId,
+      );
       return mealPlanService.replaceRecipe(
-        ctx.user.id,
+        ctx.planUser.id,
         input.planId,
         input.dayOfWeek,
         input.mealType,
@@ -338,21 +418,21 @@ export const mealPlanRouter = router({
   // ─── Day rebalance (2026-10-16) — all tiers, no AI ─────────────────────────
 
   /** The Meals notice's Undo: puts back every day the last targets refit resized. */
-  undoPortionRefit: protectedProcedure
+  undoPortionRefit: householdOwnerProcedure
     .input(z.object({ planId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return mealPlanService.undoPortionRefit(ctx.user.id, input.planId);
     }),
 
   /** Closes the Meals notice for the last targets refit (its Undo goes with it). */
-  dismissPortionRefit: protectedProcedure
+  dismissPortionRefit: householdOwnerProcedure
     .input(z.object({ planId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return mealPlanService.dismissPortionRefit(ctx.user.id, input.planId);
     }),
 
   /** Undo for a day rebalance or a targets refit: puts a day's portions back. */
-  restoreDayPortions: protectedProcedure
+  restoreDayPortions: householdOwnerProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -374,7 +454,7 @@ export const mealPlanRouter = router({
    * alone could not reach the target: swap an open slot for a safe curated
    * dish, or add a snack. Re-validated server-side; CONFLICT when stale.
    */
-  applyDayFitSuggestion: protectedProcedure
+  applyDayFitSuggestion: householdOwnerProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -399,7 +479,7 @@ export const mealPlanRouter = router({
    * a protein gap. `null` = nothing to offer. Also what Plan's "Rebalance my
    * week" shows. `localDate` = the client's local today.
    */
-  previewRebalance: protectedProcedure
+  previewRebalance: householdScopedProcedure
     .input(
       z
         .object({
@@ -409,6 +489,8 @@ export const mealPlanRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
+      // ADR 0003: the rebalance is about the owner's targets — never a partner's.
+      if (ctx.household.role === 'PARTNER') return null;
       return rebalanceService.preview(ctx.user, {
         planId: input?.planId,
         localDate: input?.localDate,
@@ -422,7 +504,7 @@ export const mealPlanRouter = router({
    * `rebalance` (swaps with `previousRecipeId`/`slotIndex`), so Undo through
    * `replaceRecipe` is unchanged.
    */
-  applyRebalance: protectedProcedure
+  applyRebalance: householdOwnerProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -448,24 +530,24 @@ export const mealPlanRouter = router({
   // ─── Week templates ("My weeks") — all tiers, no AI ─────────────────────────
 
   /** Saves a plan as a named week template (max 4 — CONFLICT beyond that). */
-  saveAsTemplate: protectedProcedure
+  saveAsTemplate: householdOwnerProcedure
     .input(z.object({ planId: z.string().min(1), name: z.string().trim().min(1).max(40) }))
     .mutation(async ({ ctx, input }) => {
       return mealPlanService.saveAsTemplate(ctx.user.id, input.planId, input.name);
     }),
 
-  listTemplates: protectedProcedure.query(async ({ ctx }) => {
-    return mealPlanService.listTemplates(ctx.user.id);
+  listTemplates: householdScopedProcedure.query(async ({ ctx }) => {
+    return mealPlanService.listTemplates(ctx.household.planUserId);
   }),
 
-  renameTemplate: protectedProcedure
+  renameTemplate: householdOwnerProcedure
     .input(z.object({ templateId: z.string().min(1), name: z.string().trim().min(1).max(40) }))
     .mutation(async ({ ctx, input }) => {
       await mealPlanService.renameTemplate(ctx.user.id, input.templateId, input.name);
       return { ok: true };
     }),
 
-  deleteTemplate: protectedProcedure
+  deleteTemplate: householdOwnerProcedure
     .input(z.object({ templateId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       await mealPlanService.deleteTemplate(ctx.user.id, input.templateId);
@@ -476,7 +558,7 @@ export const mealPlanRouter = router({
    * Marks the template as followed (future carry-forward clones it) and
    * applies it to the given week immediately (replaces that week's plan).
    */
-  followTemplate: protectedProcedure
+  followTemplate: householdOwnerProcedure
     .input(
       z.object({
         templateId: z.string().min(1),
@@ -488,12 +570,12 @@ export const mealPlanRouter = router({
     }),
 
   /** Stops following any template — carry-forward reverts to the latest plan. */
-  unfollowTemplate: protectedProcedure.mutation(async ({ ctx }) => {
+  unfollowTemplate: householdOwnerProcedure.mutation(async ({ ctx }) => {
     await mealPlanService.unfollowTemplate(ctx.user.id);
     return { ok: true };
   }),
 
-  list: protectedProcedure
+  list: householdScopedProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50).default(10),
@@ -501,10 +583,10 @@ export const mealPlanRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return mealPlanService.list(ctx.user.id, input.limit, input.offset);
+      return mealPlanService.list(ctx.household.planUserId, input.limit, input.offset);
     }),
 
-  restore: protectedProcedure
+  restore: householdOwnerProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -520,9 +602,13 @@ export const mealPlanRouter = router({
       return mealPlanService.restore(ctx.user.id, input.planId, input.weekOffset);
     }),
 
-  getById: protectedProcedure
+  getById: householdPlanProcedure
     .input(z.object({ planId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getById(ctx.user.id, input.planId, planView(ctx.user));
+      return mealPlanService.getById(
+        ctx.household.planUserId,
+        input.planId,
+        sharedView(ctx.user, ctx.household, ctx.planUser),
+      );
     }),
 });

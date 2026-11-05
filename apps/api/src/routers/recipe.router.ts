@@ -6,6 +6,7 @@ import {
 } from '@chefer/types';
 import { recipeTranslationService } from '../application/recipe/recipe-translation.service.js';
 import { recipeService } from '../application/recipe/recipe.service.js';
+import { householdScopedProcedure } from '../lib/household-middleware.js';
 import { buildPollinationsUrl } from '../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../lib/image-gen/prompt.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
@@ -249,19 +250,20 @@ export const recipeRouter = router({
    * gate; the recipe-visibility rule still applies inside the service.
    * Additive.
    */
-  addToWeek: protectedProcedure
+  // ADR 0003: a partner adds to the household's (owner's) week.
+  addToWeek: householdScopedProcedure
     .input(addRecipeToWeekInputSchema)
     .mutation(async ({ ctx, input }) => {
       assertWithinRateLimit('recipe.addToWeek', ctx.user.id, 120, HOUR_MS);
-      return (await mealPlans()).addRecipeToSlot(ctx.user.id, input);
+      return (await mealPlans()).addRecipeToSlot(ctx.household.planUserId, input);
     }),
 
   /** The Undo of `recipe.addToWeek`: pass its result back. A stale Undo is a no-op. */
-  undoAddToWeek: protectedProcedure
+  undoAddToWeek: householdScopedProcedure
     .input(undoAddToWeekInputSchema)
     .mutation(async ({ ctx, input }) => {
       assertWithinRateLimit('recipe.undoAddToWeek', ctx.user.id, 120, HOUR_MS);
-      return (await mealPlans()).undoAddToSlot(ctx.user.id, input);
+      return (await mealPlans()).undoAddToSlot(ctx.household.planUserId, input);
     }),
 
   /**

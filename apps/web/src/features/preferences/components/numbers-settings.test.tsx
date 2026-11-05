@@ -130,9 +130,18 @@ describe('NumbersSettingsSection (WP-08)', () => {
     );
   });
 
-  it('NONE (reserved, WP-16) and unknown values read as the full numbers', () => {
-    render(<NumbersSettingsSection initialMode="NONE" initialShowNutrition={false} />);
+  it('unknown values read as the full numbers', () => {
+    render(<NumbersSettingsSection initialMode="KETO" initialShowNutrition={false} />);
     expect(screen.getByTestId('prefs-numbers-mode-full').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('lane E3: "Hide numbers" is an equal third option, saved at once, and hides the Today switch', () => {
+    render(<NumbersSettingsSection initialMode="FULL" initialShowNutrition />);
+    expect(screen.getByTestId('prefs-home-display')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('prefs-numbers-mode-none'));
+    expect(screen.getByTestId('prefs-numbers-mode-none').getAttribute('aria-checked')).toBe('true');
+    expect(m.setNumbersMode).toHaveBeenCalledWith({ numbersMode: 'NONE' });
+    expect(screen.queryByTestId('prefs-home-display')).toBeNull();
   });
 
   it('a failed save rolls the pick back and says so', () => {

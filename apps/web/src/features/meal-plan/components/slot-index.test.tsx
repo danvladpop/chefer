@@ -136,6 +136,8 @@ describe('two-snack day: the second snack is its own slot', () => {
       slotIndex: 4,
       recipeId: 'yoghurt',
       localDate: expect.any(String) as unknown,
+      // ADR 0003: the recipe the slot held, so a slot changed meanwhile is a CONFLICT.
+      expectedRecipeId: 's2',
     });
   });
 
@@ -150,6 +152,7 @@ describe('two-snack day: the second snack is its own slot', () => {
       mealType: 'snack',
       slotIndex: 3,
       localDate: expect.any(String) as unknown,
+      expectedRecipeId: 's1',
     });
   });
 

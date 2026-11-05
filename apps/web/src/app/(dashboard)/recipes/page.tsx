@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import {
@@ -49,6 +50,8 @@ interface CardRecipe {
 
 export default function RecipesPage() {
   const { t } = useT();
+  // WP-08 / lane E3: no calories without full numbers, no macros at all in "Hide numbers".
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -386,17 +389,25 @@ export default function RecipesPage() {
                         mins: recipe.prepTimeMins + recipe.cookTimeMins,
                       })}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Flame className="h-3 w-3 text-[#944a00]" />
-                      {t('recipes.card.kcal', { value: n.calories })}
-                    </span>
+                    {proteinOnly ? null : (
+                      <span className="flex items-center gap-1">
+                        <Flame className="h-3 w-3 text-[#944a00]" />
+                        {t('recipes.card.kcal', { value: n.calories })}
+                      </span>
+                    )}
                   </div>
                   {/* Macro chips */}
-                  <div className="mt-2 flex gap-1.5">
-                    <Chip text={t('recipes.card.protein', { value: n.protein })} />
-                    <Chip text={t('recipes.card.carbs', { value: n.carbs })} />
-                    <Chip text={t('recipes.card.fat', { value: n.fat })} />
-                  </div>
+                  {noNumbers ? null : (
+                    <div className="mt-2 flex gap-1.5">
+                      <Chip text={t('recipes.card.protein', { value: n.protein })} />
+                      {proteinOnly ? null : (
+                        <>
+                          <Chip text={t('recipes.card.carbs', { value: n.carbs })} />
+                          <Chip text={t('recipes.card.fat', { value: n.fat })} />
+                        </>
+                      )}
+                    </div>
+                  )}
                 </Link>
               </div>
             );

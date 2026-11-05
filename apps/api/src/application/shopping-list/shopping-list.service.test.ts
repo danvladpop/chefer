@@ -758,7 +758,9 @@ describe('ShoppingListService.toggleItems — Kitchen progress hook', () => {
   it('records on a check with the client local day', async () => {
     const spy = spyRecorder();
     setProgressRecorder(spy);
-    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true, '2026-10-22');
+    await service.toggleItems(freeUser, 'plan1', ['plan1-tomato|g'], true, {
+      localDate: '2026-10-22',
+    });
     expect(spy.onShoppingToggled).toHaveBeenCalledWith('u1', 'plan1', '2026-10-22');
   });
 

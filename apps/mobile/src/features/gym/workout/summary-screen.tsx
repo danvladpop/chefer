@@ -18,6 +18,7 @@ import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils
 import { getTranslator, useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useWorkoutReviewPrompt } from '../../review/review-signals';
+import { useShareCard } from '../../share/share-card';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { getFinished } from './finished-store';
@@ -60,6 +61,8 @@ export function SummaryScreen({ id }: { id: string }) {
   const unit = unitOf(bootstrap);
   const [adjusting, setAdjusting] = useState<NextTimeRow | null>(null);
   const [adjustKey, setAdjustKey] = useState(0);
+  // Lane E2: share the workout (and its PRs) as an image card + app link.
+  const { share: shareCard, sharing } = useShareCard();
 
   const view = useMemo(() => {
     const doc = getFinished(id);
@@ -273,6 +276,22 @@ export function SummaryScreen({ id }: { id: string }) {
           </Text>
         ) : null}
 
+        {/* Online only: the card is made from the session the server has. */}
+        {online ? (
+          <Button
+            testID="summary-share"
+            variant="outline"
+            loading={sharing === 'workout'}
+            onPress={() =>
+              void shareCard(
+                { kind: 'workout', sessionId: id, showPrs: true },
+                'Workout done with Chefer.',
+              )
+            }
+          >
+            Share your workout
+          </Button>
+        ) : null}
         <Button testID="summary-done" size="lg" onPress={goToday}>
           {t('common.actions.done')}
         </Button>

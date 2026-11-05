@@ -33,6 +33,7 @@ import { testQueryClient } from './friends-profile-fixtures';
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), navigate: jest.fn() },
   useLocalSearchParams: () => ({}),
+  useIsFocused: () => true,
 }));
 jest.mock('../../src/hooks/use-currency', () => ({ useCurrency: () => 'EUR' }));
 jest.mock('../../src/hooks/use-household', () => ({

@@ -1,21 +1,37 @@
 import { z } from 'zod';
-import { localDateSchema } from '@chefer/types';
+import { listToggleAtSchema, localDateSchema } from '@chefer/types';
 import { shoppingListService } from '../application/shopping-list/shopping-list.service.js';
-import { premiumProcedure, protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
+import { householdPlanProcedure } from '../lib/household-middleware.js';
+import { premiumProcedure, requireAiConsent, router } from '../lib/trpc.js';
+
+// ADR 0003: every procedure reads and writes the HOUSEHOLD's list — the owner's
+// (`ctx.planUser`) — while `ctx.user` (the caller) is who ticked or added.
+
+const weekOffsetSchema = z.number().int().min(-52).max(1).default(0);
 
 export const shoppingListRouter = router({
-  getForWeek: protectedProcedure
-    .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
+  getForWeek: householdPlanProcedure
+    .input(z.object({ weekOffset: weekOffsetSchema }))
     .query(async ({ ctx, input }) => {
       // Full user (not just the id): household scaling is premium-shaped.
-      return shoppingListService.getForWeek(ctx.user, input.weekOffset);
+      return shoppingListService.getForWeek(ctx.planUser, input.weekOffset, ctx.user.id);
+    }),
+
+  /**
+   * ADR 0003: the shared list's "anything new?" — ticks with who made them and
+   * a `revision` that changes only when the items do. Polled while Shop is open.
+   */
+  sync: householdPlanProcedure
+    .input(z.object({ weekOffset: weekOffsetSchema }))
+    .query(async ({ ctx, input }) => {
+      return shoppingListService.sync(ctx.planUser, input.weekOffset, ctx.user.id);
     }),
 
   /**
    * Synced check-off (P1-5): toggles item keys in the plan's checked set.
    * Per-key semantics — safe for two devices checking concurrently.
    */
-  toggleItems: protectedProcedure
+  toggleItems: householdPlanProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -23,15 +39,24 @@ export const shoppingListRouter = router({
         checked: z.boolean(),
         /** Kitchen progress: the client's local day (optional, additive). */
         localDate: localDateSchema.optional(),
+        /**
+         * ADR 0003: when the toggle was made on the device (an offline replay
+         * sends the original time). Optional, additive: absent = now.
+         */
+        at: listToggleAtSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       return shoppingListService.toggleItems(
-        ctx.user,
+        ctx.planUser,
         input.planId,
         input.keys,
         input.checked,
-        input.localDate,
+        {
+          actorId: ctx.user.id,
+          ...(input.at && { at: new Date(input.at) }),
+          ...(input.localDate && { localDate: input.localDate }),
+        },
       );
     }),
 
@@ -39,7 +64,7 @@ export const shoppingListRouter = router({
    * User-added items (chat tool + the page's add-input). Stored in the
    * customItems overlay so they never shadow the derived list.
    */
-  addCustomItems: protectedProcedure
+  addCustomItems: householdPlanProcedure
     .input(
       z.object({
         planId: z.string().min(1),
@@ -56,13 +81,18 @@ export const shoppingListRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return shoppingListService.addCustomItems(ctx.user.id, input.planId, input.items);
+      return shoppingListService.addCustomItems(
+        ctx.planUser.id,
+        input.planId,
+        input.items,
+        ctx.user.id,
+      );
     }),
 
-  removeCustomItem: protectedProcedure
+  removeCustomItem: householdPlanProcedure
     .input(z.object({ planId: z.string().min(1), key: z.string().min(1).max(200) }))
     .mutation(async ({ ctx, input }) => {
-      return shoppingListService.removeCustomItem(ctx.user.id, input.planId, input.key);
+      return shoppingListService.removeCustomItem(ctx.planUser.id, input.planId, input.key);
     }),
 
   // FB7-10: the AI tidy-up is retired. Kept (with its old gates) only so shipped
