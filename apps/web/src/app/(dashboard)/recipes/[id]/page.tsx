@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
@@ -16,6 +17,7 @@ import { writeRecipeDeleteUndo } from '@/features/recipes/lib/recipe-delete-undo
 import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
 import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
+import { ShareCardButton } from '@/features/share/share-card-button';
 import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
@@ -206,6 +208,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const { data: table } = trpc.safety.getTable.useQuery();
   const isSaved = savedData?.isSaved ?? false;
   const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
+  // Lane E3 "Hide numbers": no calories or macros on the recipe either.
+  const { noNumbers } = useNumbersMode();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportedToast, setReportedToast] = useState(false);
   // UX-REC-04: owner Delete (soft) + Share.
@@ -448,6 +452,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     portion: SLOT,
     kcal: scaleNutrition(n, planPortion).calories,
     protein: Math.round(scaleNutrition(n, planPortion).protein),
+  }).split(SLOT);
+  const portionNoteNoNumbersParts = t('recipes.detail.portionNoteNoNumbers', {
+    portion: SLOT,
   }).split(SLOT);
   /** Four whole sentences, not fragments: the table and "adjusted" parts are optional. */
   const householdNote = (people: number, table: string | null, adjusted: string | null) => {
@@ -708,6 +715,12 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <Share2 className="h-3.5 w-3.5" />
             {t('recipes.detail.share')}
           </button>
+          {/* Lane E2: an image card (title, photo, time) with the app link. */}
+          <ShareCardButton
+            testId="recipe-share-card"
+            input={{ kind: 'recipe', recipeId: recipe.id, showNutrition: false }}
+            message={recipe.name}
+          />
           {savedData?.canEdit ? (
             <button
               type="button"
@@ -831,11 +844,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           label={t('recipes.detail.servings')}
           value={formatFractionalQuantity(selectedServings)}
         />
-        <Stat
-          icon={<Flame className="h-4 w-4 text-[#944a00]" />}
-          label={t('recipes.detail.calories')}
-          value={t('recipes.card.kcal', { value: n.calories })}
-        />
+        {noNumbers ? null : (
+          <Stat
+            icon={<Flame className="h-4 w-4 text-[#944a00]" />}
+            label={t('recipes.detail.calories')}
+            value={t('recipes.card.kcal', { value: n.calories })}
+          />
+        )}
       </div>
 
       {/* F2: per-person framing when a household is set up. Free tables keep
@@ -869,16 +884,16 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           data-testid="plan-portion-note"
           className="-mt-6 mb-8 rounded-xl bg-[#fff3e8] px-3 py-2 text-xs text-[#944a00]"
         >
-          {portionNoteParts[0]}
+          {(noNumbers ? portionNoteNoNumbersParts : portionNoteParts)[0]}
           <strong>
             {t('recipes.detail.portionLabel', { portion: formatPortion(planPortion) })}
           </strong>
-          {portionNoteParts[1]}
+          {(noNumbers ? portionNoteNoNumbersParts : portionNoteParts)[1]}
         </p>
       )}
 
-      {/* Macros — no Fiber (D-18) */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      {/* Macros — no Fiber (D-18); none at all in "Hide numbers" (lane E3) */}
+      <div className={noNumbers ? 'hidden' : 'mb-8 grid grid-cols-3 gap-3'}>
         <MacroChip label={t('recipes.macros.protein')} value={n.protein} />
         <MacroChip label={t('recipes.macros.carbs')} value={n.carbs} />
         <MacroChip label={t('recipes.macros.fat')} value={n.fat} />
@@ -916,7 +931,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           {/* UX-REC-11: say what the stepper changed, with the totals. */}
           {selectedServings !== baseServings ? (
             <p data-testid="recipe-servings-note" className="mb-3 text-xs text-gray-500">
-              {n.calories > 0
+              {n.calories > 0 && !noNumbers
                 ? t('recipes.detail.servingsNoteTotals', {
                     servings: formatFractionalQuantity(selectedServings),
                     base: baseServings,
@@ -1146,6 +1161,7 @@ function SavedRecipePicker({
 }: SavedRecipePickerProps) {
   const { t } = useT();
   const replacingParts = t('recipes.detail.picker.replacing', { label: SLOT }).split(SLOT);
+  const { proteinOnly } = useNumbersMode();
   const { data: savedRecipes, isLoading: loadingSaved } = trpc.recipe.list.useQuery({
     savedOnly: true,
     search: search || undefined,
@@ -1259,10 +1275,12 @@ function SavedRecipePicker({
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        {t('recipes.detail.picker.meta', {
-                          cuisine: r.cuisineType,
-                          kcal: (r.nutritionInfo as { calories?: number }).calories ?? '—',
-                        })}
+                        {proteinOnly
+                          ? r.cuisineType
+                          : t('recipes.detail.picker.meta', {
+                              cuisine: r.cuisineType,
+                              kcal: (r.nutritionInfo as { calories?: number }).calories ?? '—',
+                            })}
                       </p>
                     </div>
                   </button>

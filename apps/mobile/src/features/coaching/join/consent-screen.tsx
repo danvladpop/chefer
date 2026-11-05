@@ -1,8 +1,9 @@
 import { View } from 'react-native';
-import { COACHING_COPY } from '@chefer/types';
+import { COACHING_COPY, COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
 import { Button, KeyboardAwareScrollView, Text } from '@chefer/ui-mobile';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { COACHING_MOBILE_COPY } from '../copy';
+import { SharingSwitches } from '../sharing/sharing-switches';
 
 // ─── Consent screen (spec §2.3) ───────────────────────────────────────────────
 // The legal text of the COACHING_SHARING consent: every line comes from the shared COACHING_COPY (the
@@ -24,6 +25,12 @@ export type ConsentScreenProps = {
   error: string | null;
   onAllow: () => void;
   onDecline: () => void;
+  /**
+   * Lane K1: the "Share my food log" / "Share my weight" switches, both off until the client turns them
+   * on. Omitted = no switches (the screen reads as before).
+   */
+  share?: CoachingShareChoice;
+  onShareChange?: (next: Partial<CoachingShareChoice>) => void;
 };
 
 function Bullets({ lines, testID }: { lines: readonly string[]; testID: string }) {
@@ -48,6 +55,8 @@ export function ConsentScreen({
   error,
   onAllow,
   onDecline,
+  share,
+  onShareChange,
 }: ConsentScreenProps) {
   const copy = COACHING_COPY.consent;
   const request = COACHING_COPY.request;
@@ -111,6 +120,20 @@ export function ConsentScreen({
           </Text>
         ) : null}
       </CoachingCard>
+      {share && onShareChange ? (
+        <CoachingCard className="gap-3">
+          <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
+            {COACHING_SHARING_COPY.heading}
+          </Text>
+          <SharingSwitches
+            testID="coaching-consent-share"
+            trainerName={trainerName}
+            value={share}
+            onChange={onShareChange}
+            disabled={busy}
+          />
+        </CoachingCard>
+      ) : null}
       {error ? (
         <Text
           testID="coaching-consent-error"

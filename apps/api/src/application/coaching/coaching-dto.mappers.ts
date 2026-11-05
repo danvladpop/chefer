@@ -9,9 +9,11 @@ import type {
 } from '@chefer/database';
 import {
   FALLBACK_TRAINER_NAME,
+  type ClientSharingDto,
   type CoachedExerciseDto,
   type CoachedSetDto,
   type CoachedWorkoutDto,
+  type CoachingSharingDto,
   type ExerciseTrackingType,
   type InviteDto,
   type InviteState,
@@ -287,4 +289,23 @@ export function toRoutineDtoForTrainer(
       exercises: d.exercises.map((e) => ({ ...e, notes: null })),
     })),
   };
+}
+
+/** The client's own view of their switches on a link (lane K1). */
+export function sharingOf(
+  link: Pick<CoachingLink, 'shareFoodAt' | 'shareWeightAt'>,
+): CoachingSharingDto {
+  return {
+    food: link.shareFoodAt != null,
+    weight: link.shareWeightAt != null,
+    foodSince: link.shareFoodAt?.toISOString() ?? null,
+    weightSince: link.shareWeightAt?.toISOString() ?? null,
+  };
+}
+
+/** What the trainer is told: on or off, nothing more (lane K1). */
+export function clientSharingOf(
+  link: Pick<CoachingLink, 'shareFoodAt' | 'shareWeightAt'>,
+): ClientSharingDto {
+  return { food: link.shareFoodAt != null, weight: link.shareWeightAt != null };
 }

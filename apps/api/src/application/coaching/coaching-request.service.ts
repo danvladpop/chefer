@@ -20,6 +20,7 @@ import {
   FALLBACK_TRAINER_NAME,
   LEGAL_VERSIONS,
   type CoachingRequestDto,
+  type CoachingShareChoice,
   type CoachingSource,
   type Page,
   type TrainerCardDto,
@@ -29,7 +30,10 @@ import {
 import { displayNameOf, queryTokens } from '@chefer/utils';
 import { resolveStartedOn } from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
-import { COACHING_CONSENT_DOCUMENT_VERSION } from './consent-copy.js';
+import {
+  COACHING_CONSENT_DOCUMENT_VERSION,
+  COACHING_DATA_DOCUMENT_VERSION,
+} from './consent-copy.js';
 
 // ─── Trainer coaching: Find a trainer + coaching requests (PRD 2026-10 §4.1) ──
 //
@@ -167,6 +171,7 @@ export class CoachingRequestService {
     trainerId: string,
     source: CoachingSource,
     localDate?: string,
+    share?: CoachingShareChoice,
   ): Promise<CoachingRequestDto> {
     if (clientId === trainerId) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: COACHING_COPY.server.selfCoaching });
@@ -203,6 +208,8 @@ export class CoachingRequestService {
       // Trainer mode M3 (§10): the consent screen shows copy v2.
       documentVersion: COACHING_CONSENT_DOCUMENT_VERSION,
       now,
+      // Lane K1: the consent screen's food / weight switches, applied on accept.
+      ...(share && { share, shareDocumentVersion: COACHING_DATA_DOCUMENT_VERSION }),
     });
     if (result.status === 'pending_exists') {
       // Asking the same trainer twice is a no-op; anyone else needs a cancel first.

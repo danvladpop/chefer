@@ -65,6 +65,7 @@ export const recipes = {
     protein: 'P {value}g',
     carbs: 'C {value}g',
     fat: 'F {value}g',
+    proteinGrams: '{value} g protein',
   },
   mealTypes: {
     breakfast: 'Breakfast',
@@ -130,6 +131,7 @@ export const recipes = {
     portionLabel: '{portion} portion',
     portionNote:
       'Your plan has a {portion} here — {kcal} kcal · {protein} g protein. Quantities start at it.',
+    portionNoteNoNumbers: 'Your plan has a {portion} here. Quantities start at it.',
     ingredients: 'Ingredients',
     instructions: 'Instructions',
     decreaseServings: 'Decrease servings',

@@ -1,6 +1,22 @@
-import { coachingContentRepository, type ICoachingContentRepository } from '@chefer/database';
-import type { TrainerBadgesDto, TrainerDashboardSummaryDto } from '@chefer/types';
-import { addDaysLocal, summarizeTrainerDashboard, trainerBadges, weekStartOf } from '@chefer/utils';
+import {
+  coachingContentRepository,
+  trainerProfileRepository,
+  type ICoachingContentRepository,
+  type ITrainerProfileRepository,
+} from '@chefer/database';
+import {
+  QUIET_LIMITS,
+  type TrainerBadgesDto,
+  type TrainerDashboardSummaryDto,
+} from '@chefer/types';
+import {
+  addDaysLocal,
+  summarizeTrainerDashboard,
+  trainerBadges,
+  unseenQuietCount,
+  weekStartOf,
+} from '@chefer/utils';
+import { serverToday } from '../gym/mappers.js';
 import {
   bookingsThisWeek,
   sessionsDelivered,
@@ -31,7 +47,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const NEXT_BOOKING_LOOKAHEAD_DAYS = 31;
 
 export interface TrainerDashboardDeps {
-  links: Pick<CoachingLinkService, 'listClients'>;
+  links: Pick<CoachingLinkService, 'listClients' | 'clientRowsWithQuiet'>;
+  /** Lane K4: the trainer's quiet threshold and when they last looked at Today. */
+  trainers: Pick<ITrainerProfileRepository, 'find'>;
   requests: Pick<CoachingRequestService, 'listForTrainer'>;
   content: Pick<ICoachingContentRepository, 'countSessions'>;
   bookings: Pick<BookingService, 'listVisible'>;
@@ -40,6 +58,7 @@ export interface TrainerDashboardDeps {
 
 const defaultDeps: TrainerDashboardDeps = {
   links: coachingLinkService,
+  trainers: trainerProfileRepository,
   requests: coachingRequestService,
   content: coachingContentRepository,
   bookings: bookingService,
@@ -58,21 +77,39 @@ export class TrainerDashboardService {
     this.deps = { ...defaultDeps, ...deps };
   }
 
-  async badges(trainerId: string): Promise<TrainerBadgesDto> {
+  /**
+   * `today` (additive, lane K4): the trainer's device-local date; without it
+   * the server's UTC date. `quietClients` counts clients who went quiet after
+   * the trainer last looked at Today (`trainer.quiet.markSeen`); it is not in
+   * `total`, because an installed bundle can never clear it.
+   */
+  async badges(trainerId: string, today?: string): Promise<TrainerBadgesDto> {
     const now = this.deps.now();
-    const [requests, recent] = await Promise.all([
+    const [requests, recent, quiet, trainer] = await Promise.all([
       this.deps.requests.listForTrainer(trainerId),
       this.deps.bookings.listVisible(
         trainerId,
         new Date(now.getTime() - (UNMARKED_LOOKBACK_DAYS + 1) * DAY_MS),
         now,
       ),
+      this.deps.links.clientRowsWithQuiet(trainerId, today),
+      this.deps.trainers.find(trainerId),
     ]);
-    return trainerBadges({
-      requests: requests.length,
-      unmarkedAttendance: unmarkedAttendance(recent, now).length,
-      bookingChanges: 0,
-    });
+    const seenDay = trainer?.quietSeenAt ? serverToday(trainer.quietSeenAt) : null;
+    return {
+      ...trainerBadges({
+        requests: requests.length,
+        unmarkedAttendance: unmarkedAttendance(recent, now).length,
+        bookingChanges: 0,
+      }),
+      quietClients: unseenQuietCount(
+        quiet.rows.map((r) => ({
+          quiet: r.quiet === true,
+          quietSince: quiet.quietSince.get(r.clientId) ?? '',
+        })),
+        seenDay,
+      ),
+    };
   }
 
   async summary(trainerId: string, today: string): Promise<TrainerDashboardSummaryDto> {
@@ -93,10 +130,11 @@ export class TrainerDashboardService {
         now.getTime() + NEXT_BOOKING_LOOKAHEAD_DAYS * DAY_MS,
       ),
     );
-    const [clients, requests, bookings] = await Promise.all([
+    const [clients, requests, bookings, trainer] = await Promise.all([
       this.deps.links.listClients(trainerId, today),
       this.deps.requests.listForTrainer(trainerId),
       this.deps.bookings.listVisible(trainerId, from, to),
+      this.deps.trainers.find(trainerId),
     ]);
     const sessionsLast7 =
       clients.length === 0
@@ -118,6 +156,7 @@ export class TrainerDashboardService {
       todayBookings: rest,
       unmarkedAttendance: unmarkedAttendance(bookings, now),
       sessionsDelivered: sessionsDelivered(bookings, today),
+      quietAfterDays: trainer?.quietAfterDays ?? QUIET_LIMITS.defaultDays,
     };
   }
 }

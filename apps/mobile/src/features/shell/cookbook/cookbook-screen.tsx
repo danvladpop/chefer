@@ -24,6 +24,7 @@ import { getTranslator, useT } from '../../../lib/i18n';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc } from '../../../lib/trpc';
 import { nutritionStatusBadge } from '../../ingredients/nutrition-provenance';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { FilteredForLine } from '../../safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../safety/what-we-check-sheet';
 import { ShellTopBar } from '../shell-chrome';
@@ -74,12 +75,16 @@ export function cookbookFromLabel(
   return null;
 }
 
-/** "30 min · 520 kcal", plus the nutrition caveat ("Partial data") when there is one. */
-export function cookbookTileMeta(recipe: CookbookRecipe): string {
+/**
+ * "30 min · 520 kcal", plus the nutrition caveat ("Partial data") when there is
+ * one. Without calories (protein-only, "Hide numbers" — lane E3) it is the time.
+ */
+export function cookbookTileMeta(recipe: CookbookRecipe, proteinOnly = false): string {
   const minutes = Math.max(0, Math.round(recipe.prepTimeMins + recipe.cookTimeMins));
+  const { t } = getTranslator();
+  if (proteinOnly) return t('recipes.detail.minutes', { mins: minutes });
   const kcal = (recipe.nutritionInfo as { calories?: number } | null)?.calories;
   const caveat = nutritionStatusBadge(recipe.nutritionStatus);
-  const { t } = getTranslator();
   return [
     t('recipes.detail.minutes', { mins: minutes }),
     kcal !== undefined ? t('recipes.card.kcal', { value: formatKcal(kcal) }) : null,
@@ -143,6 +148,7 @@ function HeaderButton({
 export function CookbookScreen() {
   const { t } = useT();
   const colors = useThemeColors();
+  const { proteinOnly } = useNumbersMode();
   const tabs = TAB_VALUES.map((value) => ({
     value,
     label: t(`recipes.cookbook.tabs.${value}`),
@@ -240,7 +246,7 @@ export function CookbookScreen() {
         key={recipe.id}
         testID={`cookbook-tile-${recipe.id}`}
         title={recipe.name}
-        meta={cookbookTileMeta(recipe)}
+        meta={cookbookTileMeta(recipe, proteinOnly)}
         imageUri={getRecipeImageUrl(recipe.imageUrl)}
         illustration={<Icon name="recipes" color={colors.brand} size={32} />}
         {...(from ? { badge: from } : {})}

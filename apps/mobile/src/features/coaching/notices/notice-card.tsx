@@ -15,6 +15,7 @@ export function NoticeCard({
   icon = 'yourTrainer',
   tone = 'plain',
   onView,
+  viewLabel = COACHING_COPY.notices.view,
   onDismiss,
 }: {
   testID: string;
@@ -25,6 +26,8 @@ export function NoticeCard({
   /** `brand` for news that asks for a look (a routine change), `plain` for the rest. */
   tone?: 'brand' | 'plain';
   onView?: () => void;
+  /** The inline action's label (default "View"); lane K3's check-in says "Answer". */
+  viewLabel?: string;
   onDismiss: () => void;
 }) {
   const colors = useThemeColors();
@@ -63,13 +66,11 @@ export function NoticeCard({
           <PressableScale
             testID={`${testID}-view`}
             accessibilityRole="button"
-            accessibilityLabel={`${COACHING_COPY.notices.view}: ${title}`}
+            accessibilityLabel={`${viewLabel}: ${title}`}
             onPress={onView}
             className="min-h-11 justify-center self-start"
           >
-            <Text className="text-subhead font-semibold text-brand">
-              {COACHING_COPY.notices.view}
-            </Text>
+            <Text className="text-subhead font-semibold text-brand">{viewLabel}</Text>
           </PressableScale>
         ) : null}
       </View>

@@ -12,7 +12,7 @@ export default async function TrainerClientPage({
   return (
     <ClientView
       clientId={decodeURIComponent(clientId)}
-      tab={tab === 'adherence' || tab === 'bookings' ? tab : 'workouts'}
+      tab={tab === 'adherence' || tab === 'bookings' || tab === 'food' ? tab : 'workouts'}
     />
   );
 }

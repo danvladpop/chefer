@@ -40,6 +40,20 @@ export const KV_KEYS = {
    * The invite code a client still has to finish joining (gym setup first, or sign in first).
    */
   coachingPendingJoin: 'coaching.pending-join',
+  /**
+   * Household sharing (ADR 0003) — device-local, not `gym.`-prefixed for the same reason as
+   * `coachingPendingJoin`: the household invite code a signed-out visitor opened, kept across sign-in
+   * or registration (a cold start included) so the join screen comes back.
+   */
+  householdPendingJoin: 'household.pending-join',
+  /**
+   * ADR 0003 `KV_KEYS.shopOutbox`: shopping-list ticks not yet accepted by the server, replayed in order
+   * with their original device time. Belongs to the account: wiped by every sign-out (session expiry
+   * included — the server keeps the newest change per item, so a lost replay only loses that tick).
+   */
+  shopOutbox: 'shop.outbox',
+  // Lane K3: "Later" on the weekly check-in card hides it until the next day (the local date it was hidden).
+  coachingCheckInLater: 'coaching.check-in-later',
   // (The device-local "routine seen" / "stopped dismissed" markers are gone: coaching notices are read on
   // the server since PRD 2026-10 §4.2. Their old values are wiped at the next sign-out.)
 } as const;

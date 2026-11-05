@@ -2,10 +2,16 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { trackSharingChosen } from '@/lib/analytics-events';
 import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
-import { COACHING_COPY, type TrainerCardDto } from '@chefer/types';
+import {
+  COACHING_COPY,
+  NO_COACHING_SHARE,
+  type CoachingShareChoice,
+  type TrainerCardDto,
+} from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { formatShortDay } from '../lib/dates';
@@ -135,6 +141,8 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
   const status = trpc.coaching.status.useQuery(undefined, { retry: false });
   const [step, setStep] = useState<'card' | 'consent' | 'sent'>('card');
   const [error, setError] = useState<string | null>(null);
+  // Lane K1: both off until the client turns them on.
+  const [share, setShare] = useState<CoachingShareChoice>(NO_COACHING_SHARE);
 
   const refresh = () => {
     void utils.coaching.trainerCard.invalidate({ trainerId });
@@ -142,7 +150,8 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
   };
   const request = trpc.coaching.requestCoaching.useMutation({
     meta: { silent: true },
-    onSuccess: () => {
+    onSuccess: (_request, vars) => {
+      trackSharingChosen(vars.share, 'request');
       clearPendingTrainer();
       setStep('sent');
       refresh();
@@ -228,8 +237,10 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
           onAllow={() => {
             setError(null);
             // The browser's local day anchors the coaching's start if the trainer accepts.
-            request.mutate({ trainerId, source: 'web', localDate: localDateStr() });
+            request.mutate({ trainerId, source: 'web', localDate: localDateStr(), share });
           }}
+          share={share}
+          onShareChange={(next) => setShare((cur) => ({ ...cur, ...next }))}
           onDecline={() => {
             setError(null);
             setStep('card');

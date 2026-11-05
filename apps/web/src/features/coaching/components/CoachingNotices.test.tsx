@@ -46,6 +46,7 @@ vi.mock('next/link', () => ({
 // The M3 cards have their own tests (ClientBookings.test.tsx, ConsentUpdateNotice.test.tsx).
 vi.mock('./ClientBookings', () => ({ UpcomingBookingCard: () => null }));
 vi.mock('./ConsentUpdateNotice', () => ({ ConsentUpdateNotice: () => null }));
+vi.mock('./CheckInPrompt', () => ({ CheckInPrompt: () => null }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ coaching: { notices: { invalidate: vi.fn() } } }),

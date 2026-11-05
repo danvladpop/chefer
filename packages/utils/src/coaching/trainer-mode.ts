@@ -10,6 +10,7 @@ import {
   type TrainerQuietClientDto,
 } from '@chefer/types';
 import { matchesAllTokens, normalizeSearchName, queryTokens } from '../friends/search-name';
+import { addDaysLocal, daysBetweenLocal } from '../gym/weeks';
 
 /**
  * §5.1: the switch exists only for an active trainer (tools on, not removed
@@ -32,9 +33,50 @@ export function trainerBadges(parts: Omit<TrainerBadgesDto, 'total'>): TrainerBa
   return { ...parts, total: parts.requests + parts.unmarkedAttendance + parts.bookingChanges };
 }
 
-/** A client with nothing logged for COACHING_LIMITS.inactiveDays or more. */
-export function isQuietClient(row: Pick<ClientRowDto, 'inactiveDays'>): boolean {
-  return row.inactiveDays >= COACHING_LIMITS.inactiveDays;
+/**
+ * A quiet client: the server's verdict by the trainer's own threshold (lane K4,
+ * `row.quiet`), or, from an older API, nothing logged for COACHING_LIMITS.inactiveDays.
+ */
+export function isQuietClient(row: Pick<ClientRowDto, 'inactiveDays' | 'quiet'>): boolean {
+  return row.quiet ?? row.inactiveDays >= COACHING_LIMITS.inactiveDays;
+}
+
+/** Days with nothing logged: lane K4's `quietDays` (food included while shared), else workouts only. */
+export function quietDaysOf(row: Pick<ClientRowDto, 'inactiveDays' | 'quietDays'>): number {
+  return row.quietDays ?? row.inactiveDays;
+}
+
+/**
+ * Lane K4: a client's quiet state. The last activity is the later of the last
+ * workout and (only while the client shares it) the last food log; with none,
+ * the coaching's start day. `quietSince` is the first day the client counted
+ * as quiet (for the "new since you last looked" badge).
+ */
+export function quietState(input: {
+  lastWorkoutDate: string | null;
+  lastFoodDate: string | null;
+  startDay: string;
+  today: string;
+  quietAfterDays: number;
+}): { lastActivityDate: string | null; quietDays: number; quiet: boolean; quietSince: string } {
+  const dates = [input.lastWorkoutDate, input.lastFoodDate].filter((d): d is string => d !== null);
+  const lastActivityDate = dates.sort().at(-1) ?? null;
+  const from = lastActivityDate ?? input.startDay;
+  const quietDays = Math.max(0, daysBetweenLocal(from, input.today));
+  return {
+    lastActivityDate,
+    quietDays,
+    quiet: quietDays >= input.quietAfterDays,
+    quietSince: addDaysLocal(from, input.quietAfterDays),
+  };
+}
+
+/** Lane K4: quiet clients who became quiet after `seenDay` (the trainer's last look; null = never). */
+export function unseenQuietCount(
+  rows: readonly { quiet: boolean; quietSince: string }[],
+  seenDay: string | null,
+): number {
+  return rows.filter((r) => r.quiet && (seenDay === null || r.quietSince > seenDay)).length;
 }
 
 /**
@@ -64,7 +106,7 @@ export function summarizeTrainerDashboard(input: {
       clientId: row.clientId,
       name: row.name,
       lastWorkoutDate: row.lastWorkoutDate,
-      inactiveDays: row.inactiveDays,
+      inactiveDays: quietDaysOf(row),
     }))
     .sort((a, b) => b.inactiveDays - a.inactiveDays || a.name.localeCompare(b.name));
   return {

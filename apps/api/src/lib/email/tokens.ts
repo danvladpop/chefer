@@ -13,7 +13,16 @@ import { env } from '../env.js';
 // Format: base64url(JSON payload) + "." + base64url(HMAC). The key is
 // EMAIL_TOKEN_SECRET, or one derived from JWT_SECRET when that is unset.
 
-export type UnsubscribeScope = 'WEEK_READY' | 'WEEKLY_RECAP' | 'ALL';
+/**
+ * `COACHING_CHECK_IN` (lane K3): the trainer's weekly check-in email, `User.coachingCheckInEmail`.
+ * `COACHING_QUIET_DIGEST` (lane K4): a trainer's daily "went quiet" digest, `TrainerProfile.quietDigestEmail`.
+ */
+export type UnsubscribeScope =
+  | 'WEEK_READY'
+  | 'WEEKLY_RECAP'
+  | 'ALL'
+  | 'COACHING_CHECK_IN'
+  | 'COACHING_QUIET_DIGEST';
 
 const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -21,7 +30,13 @@ type TokenPayload =
   | { v: 1; p: 'unsub'; u: string; s: UnsubscribeScope }
   | { v: 1; p: 'verify'; u: string; e: string; x: number };
 
-const SCOPES: readonly UnsubscribeScope[] = ['WEEK_READY', 'WEEKLY_RECAP', 'ALL'];
+const SCOPES: readonly UnsubscribeScope[] = [
+  'WEEK_READY',
+  'WEEKLY_RECAP',
+  'ALL',
+  'COACHING_CHECK_IN',
+  'COACHING_QUIET_DIGEST',
+];
 
 function tokenKey(): string {
   if (env.EMAIL_TOKEN_SECRET) return env.EMAIL_TOKEN_SECRET;

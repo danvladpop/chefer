@@ -10,7 +10,16 @@ import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { proteinLabel, userFacingErrorMessage, type SlotRef } from '@chefer/utils';
+import {
+  HIDDEN_FAT_COPY,
+  HIDDEN_FAT_OPTIONS,
+  hiddenFatExtra,
+  proteinLabel,
+  userFacingErrorMessage,
+  withHiddenFat,
+  type HiddenFatLevel,
+  type SlotRef,
+} from '@chefer/utils';
 import {
   handleRebalanceOutcome,
   REBALANCE_PREVIEW,
@@ -90,11 +99,15 @@ export function ScanMealButton({
   const slotMealType = MEAL_TYPES.find((t) => t === replacesSlot?.mealType);
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(slotMealType ?? 'lunch');
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [kcal, setKcal] = useState(0);
   const [protein, setProtein] = useState(0);
   const [carbs, setCarbs] = useState(0);
   const [fat, setFat] = useState(0);
+  // Lane A3: the oil or butter a photo can't see, added on top when logging.
+  const [hiddenFat, setHiddenFat] = useState<HiddenFatLevel>('none');
+  const logged = withHiddenFat({ kcal, protein, carbs, fat }, hiddenFat);
+  const fatExtra = hiddenFatExtra(hiddenFat);
 
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
@@ -102,6 +115,7 @@ export function ScanMealButton({
       capture('meal_scanned', { confirmed: true });
       // UX-PO-02: a photo scan, confirmed and logged.
       trackMealLogged('snap', variables.mealType);
+      capture('snap_hidden_fat', { level: hiddenFat });
       // A caller with its own "Logged …" toast carries the day-fit line itself.
       handleRebalanceOutcome(data, { announceDayFit: !(data.entryId && onLoggedEntry) });
       setEstimate(null);
@@ -153,6 +167,7 @@ export function ScanMealButton({
       setProtein(result.protein);
       setCarbs(result.carbs);
       setFat(result.fat);
+      setHiddenFat('none');
     } catch (err) {
       if (err instanceof ScanUpgradeRequiredError) {
         capture('upgrade_prompt_shown', { source: 'snap-scan' });
@@ -238,17 +253,21 @@ export function ScanMealButton({
                 name: name.trim() || 'Scanned meal',
                 estimatedBy: 'vision',
                 mealType,
-                kcal,
+                kcal: logged.kcal,
                 protein,
                 carbs,
-                fat,
+                fat: logged.fat,
                 ...(replacesSlot && { replacesSlot }),
               })
             }
             disabled={logMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            {logMutation.isPending ? 'Logging…' : proteinOnly ? 'Log it' : `Log ${kcal} kcal`}
+            {logMutation.isPending
+              ? 'Logging…'
+              : proteinOnly
+                ? 'Log it'
+                : `Log ${logged.kcal} kcal`}
           </button>
         }
       >
@@ -303,7 +322,7 @@ export function ScanMealButton({
               </div>
             )}
 
-            {proteinOnly ? (
+            {noNumbers ? null : proteinOnly ? (
               <p data-testid="scan-protein" className="text-sm font-semibold text-neutral-800">
                 {`≈ ${proteinLabel(protein)}`}
               </p>
@@ -315,6 +334,33 @@ export function ScanMealButton({
                 {numberField('Fat', fat, setFat, 'g', 500)}
               </div>
             )}
+
+            {/* Lane A3: photos miss hidden fat — ask, and add it as an estimate. */}
+            <fieldset data-testid="scan-hidden-fat" className="space-y-1.5">
+              <legend className="text-xs font-medium text-neutral-700">
+                {HIDDEN_FAT_COPY.question}
+              </legend>
+              <p className="text-xs text-neutral-500">{HIDDEN_FAT_COPY.hint}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {HIDDEN_FAT_OPTIONS.map((o) => (
+                  <button
+                    key={o.level}
+                    type="button"
+                    data-testid={`scan-hidden-fat-${o.level}`}
+                    aria-pressed={hiddenFat === o.level}
+                    onClick={() => setHiddenFat(o.level)}
+                    className={`min-h-11 rounded-full border px-3 text-xs font-medium ${hiddenFat === o.level ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {fatExtra.kcal > 0 && (
+                <p data-testid="scan-hidden-fat-added" className="text-xs text-neutral-600">
+                  {HIDDEN_FAT_COPY.addedLine(fatExtra.kcal, fatExtra.fat)}
+                </p>
+              )}
+            </fieldset>
 
             {logMutation.isError && (
               <p className="text-xs text-red-600">{userFacingErrorMessage(logMutation.error)}</p>
