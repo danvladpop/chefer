@@ -14,6 +14,16 @@ const m = vi.hoisted(() => ({
   recents: [] as unknown[],
   recipes: [] as unknown[],
   ingredients: [] as unknown[],
+  products: [] as unknown[],
+  savedMeals: [] as unknown[],
+  logSaved: vi.fn(),
+  parsedItems: [] as unknown[],
+  parseFoodText: vi.fn<[vars: unknown], undefined>(),
+  logItems: vi.fn<[vars: unknown], undefined>(),
+  lookupBarcode: vi.fn(),
+  logProduct: vi.fn(),
+  createProduct: vi.fn<[vars: unknown], undefined>(),
+  canScanLabel: false,
   search: { isFetching: false, isError: false },
   refetch: vi.fn(),
   logRecipeState: { isError: false, error: null as { message: string } | null },
@@ -30,6 +40,58 @@ const m = vi.hoisted(() => ({
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+vi.mock('@/hooks/useEntitlement', () => ({
+  useEntitlement: () => ({ enabled: m.canScanLabel, limit: 0, isPremium: m.canScanLabel }),
+}));
+vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+}));
+vi.mock('@/features/premium/components/UpgradeButton', () => ({
+  UpgradeButton: ({ source }: { source: string }) => (
+    <button type="button" data-testid={`upgrade-${source}`}>
+      See what Premium adds
+    </button>
+  ),
+}));
+
+/** A tRPC mutation stub: mutate(vars, { onSuccess }) answers with `respond(vars)`. */
+function mutation(spy: (vars: unknown) => void, respond: (vars: unknown) => unknown) {
+  return {
+    useMutation: () => ({
+      isPending: false,
+      mutate: (vars: unknown, cb?: { onSuccess?: (data: unknown) => void }) => {
+        spy(vars);
+        cb?.onSuccess?.(respond(vars));
+      },
+      mutateAsync: (vars: unknown) => {
+        spy(vars);
+        return Promise.resolve(respond(vars));
+      },
+    }),
+  };
+}
+
+const OAT_DRINK = {
+  id: 'p1',
+  barcode: '7394376616037',
+  name: 'Oat Drink',
+  brand: 'Oatly',
+  per100g: {
+    kcal: 46,
+    protein: 1,
+    carbs: 6.7,
+    fat: 1.5,
+    fiber: null,
+    sugar: 4,
+    saturatedFat: 0.2,
+    salt: 0.1,
+  },
+  servingSizeG: 250,
+  allergens: { status: 'listed', contains: [{ id: 'gluten', label: 'Gluten' }], mayContain: [] },
+  source: 'OFF',
+  isOwn: false,
+  imageUrl: null,
+};
 vi.mock('../lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
@@ -37,6 +99,8 @@ vi.mock('../lib/rebalance-storage', () => ({
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
+      products: { lookupBarcode: { fetch: m.lookupBarcode } },
+      savedMeals: { list: { invalidate: vi.fn() } },
       tracker: {
         getDay: { invalidate: m.invalidate.getDay },
         weeklySummary: { invalidate: m.invalidate.weeklySummary },
@@ -51,7 +115,62 @@ vi.mock('@/lib/trpc', () => ({
     ingredients: {
       search: { useQuery: () => ({ data: m.ingredients, refetch: m.refetch, ...m.search }) },
     },
+    products: {
+      search: { useQuery: () => ({ data: m.products, ...m.search }) },
+      lookupBarcodePhoto: mutation(
+        () => undefined,
+        () => ({ status: 'unreadable' }),
+      ),
+      scanLabel: mutation(
+        () => undefined,
+        () => ({}),
+      ),
+      create: mutation(
+        (v) => {
+          m.createProduct(v);
+        },
+        (vars) => ({
+          product: {
+            ...OAT_DRINK,
+            name: (vars as { name: string }).name,
+            id: 'own1',
+            isOwn: true,
+            source: 'USER',
+          },
+          warnings: [],
+        }),
+      ),
+    },
+    savedMeals: { list: { useQuery: () => ({ data: m.savedMeals }) } },
     tracker: {
+      parseFoodText: mutation(
+        (v) => {
+          m.parseFoodText(v);
+        },
+        () => ({ items: m.parsedItems }),
+      ),
+      logItems: mutation(
+        (v) => {
+          m.logItems(v);
+        },
+        () => ({ log: {}, entryIds: ['t1', 't2'], rebalance }),
+      ),
+      logSavedMeal: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          isPending: false,
+          isError: false,
+          mutate: (vars: unknown) => {
+            m.logSaved(vars);
+            opts.onSuccess?.({ log: {}, entryIds: ['n1', 'n2'], rebalance }, vars);
+          },
+        }),
+      },
+      logProduct: mutation(
+        (v) => {
+          m.logProduct(v);
+        },
+        () => ({ log: {}, entryId: 'e-9', rebalance }),
+      ),
       recents: { useQuery: () => ({ data: m.recents }) },
       logRecipe: {
         useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
@@ -96,6 +215,10 @@ beforeEach(() => {
   m.recents = [];
   m.recipes = [];
   m.ingredients = [];
+  m.products = [];
+  m.savedMeals = [];
+  m.parsedItems = [];
+  m.canScanLabel = false;
   m.search.isFetching = false;
   m.search.isError = false;
   m.logRecipeState.isError = false;
@@ -245,9 +368,9 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     expect(screen.getByTestId('log-sheet-api-error').textContent).toMatch(/Recipe not found/);
   });
 
-  it('B-29/AC6: never shows a barcode or branded-product affordance', () => {
+  it('ADR 0006 (replaces B-29): offers "Scan barcode" next to the other ways to log', () => {
     renderSheet();
-    expect(screen.queryByText(/barcode/i)).toBeNull();
+    expect(screen.getByTestId('log-sheet-scan-barcode').textContent).toMatch(/Scan barcode/);
   });
 
   // AC1 follow-up: a custom entry logged via the manual fallback must show up
@@ -573,5 +696,236 @@ describe('QuickAddSheet — neutral copy (WP-06, Food 2)', () => {
     goToManual();
     expect(document.body.textContent).not.toMatch(/off-plan|honest/i);
     expect(screen.getByText(/a rough guess is fine/i)).toBeTruthy();
+  });
+});
+
+describe('QuickAddSheet — packaged products (ADR 0006)', () => {
+  it('typed barcode → product card with the allergen warning and OFF attribution → logs servings', async () => {
+    m.lookupBarcode.mockResolvedValue({
+      status: 'found',
+      product: OAT_DRINK,
+      origin: 'cache',
+      warnings: [{ allergenId: 'gluten', label: 'Gluten', kind: 'contains', who: ['you', 'Luca'] }],
+      stale: false,
+    });
+    renderSheet();
+    fireEvent.click(screen.getByTestId('log-sheet-scan-barcode'));
+    fireEvent.change(screen.getByTestId('product-barcode-input'), {
+      target: { value: '7394 3766 16037' },
+    });
+    fireEvent.click(screen.getByTestId('product-barcode-find'));
+
+    expect(await screen.findByTestId('product-name')).toHaveProperty(
+      'textContent',
+      'Oatly Oat Drink',
+    );
+    expect(m.lookupBarcode).toHaveBeenCalledWith({ barcode: '7394376616037' });
+    expect(screen.getByTestId('product-allergen-warnings').textContent).toMatch(
+      /Contains gluten: you and Luca avoid it\./,
+    );
+    expect(screen.getByTestId('product-off-attribution').getAttribute('href')).toBe(
+      'https://world.openfoodfacts.org/product/7394376616037',
+    );
+    expect(capture).toHaveBeenCalledWith('barcode_found', {
+      source: 'cache',
+      allergenWarning: true,
+    });
+
+    fireEvent.click(screen.getByTestId('product-amount-2'));
+    expect(screen.getByTestId('product-live-nutrition').textContent).toMatch(/230 kcal/);
+    fireEvent.click(screen.getByTestId('product-log'));
+    expect(m.logProduct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-09-26',
+        productId: 'p1',
+        amount: { unit: 'serving', servings: 2 },
+        rebalanceMode: 'preview',
+      }),
+    );
+    expect(capture).toHaveBeenCalledWith('packaged_product_logged', {
+      unit: 'serving',
+      allergenWarning: true,
+    });
+    expect(onLogged).toHaveBeenCalled();
+  });
+
+  it('a wrong check digit is explained without calling the API', () => {
+    renderSheet();
+    fireEvent.click(screen.getByTestId('log-sheet-scan-barcode'));
+    fireEvent.change(screen.getByTestId('product-barcode-input'), {
+      target: { value: '7394376616038' },
+    });
+    fireEvent.click(screen.getByTestId('product-barcode-find'));
+    expect(m.lookupBarcode).not.toHaveBeenCalled();
+    expect(screen.getByTestId('product-flow-error').textContent).toMatch(/doesn’t look right/);
+    expect(screen.getByTestId('product-barcode-input').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('not found (free): the label scan is a Premium pitch; "Enter it yourself" saves a USER product', async () => {
+    m.lookupBarcode.mockResolvedValue({ status: 'not_found', barcode: '96385074' });
+    renderSheet();
+    fireEvent.click(screen.getByTestId('log-sheet-scan-barcode'));
+    fireEvent.change(screen.getByTestId('product-barcode-input'), {
+      target: { value: '96385074' },
+    });
+    fireEvent.click(screen.getByTestId('product-barcode-find'));
+    expect(await screen.findByTestId('product-not-found')).toBeTruthy();
+    expect(screen.getByTestId('upgrade-snap-scan')).toBeTruthy();
+    expect(screen.queryByTestId('product-photograph-label')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('product-enter-manually'));
+    fireEvent.change(screen.getByTestId('product-form-name'), {
+      target: { value: 'Rye crackers' },
+    });
+    fireEvent.click(screen.getByTestId('product-form-save'));
+    expect(screen.getByTestId('product-form-error').textContent).toMatch(/calories per 100 g/);
+    expect(m.createProduct).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId('product-form-kcal'), { target: { value: '380' } });
+    fireEvent.click(screen.getByTestId('product-form-allergen-gluten'));
+    fireEvent.click(screen.getByTestId('product-form-save'));
+    expect(m.createProduct.mock.calls[0]?.[0]).toMatchObject({
+      source: 'USER',
+      barcode: '96385074',
+      name: 'Rye crackers',
+      per100g: { kcal: 380, protein: null },
+      allergens: { known: true, contains: ['gluten'] },
+    });
+    expect(capture).toHaveBeenCalledWith('packaged_product_created', { source: 'manual' });
+    expect((await screen.findByTestId('product-name')).textContent).toMatch(/Rye crackers/);
+    expect(screen.queryByTestId('product-off-attribution')).toBeNull();
+  });
+
+  it('premium: "Photograph the label" is offered as the primary action', async () => {
+    m.canScanLabel = true;
+    m.lookupBarcode.mockResolvedValue({ status: 'not_found', barcode: '96385074' });
+    renderSheet();
+    fireEvent.click(screen.getByTestId('log-sheet-scan-barcode'));
+    fireEvent.change(screen.getByTestId('product-barcode-input'), {
+      target: { value: '96385074' },
+    });
+    fireEvent.click(screen.getByTestId('product-barcode-find'));
+    expect((await screen.findByTestId('product-photograph-label')).textContent).toMatch(
+      /Photograph the label/,
+    );
+    expect(screen.queryByTestId('upgrade-snap-scan')).toBeNull();
+  });
+
+  it('a "Packaged products" search row opens that product', async () => {
+    m.products = [{ product: OAT_DRINK, warnings: [] }];
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'oat' } });
+    fireEvent.click(await screen.findByTestId('log-sheet-product-p1', {}, { timeout: 2000 }));
+    expect(screen.getByTestId('product-allergen-line').textContent).toBe('Contains: Gluten.');
+  });
+});
+
+describe('QuickAddSheet — saved meals (lane A2)', () => {
+  const MEAL = {
+    id: 's1',
+    name: 'Weekday breakfast',
+    items: [
+      { name: 'Porridge', portionMultiplier: 1, kcal: 400, protein: 20, carbs: 50, fat: 10 },
+      { name: 'Coffee', portionMultiplier: 1, kcal: 40, protein: 2, carbs: 4, fat: 1.5 },
+    ],
+    totals: { kcal: 440, protein: 22, carbs: 54, fat: 11.5 },
+    lastLoggedAt: null,
+  };
+
+  it('logs a saved meal in one tap and hands its entry ids to the caller for Undo', () => {
+    m.savedMeals = [MEAL];
+    const onLoggedEntries = vi.fn();
+    render(
+      <QuickAddSheet date="2026-09-26" onLogged={onLogged} onLoggedEntries={onLoggedEntries} />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.getByText('2 items · 440 kcal')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('log-sheet-saved-add-s1'));
+    expect(m.logSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-09-26', savedMealId: 's1', rebalanceMode: 'preview' }),
+    );
+    expect(capture).toHaveBeenCalledWith('saved_meal_logged', { itemCount: 2 });
+    expect(onLoggedEntries).toHaveBeenCalledWith({
+      entryIds: ['n1', 'n2'],
+      name: 'Weekday breakfast',
+    });
+  });
+
+  it('is not offered when the sheet replaces a plan slot', () => {
+    m.savedMeals = [MEAL];
+    render(
+      <QuickAddSheet
+        date="2026-09-26"
+        onLogged={onLogged}
+        replacesSlot={{ mealType: 'lunch', slotIndex: 1 }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.queryByTestId('log-sheet-saved-add-s1')).toBeNull();
+  });
+});
+
+describe('QuickAddSheet — type what you ate (lane A4)', () => {
+  const ITEMS = [
+    {
+      key: '0',
+      text: '2 eggs',
+      name: 'Egg',
+      source: 'ingredient',
+      unit: 'g',
+      grams: 100,
+      per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+    },
+    {
+      key: '1',
+      text: 'mystery stew',
+      name: 'Mystery stew',
+      source: 'estimate',
+      unit: 'g',
+      grams: 300,
+      per100g: { kcal: 120, protein: null, carbs: 10, fat: 5 },
+    },
+  ];
+
+  it('parses, lets the user edit an amount and remove an item, then logs the rest', () => {
+    m.parsedItems = ITEMS;
+    const onLoggedEntries = vi.fn();
+    render(
+      <QuickAddSheet date="2026-09-26" onLogged={onLogged} onLoggedEntries={onLoggedEntries} />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    fireEvent.click(screen.getByTestId('log-sheet-type-it'));
+    fireEvent.change(screen.getByTestId('food-text-input'), {
+      target: { value: '2 eggs and mystery stew' },
+    });
+    fireEvent.click(screen.getByTestId('food-text-read'));
+    expect(m.parseFoodText).toHaveBeenCalledWith({ text: '2 eggs and mystery stew' });
+    expect(capture).toHaveBeenCalledWith('food_text_parsed', { itemCount: 2, estimated: 1 });
+    expect(screen.getByTestId('food-text-item-1').textContent).toMatch(/Estimate/);
+
+    fireEvent.change(screen.getByTestId('food-text-amount-0'), { target: { value: '150' } });
+    expect(screen.getByTestId('food-text-log').textContent).toBe('Log 2 items · 575 kcal');
+    fireEvent.click(screen.getByTestId('food-text-remove-1'));
+    fireEvent.click(screen.getByTestId('food-text-log'));
+    expect(m.logItems.mock.calls[0]?.[0]).toMatchObject({
+      date: '2026-09-26',
+      items: [{ name: 'Egg, 150 g', estimatedBy: 'manual', kcal: 215 }],
+    });
+    expect(capture).toHaveBeenCalledWith('food_text_logged', { itemCount: 1, edited: true });
+    expect(onLoggedEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ entryIds: ['t1', 't2'], name: '1 item' }),
+    );
+  });
+
+  it('is not offered when the sheet replaces a plan slot', () => {
+    render(
+      <QuickAddSheet
+        date="2026-09-26"
+        onLogged={onLogged}
+        replacesSlot={{ mealType: 'lunch', slotIndex: 1 }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.queryByTestId('log-sheet-type-it')).toBeNull();
   });
 });

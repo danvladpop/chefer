@@ -26,6 +26,7 @@ import {
   isLoggedDay,
   localDateStr,
   MEASUREMENTS_COPY,
+  PROGRESS_PHOTOS_COPY,
   PROGRESS_RANGES,
   summarizeWeightTrend,
   TREND_WEIGHT_EXPLAINER,
@@ -35,6 +36,7 @@ import {
   type WeightChangeTone,
 } from '@chefer/utils';
 import { BodyMeasurements } from '../src/features/body/body-measurements';
+import { ProgressPhotos } from '../src/features/body/progress-photos';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
 import { useShellV2 } from '../src/features/shell/shell-store';
@@ -448,6 +450,12 @@ function LegacyProgressScreen() {
         <Card>
           <SectionLabel>{MEASUREMENTS_COPY.title}</SectionLabel>
           <BodyMeasurements />
+        </Card>
+
+        {/* Progress photos: on this phone only (lane D4) */}
+        <Card>
+          <SectionLabel>{PROGRESS_PHOTOS_COPY.title}</SectionLabel>
+          <ProgressPhotos />
         </Card>
       </KeyboardAwareScrollView>
     </Screen>

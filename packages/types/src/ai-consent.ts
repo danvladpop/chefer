@@ -13,6 +13,7 @@ export const AI_CONSENT_FEATURES = [
   'chat',
   'shopping-list',
   'ingredient-estimate',
+  'food-text',
 ] as const;
 export type AiConsentFeature = (typeof AI_CONSENT_FEATURES)[number];
 
@@ -60,6 +61,10 @@ export const AI_CONSENT_FEATURE_DATA: Record<AiConsentFeature, { action: string;
     'ingredient-estimate': {
       action: 'fill in the nutrition for your ingredient',
       data: ['The ingredient name you typed'],
+    },
+    'food-text': {
+      action: 'turn what you typed into food entries',
+      data: ['The words you type or dictate about what you ate'],
     },
   };
 
