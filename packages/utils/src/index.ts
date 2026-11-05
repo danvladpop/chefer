@@ -387,6 +387,7 @@ export {
   type MeasureParseResult,
   type MeasurePoint,
 } from './body-measurements';
+export { PROGRESS_PHOTOS_COPY } from './progress-photos-copy';
 export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
@@ -941,6 +942,10 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+export * from './packaged-product';
+export * from './saved-meals';
+export * from './hidden-fat';
+export * from './food-text';
 export { escapeCsvField, parseCsv, sniffCsvDelimiter, toCsv, type CsvCell } from './csv';
 export {
   DATA_EXPORT_COPY,
