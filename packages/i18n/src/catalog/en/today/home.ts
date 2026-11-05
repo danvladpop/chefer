@@ -120,6 +120,14 @@ export const todayHome = {
 
   // ─── Next meal card (web next-meal-card, mobile hero-meal-card, tomorrow-card
   //     and the shell's next-meal-card) ───────────────────────────────────────
+  shopDue: {
+    title: {
+      one: '{count} thing to buy for tomorrow',
+      other: '{count} things to buy for tomorrow',
+    },
+    sampleMore: '{sample} and {more} more',
+    openList: 'Open list',
+  },
   nextMeal: {
     open: 'Open {name}',
     tomorrow: 'Tomorrow',

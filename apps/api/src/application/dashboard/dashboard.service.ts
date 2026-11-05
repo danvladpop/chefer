@@ -307,6 +307,15 @@ const MEAL_SCHEDULE: Record<string, string> = {
   snack: '3:30 PM',
   dinner: '7:00 PM',
 };
+/** The same times on a 24-hour clock, for readers whose language uses one (Romanian). */
+const MEAL_SCHEDULE_24H: Record<string, string> = {
+  breakfast: '8:00',
+  lunch: '12:30',
+  snack: '15:30',
+  dinner: '19:00',
+};
+const mealScheduleFor = (locale: SupportedLocale) =>
+  locale === 'en' ? MEAL_SCHEDULE : MEAL_SCHEDULE_24H;
 
 // Meal order and windows live in @chefer/utils (shared with the Today
 // surfaces' next-meal logic); re-exported for existing importers.
@@ -623,7 +632,7 @@ export class DashboardService {
       return [
         {
           mealType: slot.type,
-          scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
+          scheduledLabel: mealScheduleFor(viewer ? userLocale(viewer) : 'en')[slot.type] ?? '',
           recipeName: recipe.name,
           recipeId: recipe.id,
           kcal: Math.round(n.calories * slotPortion(slot.portion)),

@@ -109,6 +109,15 @@ export const todayHome: Catalog['today']['home'] = {
     findRecipe: 'Găsește o rețetă',
   },
 
+  shopDue: {
+    title: {
+      one: 'Un produs de cumpărat pentru mâine',
+      few: '{count} produse de cumpărat pentru mâine',
+      other: '{count} de produse de cumpărat pentru mâine',
+    },
+    sampleMore: '{sample} și încă {more}',
+    openList: 'Deschide lista',
+  },
   nextMeal: {
     open: 'Deschide {name}',
     tomorrow: 'Mâine',
