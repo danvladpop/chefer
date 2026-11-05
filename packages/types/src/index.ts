@@ -9,6 +9,7 @@ export * from './share-cards';
 export * from './weekly-recap';
 export * from './training-nutrition';
 export * from './household';
+export * from './household-sharing';
 export * from './ai-consent';
 export * from './health-consent';
 export * from './health-sync';

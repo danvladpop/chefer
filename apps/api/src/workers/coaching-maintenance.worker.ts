@@ -4,6 +4,7 @@ import {
   coachingLinkRepository,
   coachingNoteRepository,
   coachingRequestRepository,
+  householdSharingRepository,
   trainerProfileRepository,
   workoutTemplateRepository,
   type IBookingRepository,
@@ -11,10 +12,11 @@ import {
   type ICoachingLinkRepository,
   type ICoachingNoteRepository,
   type ICoachingRequestRepository,
+  type IHouseholdSharingRepository,
   type ITrainerProfileRepository,
   type IWorkoutTemplateRepository,
 } from '@chefer/database';
-import { COACHING_RETENTION, LEGAL_VERSIONS } from '@chefer/types';
+import { COACHING_RETENTION, HOUSEHOLD_SHARING_LIMITS, LEGAL_VERSIONS } from '@chefer/types';
 import { trainerProfileService } from '../application/coaching/trainer-profile.service.js';
 import { logger } from '../lib/logger.js';
 
@@ -60,6 +62,8 @@ function monthsBefore(now: Date, months: number): Date {
 
 export interface CoachingMaintenanceDeps {
   invites: Pick<ICoachingInviteRepository, 'deleteExpiredBefore'>;
+  /** ADR 0003: household invites ride the same nightly prune (same 30-day rule). */
+  householdInvites: Pick<IHouseholdSharingRepository, 'deleteExpiredInvitesBefore'>;
   notes: Pick<ICoachingNoteRepository, 'deleteHiddenBefore'>;
   links: Pick<ICoachingLinkRepository, 'deleteEndedBefore'>;
   requests: Pick<ICoachingRequestRepository, 'expireDue' | 'deleteAnsweredBefore'>;
@@ -72,6 +76,7 @@ export interface CoachingMaintenanceDeps {
 
 const defaultDeps: CoachingMaintenanceDeps = {
   invites: coachingInviteRepository,
+  householdInvites: householdSharingRepository,
   notes: coachingNoteRepository,
   links: coachingLinkRepository,
   requests: coachingRequestRepository,
@@ -155,6 +160,11 @@ export class CoachingMaintenanceWorker {
     await step('prune invites', async () => {
       result.prunedInvites = await this.deps.invites.deleteExpiredBefore(
         daysBefore(now, COACHING_RETENTION.inviteAfterExpiryDays),
+      );
+    });
+    await step('prune household invites', async () => {
+      await this.deps.householdInvites.deleteExpiredInvitesBefore(
+        daysBefore(now, HOUSEHOLD_SHARING_LIMITS.inviteAfterExpiryDays),
       );
     });
     await step('prune hidden notes', async () => {

@@ -281,6 +281,26 @@ export interface EventMap {
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
 
+  // ─── Household sharing (ADR 0003) — enums and counts only ────────────────────
+  household_invite_created: { via: 'share' | 'copy' };
+  household_invite_opened: {
+    state:
+      | 'OK'
+      | 'NOT_FOUND'
+      | 'SELF'
+      | 'ALREADY_JOINED'
+      | 'IN_OTHER_HOUSEHOLD'
+      | 'HAS_PARTNERS'
+      | 'PROFILE_TAKEN'
+      | 'USED'
+      | 'REVOKED'
+      | 'EXPIRED';
+    signedIn: boolean;
+  };
+  household_joined: { editedSafety: boolean };
+  household_left: { by: 'partner' | 'owner' };
+  shared_list_synced: { remoteChanges: number };
+  shared_plan_conflict: Record<string, never>;
   // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
   /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
   meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
