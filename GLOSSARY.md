@@ -17,6 +17,11 @@ is sent from the server)
 days, workouts, PRs, the streak). Never a shortfall or a zero row.
 _Avoid_: report, score
 
+**Hide numbers**:
+The numbers mode (`NONE`) that shows no calorie or macro figure anywhere: portions, "on plan" ticks and qualitative
+progress instead. The eating-disorder-safe choice.
+_Avoid_: no-calorie mode, diet-free mode
+
 **Share card**:
 An image (with an app link) the user chooses to share: a recipe, a finished cook, a workout or the weekly recap. Holds
 only a snapshot of what it shows.

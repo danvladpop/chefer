@@ -99,7 +99,7 @@ export function ScanMealButton({
   const slotMealType = MEAL_TYPES.find((t) => t === replacesSlot?.mealType);
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(slotMealType ?? 'lunch');
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const [kcal, setKcal] = useState(0);
   const [protein, setProtein] = useState(0);
   const [carbs, setCarbs] = useState(0);
@@ -322,7 +322,7 @@ export function ScanMealButton({
               </div>
             )}
 
-            {proteinOnly ? (
+            {noNumbers ? null : proteinOnly ? (
               <p data-testid="scan-protein" className="text-sm font-semibold text-neutral-800">
                 {`≈ ${proteinLabel(protein)}`}
               </p>

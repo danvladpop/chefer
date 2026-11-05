@@ -47,6 +47,7 @@ import {
   NutritionProvenance,
   nutritionStatusBadge,
 } from '../../src/features/ingredients/nutrition-provenance';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { chunkShoppingLines, shoppingLinesFor } from '../../src/features/recipes/recipe-actions';
 import { RecipeImage } from '../../src/features/recipes/recipe-image';
@@ -193,6 +194,8 @@ export default function RecipeDetailScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const snackbar = useSnackbar();
   const { share: shareCard } = useShareCard();
+  // Lane E3 "Hide numbers": no calories or macros on the recipe either.
+  const { noNumbers } = useNumbersMode();
   const deleteMine = trpc.recipe.deleteMine.useMutation({ meta: { silent: true } });
   const addShopping = trpc.shoppingList.addCustomItems.useMutation({ meta: { silent: true } });
   const { scaledMembers } = useHousehold();
@@ -260,7 +263,8 @@ export default function RecipeDetailScreen() {
   const nutritionStatus = parseNutritionStatus(recipe.nutritionStatus);
   const statusBadge = nutritionStatusBadge(nutritionStatus);
   const nutritionAdded =
-    n.calories > 0 || n.protein > 0 || n.carbs > 0 || n.fat > 0 || nutritionStatus === 'PARTIAL';
+    !noNumbers &&
+    (n.calories > 0 || n.protein > 0 || n.carbs > 0 || n.fat > 0 || nutritionStatus === 'PARTIAL');
   // Opened from a portioned plan slot, quantities start at that portion (P1-1);
   // premium households start from the whole table (P2-3) — the two multiply.
   const selectedServings =
@@ -633,8 +637,9 @@ export default function RecipeDetailScreen() {
           {planPortion !== 1 && (
             <View testID="recipe-plan-portion" className="rounded-card bg-brand-tint px-3 py-2">
               <Text className="text-subhead text-brand">
-                Your plan has a {formatPortion(planPortion)} portion here — {planN.calories} kcal ·{' '}
-                {Math.round(planN.protein)} g protein. Quantities start at it.
+                {noNumbers
+                  ? `Your plan has a ${formatPortion(planPortion)} portion here. Quantities start at it.`
+                  : `Your plan has a ${formatPortion(planPortion)} portion here — ${planN.calories} kcal · ${Math.round(planN.protein)} g protein. Quantities start at it.`}
               </Text>
             </View>
           )}
@@ -739,55 +744,60 @@ export default function RecipeDetailScreen() {
             changes the SELECTED servings — easy to misread as already
             scaled. The label is fixed; a separate line states the total
             for what's actually selected. */}
-          <BoardCard testID="recipe-nutrition-facts">
-            <View className="flex-row items-baseline gap-2">
-              <SectionTitle>Nutrition Facts</SectionTitle>
-              <Text className="text-subhead text-label-secondary">per serving</Text>
-            </View>
-            {nutritionAdded ? (
-              <>
-                <View className="flex-row flex-wrap">
-                  {(
-                    [
-                      ['Calories', `${n.calories} kcal`],
-                      ['Protein', `${n.protein}g`],
-                      ['Carbs', `${n.carbs}g`],
-                      ['Fat', `${n.fat}g`],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <View key={label} className="w-1/2 flex-row justify-between py-1 pr-4">
-                      <Text className="text-subhead text-label-secondary">{label}</Text>
-                      <Text className="text-subhead font-semibold text-label">{value}</Text>
-                    </View>
-                  ))}
-                </View>
-                {selectedServings !== recipe.servings && (
-                  <Text
-                    testID="recipe-nutrition-scaled"
-                    className="text-caption text-label-secondary"
-                  >
-                    Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
-                    {Math.round(n.calories * selectedServings)} kcal total
-                  </Text>
-                )}
-                <NutritionProvenance
-                  status={nutritionStatus}
-                  lines={recipe.nutritionLines ?? []}
-                  ingredientCount={recipe.ingredients.length}
-                  servings={recipe.servings}
-                  onFix={
-                    savedData?.canEdit
-                      ? () => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
-                      : undefined
-                  }
-                />
-              </>
-            ) : (
-              <Text testID="recipe-nutrition-not-added" className="text-body text-label-secondary">
-                Nutrition not added
-              </Text>
-            )}
-          </BoardCard>
+          {noNumbers ? null : (
+            <BoardCard testID="recipe-nutrition-facts">
+              <View className="flex-row items-baseline gap-2">
+                <SectionTitle>Nutrition Facts</SectionTitle>
+                <Text className="text-subhead text-label-secondary">per serving</Text>
+              </View>
+              {nutritionAdded ? (
+                <>
+                  <View className="flex-row flex-wrap">
+                    {(
+                      [
+                        ['Calories', `${n.calories} kcal`],
+                        ['Protein', `${n.protein}g`],
+                        ['Carbs', `${n.carbs}g`],
+                        ['Fat', `${n.fat}g`],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <View key={label} className="w-1/2 flex-row justify-between py-1 pr-4">
+                        <Text className="text-subhead text-label-secondary">{label}</Text>
+                        <Text className="text-subhead font-semibold text-label">{value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {selectedServings !== recipe.servings && (
+                    <Text
+                      testID="recipe-nutrition-scaled"
+                      className="text-caption text-label-secondary"
+                    >
+                      Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
+                      {Math.round(n.calories * selectedServings)} kcal total
+                    </Text>
+                  )}
+                  <NutritionProvenance
+                    status={nutritionStatus}
+                    lines={recipe.nutritionLines ?? []}
+                    ingredientCount={recipe.ingredients.length}
+                    servings={recipe.servings}
+                    onFix={
+                      savedData?.canEdit
+                        ? () => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
+                        : undefined
+                    }
+                  />
+                </>
+              ) : (
+                <Text
+                  testID="recipe-nutrition-not-added"
+                  className="text-body text-label-secondary"
+                >
+                  Nutrition not added
+                </Text>
+              )}
+            </BoardCard>
+          )}
 
           {/* Star rating — shown when opened from a meal-plan day */}
           {day !== undefined && <StarRating recipeId={id} />}

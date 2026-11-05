@@ -227,6 +227,20 @@ describe('ChatService', () => {
     expect(summary).toContain('Vegetarian');
   });
 
+  it('lane E3 "Hide numbers": the context carries no nutrition figure and tells the chef so', async () => {
+    const { chefProfileRepository } = await import('@chefer/database');
+    const original = await chefProfileRepository.findByUserId('u');
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValueOnce({
+      ...(original as object),
+      numbersMode: 'NONE',
+    } as Awaited<ReturnType<typeof chefProfileRepository.findByUserId>>);
+    const summary = await service.buildContextSummary(user(), PLAN);
+    expect(summary).toContain('Shakshuka');
+    expect(summary).toContain('Hide numbers');
+    expect(summary).not.toMatch(/\d+\s?(kcal|g protein|g carbs|g fat)/);
+    expect(summary).toContain('peanuts');
+  });
+
   it("T-BUG-X1: the context names a household member's allergy, not just the owner's", async () => {
     const summary = await service.buildContextSummary(user(), PLAN);
     expect(summary).toContain('Allergies (never suggest): peanuts, sesame.');

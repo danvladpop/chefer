@@ -120,3 +120,25 @@ export function recapGymLines(gym: {
   if (gym.streakWeeks > 0) lines.push(`${gym.streakWeeks}-week streak`);
   return lines;
 }
+
+// ─── Hide numbers (lane E3) ──────────────────────────────────────────────────
+// What shows where a calorie or macro figure would be: portions, "on plan"
+// ticks and qualitative progress. Never "over", never a shortfall.
+
+export const HIDE_NUMBERS_COPY = {
+  onPlanTitle: 'Today so far',
+  onPlanEmpty: 'Your meals for today are planned. Tick them off as you go.',
+  onPlanDone: 'Every planned meal eaten today.',
+  noPlan: 'Log what you eat to see your day here.',
+  recipeNutritionHidden: 'Nutrition is hidden in your settings.',
+  weekOnPlan: 'Planned to suit you, all week.',
+  estimateHidden: 'We’ll estimate it for you.',
+} as const;
+
+/** "2 of 3 planned meals eaten" — the qualitative line in "Hide numbers". */
+export function onPlanLine(eaten: number, planned: number): string {
+  if (planned <= 0) return HIDE_NUMBERS_COPY.noPlan;
+  if (eaten <= 0) return HIDE_NUMBERS_COPY.onPlanEmpty;
+  if (eaten >= planned) return HIDE_NUMBERS_COPY.onPlanDone;
+  return `${eaten} of ${planned} planned meals eaten`;
+}

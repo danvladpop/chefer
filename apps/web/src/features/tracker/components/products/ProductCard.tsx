@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { AlertTriangle } from 'lucide-react';
 import {
   PACKAGED_PRODUCT_COPY,
@@ -10,6 +11,7 @@ import {
 } from '@chefer/types';
 import {
   formatNumber,
+  HIDE_NUMBERS_COPY,
   productAllergenLine,
   productAllergenWarningText,
   productAmountGrams,
@@ -56,6 +58,7 @@ export function ProductCard({
   onLog,
   onCompleteNumbers,
 }: ProductCardProps) {
+  const { noNumbers } = useNumbersMode();
   const hasServing = product.servingSizeG !== null;
   const [unit, setUnit] = useState<ProductAmount['unit']>(hasServing ? 'serving' : 'g');
   const [amountText, setAmountText] = useState(hasServing ? '1' : '100');
@@ -98,7 +101,9 @@ export function ProductCard({
                 ? 'Your product · from a label photo'
                 : 'Your product'
               : complete
-                ? `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
+                ? noNumbers
+                  ? HIDE_NUMBERS_COPY.recipeNutritionHidden
+                  : `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
                 : 'No calories yet'}
           </p>
         </div>
@@ -175,19 +180,21 @@ export function ProductCard({
             />
             <span className="shrink-0">{unit === 'g' ? 'g' : 'servings'}</span>
           </label>
-          <p
-            data-testid="product-live-nutrition"
-            aria-live="polite"
-            className="text-xs text-neutral-600"
-          >
-            {tooMuch
-              ? `One entry holds up to ${formatNumber(maxGrams)} g.`
-              : scaled
-                ? proteinOnly
-                  ? `${scaled.protein} g protein`
-                  : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
-                : '—'}
-          </p>
+          {noNumbers && !tooMuch ? null : (
+            <p
+              data-testid="product-live-nutrition"
+              aria-live="polite"
+              className="text-xs text-neutral-600"
+            >
+              {tooMuch
+                ? `One entry holds up to ${formatNumber(maxGrams)} g.`
+                : scaled
+                  ? proteinOnly
+                    ? `${scaled.protein} g protein`
+                    : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
+                  : '—'}
+            </p>
+          )}
           <button
             type="button"
             data-testid="product-log"
@@ -195,7 +202,11 @@ export function ProductCard({
             onClick={() => onLog(amount)}
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            {logging ? 'Logging…' : scaled && !proteinOnly ? `Log ${scaled.kcal} kcal` : 'Log it'}
+            {logging
+              ? 'Logging…'
+              : scaled && !proteinOnly && !noNumbers
+                ? `Log ${scaled.kcal} kcal`
+                : 'Log it'}
           </button>
         </>
       ) : (

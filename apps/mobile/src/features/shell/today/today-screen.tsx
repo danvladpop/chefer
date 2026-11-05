@@ -96,7 +96,7 @@ export function TodayScreen() {
   // WP-06 "Skipped it", with Undo in the snackbar.
   const slotActions = useSlotActions(today);
   // WP-08: Today's own payload decides protein-only, so a cold start never flashes kcal.
-  const { proteinOnly } = useNumbersMode(d?.numbersMode);
+  const { proteinOnly, noNumbers } = useNumbersMode(d?.numbersMode);
   const slots = d ? yourDaySlots(d) : [];
   const dayBurst = useDayCompleteBurst(slots, today);
   // MO-03: the cards rise in on the first load of the session only.
@@ -203,7 +203,12 @@ export function TodayScreen() {
                 carbs={{ value: n.carbs.eaten, target: target.carbsG }}
                 fat={{ value: n.fat.eaten, target: target.fatG }}
                 proteinOnly={proteinOnly}
-                proteinGuide={d.proteinGuide.label}
+                proteinGuide={noNumbers ? undefined : d.proteinGuide.label}
+                // Lane E3 "Hide numbers": the card shows the planned meals eaten instead.
+                onPlan={{
+                  eaten: slots.filter((s) => s.state === 'done').length,
+                  planned: slots.length,
+                }}
                 celebrate={dayBurst}
                 header={
                   n.trainingDay ? (

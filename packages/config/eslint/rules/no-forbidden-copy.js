@@ -42,6 +42,14 @@ export const FORBIDDEN_PHRASES = [
   // Shame-free streak/tracking language (rev 2)
   'missed',
   '0-week streak',
+  // No compensation advice (lane E3): a meal is never something to make up for
+  'compensate',
+  'compensating',
+  'make up for',
+  'burn it off',
+  'work it off',
+  'cheat day',
+  'cheat meal',
 ];
 
 /**
