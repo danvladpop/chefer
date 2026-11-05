@@ -15,6 +15,11 @@ const m = vi.hoisted(() => ({
   recipes: [] as unknown[],
   ingredients: [] as unknown[],
   products: [] as unknown[],
+  savedMeals: [] as unknown[],
+  logSaved: vi.fn(),
+  parsedItems: [] as unknown[],
+  parseFoodText: vi.fn<[vars: unknown], undefined>(),
+  logItems: vi.fn<[vars: unknown], undefined>(),
   lookupBarcode: vi.fn(),
   logProduct: vi.fn(),
   createProduct: vi.fn<[vars: unknown], undefined>(),
@@ -95,6 +100,7 @@ vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
       products: { lookupBarcode: { fetch: m.lookupBarcode } },
+      savedMeals: { list: { invalidate: vi.fn() } },
       tracker: {
         getDay: { invalidate: m.invalidate.getDay },
         weeklySummary: { invalidate: m.invalidate.weeklySummary },
@@ -135,7 +141,30 @@ vi.mock('@/lib/trpc', () => ({
         }),
       ),
     },
+    savedMeals: { list: { useQuery: () => ({ data: m.savedMeals }) } },
     tracker: {
+      parseFoodText: mutation(
+        (v) => {
+          m.parseFoodText(v);
+        },
+        () => ({ items: m.parsedItems }),
+      ),
+      logItems: mutation(
+        (v) => {
+          m.logItems(v);
+        },
+        () => ({ log: {}, entryIds: ['t1', 't2'], rebalance }),
+      ),
+      logSavedMeal: {
+        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
+          isPending: false,
+          isError: false,
+          mutate: (vars: unknown) => {
+            m.logSaved(vars);
+            opts.onSuccess?.({ log: {}, entryIds: ['n1', 'n2'], rebalance }, vars);
+          },
+        }),
+      },
       logProduct: mutation(
         (v) => {
           m.logProduct(v);
@@ -187,6 +216,8 @@ beforeEach(() => {
   m.recipes = [];
   m.ingredients = [];
   m.products = [];
+  m.savedMeals = [];
+  m.parsedItems = [];
   m.canScanLabel = false;
   m.search.isFetching = false;
   m.search.isError = false;
@@ -786,5 +817,115 @@ describe('QuickAddSheet — packaged products (ADR 0006)', () => {
     fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'oat' } });
     fireEvent.click(await screen.findByTestId('log-sheet-product-p1', {}, { timeout: 2000 }));
     expect(screen.getByTestId('product-allergen-line').textContent).toBe('Contains: Gluten.');
+  });
+});
+
+describe('QuickAddSheet — saved meals (lane A2)', () => {
+  const MEAL = {
+    id: 's1',
+    name: 'Weekday breakfast',
+    items: [
+      { name: 'Porridge', portionMultiplier: 1, kcal: 400, protein: 20, carbs: 50, fat: 10 },
+      { name: 'Coffee', portionMultiplier: 1, kcal: 40, protein: 2, carbs: 4, fat: 1.5 },
+    ],
+    totals: { kcal: 440, protein: 22, carbs: 54, fat: 11.5 },
+    lastLoggedAt: null,
+  };
+
+  it('logs a saved meal in one tap and hands its entry ids to the caller for Undo', () => {
+    m.savedMeals = [MEAL];
+    const onLoggedEntries = vi.fn();
+    render(
+      <QuickAddSheet date="2026-09-26" onLogged={onLogged} onLoggedEntries={onLoggedEntries} />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.getByText('2 items · 440 kcal')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('log-sheet-saved-add-s1'));
+    expect(m.logSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-09-26', savedMealId: 's1', rebalanceMode: 'preview' }),
+    );
+    expect(capture).toHaveBeenCalledWith('saved_meal_logged', { itemCount: 2 });
+    expect(onLoggedEntries).toHaveBeenCalledWith({
+      entryIds: ['n1', 'n2'],
+      name: 'Weekday breakfast',
+    });
+  });
+
+  it('is not offered when the sheet replaces a plan slot', () => {
+    m.savedMeals = [MEAL];
+    render(
+      <QuickAddSheet
+        date="2026-09-26"
+        onLogged={onLogged}
+        replacesSlot={{ mealType: 'lunch', slotIndex: 1 }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.queryByTestId('log-sheet-saved-add-s1')).toBeNull();
+  });
+});
+
+describe('QuickAddSheet — type what you ate (lane A4)', () => {
+  const ITEMS = [
+    {
+      key: '0',
+      text: '2 eggs',
+      name: 'Egg',
+      source: 'ingredient',
+      unit: 'g',
+      grams: 100,
+      per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+    },
+    {
+      key: '1',
+      text: 'mystery stew',
+      name: 'Mystery stew',
+      source: 'estimate',
+      unit: 'g',
+      grams: 300,
+      per100g: { kcal: 120, protein: null, carbs: 10, fat: 5 },
+    },
+  ];
+
+  it('parses, lets the user edit an amount and remove an item, then logs the rest', () => {
+    m.parsedItems = ITEMS;
+    const onLoggedEntries = vi.fn();
+    render(
+      <QuickAddSheet date="2026-09-26" onLogged={onLogged} onLoggedEntries={onLoggedEntries} />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    fireEvent.click(screen.getByTestId('log-sheet-type-it'));
+    fireEvent.change(screen.getByTestId('food-text-input'), {
+      target: { value: '2 eggs and mystery stew' },
+    });
+    fireEvent.click(screen.getByTestId('food-text-read'));
+    expect(m.parseFoodText).toHaveBeenCalledWith({ text: '2 eggs and mystery stew' });
+    expect(capture).toHaveBeenCalledWith('food_text_parsed', { itemCount: 2, estimated: 1 });
+    expect(screen.getByTestId('food-text-item-1').textContent).toMatch(/Estimate/);
+
+    fireEvent.change(screen.getByTestId('food-text-amount-0'), { target: { value: '150' } });
+    expect(screen.getByTestId('food-text-log').textContent).toBe('Log 2 items · 575 kcal');
+    fireEvent.click(screen.getByTestId('food-text-remove-1'));
+    fireEvent.click(screen.getByTestId('food-text-log'));
+    expect(m.logItems.mock.calls[0]?.[0]).toMatchObject({
+      date: '2026-09-26',
+      items: [{ name: 'Egg, 150 g', estimatedBy: 'manual', kcal: 215 }],
+    });
+    expect(capture).toHaveBeenCalledWith('food_text_logged', { itemCount: 1, edited: true });
+    expect(onLoggedEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ entryIds: ['t1', 't2'], name: '1 item' }),
+    );
+  });
+
+  it('is not offered when the sheet replaces a plan slot', () => {
+    render(
+      <QuickAddSheet
+        date="2026-09-26"
+        onLogged={onLogged}
+        replacesSlot={{ mealType: 'lunch', slotIndex: 1 }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+    expect(screen.queryByTestId('log-sheet-type-it')).toBeNull();
   });
 });

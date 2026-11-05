@@ -10,6 +10,7 @@ import type {
   DayPlan,
   EstimateIngredientPricesOptions,
   ExtractedRecipe,
+  FoodTextParseItem,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
@@ -230,6 +231,35 @@ export class MockAIService implements IAIService {
     // index 4 is the ~1620 kcal feast that trips the rebalance threshold.
     const scenario = MEAL_PHOTO_SCENARIOS[imageBase64.length % MEAL_PHOTO_SCENARIOS.length];
     return { ...(scenario ?? DEFAULT_MEAL_PHOTO_SCENARIO) };
+  }
+
+  /**
+   * Lane A4: a deterministic split — on commas, " and " and " with " — with a
+   * leading count, a small per-100 g table and a generic fallback.
+   */
+  async parseFoodText(text: string): Promise<FoodTextParseItem[]> {
+    await delay(300);
+    return text
+      .split(/,|\band\b|\bwith\b/i)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 1)
+      .slice(0, 12)
+      .map((part) => {
+        const countMatch = /^(\d+(?:[.,]\d+)?)\s+(.*)$/.exec(part);
+        const count = countMatch ? Number(countMatch[1]!.replace(',', '.')) : null;
+        const food = (countMatch ? countMatch[2]! : part).toLowerCase().replace(/s$/, '');
+        const known = MOCK_FOOD_TABLE[food] ?? MOCK_FOOD_TABLE['default']!;
+        return {
+          text: part,
+          food,
+          grams: Math.round((count ?? 1) * known.gramsEach),
+          count,
+          kcalPer100g: known.kcal,
+          proteinPer100g: known.protein,
+          carbsPer100g: known.carbs,
+          fatPer100g: known.fat,
+        };
+      });
   }
 
   /**
@@ -635,6 +665,18 @@ export class MockAIService implements IAIService {
 // fixture; index 4 is the rebalance-trigger feast: ±15% of a 2000 kcal/day
 // week is 2100 kcal, so a 2310 kcal log on top of an on-target day trips
 // `rebalanceWeek` while a normal meal never does.
+
+const MOCK_FOOD_TABLE: Record<
+  string,
+  { gramsEach: number; kcal: number; protein: number; carbs: number; fat: number }
+> = {
+  egg: { gramsEach: 50, kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+  toast: { gramsEach: 30, kcal: 290, protein: 9, carbs: 52, fat: 4 },
+  butter: { gramsEach: 7, kcal: 717, protein: 0.9, carbs: 0.1, fat: 81 },
+  coffee: { gramsEach: 240, kcal: 1, protein: 0.1, carbs: 0, fat: 0 },
+  milk: { gramsEach: 30, kcal: 64, protein: 3.3, carbs: 4.8, fat: 3.6 },
+  default: { gramsEach: 100, kcal: 150, protein: 5, carbs: 20, fat: 5 },
+};
 
 export const MOCK_NUTRITION_LABEL: NutritionLabelReading = {
   productName: 'Oat & Honey Biscuits',

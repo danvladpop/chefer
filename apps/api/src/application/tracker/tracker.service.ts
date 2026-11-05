@@ -5,11 +5,13 @@ import {
   mealPlanRepository,
   packagedProductRepository,
   parseSkippedSlots,
+  savedMealRepository,
   weightEntryRepository,
 } from '@chefer/database';
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
-import { parseStoredNumbersMode } from '@chefer/types';
+import { parseStoredNumbersMode, SAVED_MEALS_COPY } from '@chefer/types';
 import type {
+  FoodTextLogItem,
   HealthPlatform,
   NumbersMode,
   NutritionTargets,
@@ -58,6 +60,12 @@ import {
   sameSlot,
   type RecentLogDay,
 } from './merge-log.js';
+import {
+  copiedMealEntries,
+  entriesFromSavedMeal,
+  entriesOfMeal,
+  parseSavedMealItems,
+} from './saved-meals.js';
 
 export type { LoggedMealEntry };
 
@@ -921,6 +929,100 @@ export const trackerService = {
       log,
       copiedEntryIds: copies.map((c) => c.entryId!),
       ...(await this.rebalanceOutcome(user, rebalanceMode, toDateStr)),
+    };
+  },
+
+  /**
+   * Lane A4: log the reviewed items of a typed "I ate…" sentence in one go —
+   * each a custom entry (estimates flagged `vision`, matched foods `manual`,
+   * product refs kept). Returns the new ids for the snackbar's Undo.
+   */
+  async logItems(
+    user: UserProfile,
+    dateStr: string,
+    input: { mealType: string; items: FoodTextLogItem[] },
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryIds: string[] } & RebalanceOutcome> {
+    const entries: LoggedMealEntry[] = input.items.map((item) => ({
+      entryId: newEntryId(),
+      custom: { name: item.name, estimatedBy: item.estimatedBy },
+      mealType: input.mealType,
+      portionMultiplier: 1,
+      kcal: item.kcal,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      ...(item.unknownMacros &&
+        item.unknownMacros.length > 0 && { unknownMacros: item.unknownMacros }),
+      ...(item.product && { product: item.product }),
+    }));
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
+      ...stored,
+      ...entries,
+    ]);
+    return {
+      log,
+      entryIds: entries.map((e) => e.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)),
+    };
+  },
+
+  /**
+   * Lane A2: log a saved meal in one tap — its items appended as fresh entries
+   * for `mealType` (recipe items as recipe entries, the rest as custom ones,
+   * no plan slot). Returns the new ids so the snackbar's Undo can delete
+   * exactly them (`deleteEntries`).
+   */
+  async logSavedMeal(
+    user: UserProfile,
+    dateStr: string,
+    input: { savedMealId: string; mealType: string },
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryIds: string[] } & RebalanceOutcome> {
+    const saved = await savedMealRepository.findById(user.id, input.savedMealId);
+    if (!saved) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That saved meal no longer exists.' });
+    }
+    const entries = entriesFromSavedMeal(parseSavedMealItems(saved.items), input.mealType);
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
+      ...stored,
+      ...entries,
+    ]);
+    await savedMealRepository.markLogged(user.id, saved.id);
+    return {
+      log,
+      entryIds: entries.map((e) => e.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)),
+    };
+  },
+
+  /**
+   * Lane A2: copy ONE meal of a day to another day and/or meal (copyDay,
+   * narrowed). The copies get fresh ids and lose their plan slot; returns
+   * those ids for Undo. Copying a meal onto itself is refused.
+   */
+  async copyMeal(
+    user: UserProfile,
+    input: { fromDate: string; fromMealType: string; toDate: string; toMealType: string },
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; copiedEntryIds: string[] } & RebalanceOutcome> {
+    if (input.fromDate === input.toDate && input.fromMealType === input.toMealType) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: SAVED_MEALS_COPY.sameTarget });
+    }
+    const fromLog = await dailyLogRepository.findByDate(user.id, dayDate(input.fromDate));
+    const source = entriesOfMeal(
+      (fromLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [],
+      input.fromMealType,
+    );
+    const copies = copiedMealEntries(source, input.toMealType);
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(input.toDate), (stored) => [
+      ...stored,
+      ...copies,
+    ]);
+    return {
+      log,
+      copiedEntryIds: copies.map((c) => c.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, input.toDate)),
     };
   },
 

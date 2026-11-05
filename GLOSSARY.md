@@ -76,6 +76,27 @@ _Avoid_: Custom product, private product (in user copy)
 The open product database the barcode lookup reads; its data is shown with "Data from Open Food Facts" (ODbL).
 _Avoid_: OFF in user copy
 
+**Saved meal**:
+A named snapshot of one logged meal's entries (their names and numbers), logged again in one tap from the Log sheet.
+Editing the original entries never changes it.
+_Avoid_: Template, favourite meal, combo
+
+**Copy meal**:
+Copying the entries of one meal of a day to another day and/or meal, with an Undo of exactly the copies. Copy day
+does the same for a whole day.
+_Avoid_: Duplicate, repeat meal
+
+**Hidden fat**:
+Oil or butter a dish was cooked in, which a photo can't see. After a Snap-to-Log estimate the user says none, a little
+or a lot, and that fat is added on top as an estimate.
+_Avoid_: Cooking oil adjustment, fat correction
+
+**Typed log**:
+Logging by typing (or dictating) what you ate in one sentence. The chef splits it into items and matches each to your
+recents, a packaged product or the catalog — an AI estimate only as a last resort — and you confirm before anything is
+logged.
+_Avoid_: Natural-language logging, AI log, chat log (that is the AI chef chat)
+
 **Allergens unknown**:
 What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
 _Avoid_: No allergens, allergen-free

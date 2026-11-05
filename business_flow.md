@@ -2467,6 +2467,14 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
        │    prompt demands honesty about what a photo can't show
        └─ mock: deterministic fixture (520 kcal chicken plate)
 → confirm Sheet: every number editable, confidence badge + portion note shown
+  └─ "Cooked with oil or butter?" None / A little / A lot (lane A3, both
+     platforms): photos can't see hidden fat — a 2026 study found photo apps
+     underestimate meals by ~250–345 kcal and ~30 g fat. A little = 14 g fat
+     (+126 kcal, ~1 tbsp oil), a lot = 35 g (+315 kcal); added on top of the
+     (possibly edited) estimate, capped at the entry limits, shown as
+     "+126 kcal and 14 g fat for the oil or butter (estimate)" and in the Log
+     button total. `withHiddenFat` / `HIDDEN_FAT_GRAMS` (@chefer/utils);
+     analytics snap_hidden_fat { level } on log
   ├─ confirm → tracker.logCustomMeal (custom entry, estimatedBy: 'vision')
   │    → analytics meal_scanned { confirmed: true }
   └─ discard → nothing logged; meal_scanned { confirmed: false }
@@ -5497,6 +5505,63 @@ Analytics (no barcode, name or brand ever): `barcode_scan { via }`,
 `label_scan_saved { edited }`, `packaged_product_created { source }`,
 `packaged_product_logged { unit, allergenWarning }`, plus `meal_logged`
 (`quick` / `replaced`).
+
+**Saved meals + copy meal (lane A2, both platforms, free).** The day screens
+(mobile Your day + the legacy tracker, web tracker) get a "Save or copy a
+meal" action (bookmark icon next to Copy day) that opens one sheet:
+
+```
+pick a meal of the day being viewed (opens on the first meal with entries;
+  "n entries logged" / "Nothing logged for this meal yet")
+├─ Save as a meal: name (1–60 chars) → savedMeals.createFromDay({ name, date, mealType })
+│    → snapshots every entry with that mealType (recipe entries named after the
+│      recipe, product refs kept); CONFLICT on a name the user already has,
+│      BAD_REQUEST when the meal is empty, > 20 items or the user has 50
+│    → analytics saved_meal_created { itemCount }
+├─ Copy to…: today or one of the 6 days before it × a meal (never the same day
+│    AND meal) → tracker.copyMeal({ fromDate, fromMealType, toDate, toMealType })
+│    → the copies get fresh ids, the target meal type, no plan slot / replacement
+│    → snackbar/toast "Copied 2 entries to dinner, today" + Undo
+│      (tracker.deleteEntries with the returned copiedEntryIds)
+│    → analytics meal_copied { itemCount, sameDay }
+└─ Your saved meals: each with a delete (savedMeals.delete)
+Log sheet → "Saved meals" group (first 5 by last use, or matching the search;
+  hidden when the sheet replaces a plan slot — a slot takes one entry)
+  └─ "+" → tracker.logSavedMeal({ date, savedMealId, mealType }) → the items as
+     fresh entries (recipe items as recipe entries) → "Logged Weekday
+     breakfast" + Undo (deleteEntries with the returned entryIds); the meal's
+     lastLoggedAt moves it to the top → analytics saved_meal_logged { itemCount }
+```
+
+**Typed log: "I ate…" outside the chat (lane A4, both platforms).** Free with
+a daily cap of 10 (`PLAN_FEATURES.foodTextPerDay`), unlimited on premium; AI
+consent first (new consent feature `food-text`). Voice is the keyboard's own
+dictation — no native module.
+
+```
+Log sheet → "Type what you ate" (hidden when the sheet replaces one plan slot)
+  → one line, e.g. "2 eggs, toast with butter, coffee with milk" → Read it
+  → AI consent sheet ('food-text': "turn what you typed into food entries")
+  → tracker.parseFoodText({ text ≤ 300 chars })            [aiConsentProcedure]
+      ├─ reserveFoodText (AiCallLog FOOD_TEXT; free 10/day → TOO_MANY_REQUESTS,
+      │    premium unlimited but logged and inside the AI budget; refunded on a
+      │    capacity failure)
+      ├─ aiService.parseFoodText → ≤ 12 items { text, food, grams, count,
+      │    per-100 g estimate } ("toast with butter" → toast + butter)
+      └─ each item's numbers from the most trusted match:
+           1. a recent log with that name (servings × its own numbers)
+           2. the user's own packaged product, or a cached one with that exact name
+           3. the ingredient catalog (a whole-word name match: "egg" ≠ "Eggplant")
+           4. the AI's per-100 g estimate — marked "Estimate", logged as estimatedBy 'vision'
+      → { items } — NOTHING is logged
+  → review list: each item with its source, an editable amount (g or
+    servings), a remove button; "Log 2 items · 575 kcal"
+  → tracker.logItems({ date, mealType, items[1–12] })  → custom entries
+    (product refs kept, unknown macros flagged) → snackbar/toast + Undo
+    (deleteEntries with the returned entryIds)
+analytics (counts only, never the sentence): food_text_parsed { itemCount,
+  estimated }, food_text_logged { itemCount, edited }
+```
 
 **Known gap — training-day target pair has no UI (T-35.3 remainder).**
 `targets.get`/`targets.set` already read and write `customTrainingKcal`,

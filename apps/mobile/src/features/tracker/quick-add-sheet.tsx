@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  FOOD_TEXT_COPY,
   PACKAGED_PRODUCT_COPY,
+  SAVED_MEALS_COPY,
   type PackagedProductView,
   type ProductAllergenWarning,
 } from '@chefer/types';
@@ -31,17 +33,20 @@ import {
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  savedMealSummary,
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
   type SlotRef,
 } from '@chefer/utils';
+import { track } from '../../lib/analytics';
 import { trackMealLogged, type MealLogMethod } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useNumericChain } from '../preferences/use-numeric-chain';
 import { RecipeImage } from '../recipes/recipe-image';
+import { FoodTextFlow } from './food-text-flow';
 import { invalidateDayQueries } from './invalidate';
 import { ProductFlow } from './products/product-flow';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
@@ -111,7 +116,7 @@ const INGREDIENT_PAGE_MAX = 36;
 const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
-type SheetView = 'search' | 'manual' | 'product';
+type SheetView = 'search' | 'manual' | 'product' | 'text';
 type ProductStart = { product: PackagedProductView; warnings: ProductAllergenWarning[] };
 
 /** A recent/plan row's stored mealType may pre-date the fixed enum; logCustomMeal
@@ -229,6 +234,11 @@ export function QuickAddSheet({
   }, [trimmedQuery]);
 
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: visible });
+  // Lane A2: saved meals log in one tap. Not offered when replacing a plan
+  // slot — a slot is replaced by one entry, a saved meal is several.
+  const savedMealsQuery = trpc.savedMeals.list.useQuery(undefined, {
+    enabled: visible && !targetSlot,
+  });
   const recipesQuery = trpc.recipe.list.useQuery(
     { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
     { enabled: visible && debouncedQuery.length > 0, placeholderData: (previous) => previous },
@@ -255,6 +265,13 @@ export function QuickAddSheet({
     return all.filter((r) => r.name.toLowerCase().includes(q));
   }, [recentsQuery.data, searching, trimmedQuery]);
 
+  const savedMeals = useMemo(() => {
+    const all = targetSlot ? [] : (savedMealsQuery.data ?? []);
+    if (!searching) return all.slice(0, 5);
+    const q = trimmedQuery.toLowerCase();
+    return all.filter((m) => m.name.toLowerCase().includes(q));
+  }, [savedMealsQuery.data, searching, trimmedQuery, targetSlot]);
+
   const planRows = useMemo(() => {
     // Aimed at a slot, the day's planned meals are not an option: the user is
     // saying they did NOT eat that one.
@@ -265,6 +282,7 @@ export function QuickAddSheet({
   }, [plannedMeals, searching, trimmedQuery, targetSlot]);
 
   const hasSearchResults =
+    savedMeals.length > 0 ||
     recents.length > 0 ||
     planRows.length > 0 ||
     (recipesQuery.data?.length ?? 0) > 0 ||
@@ -328,7 +346,32 @@ export function QuickAddSheet({
     },
   });
 
-  const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
+  const undoEntriesMutation = trpc.tracker.deleteEntries.useMutation({
+    meta: { silent: true },
+    onSuccess: () => invalidateDayQueries(utils, date),
+  });
+  const logSavedMutation = trpc.tracker.logSavedMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: (data, vars) => {
+      const meal = savedMealsQuery.data?.find((m) => m.id === vars.savedMealId);
+      track('saved_meal_logged', { itemCount: data.entryIds.length });
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      recordRebalanceOutcome(data);
+      invalidateDayQueries(utils, date);
+      void utils.savedMeals.list.invalidate();
+      onLogged();
+      snackbar.show({
+        message: `Logged ${meal?.name ?? 'saved meal'}`,
+        tone: 'success',
+        actionLabel: 'Undo',
+        onAction: () => undoEntriesMutation.mutate({ date, entryIds: data.entryIds }),
+      });
+      onClose();
+    },
+  });
+
+  const isPending =
+    logRecipeMutation.isPending || logCustomMutation.isPending || logSavedMutation.isPending;
 
   /** Spread into every custom log: aimed at a slot, the entry replaces it (WP-06). */
   const slotFields = (fallbackMealType: string) =>
@@ -541,9 +584,11 @@ export function QuickAddSheet({
             : 'Enter calories yourself'
           : view === 'product'
             ? PACKAGED_PRODUCT_COPY.scanBarcode
-            : targetSlot
-              ? SLOT_COPY.ateElse
-              : 'Log something'
+            : view === 'text'
+              ? FOOD_TEXT_COPY.entry
+              : targetSlot
+                ? SLOT_COPY.ateElse
+                : 'Log something'
       }
       eyebrow={targetSlot ? mealLabel(targetSlot.mealType) : undefined}
       testID="log-sheet"
@@ -630,7 +675,68 @@ export function QuickAddSheet({
                 {PACKAGED_PRODUCT_COPY.scanBarcode}
               </Text>
             </Pressable>
+            {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
+            {!targetSlot && (
+              <Pressable
+                testID="log-sheet-type-it"
+                accessibilityRole="button"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setView('text');
+                }}
+                className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-separator bg-surface px-3"
+              >
+                <Ionicons name="create-outline" size={16} color={colors.brand} />
+                <Text className="text-sm font-medium text-brand">{FOOD_TEXT_COPY.entry}</Text>
+              </Pressable>
+            )}
           </View>
+
+          {logSavedMutation.isError && (
+            <Text testID="log-sheet-saved-error" className="text-sm text-danger">
+              {"Couldn't log that: "}
+              {userFacingErrorMessage(logSavedMutation.error)}
+            </Text>
+          )}
+
+          {savedMeals.length > 0 && (
+            <View className="gap-1.5">
+              {groupHeader(SAVED_MEALS_COPY.groupTitle)}
+              {savedMeals.map((meal) => (
+                <View
+                  key={meal.id}
+                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
+                >
+                  <Ionicons name="bookmark" size={18} color={colors.brand} />
+                  <View className="min-w-0 flex-1">
+                    <Text numberOfLines={1} className="text-sm font-medium text-label">
+                      {meal.name}
+                    </Text>
+                    <Text numberOfLines={1} className="text-xs text-label-secondary">
+                      {savedMealSummary(meal.items, proteinOnly)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    testID={`log-sheet-saved-add-${meal.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Log ${meal.name} to ${mealType}`}
+                    disabled={isPending}
+                    onPress={() =>
+                      logSavedMutation.mutate({
+                        date,
+                        savedMealId: meal.id,
+                        mealType,
+                        ...REBALANCE_PREVIEW,
+                      })
+                    }
+                    className="h-11 w-11 items-center justify-center"
+                  >
+                    <Ionicons name="add-circle" size={26} color={colors.brand} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
 
           {(logRecipeMutation.isError || logCustomMutation.isError) && (
             <Text
@@ -1063,6 +1169,47 @@ export function QuickAddSheet({
               </Text>
             </Pressable>
           </View>
+        </View>
+      ) : view === 'text' ? (
+        <View className="gap-3">
+          <Pressable
+            testID="log-sheet-text-back"
+            accessibilityRole="button"
+            onPress={() => setView('search')}
+            className="min-h-11 flex-row items-center gap-1"
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.brand} />
+            <Text className="text-sm font-medium text-brand">Back to search</Text>
+          </Pressable>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-label-secondary">Meal</Text>
+            <SegmentedControl
+              size="sm"
+              options={MEAL_OPTIONS}
+              value={mealType}
+              onChange={setMealType}
+              accessibilityLabel="Meal"
+              testID="log-sheet-text-meal"
+            />
+          </View>
+          <FoodTextFlow
+            date={date}
+            mealType={mealType}
+            proteinOnly={proteinOnly}
+            onLogged={(data, count) => {
+              trackMealLogged(quickAddSource({ mealType }, false), mealType);
+              recordRebalanceOutcome(data);
+              invalidateDayQueries(utils, date);
+              onLogged();
+              snackbar.show({
+                message: `Logged ${count} ${count === 1 ? 'item' : 'items'}`,
+                tone: 'success',
+                actionLabel: 'Undo',
+                onAction: () => undoEntriesMutation.mutate({ date, entryIds: data.entryIds }),
+              });
+              onClose();
+            }}
+          />
         </View>
       ) : view === 'product' ? (
         <View className="gap-3">

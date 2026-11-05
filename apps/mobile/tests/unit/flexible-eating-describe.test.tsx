@@ -42,6 +42,7 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     products: { search: { useQuery: () => ({ data: [], isFetching: false, isError: false }) } },
+    savedMeals: { list: { useQuery: () => ({ data: [] }) } },
     ingredients: {
       search: {
         useQuery: () => ({
@@ -53,6 +54,10 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     tracker: {
+      logSavedMeal: {
+        useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+      },
+      deleteEntries: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
       recents: { useQuery: () => ({ data: mockRecents }) },
       logRecipe: {
         useMutation: () => ({
