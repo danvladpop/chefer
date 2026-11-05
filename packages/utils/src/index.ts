@@ -387,6 +387,7 @@ export {
   type MeasureParseResult,
   type MeasurePoint,
 } from './body-measurements';
+export { PROGRESS_PHOTOS_COPY } from './progress-photos-copy';
 export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,

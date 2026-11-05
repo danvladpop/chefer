@@ -554,7 +554,11 @@ API, Maestro E2E in `e2e/`).
   `requireOptionalNativeModule('ExpoSharing')` and lazily `require`d (same pattern as
   `prepare-photo.ts`), so the same JS still runs on a binary built before it — Android then
   falls back to the titled text share (for the ZIP, which has no text form, the card exports
-  the JSON instead — `canShareBinaryFiles()`). `react-native-gesture-handler` is **not** a direct
+  the JSON instead — `canShareBinaryFiles()`). Lane D4 adds `shareImageFile(uri)` (a progress
+  photo, `image/jpeg`) on the same pattern, and **on-device progress photos**
+  (`src/features/body/progress-photo-store.ts`, ADR 0005): `expo-file-system/legacy`
+  `documentDirectory/progress-photos/<userId>/` holds the JPEGs and an `index.json`; nothing
+  is uploaded and no new native module is involved. `react-native-gesture-handler` is **not** a direct
   dependency (transitive only; swipe-to-remove is PanResponder-based, Q-17)
 - **Password save on Android (F8, native release for 1.0.2): local Expo module `modules/chefer-credentials`**
   (Android only, autolinked from `apps/mobile/modules/`; `androidx.credentials:credentials` +
