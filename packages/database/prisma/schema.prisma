@@ -159,6 +159,8 @@ enum AiCallType {
   // S17, rev 2: curated-plan imports, counted as "used" only when saved
   // (display only — see Q-18 in the technical plan).
   CURATED_PLAN
+  // Lane A4: typed "I ate…" logging outside the chat (free 10/day).
+  FOOD_TEXT
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────

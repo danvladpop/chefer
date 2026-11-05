@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { MealPhotoEstimate, NutritionLabelReading } from './types.js';
+import type { FoodTextParseItem, MealPhotoEstimate, NutritionLabelReading } from './types.js';
 
 // ─── Shared Zod validators — parse + validate raw AI responses ───────────────
 // These are the source of truth for what we consider a valid response, for
@@ -196,4 +196,40 @@ export function parseNutritionLabelResponse(raw: string): NutritionLabelReading 
     throw new Error(`AI nutrition label response failed validation — ${parsed.error.message}`);
   }
   return parsed.data;
+}
+
+// ─── Typed food logging (lane A4) ─────────────────────────────────────────────
+
+export const foodTextParseSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        text: z.string().max(200),
+        food: z.string().min(1).max(80),
+        grams: z.number().finite().positive().max(5000),
+        count: z.number().finite().positive().max(100).nullable(),
+        kcalPer100g: z.number().finite().min(0).max(900),
+        proteinPer100g: z.number().finite().min(0).max(100),
+        carbsPer100g: z.number().finite().min(0).max(100),
+        fatPer100g: z.number().finite().min(0).max(100),
+      }),
+    )
+    .max(12),
+});
+
+/** Parses + validates a raw food-text response; an unusable item is dropped, not fatal. */
+export function parseFoodTextResponse(raw: string): FoodTextParseItem[] {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `AI food text response JSON is malformed — ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const parsed = foodTextParseSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(`AI food text response failed validation — ${parsed.error.message}`);
+  }
+  return parsed.data.items;
 }
