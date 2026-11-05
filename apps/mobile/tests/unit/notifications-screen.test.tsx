@@ -11,6 +11,10 @@ import {
   writeFoodNudgePrefs,
 } from '../../src/features/notifications/food-nudges';
 import { NotificationsScreen } from '../../src/features/notifications/notifications-screen';
+import {
+  markPushRegistered,
+  resetPushStoreForSignOut,
+} from '../../src/features/notifications/push/push-store';
 
 // UX-PO-08: Settings → Notifications gathers every reminder in one place.
 
@@ -29,6 +33,12 @@ jest.mock('expo-router', () => ({
 const mockWeeklyCard = jest.fn(() => null);
 jest.mock('../../src/features/preferences/weekly-updates-card', () => ({
   WeeklyUpdatesCard: () => mockWeeklyCard(),
+}));
+
+// Trainer mode M4: the push switches have their own suite (push-preferences.test.tsx).
+const mockPushCard = jest.fn((_props: { screen: string; coaching?: boolean }) => null);
+jest.mock('../../src/features/notifications/push/push-preferences-card', () => ({
+  PushPreferencesCard: (props: { screen: string; coaching?: boolean }) => mockPushCard(props),
 }));
 
 let mockProfile: { reminderEnabled: boolean; reminderTime: string | null } | null = {
@@ -87,6 +97,7 @@ beforeEach(() => {
   mockPermission = 'granted';
   mockNudgeAllowed = true;
   setKvBackendForTests(createMemoryKvBackend());
+  resetPushStoreForSignOut();
   writeFoodNudgePrefs(NO_FOOD_NUDGES);
   mockTrainer = null;
   resetBookingReminderPrefsForTests();
@@ -106,6 +117,16 @@ describe('NotificationsScreen', () => {
     await waitFor(() =>
       expect(getBookingReminderPrefs()).toEqual({ client: false, trainer: true }),
     );
+  });
+
+  it('M4: the Push notifications card (client + everyone keys); local Booking reminders hide once push delivers them', async () => {
+    mockTrainer = { name: 'Ana', since: '2026-09-01T00:00:00.000Z' };
+    markPushRegistered('ExponentPushToken[abc123]');
+    await renderScreen();
+    expect(mockPushCard).toHaveBeenCalledWith(
+      expect.objectContaining({ screen: 'settings', coaching: true }),
+    );
+    expect(screen.queryByTestId('notifications-booking-reminders')).toBeNull();
   });
 
   it('gathers weekly updates, training reminders, the two nudges and the rest-timer alert', async () => {

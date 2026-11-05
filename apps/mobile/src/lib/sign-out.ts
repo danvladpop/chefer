@@ -5,6 +5,8 @@ import { clearLocalUserData } from '../features/gym/offline/clear-local-data';
 import { cancelAllGymReminders } from '../features/gym/reminders/cancel-reminders';
 import { clearBookingReminders } from '../features/notifications/booking-reminders';
 import { clearFoodNudges } from '../features/notifications/food-nudges';
+import { resetPushRegistrationForSignOut } from '../features/notifications/push/push-registration';
+import { resetPushStoreForSignOut } from '../features/notifications/push/push-store';
 import { resetOnboardingGate } from '../features/onboarding/onboarding-gate';
 import { clearGentleReminder } from '../features/progress/gentle-reminder';
 import { resetAnalyticsOnSignOut } from './analytics';
@@ -63,6 +65,12 @@ export function signOut(options: SignOutOptions = {}): Promise<void> {
     await stage(() => clearGentleReminder());
     // Trainer mode §7.3: the booking reminders name this account's sessions.
     await stage(() => clearBookingReminders());
+    // M4 push: the token was unregistered before the server logout
+    // (use-sign-out.tsx); the KV scan above wiped it — forget the in-memory copies.
+    await stage(() => {
+      resetPushStoreForSignOut();
+      resetPushRegistrationForSignOut();
+    });
     await stage(() => {
       clearRegisterDraft();
       clearPendingOnboarding();

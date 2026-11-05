@@ -135,6 +135,11 @@ export interface IBookingRepository {
     at: Date | null;
     workoutSessionId?: string;
   }): Promise<boolean>;
+  /**
+   * Push reminders (§7.2, M4): every trainer's not-cancelled BOOKINGs (not
+   * blocks) starting in [from, to), with their client places, by start.
+   */
+  listStartingBetween(from: Date, to: Date): Promise<BookingWithClients[]>;
   /** Routine day id → name (any user's days: callers pass only ids from bookings they may read). */
   routineDayNames(ids: readonly string[]): Promise<Map<string, string>>;
   /**
@@ -435,6 +440,14 @@ export class BookingRepository implements IBookingRepository {
       },
     });
     return count > 0;
+  }
+
+  listStartingBetween(from: Date, to: Date): Promise<BookingWithClients[]> {
+    return prisma.booking.findMany({
+      where: { kind: 'BOOKING', cancelledAt: null, startsAt: { gte: from, lt: to } },
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      include: withClients,
+    });
   }
 
   async routineDayNames(ids: readonly string[]): Promise<Map<string, string>> {

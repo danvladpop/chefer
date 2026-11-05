@@ -17,6 +17,7 @@ import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
+import { askNotificationPermissionAt } from '../../notifications/push/push-permission';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TRAINER_SCREEN_CLASS, TrainerHeader } from '../../trainer/components/trainer-header';
 import { COACHING_MOBILE_COPY } from '../copy';
@@ -122,6 +123,8 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
       track('coaching_requested', {});
       setAsking(false);
       snackbar.show({ message: COACHING_COPY.request.sent(card.data?.name ?? '') });
+      // §7.2 (M4): the answer arrives as a push — the moment the permission has value.
+      void askNotificationPermissionAt('coaching_request');
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
     onSettled: () => {

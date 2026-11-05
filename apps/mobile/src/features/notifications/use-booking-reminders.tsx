@@ -14,6 +14,7 @@ import {
   syncBookingReminders,
   type BookingReminderPrefs,
 } from './booking-reminders';
+import { usePushActive } from './push/push-store';
 
 // Keeps the local booking reminders true (§7.3): re-plans both sides on
 // launch, whenever the app returns to the foreground, when a switch flips,
@@ -21,6 +22,10 @@ import {
 // booking change invalidates these queries, use-bookings.ts). A side whose
 // data has not arrived (loading, offline) keeps what is scheduled; a side that
 // does not apply (no trainer / not in trainer mode / switch off) is cleared.
+// M4 (§7.2 "reminders move from local to remote"): once this device is
+// registered for push, the server sends the reminders — both sides are
+// cleared and nothing is scheduled locally, so nothing fires twice. Push
+// failing or the permission turned off later brings the local ones back.
 // Mounted once in the root layout.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,12 +50,15 @@ export function useBookingReminders(): void {
   const prefs = useBookingReminderPrefs();
   const tick = useSyncExternalStore(subscribeBookingReminderSyncTick, getBookingReminderSyncTick);
   const windowStart = useWindowStart();
+  const pushActive = usePushActive();
+  const client = prefs.client && !pushActive;
+  const trainer = prefs.trainer && !pushActive;
 
   // Client side: only for someone who has a trainer.
   const status = useCoachingStatus();
   const hasTrainer = status.enabled && Boolean(status.data?.trainer);
   const upcoming = trpc.coaching.bookings.upcoming.useQuery(undefined, {
-    enabled: hasTrainer && prefs.client,
+    enabled: hasTrainer && client,
     retry: false,
   });
 
@@ -66,25 +74,25 @@ export function useBookingReminders(): void {
     [windowStart],
   );
   const trainerBookings = trpc.trainer.bookings.range.useQuery(range, {
-    enabled: inTrainerMode && prefs.trainer,
+    enabled: inTrainerMode && trainer,
     retry: false,
   });
 
   const clientKnown = !status.enabled || status.data !== undefined;
   useEffect(() => {
-    if (!hasTrainer || !prefs.client) {
-      // Coaching status not answered yet: keep what is scheduled.
-      if (clientKnown) void syncBookingReminders('client', []);
+    if (!hasTrainer || !client) {
+      // Coaching status not answered yet: keep what is scheduled (push active: clear regardless).
+      if (clientKnown || pushActive) void syncBookingReminders('client', []);
       return;
     }
     if (!upcoming.data) return;
     void syncBookingReminders('client', planClientReminders(upcoming.data, new Date()));
-  }, [hasTrainer, clientKnown, prefs.client, upcoming.data, windowStart, tick]);
+  }, [hasTrainer, clientKnown, client, pushActive, upcoming.data, windowStart, tick]);
 
   useEffect(() => {
-    if (!inTrainerMode || !prefs.trainer) {
+    if (!inTrainerMode || !trainer) {
       // Still deciding whether trainer mode is available: keep what is scheduled.
-      if (mode !== 'trainer' || trainerLive !== undefined) {
+      if (mode !== 'trainer' || trainerLive !== undefined || pushActive) {
         void syncBookingReminders('trainer', []);
       }
       return;
@@ -94,7 +102,16 @@ export function useBookingReminders(): void {
       'trainer',
       planTrainerReminders(trainerBookings.data.bookings, new Date(), deviceTimeZone()),
     );
-  }, [inTrainerMode, mode, trainerLive, prefs.trainer, trainerBookings.data, windowStart, tick]);
+  }, [
+    inTrainerMode,
+    mode,
+    trainerLive,
+    trainer,
+    pushActive,
+    trainerBookings.data,
+    windowStart,
+    tick,
+  ]);
 }
 
 function BookingReminderSync(): null {

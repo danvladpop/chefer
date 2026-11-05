@@ -1,5 +1,11 @@
 import { onlineManager } from '@tanstack/react-query';
+import { act } from '@testing-library/react-native';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import {
+  markPushInactive,
+  markPushRegistered,
+  resetPushStoreForSignOut,
+} from '../../src/features/notifications/push/push-store';
 import { BookingReminderHost } from '../../src/features/notifications/use-booking-reminders';
 import {
   isTrainerModeAvailableCached,
@@ -54,6 +60,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   setKvBackendForTests(createMemoryKvBackend());
   resetShellModeStoreForTests();
+  resetPushStoreForSignOut();
   onlineManager.setOnline(true);
 });
 
@@ -111,6 +118,45 @@ describe('BookingReminderHost', () => {
     await settle();
     expect(r.calls).toHaveLength(0);
     expect(mockSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('M4: local reminders step aside while push delivers them (§7.2)', () => {
+  it('push active on this device: both sides cleared, no booking query, nothing scheduled', async () => {
+    markPushRegistered('ExponentPushToken[abc123]');
+    setShellMode('trainer');
+    const r = await renderWithTrpc(
+      <BookingReminderHost signedIn />,
+      trainerModeHandlers({
+        'coaching.status': () => ({
+          trainer: { name: 'Ana', since: '2026-09-01T00:00:00.000Z' },
+          stopped: null,
+        }),
+        'coaching.bookings.upcoming': () => [
+          clientBooking({
+            id: 'mine',
+            startsAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+          }),
+        ],
+        'trainer.bookings.range': () => ({ bookings: [bookingIn(180, { id: 'tb1' })] }),
+      }),
+    );
+    await settle(8);
+    expect(lastSync('client')).toEqual([]);
+    expect(lastSync('trainer')).toEqual([]);
+    expect(mockSync.mock.calls.every((c) => c[1].length === 0)).toBe(true);
+    expect(r.paths()).not.toContain('coaching.bookings.upcoming');
+    expect(r.paths()).not.toContain('trainer.bookings.range');
+  });
+
+  it('push stops (permission revoked / registration fails): local reminders come back', async () => {
+    markPushRegistered('ExponentPushToken[abc123]');
+    await renderWithTrpc(<BookingReminderHost signedIn />, clientHandlers());
+    await settle(6);
+    expect(lastSync('client')).toEqual([]);
+    await act(() => markPushInactive());
+    await settle(6);
+    expect(lastSync('client')?.map((p) => p.bookingId)).toEqual(['mine']);
   });
 });
 

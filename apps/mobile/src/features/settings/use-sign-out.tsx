@@ -5,6 +5,7 @@ import { trpc } from '../../lib/trpc';
 import { activeSessionStore } from '../gym/offline/active-session-store';
 import { outbox } from '../gym/offline/outbox';
 import { unsyncedGymWorkoutCount } from '../gym/offline/unsynced';
+import { unregisterPushDevice } from '../notifications/push/push-registration';
 
 // Sign-out from the More tab and Settings (UX-ACC-02, UX-ACC-12, UX-ACC-19).
 // Both go through `signOut()` — the one place that empties the cache, the
@@ -12,7 +13,9 @@ import { unsyncedGymWorkoutCount } from '../gym/offline/unsynced';
 // ask first: a plain "Sign out of Chefer?" confirm, or, when workouts exist
 // only on this phone (signing out deletes them), the "Sign out anyway" sheet
 // that says how many. Either way ONE confirm sheet, so a mis-tap never ends
-// the session.
+// the session. Push (trainer-mode.md §7.2, M4): this device's push token is
+// unregistered first, while the session is still valid — best effort and
+// bounded (PUSH_UNREGISTER_TIMEOUT_MS), so it never blocks the sign-out.
 
 function subscribeUnsynced(listener: () => void): () => void {
   const stops = [outbox.subscribe(listener), activeSessionStore.subscribe(listener)];
@@ -28,6 +31,8 @@ export function unsyncedWorkoutsText(count: number): string {
 export function useSignOut(testID: string) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const unsynced = useSyncExternalStore(subscribeUnsynced, unsyncedGymWorkoutCount);
+  const utils = trpc.useUtils();
+  const [unregistering, setUnregistering] = useState(false);
   const logout = trpc.auth.logout.useMutation({
     meta: { silent: true },
     // Even if the network call failed, drop the local session — the token may
@@ -38,7 +43,14 @@ export function useSignOut(testID: string) {
   /** Signs out now (the user has confirmed). */
   const proceed = () => {
     setConfirmOpen(false);
-    logout.mutate();
+    setUnregistering(true);
+    void unregisterPushDevice({
+      // The vanilla client: a failure here must not raise a snackbar or a second sign-out.
+      unregister: (input) => utils.client.notifications.push.unregister.mutate(input),
+    }).then(() => {
+      setUnregistering(false);
+      logout.mutate();
+    });
   };
   /** Opens the confirm; nothing is signed out until the user agrees. */
   const request = () => setConfirmOpen(true);
@@ -57,5 +69,11 @@ export function useSignOut(testID: string) {
     />
   );
 
-  return { request, proceed, unsynced, isPending: logout.isPending, confirmSheet };
+  return {
+    request,
+    proceed,
+    unsynced,
+    isPending: unregistering || logout.isPending,
+    confirmSheet,
+  };
 }

@@ -28,10 +28,18 @@ jest.mock('expo-notifications', () => ({
 
 let mockGranted = true;
 let mockAskAnswer = true;
-const mockEnsure = jest.fn(() => Promise.resolve(mockAskAnswer));
+let mockAsked = false;
+// M4: the ask is push's `first_booking` moment (once per account; push-permission.test.ts).
+const mockEnsure = jest.fn((_moment: string) => {
+  if (mockAsked) return Promise.resolve(false);
+  mockAsked = true;
+  return Promise.resolve(mockAskAnswer);
+});
 jest.mock('../../src/features/gym/reminders/permission', () => ({
   hasGymReminderPermission: () => Promise.resolve(mockGranted),
-  ensureGymReminderPermission: () => mockEnsure(),
+}));
+jest.mock('../../src/features/notifications/push/push-permission', () => ({
+  askNotificationPermissionAt: (moment: string) => mockEnsure(moment),
 }));
 
 const Notifications = jest.requireMock<{
@@ -56,6 +64,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockGranted = true;
   mockAskAnswer = true;
+  mockAsked = false;
   setKvBackendForTests(createMemoryKvBackend());
   resetBookingReminderPrefsForTests();
   Notifications.getAllScheduledNotificationsAsync.mockResolvedValue([]);
@@ -148,7 +157,7 @@ describe('permission at a moment of value, and taps', () => {
     const before = getBookingReminderSyncTick();
     await askBookingReminderPermissionOnce('client');
     await askBookingReminderPermissionOnce('client');
-    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(mockEnsure).toHaveBeenCalledWith('first_booking');
     expect(getBookingReminderSyncTick()).toBe(before + 1);
   });
 

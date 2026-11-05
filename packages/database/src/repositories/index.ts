@@ -482,6 +482,23 @@ export {
   type PurgeResult,
 } from './upload-reference.repository';
 
+// Push notifications (docs/prd-2026-10/trainer-mode.md §7.2, §8.4, M4)
+export {
+  PushDeviceRepository,
+  pushDeviceRepository,
+  PushPreferenceRepository,
+  pushPreferenceRepository,
+  PushOutboxRepository,
+  pushOutboxRepository,
+  type IPushDeviceRepository,
+  type IPushPreferenceRepository,
+  type IPushOutboxRepository,
+  type PushDbClient,
+  type PushDeviceTarget,
+  type PushDeviceSummary,
+  type RegisterPushDeviceData,
+  type EnqueuePushData,
+} from './push.repository';
 // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
 export {
   ProgressEventRepository,

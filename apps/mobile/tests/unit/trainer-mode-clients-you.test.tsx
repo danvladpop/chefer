@@ -5,6 +5,10 @@ import type { ClientRowDto } from '@chefer/types';
 import { resetEntrancesForTests, resetSnackbarForTests } from '@chefer/ui-mobile';
 import TrainerHomeRoute from '../../app/trainer/index';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import {
+  markPushRegistered,
+  resetPushStoreForSignOut,
+} from '../../src/features/notifications/push/push-store';
 import { ClientsScreen } from '../../src/features/trainer-mode/clients/clients-screen';
 import {
   getShellMode,
@@ -65,6 +69,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   setKvBackendForTests(createMemoryKvBackend());
   resetShellModeStoreForTests();
+  resetPushStoreForSignOut();
   resetSnackbarForTests();
   resetEntrancesForTests();
   onlineManager.setOnline(true);
@@ -193,6 +198,41 @@ describe('Trainer You', () => {
     }
     expect(screen.getByTestId('logout-button')).toBeTruthy();
     expect(screen.getByTestId('build-info')).toHaveTextContent(/^Version/);
+  });
+
+  it('M4 notifications: local Booking reminders until push delivers them, then the trainer push switches', async () => {
+    const prefs = {
+      hasDevice: true,
+      preferences: [
+        { key: 'trainer.requests', enabled: true, audience: 'trainer' },
+        { key: 'trainer.clients', enabled: true, audience: 'trainer' },
+        { key: 'trainer.reminders', enabled: false, audience: 'trainer' },
+        { key: 'coaching.reminders', enabled: true, audience: 'client' },
+        { key: 'social.follows', enabled: true, audience: 'everyone' },
+      ],
+    };
+    const first = await renderWithTrpc(
+      <TrainerYouScreen />,
+      trainerModeHandlers({
+        'notifications.push.preferences': () => ({ ...prefs, hasDevice: false }),
+      }),
+    );
+    await settle();
+    expect(screen.getByTestId('trainer-you-booking-reminders')).toBeTruthy();
+    expect(screen.queryByTestId('trainer-you-push')).toBeNull();
+    await first.unmount();
+
+    markPushRegistered('ExponentPushToken[abc123]');
+    await renderWithTrpc(
+      <TrainerYouScreen />,
+      trainerModeHandlers({ 'notifications.push.preferences': () => prefs }),
+    );
+    await settle();
+    expect(screen.queryByTestId('trainer-you-booking-reminders')).toBeNull();
+    expect(screen.getByText('Trainer notifications')).toBeTruthy();
+    expect(screen.getByTestId('trainer-you-push-trainer.reminders')).toBeTruthy();
+    expect(screen.queryByTestId('trainer-you-push-coaching.reminders')).toBeNull();
+    expect(screen.queryByTestId('trainer-you-push-social.follows')).toBeNull();
   });
 
   it('turning trainer tools off asks first, then leaves trainer mode', async () => {

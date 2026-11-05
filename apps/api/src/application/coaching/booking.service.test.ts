@@ -101,6 +101,7 @@ function setup(rows: BookingWithClients[] = []) {
     cancelFutureForClient: vi.fn(),
     deleteForEndedLinksBefore: vi.fn(),
     deleteBlocksBefore: vi.fn(),
+    listStartingBetween: vi.fn(async () => []),
   };
   const active = [
     { clientId: MARIA, client: { id: MARIA, firstName: 'Maria', lastName: null, name: null } },

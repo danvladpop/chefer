@@ -36,6 +36,8 @@ jest.mock('../../src/features/gym/use-gym-bootstrap', () => ({
 }));
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    // useSignOut unregisters this device's push token first (M4); none is registered here.
+    useUtils: () => ({}),
     auth: {
       me: { useQuery: () => ({ data: { role: 'USER', planTier: 'FREE' } }) },
       logout: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },

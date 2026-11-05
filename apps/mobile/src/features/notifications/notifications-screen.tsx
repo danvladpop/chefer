@@ -14,13 +14,18 @@ import { WeeklyUpdatesCard } from '../preferences/weekly-updates-card';
 import { TrainButton } from '../shell/train/train-button';
 import { BookingReminderSwitch } from './booking-reminder-switch';
 import { FoodNudgeSwitches } from './food-nudge-switches';
+import { PushPreferencesCard } from './push/push-preferences-card';
+import { usePushActive } from './push/push-store';
 
 // Settings → Notifications (UX-PO-08, WP-13): every reminder Chefer can send, in
 // one place. Weekly updates (phone + email) are the same card Preferences
 // shows; the training reminder time lives in gym settings, so that row only
 // reports and opens it; the dinner / plan-Sunday nudges and the rest-timer
 // alert are controlled here. Class reminders arrive with classes (WP-05) and
-// have no row until then.
+// have no row until then. Push (trainer mode M4, §7.2): "Push notifications"
+// once the account has a registered device; while push delivers this
+// device's booking reminders, its `coaching.reminders` switch replaces the
+// local "Booking reminders" one.
 
 // 11 Oct restyle: the shell's look — canvas, hairline surface cards, named
 // text styles and colour roles, and ShellTopBar's brand chevron + title1 top
@@ -110,10 +115,14 @@ function RestTimerAlertsCard() {
   );
 }
 
-/** Trainer mode §7.3: a client's "Booking reminders" — only for someone who has a trainer. */
+/**
+ * Trainer mode §7.3: a client's local "Booking reminders" — only for someone who has a trainer,
+ * and only while push does not deliver the reminders (M4).
+ */
 function BookingRemindersCard() {
   const { data } = useCoachingStatus();
-  if (!data?.trainer) return null;
+  const pushActive = usePushActive();
+  if (!data?.trainer || pushActive) return null;
   return (
     <View testID="notifications-bookings" className={CARD}>
       <BookingReminderSwitch role="client" testID="notifications-booking-reminders" />
@@ -123,6 +132,7 @@ function BookingRemindersCard() {
 
 export function NotificationsScreen() {
   const colors = useThemeColors();
+  const coaching = useCoachingStatus();
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
       <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
@@ -148,6 +158,11 @@ export function NotificationsScreen() {
         contentContainerClassName="gap-4 px-4 pb-8 pt-3"
       >
         <WeeklyUpdatesCard />
+        <PushPreferencesCard
+          screen="settings"
+          coaching={coaching.enabled}
+          testID="notifications-push"
+        />
         <TrainingRemindersRow />
         <BookingRemindersCard />
         <View testID="notifications-food-nudges" className={CARD}>

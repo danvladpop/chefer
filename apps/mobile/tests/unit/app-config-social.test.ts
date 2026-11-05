@@ -115,10 +115,5 @@ describe('app.config.js — social sign-in native config', () => {
     expect(pluginNames(config)).toContain('expo-apple-authentication');
     expect(config.ios.associatedDomains).toBeUndefined();
   });
-
-  it('keeps the push-entitlement stripper first and last', () => {
-    const names = pluginNames(loadConfig(PROD));
-    expect(names[0]).toBe('inline');
-    expect(names[names.length - 1]).toBe('inline');
-  });
+  // The push-entitlement stripper is gone since trainer mode M4 (app-config-push.test.ts).
 });

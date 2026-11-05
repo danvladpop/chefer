@@ -4,6 +4,7 @@ import { FRIENDS_COPY, type FriendUserSummary, type Page, type Relation } from '
 import { followOutcome, relationOf } from '@chefer/utils';
 import { profileNotAvailableError } from '../../lib/friends-errors.js';
 import { consume } from '../../lib/rate-limit.js';
+import { pushService, type PushService } from '../notifications/push.service.js';
 import {
   activityService,
   friendSummaryHydrator,
@@ -48,6 +49,11 @@ import { suggestionService, type SuggestionInvalidator } from './suggestion.serv
 // (public) follow: follow → unfollow → follow loops would otherwise re-raise
 // the owner's unread badge up to the hourly follow limit (F3.1). The follow
 // itself always goes through; past the cap it is just silent.
+//
+// Push (trainer-mode.md §7.2, M4): FOLLOW_REQUEST and NEW_FOLLOWER also
+// enqueue a push (PushOutbox) in the SAME transaction as the follow row — the
+// outbox pattern: the push commits or rolls back with the follow. A silent
+// (over-cap) NEW_FOLLOWER enqueues nothing either.
 
 export const REQUEST_CAP = { max: 3, windowMs: 7 * 86_400_000 } as const;
 
@@ -94,6 +100,7 @@ export class FollowService {
     private readonly hydrator: FriendSummaryHydrator = friendSummaryHydrator,
     private readonly tx: SocialTx = runSocialTx,
     private readonly requestCap: RequestCap = sharedRequestCap,
+    private readonly push: Pick<PushService, 'follow'> = pushService,
   ) {}
 
   /** Follow, or ask to (PRD FR-12.1/12.2). Returns the resulting relation — the client's truth. */
@@ -127,8 +134,12 @@ export class FollowService {
         await this.follows.create({ followerId: viewerId, followeeId: targetId, status }, db);
         if (status === 'PENDING') {
           await this.activity.notify(targetId, 'FOLLOW_REQUEST', viewerId, db);
+          await this.push.follow(targetId, viewerId, 'REQUEST', db);
         } else {
-          if (announce) await this.activity.notify(targetId, 'NEW_FOLLOWER', viewerId, db);
+          if (announce) {
+            await this.activity.notify(targetId, 'NEW_FOLLOWER', viewerId, db);
+            await this.push.follow(targetId, viewerId, 'NEW_FOLLOWER', db);
+          }
           // An old declined request's item would otherwise read "You accepted".
           await this.activity.withdraw(targetId, 'FOLLOW_REQUEST', viewerId, db);
         }

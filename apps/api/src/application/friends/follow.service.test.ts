@@ -213,9 +213,23 @@ function makeWorld() {
   // The production cap is the shared limiter; only the clock is the test's.
   const cap: RequestCap = (key) =>
     consume(`test:${key}`, REQUEST_CAP.max, REQUEST_CAP.windowMs, now);
-  const service = new FollowService(repo, access, activity, suggestions, hydrator, tx, cap);
+  // Push (trainer-mode.md §7.2): recorded with the transaction it joined.
+  const pushes: {
+    recipient: string;
+    actor: string;
+    variant: string;
+    tx: SocialDbClient | undefined;
+  }[] = [];
+  const push = {
+    follow: vi.fn((recipient: string, actor: string, variant: string, pushTx?: SocialDbClient) => {
+      pushes.push({ recipient, actor, variant, tx: pushTx });
+      return Promise.resolve('queued' as const);
+    }),
+  };
+  const service = new FollowService(repo, access, activity, suggestions, hydrator, tx, cap, push);
   return {
     service,
+    pushes,
     repo,
     follows,
     profiles,
@@ -253,6 +267,10 @@ describe('follow', () => {
     expect(notify).toMatchObject({ recipient: PUB, kind: 'NEW_FOLLOWER', actor: ME });
     expect(notify?.tx).toBe(w.txs[0]);
     expect(w.suggestions.invalidate).toHaveBeenCalledWith(ME);
+    // The push is enqueued in the same transaction as the follow (outbox pattern).
+    expect(w.pushes).toEqual([
+      { recipient: PUB, actor: ME, variant: 'NEW_FOLLOWER', tx: w.txs[0] },
+    ]);
   });
 
   it('private → requested, FOLLOW_REQUEST to the owner', async () => {
@@ -261,6 +279,7 @@ describe('follow', () => {
     expect(w.notices).toEqual([
       expect.objectContaining({ op: 'notify', recipient: PRIV, kind: 'FOLLOW_REQUEST', actor: ME }),
     ]);
+    expect(w.pushes).toEqual([{ recipient: PRIV, actor: ME, variant: 'REQUEST', tx: w.txs[0] }]);
   });
 
   it('forced private → always a request, even if visibility were PUBLIC', async () => {
@@ -333,6 +352,8 @@ describe('follow', () => {
     }
     const bumps = w.notices.filter((n) => n.op === 'notify' && n.kind === 'NEW_FOLLOWER');
     expect(bumps).toHaveLength(REQUEST_CAP.max);
+    // A silent (over-cap) follow pushes nothing either.
+    expect(w.pushes).toHaveLength(REQUEST_CAP.max);
     expect(w.repo.create).toHaveBeenCalledTimes(6);
     // The notify budget is separate from the request cap: requests still work.
     await expect(w.service.follow(ME, PRIV)).resolves.toEqual({ relation: 'requested' });

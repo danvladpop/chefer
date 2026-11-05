@@ -19,6 +19,7 @@ import {
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
+import { PushRegistrationHost } from '../src/features/notifications/push/push-registration-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
@@ -118,7 +119,7 @@ export default function RootLayout() {
   useOrientationLock();
   const scheme = useResolvedScheme();
   const { ready, token } = useSession();
-  // Weekly plan / recap notification taps → the plan or Progress (P2-5).
+  // Weekly plan / recap notification taps → the plan or Progress (P2-5); a push → its mode and screen (M4).
   useNotificationLinks(ready && token !== null);
 
   const [queryClient] = useState(createAppQueryClient);
@@ -258,6 +259,8 @@ export default function RootLayout() {
               <ProgressHost signedIn={token !== null} />
               {/* Trainer mode §7.3: local reminders 60 min before each booking (client and trainer). */}
               <BookingReminderHost signedIn={token !== null} />
+              {/* Trainer mode §7.2 (M4): registers this device for push when allowed (never prompts). */}
+              <PushRegistrationHost signedIn={token !== null} />
               {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
               <ForegroundLandingHost signedIn={token !== null} />
               {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}

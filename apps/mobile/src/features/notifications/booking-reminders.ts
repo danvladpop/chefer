@@ -7,7 +7,8 @@ import {
   type BookingReminderRole,
 } from '@chefer/utils';
 import { kv } from '../gym/offline/kv';
-import { ensureGymReminderPermission, hasGymReminderPermission } from '../gym/reminders/permission';
+import { hasGymReminderPermission } from '../gym/reminders/permission';
+import { askNotificationPermissionAt } from './push/push-permission';
 
 // ─── Local booking reminders (docs/prd-2026-10/trainer-mode.md §7.3, O-5) ────
 // A LOCAL notification 60 minutes before each upcoming booking in the next 14
@@ -28,7 +29,6 @@ import { ensureGymReminderPermission, hasGymReminderPermission } from '../gym/re
 // A tap opens the booking in the right mode (§5.1): see open-booking.ts.
 
 const KV_KEY = 'notifications.booking-reminders';
-const ASKED_KEY = 'notifications.booking-reminders.asked';
 const ANDROID_CHANNEL_ID = 'booking-reminders';
 
 export type BookingReminderPrefs = Record<BookingReminderRole, boolean>;
@@ -99,14 +99,14 @@ export function subscribeBookingReminderSyncTick(listener: Listener): () => void
 /**
  * Asks for notification permission once per account (a moment with value:
  * the first booking card / the first booking made), only while that side's
- * reminders are on. Never at launch. Re-syncs when the answer is yes.
+ * reminders are on. Never at launch. Re-syncs when the answer is yes. M4: this
+ * is push's `first_booking` moment too (push-permission.ts), so one OS prompt
+ * serves the local reminders and push alike.
  */
 export async function askBookingReminderPermissionOnce(role: BookingReminderRole): Promise<void> {
   if (!getBookingReminderPrefs()[role]) return;
-  if (kv.getString(ASKED_KEY) === '1') return;
   if (await hasGymReminderPermission()) return;
-  kv.setString(ASKED_KEY, '1');
-  if (await ensureGymReminderPermission()) requestBookingReminderSync();
+  if (await askNotificationPermissionAt('first_booking')) requestBookingReminderSync();
 }
 
 // ─── Scheduling ───────────────────────────────────────────────────────────────
