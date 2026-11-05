@@ -3,11 +3,13 @@ import { Pressable, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import type { Translator } from '@chefer/i18n';
 import { radius } from '@chefer/tokens';
 import { ConfirmSheet, PressableScale, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
-import { formatDate, localDateStr, PROGRESS_PHOTOS_COPY } from '@chefer/utils';
+import { localDateStr } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
 import { canResizeOnDevice, resizeFor } from '../../lib/prepare-photo';
 import { shareImageFile } from '../../lib/share-file';
 import { trpc } from '../../lib/trpc';
@@ -34,8 +36,8 @@ const PHOTO_STYLE = { width: '100%', aspectRatio: 3 / 4, borderRadius: PHOTO_RAD
 /** Long edge of a stored photo: sharp enough to compare, small on disk. */
 const STORED_LONG_EDGE = 1600;
 
-function day(value: string): string {
-  return formatDate(new Date(`${value}T00:00:00`), 'medium');
+function day(tr: Translator, value: string): string {
+  return tr.date(new Date(`${value}T00:00:00`), 'medium');
 }
 
 /** A local copy of the picked image, shrunk when the binary has the manipulator. */
@@ -55,6 +57,8 @@ async function shrink(asset: ImagePicker.ImagePickerAsset): Promise<string> {
 
 export function ProgressPhotos() {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const queryClient = useQueryClient();
   const { data: me } = trpc.user.me.useQuery(undefined, { staleTime: 300_000 });
   const userId = me?.id ?? null;
@@ -81,7 +85,7 @@ export function ProgressPhotos() {
       if (source === 'camera') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          setNotice(PROGRESS_PHOTOS_COPY.cameraDenied);
+          setNotice(t('today.photos.cameraDenied'));
           return null;
         }
         result = await ImagePicker.launchCameraAsync(options);
@@ -96,7 +100,7 @@ export function ProgressPhotos() {
       return photo;
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: key }),
-    onError: () => setNotice(PROGRESS_PHOTOS_COPY.saveFailed),
+    onError: () => setNotice(t('today.photos.saveFailed')),
   });
 
   const remove = useMutation({
@@ -127,7 +131,7 @@ export function ProgressPhotos() {
 
   return (
     <View testID="progress-photos" className="gap-3">
-      <Text className="text-subhead text-label-secondary">{PROGRESS_PHOTOS_COPY.privacy}</Text>
+      <Text className="text-subhead text-label-secondary">{t('today.photos.privacy')}</Text>
       <View className="flex-row gap-2">
         {(['camera', 'library'] as const).map((source) => (
           <PressableScale
@@ -143,9 +147,7 @@ export function ProgressPhotos() {
           >
             <Icon name={source === 'camera' ? 'camera' : 'images'} color={colors.brand} size={18} />
             <Text className="text-subhead font-semibold text-brand">
-              {source === 'camera'
-                ? PROGRESS_PHOTOS_COPY.takePhoto
-                : PROGRESS_PHOTOS_COPY.choosePhoto}
+              {source === 'camera' ? t('today.photos.takePhoto') : t('today.photos.choosePhoto')}
             </Text>
           </PressableScale>
         ))}
@@ -162,7 +164,7 @@ export function ProgressPhotos() {
 
       {photos.length === 0 ? (
         <Text testID="progress-photos-empty" className="text-subhead text-label-secondary">
-          {PROGRESS_PHOTOS_COPY.empty}
+          {t('today.photos.empty')}
         </Text>
       ) : (
         <>
@@ -175,8 +177,10 @@ export function ProgressPhotos() {
                   testID={`progress-photo-${photo.id}`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
-                  accessibilityLabel={`Progress photo from ${day(photo.takenOn)}`}
-                  accessibilityHint="Selects it to compare. Long press to open it."
+                  accessibilityLabel={t('today.progress.photos.photoFrom', {
+                    date: day(tr, photo.takenOn),
+                  })}
+                  accessibilityHint={t('today.progress.photos.photoHint')}
                   onPress={() => toggle(photo)}
                   onLongPress={() => setViewing(photo)}
                   className="basis-[31%] gap-1"
@@ -195,7 +199,9 @@ export function ProgressPhotos() {
                       opacity: on ? 0.85 : 1,
                     }}
                   />
-                  <Text className="text-caption text-label-secondary">{day(photo.takenOn)}</Text>
+                  <Text className="text-caption text-label-secondary">
+                    {day(tr, photo.takenOn)}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -211,13 +217,11 @@ export function ProgressPhotos() {
               className="min-h-11 items-center justify-center rounded-control bg-brand px-4"
             >
               <Text className="text-body font-semibold text-brand-on">
-                {PROGRESS_PHOTOS_COPY.compare}
+                {t('today.photos.compare')}
               </Text>
             </PressableScale>
           ) : (
-            <Text className="text-caption text-label-secondary">
-              {PROGRESS_PHOTOS_COPY.pickTwo}
-            </Text>
+            <Text className="text-caption text-label-secondary">{t('today.photos.pickTwo')}</Text>
           )}
         </>
       )}
@@ -225,7 +229,7 @@ export function ProgressPhotos() {
       <Sheet
         visible={comparing && pair.length === 2}
         onClose={() => setComparing(false)}
-        title={PROGRESS_PHOTOS_COPY.compare}
+        title={t('today.photos.compare')}
         testID="progress-photos-compare-sheet"
       >
         <View className="flex-row gap-2">
@@ -234,10 +238,12 @@ export function ProgressPhotos() {
               <Image
                 source={{ uri: photo.uri }}
                 contentFit="cover"
-                accessibilityLabel={`Progress photo from ${day(photo.takenOn)}`}
+                accessibilityLabel={t('today.progress.photos.photoFrom', {
+                  date: day(tr, photo.takenOn),
+                })}
                 style={PHOTO_STYLE}
               />
-              <Text className="text-center text-subhead text-label">{day(photo.takenOn)}</Text>
+              <Text className="text-center text-subhead text-label">{day(tr, photo.takenOn)}</Text>
             </View>
           ))}
         </View>
@@ -246,7 +252,7 @@ export function ProgressPhotos() {
       <Sheet
         visible={viewing !== null && !confirmDelete}
         onClose={() => setViewing(null)}
-        title={viewing ? day(viewing.takenOn) : ''}
+        title={viewing ? day(tr, viewing.takenOn) : ''}
         testID="progress-photo-viewer"
         footer={
           <View className="flex-row gap-2">
@@ -255,14 +261,12 @@ export function ProgressPhotos() {
               accessibilityRole="button"
               onPress={async () => {
                 if (viewing && !(await shareImageFile(viewing.uri))) {
-                  setNotice(PROGRESS_PHOTOS_COPY.shareFailed);
+                  setNotice(t('today.photos.shareFailed'));
                 }
               }}
               className="min-h-11 flex-1 items-center justify-center rounded-control bg-brand-tint"
             >
-              <Text className="text-body font-semibold text-brand">
-                {PROGRESS_PHOTOS_COPY.share}
-              </Text>
+              <Text className="text-body font-semibold text-brand">{t('today.photos.share')}</Text>
             </PressableScale>
             <PressableScale
               testID="progress-photo-delete"
@@ -271,7 +275,7 @@ export function ProgressPhotos() {
               className="min-h-11 flex-1 items-center justify-center rounded-control border border-separator"
             >
               <Text className="text-body font-semibold text-attention">
-                {PROGRESS_PHOTOS_COPY.delete}
+                {t('today.photos.delete')}
               </Text>
             </PressableScale>
           </View>
@@ -281,7 +285,9 @@ export function ProgressPhotos() {
           <Image
             source={{ uri: viewing.uri }}
             contentFit="contain"
-            accessibilityLabel={`Progress photo from ${day(viewing.takenOn)}`}
+            accessibilityLabel={t('today.progress.photos.photoFrom', {
+              date: day(tr, viewing.takenOn),
+            })}
             style={PHOTO_STYLE}
           />
         ) : null}
@@ -290,10 +296,10 @@ export function ProgressPhotos() {
       <ConfirmSheet
         visible={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        title={PROGRESS_PHOTOS_COPY.deleteConfirmTitle}
-        body={PROGRESS_PHOTOS_COPY.deleteConfirmBody}
-        confirmLabel={PROGRESS_PHOTOS_COPY.delete}
-        cancelLabel="Keep it"
+        title={t('today.photos.deleteConfirmTitle')}
+        body={t('today.photos.deleteConfirmBody')}
+        confirmLabel={t('today.photos.delete')}
+        cancelLabel={t('today.progress.photos.keep')}
         destructive
         busy={remove.isPending}
         onConfirm={() => viewing && remove.mutate(viewing.id)}

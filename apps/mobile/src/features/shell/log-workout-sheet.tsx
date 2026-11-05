@@ -6,6 +6,7 @@ import { Button, ChipGroup, Sheet, Text, useThemeColors } from '@chefer/ui-mobil
 import { isSimpleTraining } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { useFlags } from '../../hooks/use-flags';
+import { useT } from '../../lib/i18n';
 import { localDate } from '../gym/offline/ids';
 import { WorkoutTypeChips } from '../gym/simple/workout-type-chips';
 import { LoggedWorkoutForm } from '../gym/today/log-workout-form';
@@ -53,6 +54,7 @@ export function LogWorkoutSheet(props: LogWorkoutSheetProps) {
 
 /** Simple mode: the form itself, fresh on every opening. */
 function SimpleLogWorkoutSheet({ visible, onClose, initialType }: LogWorkoutSheetProps) {
+  const { t } = useT();
   const { data: bootstrap } = useGymBootstrap();
   const [openCount, setOpenCount] = useState(0);
   const [shownFor, setShownFor] = useState(visible);
@@ -65,8 +67,8 @@ function SimpleLogWorkoutSheet({ visible, onClose, initialType }: LogWorkoutShee
     <Sheet
       visible={visible}
       onClose={onClose}
-      eyebrow="Done elsewhere or earlier"
-      title="Log a workout"
+      eyebrow={t('today.shell.logWorkout.eyebrowElsewhere')}
+      title={t('today.shell.logWorkout.title')}
       testID="log-workout-sheet"
     >
       <LoggedWorkoutForm
@@ -81,6 +83,7 @@ function SimpleLogWorkoutSheet({ visible, onClose, initialType }: LogWorkoutShee
 
 function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { data: bootstrap } = useGymBootstrap();
   const { simpleTraining } = useFlags();
   const activeWorkout = useActiveWorkout();
@@ -92,7 +95,11 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
   const days = [...(bootstrap?.activeRoutine?.days ?? [])].sort((a, b) => a.position - b.position);
   const dayOptions = [
     ...days.map((day) => ({ value: day.id, label: day.name, testID: `log-workout-day-${day.id}` })),
-    { value: FREESTYLE, label: 'Freestyle', testID: 'log-workout-day-freestyle' },
+    {
+      value: FREESTYLE,
+      label: t('today.shell.logWorkout.freestyle'),
+      testID: 'log-workout-day-freestyle',
+    },
   ];
   const choose = (choice: Next) => {
     next.current = choice;
@@ -122,8 +129,8 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
         visible={visible}
         onClose={onClose}
         onExited={onExited}
-        eyebrow="Today"
-        title="Log a workout"
+        eyebrow={t('today.shell.logWorkout.eyebrowToday')}
+        title={t('today.shell.logWorkout.title')}
         testID="log-workout-sheet"
       >
         <View className="gap-4 pb-4">
@@ -131,7 +138,7 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
             <View className="flex-row items-center gap-2">
               <Icon name="barbell" color={colors.brand} />
               <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-                Gym workout you did
+                {t('today.shell.logWorkout.gymWorkout')}
               </Text>
             </View>
             <ChipGroup
@@ -149,7 +156,7 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
             <View className="flex-row items-center gap-2">
               <Icon name="activity" color={colors.brand} />
               <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-                Done elsewhere
+                {t('today.shell.logWorkout.doneElsewhere')}
               </Text>
             </View>
             <WorkoutTypeChips
@@ -163,7 +170,9 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
           </View>
           <View className="h-px bg-separator" />
           <Button testID="log-workout-start-now" variant="secondary" onPress={startNow}>
-            {activeWorkout.isActive ? 'Resume your workout' : 'Start a freestyle workout now'}
+            {activeWorkout.isActive
+              ? t('today.shell.logWorkout.resume')
+              : t('today.shell.logWorkout.startFreestyle')}
           </Button>
         </View>
       </Sheet>
@@ -171,8 +180,8 @@ function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
         <Sheet
           visible={form !== null}
           onClose={() => setForm(null)}
-          title="Log a workout"
-          eyebrow="Done elsewhere or earlier"
+          title={t('today.shell.logWorkout.title')}
+          eyebrow={t('today.shell.logWorkout.eyebrowElsewhere')}
           testID="log-workout-form-sheet"
         >
           {form ? (

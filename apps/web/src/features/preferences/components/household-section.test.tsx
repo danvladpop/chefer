@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HouseholdSection } from './household-section';
@@ -368,5 +369,33 @@ describe('HouseholdSection', () => {
       render(<HouseholdSection isPremium={false} ownerSafety={owner} variant="onboarding" />);
       expect(screen.queryByTestId('stub-sharing-line')).toBeNull();
     });
+  });
+});
+
+describe('HouseholdSection in Romanian (Lane J)', () => {
+  it('renders the section, the ghost and the member row in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <HouseholdSection isPremium={false} ownerSafety={owner} />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'Gospodăria mea' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '+ adaugă un copil' }));
+    const sample = screen.getByTestId('household-ghost-sample');
+    expect(sample.textContent).toContain('Exemplu: săptămâna ta cu Sam');
+    expect(sample.textContent).toContain('Lun');
+    expect(screen.getByRole('button', { name: /Adaugă un copil, gratuit/ })).toBeTruthy();
+  });
+
+  it('shows a member with a Romanian portion line and table count', () => {
+    m.members = [sam];
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <HouseholdSection isPremium={false} ownerSafety={owner} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('2 la masă')).toBeTruthy();
+    expect(screen.getByText(/porție de ½ · copil/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Editează: Sam' })).toBeTruthy();
   });
 });

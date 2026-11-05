@@ -702,7 +702,7 @@ export default function CookModeScreen() {
             testID="cook-share"
             variant="outline"
             icon="share"
-            label="Share what you cooked"
+            label={t('today.share.cooked')}
             className="self-stretch"
             loading={sharing === 'cook'}
             onPress={() =>

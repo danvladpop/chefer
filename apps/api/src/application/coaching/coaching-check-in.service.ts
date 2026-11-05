@@ -28,6 +28,7 @@ import {
 import { checkInPeriodStart, isCompleteCheckIn } from '@chefer/utils';
 import { trainerToolsOffError } from '../../lib/coaching-errors.js';
 import { EmailQuotaError, emailTransport, type IEmailService } from '../../lib/email/index.js';
+import { emailTranslator } from '../../lib/email/language.js';
 import { renderCheckInEmail } from '../../lib/email/templates.js';
 import { unsubscribeUrl, type UnsubscribeScope } from '../../lib/email/tokens.js';
 import { env } from '../../lib/env.js';
@@ -274,7 +275,8 @@ export class CoachingCheckInService {
         continue;
       }
       const unsubscribe = this.deps.unsubscribeUrl(r.clientId, UNSUBSCRIBE_SCOPE);
-      const rendered = renderCheckInEmail({
+      // ADR 0004: in the client's language (locale ?? deviceLocale ?? 'en').
+      const rendered = renderCheckInEmail(emailTranslator(r), {
         firstName: r.firstName,
         trainerName: r.trainerName,
         answerUrl: `${this.deps.appUrl}/coaching/check-in`,

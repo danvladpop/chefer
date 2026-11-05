@@ -1,8 +1,9 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
-import { getWeekStartDate, userFacingErrorMessage, weekRangeLabel } from '@chefer/utils';
+import { getWeekStartDate, userFacingErrorMessage } from '@chefer/utils';
 
 // "Use this week again" (UX-PLAN-11, mirror of apps/mobile's use-restore-plan):
 // a past week can be copied into THIS or NEXT week. Restore used to put the
@@ -27,6 +28,7 @@ export function UseWeekAgainSheet({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const { t, date } = useT();
   const utils = trpc.useUtils();
   const mutation = trpc.mealPlan.restore.useMutation({
     meta: { silent: true },
@@ -41,6 +43,13 @@ export function UseWeekAgainSheet({
     },
   });
 
+  // "28 Sep – 4 Oct" / "28 sept. – 4 oct." (weekRangeLabel in @chefer/utils is English only).
+  const weekRange = (monday: Date) => {
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return t('plan.history.range', { start: date(monday, 'short'), end: date(sunday, 'short') });
+  };
+
   const handleClose = () => {
     mutation.reset();
     onClose();
@@ -50,14 +59,13 @@ export function UseWeekAgainSheet({
     <Sheet
       open={open}
       onClose={handleClose}
-      title="Use this week again"
-      description={`Week of ${weekLabel}`}
+      title={t('plan.history.useAgainSheet.title')}
+      description={t('plan.history.useAgainSheet.weekOf', { date: weekLabel })}
       size="sm"
     >
       <div className="flex flex-col gap-3">
         <p className="text-sm text-gray-600" data-testid="use-again-body">
-          Which week should it become? It replaces whatever is planned there now — nothing is
-          deleted, and the replaced plan stays in My weeks.
+          {t('plan.history.useAgainSheet.body')}
         </p>
         {mutation.error && (
           <p role="alert" className="text-sm text-red-600" data-testid="use-again-error">
@@ -71,7 +79,7 @@ export function UseWeekAgainSheet({
           onClick={() => mutation.mutate({ planId, weekOffset: 0 })}
           className={`${choiceCls} bg-[#944a00] text-white hover:bg-[#7a3d00]`}
         >
-          This week ({weekRangeLabel(getWeekStartDate(0))})
+          {t('plan.history.useAgainSheet.thisWeek', { range: weekRange(getWeekStartDate(0)) })}
         </button>
         <button
           type="button"
@@ -80,14 +88,14 @@ export function UseWeekAgainSheet({
           onClick={() => mutation.mutate({ planId, weekOffset: 1 })}
           className={`${choiceCls} border border-gray-200 text-gray-800 hover:bg-gray-50`}
         >
-          Next week ({weekRangeLabel(getWeekStartDate(1))})
+          {t('plan.history.useAgainSheet.nextWeek', { range: weekRange(getWeekStartDate(1)) })}
         </button>
         <button
           type="button"
           onClick={handleClose}
           className={`${choiceCls} text-gray-600 hover:bg-gray-50`}
         >
-          Cancel
+          {t('common.actions.cancel')}
         </button>
       </div>
     </Sheet>

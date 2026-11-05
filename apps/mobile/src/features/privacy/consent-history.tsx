@@ -1,6 +1,6 @@
 import { ActivityIndicator, View } from 'react-native';
 import type { Translator } from '@chefer/i18n';
-import { coachingConsentLabel, FRIENDS_COPY, healthSyncConsentLabel } from '@chefer/types';
+import { healthSyncConsentLabel } from '@chefer/types';
 import { Card, ErrorState, Text, useQueryState, useThemeColors } from '@chefer/ui-mobile';
 import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
@@ -79,12 +79,12 @@ function describe(event: ConsentEventRow, t: Translator['t']): string {
     case 'SOCIAL_SHARING':
       // Following (code name `friends`): turned on, made public, shared
       // targets (granted) or turned off (withdrawn) — implementation-plan §7.
-      return FRIENDS_COPY.consent.label(event.granted);
+      return event.granted ? t('friends.consent.labelOn') : t('friends.consent.labelOff');
     case 'COACHING_SHARING':
       // Trainer coaching (WP-18): joined a trainer (granted) or the link ended (withdrawn). Level 6+ only:
       // the API filters these rows out below it, so an older bundle never prints the raw enum.
       // Lane K1: providers ['FOOD'] / ['WEIGHT'] is a sharing switch ("Food log shared with your trainer").
-      return coachingConsentLabel(event) ?? event.kind;
+      return coachingLabel(event, t);
     case 'HEALTH_SYNC':
       // C2: providers = [platform, ...types on]. Only binaries with health sync
       // write these rows, and this label ships before them (OTA), so no level gate.
@@ -92,6 +92,14 @@ function describe(event: ConsentEventRow, t: Translator['t']): string {
     default:
       return event.kind;
   }
+}
+
+/** `coachingConsentLabel` (@chefer/types) in the UI language. */
+function coachingLabel(event: ConsentEventRow, t: Translator['t']): string {
+  const state = event.granted ? 'granted' : 'withdrawn';
+  const data = event.providers[0];
+  if (data === 'FOOD' || data === 'WEIGHT') return t(`coaching.consentHistory.${data}.${state}`);
+  return t(`coaching.consentHistory.${state}`);
 }
 
 export function ConsentHistory() {

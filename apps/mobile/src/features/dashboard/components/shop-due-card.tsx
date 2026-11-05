@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card, Text, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import type { RouterOutputs } from '../../../lib/trpc';
 
 // Shop-due card (UX-04 §4, T-04.2/T-04.4): unticked shopping-list lines
@@ -12,6 +13,7 @@ type ShopDue = NonNullable<RouterOutputs['dashboard']['summary']['shopDue']>;
 
 export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const sample = shopDue.sample.join(', ');
   const more = shopDue.count - shopDue.sample.length;
 
@@ -27,14 +29,15 @@ export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
         </View>
         <View className="min-w-0 flex-1">
           <Text className="text-sm font-semibold text-label">
-            {shopDue.count} thing{shopDue.count === 1 ? '' : 's'} to buy for tomorrow
+            {t('today.home.shopDue.title', { count: shopDue.count })}
           </Text>
           <Text numberOfLines={1} variant="muted" className="text-xs">
-            {sample}
-            {more > 0 ? ` and ${more} more` : ''}
+            {more > 0 ? t('today.home.shopDue.sampleMore', { sample, more }) : sample}
           </Text>
         </View>
-        <Text className="text-sm font-semibold text-primary">Open list</Text>
+        <Text className="text-sm font-semibold text-primary">
+          {t('today.home.shopDue.openList')}
+        </Text>
       </Card>
     </Pressable>
   );

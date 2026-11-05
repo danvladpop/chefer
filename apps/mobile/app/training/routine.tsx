@@ -2,12 +2,14 @@ import { AskChefAction } from '../../src/features/shell/add-action';
 import { ShellChromeProvider } from '../../src/features/shell/shell-chrome';
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { TrainingRoutineScreen } from '../../src/features/shell/train/training-routine-screen';
+import { useT } from '../../src/lib/i18n';
 import RoutineScreen from '../(gym)/routine';
 
 // New shell: Routine, pushed from Train (it was a Gym tab). 10 Oct redesign:
 // the routine card, its days as tiles and the weekly balance (board
 // "TrainingRoutine"); the old shell keeps the old Routine screen.
 export default function TrainingRoutine() {
+  const { t } = useT();
   const shellV2 = useShellV2();
   if (!shellV2) {
     return (
@@ -18,7 +20,12 @@ export default function TrainingRoutine() {
   }
   return (
     <ShellChromeProvider
-      value={{ kind: 'pushed', fallback: '/train', title: 'Routine', actions: <AskChefAction /> }}
+      value={{
+        kind: 'pushed',
+        fallback: '/train',
+        title: t('nav.items.routine'),
+        actions: <AskChefAction />,
+      }}
     >
       <TrainingRoutineScreen />
     </ShellChromeProvider>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Share, View } from 'react-native';
-import { COACHING_COPY, type InviteDto } from '@chefer/types';
+import type { InviteDto } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -14,8 +14,9 @@ import {
   Text,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
-import { formatStampDate } from '../../gym/routine/attribution';
+import { formatShortDayT } from '../../coaching/copy';
 import { CoachingCard } from '../components/coaching-card';
 import { TrainerHeader } from '../components/trainer-header';
 import { InviteQr } from './invite-qr';
@@ -39,19 +40,21 @@ export async function shareInvite(invite: Pick<InviteDto, 'url'>): Promise<void>
 
 /** The QR sheet (PRD 2026-10 §4.1, S5): the open invite as a code to scan in person. */
 function QrSheet({ invite, onClose }: { invite: InviteDto | null; onClose: () => void }) {
-  const qr = COACHING_COPY.trainer.qr;
+  const { t } = useT();
   return (
     <Sheet
       visible={invite !== null}
       onClose={onClose}
-      title={qr.title}
+      title={t('coaching.trainer.qr.title')}
       eyebrow={invite?.label ?? undefined}
       testID="trainer-invite-qr-sheet"
     >
       {invite ? (
         <View className="gap-4 pb-4">
           <InviteQr url={invite.url} />
-          <Text className="text-center text-subhead text-label-secondary">{qr.hint}</Text>
+          <Text className="text-center text-subhead text-label-secondary">
+            {t('coaching.trainer.qr.hint')}
+          </Text>
         </View>
       ) : null}
     </Sheet>
@@ -59,9 +62,10 @@ function QrSheet({ invite, onClose }: { invite: InviteDto | null; onClose: () =>
 }
 
 function ShowQrButton({ invite, onShow }: { invite: InviteDto; onShow: () => void }) {
+  const { t } = useT();
   return (
     <Button testID={`trainer-invite-${invite.code}-qr`} variant="outline" onPress={onShow}>
-      {COACHING_COPY.trainer.qr.show}
+      {t('coaching.trainer.qr.show')}
     </Button>
   );
 }
@@ -77,23 +81,24 @@ function InviteRow({
   onShowQr: () => void;
   revoking: boolean;
 }) {
+  const { t } = useT();
   const open = invite.state === 'OPEN';
   return (
     <CoachingCard testID={`trainer-invite-${invite.code}`} className="gap-2">
       <View className="flex-row items-center gap-2">
         <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
-          {invite.label ?? 'No label'}
+          {invite.label ?? t('coaching.trainer.invites.noLabel')}
         </Text>
         <Badge
           testID={`trainer-invite-${invite.code}-state`}
           variant={open ? 'default' : 'secondary'}
         >
-          {COACHING_COPY.trainer.inviteStates[invite.state]}
+          {t(`coaching.trainer.inviteStates.${invite.state}`)}
         </Badge>
       </View>
       {open ? (
         <Text className="text-subhead text-label-secondary">
-          {COACHING_COPY.trainer.inviteExpires(formatStampDate(invite.expiresAt))}
+          {t('coaching.trainer.inviteExpires', { date: formatShortDayT(invite.expiresAt, t) })}
         </Text>
       ) : null}
       {open ? (
@@ -103,7 +108,7 @@ function InviteRow({
             className="flex-1"
             onPress={() => void shareInvite(invite)}
           >
-            {COACHING_COPY.common.share}
+            {t('coaching.common.share')}
           </Button>
           <Button
             testID={`trainer-invite-${invite.code}-revoke`}
@@ -112,7 +117,7 @@ function InviteRow({
             disabled={revoking}
             onPress={() => onRevoke(invite.code)}
           >
-            {COACHING_COPY.trainer.revoke}
+            {t('coaching.trainer.revoke')}
           </Button>
         </View>
       ) : null}
@@ -128,6 +133,7 @@ function InviteRow({
  * it shows in place (no Modal on top of a Modal).
  */
 export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [label, setLabel] = useState('');
   const [created, setCreated] = useState<InviteDto | null>(null);
@@ -160,12 +166,12 @@ export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
       <CoachingCard className="gap-3">
         <FormField
           testID="trainer-invite-label-field"
-          label={COACHING_COPY.trainer.inviteLabel}
-          hint={COACHING_COPY.trainer.inviteLabelHint}
+          label={t('coaching.trainer.inviteLabel')}
+          hint={t('coaching.trainer.inviteLabelHint')}
         >
           <Input
             testID="trainer-invite-label"
-            label={COACHING_COPY.trainer.inviteLabel}
+            label={t('coaching.trainer.inviteLabel')}
             value={label}
             maxLength={60}
             {...DONE_FIELD_PROPS}
@@ -182,23 +188,23 @@ export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
           loading={create.isPending}
           onPress={() => create.mutate(trimmed === '' ? {} : { label: trimmed })}
         >
-          {COACHING_COPY.trainer.createLink}
+          {t('coaching.trainer.createLink')}
         </Button>
       </CoachingCard>
 
       {created ? (
         <CoachingCard testID="trainer-invite-created" className="gap-2">
           <Text className="text-headline font-semibold text-label">
-            {created.label ?? COACHING_COPY.trainer.invite}
+            {created.label ?? t('coaching.trainer.invite')}
           </Text>
           <Text testID="trainer-invite-created-url" selectable className="text-sm text-label">
             {created.url}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {COACHING_COPY.trainer.inviteExpires(formatStampDate(created.expiresAt))}
+            {t('coaching.trainer.inviteExpires', { date: formatShortDayT(created.expiresAt, t) })}
           </Text>
           <Button testID="trainer-invite-created-share" onPress={() => void shareInvite(created)}>
-            {COACHING_COPY.common.share}
+            {t('coaching.common.share')}
           </Button>
           {created.state === 'OPEN' ? (
             <Button
@@ -206,7 +212,7 @@ export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
               variant="outline"
               onPress={() => setQrInvite(created)}
             >
-              {COACHING_COPY.trainer.qr.show}
+              {t('coaching.trainer.qr.show')}
             </Button>
           ) : null}
         </CoachingCard>
@@ -239,20 +245,22 @@ export function InviteBody({ qr = 'sheet' }: { qr?: 'sheet' | 'inline' }) {
   );
 }
 
-export const HIDE_QR_LABEL = 'Hide QR code';
-
 /** The QR inside the invite sheet, with Hide (back to the invites). */
 function InlineQr({ invite, onHide }: { invite: InviteDto; onHide: () => void }) {
-  const qr = COACHING_COPY.trainer.qr;
+  const { t } = useT();
   return (
     <CoachingCard testID="trainer-invite-qr-inline" className="gap-3">
       <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-        {invite.label ? `${qr.title} · ${invite.label}` : qr.title}
+        {invite.label
+          ? t('coaching.trainer.invites.qrTitleFor', { label: invite.label })
+          : t('coaching.trainer.qr.title')}
       </Text>
       <InviteQr url={invite.url} />
-      <Text className="text-center text-subhead text-label-secondary">{qr.hint}</Text>
+      <Text className="text-center text-subhead text-label-secondary">
+        {t('coaching.trainer.qr.hint')}
+      </Text>
       <Button testID="trainer-invite-qr-inline-hide" variant="outline" onPress={onHide}>
-        {HIDE_QR_LABEL}
+        {t('coaching.trainer.invites.hideQr')}
       </Button>
     </CoachingCard>
   );
@@ -260,9 +268,10 @@ function InlineQr({ invite, onHide }: { invite: InviteDto; onHide: () => void })
 
 /** `/trainer/invite` (Trainer tools, and trainer mode off): the flow as its own screen. */
 export function InviteScreen() {
+  const { t } = useT();
   return (
     <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-invite">
-      <TrainerHeader testID="trainer-invite-header" title={COACHING_COPY.trainer.invite} />
+      <TrainerHeader testID="trainer-invite-header" title={t('coaching.trainer.invite')} />
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <InviteBody />
       </KeyboardAwareScrollView>
@@ -272,11 +281,12 @@ export function InviteScreen() {
 
 /** Trainer mode (§6.4, §6.8): the same flow as a sheet, from Clients and from You. */
 export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { t } = useT();
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={COACHING_COPY.trainer.invite}
+      title={t('coaching.trainer.invite')}
       testID="trainer-invite-sheet"
     >
       {/* Mounted only while the sheet's Modal is up (exit motion included), so nothing loads closed. */}

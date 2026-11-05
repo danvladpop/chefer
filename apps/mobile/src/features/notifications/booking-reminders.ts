@@ -1,13 +1,20 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { BOOKING_COPY } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ClientBookingDto, TrainerBookingDto } from '@chefer/types';
 import {
   BOOKING_REMINDER_APP_TAG,
+  bookingTime,
+  bookingWhat,
+  planClientReminders,
+  planTrainerReminders,
   type BookingReminderPlan,
   type BookingReminderRole,
 } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
 import { kv } from '../gym/offline/kv';
 import { ensureGymReminderPermission, hasGymReminderPermission } from '../gym/reminders/permission';
+import { bookingWhoText } from '../trainer-mode/bookings/booking-model';
 
 // ─── Local booking reminders (docs/prd-2026-10/trainer-mode.md §7.3, O-5) ────
 // A LOCAL notification 60 minutes before each upcoming booking in the next 14
@@ -42,6 +49,44 @@ export function bookingReminderTarget(
   if (d.role !== 'client' && d.role !== 'trainer') return null;
   if (typeof d.bookingId !== 'string' || d.bookingId === '') return null;
   return { role: d.role, bookingId: d.bookingId };
+}
+
+// ─── The reminder text, in the UI language ────────────────────────────────────
+// `planClientReminders` / `planTrainerReminders` decide WHEN (shared with
+// web); the body is written here with the app's translator, so a reminder
+// reads in the same language as the screens.
+
+/** The client's reminders: "Session with Ana in 1 hour". */
+export function clientReminderPlan(
+  bookings: readonly ClientBookingDto[],
+  now: Date,
+  tr: Translator = getTranslator(),
+): BookingReminderPlan[] {
+  const byId = new Map(bookings.map((b) => [b.id, b]));
+  return planClientReminders(bookings, now).map((item) => ({
+    ...item,
+    body: tr.t('trainer.bookings.reminders.clientBody', {
+      trainer: byId.get(item.bookingId)?.trainer.name ?? '',
+    }),
+  }));
+}
+
+/** The trainer's reminders: "18:00 Maria · Lower body A". */
+export function trainerReminderPlan(
+  bookings: readonly TrainerBookingDto[],
+  now: Date,
+  zone: string,
+  tr: Translator = getTranslator(),
+): BookingReminderPlan[] {
+  const byId = new Map(bookings.map((b) => [b.id, b]));
+  return planTrainerReminders(bookings, now, zone).map((item) => {
+    const b = byId.get(item.bookingId);
+    if (!b) return item;
+    const body = [`${bookingTime(b.startsAt, zone)} ${bookingWhoText(tr, b)}`, bookingWhat(b)]
+      .filter(Boolean)
+      .join(' · ');
+    return { ...item, body };
+  });
 }
 
 // ─── The switches ─────────────────────────────────────────────────────────────
@@ -151,10 +196,11 @@ export function syncBookingReminders(
     await cancelReminders(role);
     if (!getBookingReminderPrefs()[role] || plan.length === 0) return;
     if (!(await hasGymReminderPermission())) return;
+    const title = getTranslator().t('trainer.bookings.reminders.setting');
     try {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-          name: BOOKING_COPY.reminders.setting,
+          name: title,
           importance: Notifications.AndroidImportance.DEFAULT,
         });
       }
@@ -162,7 +208,7 @@ export function syncBookingReminders(
         await Notifications.scheduleNotificationAsync({
           identifier: item.identifier,
           content: {
-            title: BOOKING_COPY.reminders.setting,
+            title,
             body: item.body,
             // Ids only (§7.2 "never health data in a payload"): the app fetches the rest.
             data: { app: BOOKING_REMINDER_APP_TAG, role: item.role, bookingId: item.bookingId },

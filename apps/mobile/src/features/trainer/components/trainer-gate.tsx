@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { COACHING_COPY } from '@chefer/types';
 import {
   Button,
   EmptyState,
@@ -12,6 +11,7 @@ import {
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useCoachingAvailability } from '../api/use-coaching-availability';
 import { firstNameOf } from '../format';
@@ -30,20 +30,26 @@ import { profileInput, TrainerProfileFields } from './trainer-profile-fields';
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 export function TrainerUnavailableScreen({ testID = 'trainer-unavailable' }: { testID?: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <Screen edges={SCREEN_EDGES} className="justify-center bg-canvas">
       <EmptyState
         testID={testID}
         icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
-        title={COACHING_COPY.server.notAllowed}
-        action={{ label: 'Go back', testID: `${testID}-back`, onPress: goBackOrHome }}
+        title={t('coaching.trainer.notAllowed')}
+        action={{
+          label: t('coaching.trainer.goBack'),
+          testID: `${testID}-back`,
+          onPress: goBackOrHome,
+        }}
       />
     </Screen>
   );
 }
 
 function TurnOnScreen() {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const me = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
   const [name, setName] = useState<string | null>(null);
@@ -65,14 +71,14 @@ function TurnOnScreen() {
 
   return (
     <Screen edges={SCREEN_EDGES} className={TRAINER_SCREEN_CLASS} testID="trainer-turn-on">
-      <TrainerHeader testID="trainer-turn-on-header" title={COACHING_COPY.trainer.title} />
+      <TrainerHeader testID="trainer-turn-on-header" title={t('coaching.trainer.title')} />
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <CoachingCard>
           <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-            {COACHING_COPY.trainer.turnOnTitle}
+            {t('coaching.trainer.turnOnTitle')}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {COACHING_COPY.trainer.turnOnBody}
+            {t('coaching.trainer.turnOnBody')}
           </Text>
           <TrainerProfileFields
             testID="trainer-turn-on"
@@ -85,7 +91,7 @@ function TurnOnScreen() {
           />
           {/* PRD 2026-10 §4.1: turning on makes the trainer findable by name (a private Following profile). */}
           <Text testID="trainer-turn-on-findable" className="text-subhead text-label-secondary">
-            {COACHING_COPY.trainerProfile.findableNote}
+            {t('coaching.trainer.profile.findableNote')}
           </Text>
           {activate.error ? (
             <Text testID="trainer-turn-on-error" className="text-subhead text-danger">
@@ -98,7 +104,7 @@ function TurnOnScreen() {
             disabled={input.displayName === ''}
             onPress={submit}
           >
-            {COACHING_COPY.trainer.turnOn}
+            {t('coaching.trainer.turnOn')}
           </Button>
         </CoachingCard>
         <TrainerFeedbackLink />

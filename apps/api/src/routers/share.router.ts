@@ -2,6 +2,7 @@ import { createShareCardInputSchema, getShareCardInputSchema } from '@chefer/typ
 import { shareService } from '../application/share/share.service.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
+import { userLocale } from '../lib/user-locale.js';
 
 // ─── Share cards (market review 2026-10, lane E2) ────────────────────────────
 // `create` snapshots what the card shows and returns its public link; `get`
@@ -11,7 +12,7 @@ import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 export const shareRouter = router({
   create: protectedProcedure.input(createShareCardInputSchema).mutation(({ ctx, input }) => {
     assertWithinRateLimit('share.create', ctx.user.id, 30, 60 * 60 * 1000);
-    return shareService.create(ctx.user.id, input);
+    return shareService.create(ctx.user.id, input, userLocale(ctx.user));
   }),
 
   get: publicProcedure.input(getShareCardInputSchema).query(({ ctx, input }) => {

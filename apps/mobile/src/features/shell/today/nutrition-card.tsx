@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
+import type { Translator } from '@chefer/i18n';
 import {
   CalorieGauge,
   Celebration,
@@ -8,8 +9,10 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { formatNumber, HIDE_NUMBERS_COPY, onPlanLine } from '@chefer/utils';
+import { formatNumber } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { calorieGaugeLabels, macroLabels } from './nutrition-labels';
 import { BoardCard } from './parts';
 
 // Today's and Your day's nutrition card (10 Oct redesign, boards Home and
@@ -18,6 +21,14 @@ import { BoardCard } from './parts';
 // get the protein number and its row only — never a kcal figure. Lane E3
 // "Hide numbers" users get no figure at all: the card becomes "Today so far",
 // the planned meals eaten as qualitative progress.
+
+/** "2 of 3 planned meals eaten" — the qualitative line in "Hide numbers" (onPlanLine). */
+function onPlanText(t: Translator['t'], eaten: number, planned: number): string {
+  if (planned <= 0) return t('today.hideNumbers.noPlan');
+  if (eaten <= 0) return t('today.hideNumbers.onPlanEmpty');
+  if (eaten >= planned) return t('today.hideNumbers.onPlanDone');
+  return t('today.hideNumbers.onPlanLine', { eaten, count: planned });
+}
 
 export type MacroAmount = { value: number; target: number };
 
@@ -58,25 +69,27 @@ export function NutritionCard({
   onPlan,
   testID = 'nutrition-card',
 }: NutritionCardProps) {
+  const { t } = useT();
   const colors = useThemeColors();
   const { noNumbers } = useNumbersMode();
+  const macros = macroLabels(t);
   if (noNumbers) {
     if (!onPlan) return null;
     return (
       <BoardCard testID={`${testID}-on-plan`}>
         {header}
         <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-          {HIDE_NUMBERS_COPY.onPlanTitle}
+          {t('today.hideNumbers.onPlanTitle')}
         </Text>
         <Text className="text-body text-label-secondary">
-          {onPlanLine(onPlan.eaten, onPlan.planned)}
+          {onPlanText(t, onPlan.eaten, onPlan.planned)}
         </Text>
         {onPlan.planned > 0 ? (
           // MO-11 progress, a share of the plan — no nutrition figure.
           <ProgressBar
             testID={`${testID}-on-plan-bar`}
             progress={Math.min(1, onPlan.eaten / onPlan.planned)}
-            accessibilityLabel={onPlanLine(onPlan.eaten, onPlan.planned)}
+            accessibilityLabel={onPlanText(t, onPlan.eaten, onPlan.planned)}
           />
         ) : null}
         <Celebration
@@ -98,10 +111,14 @@ export function NutritionCard({
             className="text-display font-bold text-label"
             style={{ fontVariant: ['tabular-nums'] }}
           >
-            {`${formatNumber(Math.round(protein.value))} g`}
+            {t('today.shell.nutrition.proteinGrams', {
+              value: formatNumber(Math.round(protein.value)),
+            })}
           </Text>
           <Text className="text-caption text-label-secondary">
-            {`of ${formatNumber(Math.round(protein.target))} g protein`}
+            {t('today.shell.nutrition.proteinOfTarget', {
+              target: formatNumber(Math.round(protein.target)),
+            })}
           </Text>
         </View>
       ) : (
@@ -109,6 +126,7 @@ export function NutritionCard({
           testID={`${testID}-gauge`}
           value={eatenKcal}
           target={targetKcal}
+          {...calorieGaugeLabels(t)}
           className="pt-2"
         />
       )}
@@ -126,6 +144,7 @@ export function NutritionCard({
           macro="protein"
           value={protein.value}
           target={protein.target}
+          labels={macros.protein}
         />
         {proteinOnly ? null : (
           <>
@@ -134,8 +153,15 @@ export function NutritionCard({
               macro="carbs"
               value={carbs.value}
               target={carbs.target}
+              labels={macros.carbs}
             />
-            <MacroRow testID={`${testID}-fat`} macro="fat" value={fat.value} target={fat.target} />
+            <MacroRow
+              testID={`${testID}-fat`}
+              macro="fat"
+              value={fat.value}
+              target={fat.target}
+              labels={macros.fat}
+            />
           </>
         )}
       </View>

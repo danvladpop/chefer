@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ChevronRight, Search, UserRound } from 'lucide-react';
-import { COACHING_COPY, type CoachingRequestDto } from '@chefer/types';
+import type { CoachingRequestDto } from '@chefer/types';
 import { Button, pressCard, Sheet } from '@chefer/ui';
 import { cn, userFacingErrorMessage } from '@chefer/utils';
-import { formatShortDay } from '../lib/dates';
+import { consentCanLines, consentWillSeeLines, trainerNameOrFallbackT } from '../lib/copy';
+import { formatShortDayT } from '../lib/dates';
 import { useCoachingAvailability } from '../use-coaching-availability';
 import { UpcomingBookingsList } from './ClientBookings';
 import { ConsentUpdateNotice } from './ConsentUpdateNotice';
@@ -18,14 +20,14 @@ import { SharingCard } from './SharingCard';
 
 /** The client's pending coaching request: who, until when, and Cancel request. */
 function PendingRequest({ request }: { request: CoachingRequestDto }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
-  const copy = COACHING_COPY.request;
   const cancel = trpc.coaching.cancelRequest.useMutation({
     meta: { silent: true },
     onSuccess: () => {
       void utils.coaching.status.invalidate();
       void utils.coaching.trainerCard.invalidate();
-      showAppToast({ message: copy.cancelled, type: 'success' });
+      showAppToast({ message: t('coaching.request.cancelled'), type: 'success' });
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
   });
@@ -36,9 +38,13 @@ function PendingRequest({ request }: { request: CoachingRequestDto }) {
     >
       <div className="min-w-0">
         <p className="min-w-0 break-words text-sm font-medium text-gray-900">
-          {copy.pending(request.trainer.name)}
+          {t('coaching.request.pending', {
+            trainer: trainerNameOrFallbackT(request.trainer.name, t),
+          })}
         </p>
-        <p className="text-sm text-gray-600">{copy.expires(formatShortDay(request.expiresAt))}</p>
+        <p className="text-sm text-gray-600">
+          {t('coaching.request.expires', { date: formatShortDayT(request.expiresAt, t) })}
+        </p>
       </div>
       <Button
         type="button"
@@ -47,7 +53,7 @@ function PendingRequest({ request }: { request: CoachingRequestDto }) {
         loading={cancel.isPending}
         onClick={() => cancel.mutate({ source: 'web' })}
       >
-        {copy.cancel}
+        {t('coaching.request.cancel')}
       </Button>
     </div>
   );
@@ -55,7 +61,7 @@ function PendingRequest({ request }: { request: CoachingRequestDto }) {
 
 /** "Find a trainer": the way in for a client without a trainer or a request. */
 function FindTrainerEntry() {
-  const copy = COACHING_COPY.find;
+  const { t } = useT();
   return (
     <Link
       href="/coaching/find"
@@ -67,8 +73,8 @@ function FindTrainerEntry() {
     >
       <Search className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="block font-medium text-gray-900">{copy.entry}</span>
-        <span className="block text-sm text-gray-600">{copy.entryHint}</span>
+        <span className="block font-medium text-gray-900">{t('coaching.find.entry')}</span>
+        <span className="block text-sm text-gray-600">{t('coaching.find.entryHint')}</span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
     </Link>
@@ -76,6 +82,7 @@ function FindTrainerEntry() {
 }
 
 export function YourTrainerCard() {
+  const { t } = useT();
   const { enabled } = useCoachingAvailability();
   const utils = trpc.useUtils();
   const status = trpc.coaching.status.useQuery(undefined, { enabled, retry: false });
@@ -87,7 +94,7 @@ export function YourTrainerCard() {
       setConfirming(false);
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();
-      showAppToast({ message: COACHING_COPY.yourTrainer.left, type: 'success' });
+      showAppToast({ message: t('coaching.yourTrainer.left'), type: 'success' });
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
   });
@@ -95,7 +102,7 @@ export function YourTrainerCard() {
   if (!enabled || !status.data) return null;
   const { trainer, stopped } = status.data;
   const request = status.data.request ?? null;
-  const copy = COACHING_COPY.yourTrainer;
+  const trainerName = trainer ? trainerNameOrFallbackT(trainer.name, t) : '';
 
   return (
     <section
@@ -110,10 +117,15 @@ export function YourTrainerCard() {
         </span>
         <div className="min-w-0 flex-1">
           <h2 id="your-trainer-title" className="font-semibold text-gray-900">
-            {copy.title}
+            {t('coaching.yourTrainer.title')}
           </h2>
           <p className="min-w-0 break-words text-sm text-gray-600">
-            {trainer ? copy.since(trainer.name, formatShortDay(trainer.since)) : copy.noTrainer}
+            {trainer
+              ? t('coaching.yourTrainer.since', {
+                  trainer: trainerName,
+                  date: formatShortDayT(trainer.since, t),
+                })
+              : t('coaching.yourTrainer.noTrainer')}
           </p>
         </div>
       </div>
@@ -131,10 +143,10 @@ export function YourTrainerCard() {
           <UpcomingBookingsList />
           <div>
             <h3 className="text-sm font-semibold text-gray-900">
-              {copy.seesHeading(trainer.name)}
+              {t('coaching.yourTrainer.seesHeading', { trainer: trainerName })}
             </h3>
             <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {COACHING_COPY.consent.willSee.map((line) => (
+              {consentWillSeeLines(t).map((line) => (
                 <li key={line} className="min-w-0 break-words">
                   {line}
                 </li>
@@ -142,19 +154,21 @@ export function YourTrainerCard() {
             </ul>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">{copy.canHeading(trainer.name)}</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {t('coaching.yourTrainer.canHeading', { trainer: trainerName })}
+            </h3>
             <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {COACHING_COPY.consent.can(trainer.name).map((line) => (
+              {consentCanLines(trainerName, t).map((line) => (
                 <li key={line} className="min-w-0 break-words">
                   {line}
                 </li>
               ))}
             </ul>
             <p className="mt-1.5 text-sm text-gray-700">
-              {COACHING_COPY.consent.privateNotes(trainer.name)}
+              {t('coaching.consent.privateNotes', { trainer: trainerName })}
             </p>
           </div>
-          <SharingCard trainerName={trainer.name} sharing={trainer.sharing} />
+          <SharingCard trainerName={trainerName} sharing={trainer.sharing} />
           <Button
             id="your-trainer-leave"
             type="button"
@@ -162,17 +176,20 @@ export function YourTrainerCard() {
             className="min-h-11"
             onClick={() => setConfirming(true)}
           >
-            {copy.leave}
+            {t('coaching.yourTrainer.leave')}
           </Button>
         </div>
       ) : (
         <div className="mt-3 space-y-1 text-sm text-gray-600">
           {stopped && (
             <p className="font-medium text-gray-800" data-testid="your-trainer-stopped">
-              {copy.stopped(stopped.trainerName)} · {formatShortDay(stopped.at)}
+              {t('coaching.yourTrainer.stopped', {
+                trainer: trainerNameOrFallbackT(stopped.trainerName, t),
+              })}{' '}
+              · {formatShortDayT(stopped.at, t)}
             </p>
           )}
-          <p>{copy.noTrainerHint}</p>
+          <p>{t('coaching.yourTrainer.noTrainerHint')}</p>
           {!request && (
             <div className="pt-2">
               <FindTrainerEntry />
@@ -185,7 +202,7 @@ export function YourTrainerCard() {
         <Sheet
           open={confirming}
           onClose={() => setConfirming(false)}
-          title={copy.leaveTitle(trainer.name)}
+          title={t('coaching.yourTrainer.leaveTitle', { trainer: trainerName })}
           size="sm"
           footer={
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -195,19 +212,21 @@ export function YourTrainerCard() {
                 onClick={() => setConfirming(false)}
                 disabled={leave.isPending}
               >
-                {COACHING_COPY.common.cancel}
+                {t('coaching.common.cancel')}
               </Button>
               <Button
                 type="button"
                 onClick={() => leave.mutate({ source: 'web' })}
                 loading={leave.isPending}
               >
-                {copy.leaveConfirm}
+                {t('coaching.yourTrainer.leaveConfirm')}
               </Button>
             </div>
           }
         >
-          <p className="px-5 py-4 text-sm text-gray-600">{copy.leaveBody(trainer.name)}</p>
+          <p className="px-5 py-4 text-sm text-gray-600">
+            {t('coaching.yourTrainer.leaveBody', { trainer: trainerName })}
+          </p>
         </Sheet>
       )}
     </section>

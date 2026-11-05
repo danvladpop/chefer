@@ -11,6 +11,7 @@ import {
   writeFoodNudgePrefs,
 } from '../../src/features/notifications/food-nudges';
 import { NotificationsScreen } from '../../src/features/notifications/notifications-screen';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // UX-PO-08: Settings → Notifications gathers every reminder in one place.
 
@@ -126,6 +127,23 @@ describe('NotificationsScreen', () => {
     );
     // Class reminders arrive with classes (WP-05): no placeholder row until then.
     expect(screen.queryByText(/class/i)).toBeNull();
+  });
+
+  it('speaks Romanian', async () => {
+    resetLocaleForTests(['ro-RO']);
+    try {
+      await renderScreen();
+      expect(screen.getByTestId('notifications-title')).toHaveTextContent('Notificări');
+      expect(screen.getByTestId('notifications-training-summary')).toHaveTextContent(
+        'Activate, la 07:30',
+      );
+      expect(screen.getByTestId('notifications-meal-reminders')).toHaveTextContent(
+        /Mementouri la ora mesei/,
+      );
+      expect(screen.getByText('Sugestii pentru mese')).toBeOnTheScreen();
+    } finally {
+      resetLocaleForTests(['en-US']);
+    }
   });
 
   it('the training row reports the reminder and opens gym settings', async () => {

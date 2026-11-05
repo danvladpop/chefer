@@ -1,10 +1,11 @@
 import { Switch, View } from 'react-native';
-import { COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
+import type { CoachingShareChoice } from '@chefer/types';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 
 // ─── "Share my food log" / "Share my weight" (lane K1) ────────────────────────
 // The client's two opt-ins, on the consent screen (join and request) and in Your trainer. The texts are
-// consent copy from the shared COACHING_SHARING_COPY (the web renders the same strings): do not reword
+// consent copy from the shared `coaching.sharing.*` catalog (the web renders the same strings): do not reword
 // here. Both start off; the caller owns the value (local state before joining, the server after).
 
 export type SharingSwitchesProps = {
@@ -56,26 +57,27 @@ export function SharingSwitches({
   disabled = false,
   testID = 'coaching-sharing',
 }: SharingSwitchesProps) {
-  const copy = COACHING_SHARING_COPY;
+  const { t } = useT();
+  const trainer = trainerName;
   return (
     <View testID={testID} className="gap-3">
       <SwitchRow
         testID={`${testID}-food`}
-        label={copy.food.label}
-        body={copy.food.body(trainerName)}
+        label={t('coaching.sharing.food.label')}
+        body={t('coaching.sharing.food.body', { trainer })}
         value={value.food}
         disabled={disabled}
         onValueChange={(food) => onChange({ food })}
       />
       <SwitchRow
         testID={`${testID}-weight`}
-        label={copy.weight.label}
-        body={copy.weight.body(trainerName)}
+        label={t('coaching.sharing.weight.label')}
+        body={t('coaching.sharing.weight.body', { trainer })}
         value={value.weight}
         disabled={disabled}
         onValueChange={(weight) => onChange({ weight })}
       />
-      <Text className="text-footnote text-label-secondary">{copy.footer}</Text>
+      <Text className="text-footnote text-label-secondary">{t('coaching.sharing.footer')}</Text>
     </View>
   );
 }

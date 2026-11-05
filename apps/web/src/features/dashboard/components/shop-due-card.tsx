@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ShoppingCart } from 'lucide-react';
 
@@ -11,6 +12,7 @@ import { ShoppingCart } from 'lucide-react';
 type ShopDue = NonNullable<RouterOutputs['dashboard']['summary']['shopDue']>;
 
 export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
+  const { t } = useT();
   const sample = shopDue.sample.join(', ');
   const more = shopDue.count - shopDue.sample.length;
 
@@ -25,14 +27,15 @@ export function ShopDueCard({ shopDue }: { shopDue: ShopDue }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-gray-900">
-          {shopDue.count} thing{shopDue.count === 1 ? '' : 's'} to buy for tomorrow
+          {t('today.home.shopDue.title', { count: shopDue.count })}
         </p>
         <p className="truncate text-xs text-gray-500">
-          {sample}
-          {more > 0 ? ` and ${more} more` : ''}
+          {more > 0 ? t('today.home.shopDue.sampleMore', { sample, more }) : sample}
         </p>
       </div>
-      <span className="shrink-0 text-sm font-semibold text-[#944a00]">Open list</span>
+      <span className="shrink-0 text-sm font-semibold text-[#944a00]">
+        {t('today.home.shopDue.openList')}
+      </span>
     </Link>
   );
 }

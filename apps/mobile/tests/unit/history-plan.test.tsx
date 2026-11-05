@@ -4,6 +4,7 @@ import { formatDate, formatKcal } from '@chefer/utils';
 import HistoryPlanScreen from '../../app/history/[planId]';
 import HistoryScreen from '../../app/history/index';
 import { PastWeeksSection } from '../../src/features/history/past-weeks-section';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // History on mobile (audit F-M-PAR-1, F-M-PREM-1-1): each past week opens a
 // read-only detail, and Restore asks first and spins only its own row.
@@ -290,5 +291,26 @@ describe('History list → My weeks (P2-8)', () => {
     );
     await renderWithSafeArea(<PastWeeksSection />);
     expect(screen.getAllByText('Plan not found.')).toHaveLength(1);
+  });
+});
+
+// Lane J phase 4: the past-week screens in Romanian.
+describe('past weeks in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('the read-only week speaks Romanian', async () => {
+    await renderWithSafeArea(<HistoryPlanScreen />);
+    expect(screen.getByText('Doar vizualizare')).toBeOnTheScreen();
+    expect(screen.getByText('Lun')).toBeOnTheScreen();
+    expect(screen.getByTestId('history-day-kcal')).toHaveTextContent(/^Total pe zi · .+ kcal$/);
+    expect(screen.getByText('Folosește din nou săptămâna')).toBeOnTheScreen();
+  });
+
+  it('the past-weeks list speaks Romanian', async () => {
+    await renderWithSafeArea(<PastWeeksSection />);
+    expect(screen.getByText('Săptămâni trecute')).toBeOnTheScreen();
+    expect(screen.getAllByText('Înlocuită').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('1900 kcal în medie · 120 g P · 200 g C · 60 g G')).toHaveLength(2);
   });
 });

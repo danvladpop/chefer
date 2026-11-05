@@ -9,8 +9,10 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { cn, formatBodyWeight, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
+import { weightErrorText } from '../coach-copy';
 
 // One weigh-in form for the dashboard card, /progress and the gym stats
 // prompt (audit F-DASH-3-1, F-TRK-1-7). It used to be three copies of a bare
@@ -49,6 +51,8 @@ export function WeightLogForm({
 }) {
   const system = useUnitSystem();
   const imperial = system === 'IMPERIAL';
+  const tr = useT();
+  const { t } = tr;
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -71,11 +75,13 @@ export function WeightLogForm({
       };
       refresh();
       showAppToast({
-        message: `Logged ${formatBodyWeight(variables.weightKg, system)}`,
+        message: t('today.progress.form.logged', {
+          weight: formatBodyWeight(variables.weightKg, system),
+        }),
         type: 'success',
         durationMs: UNDO_TOAST_MS,
         action: {
-          label: 'Undo',
+          label: t('today.progress.form.undo'),
           onClick: () => {
             // Imperative client: the card may be gone by the time Undo is clicked.
             utils.client.tracker.deleteWeight
@@ -93,7 +99,7 @@ export function WeightLogForm({
     e.preventDefault();
     const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(weightErrorText(tr, parsed.error));
       return;
     }
     setError(null);
@@ -105,7 +111,9 @@ export function WeightLogForm({
     ) {
       setValue('');
       showAppToast({
-        message: `Already logged ${formatBodyWeight(parsed.kg, system)} today`,
+        message: t('today.progress.form.alreadyLogged', {
+          weight: formatBodyWeight(parsed.kg, system),
+        }),
         type: 'success',
       });
       return;
@@ -126,9 +134,17 @@ export function WeightLogForm({
             setValue(e.target.value);
             if (error) setError(null);
           }}
-          placeholder={placeholder ?? (imperial ? '160.5 lb' : '72.5 kg')}
+          placeholder={
+            placeholder ??
+            (imperial
+              ? t('today.progress.form.placeholderLb', { value: tr.number(160.5, 1) })
+              : t('today.progress.form.placeholderKg', { value: tr.number(72.5, 1) }))
+          }
           inputMode="decimal"
-          aria-label={label ?? `Today's weight in ${imperial ? 'pounds' : 'kilograms'}`}
+          aria-label={
+            label ??
+            (imperial ? t('today.progress.form.labelLb') : t('today.progress.form.labelKg'))
+          }
           aria-invalid={error != null}
           aria-describedby={error ? 'weight-log-error' : undefined}
           className={cn(
@@ -144,7 +160,7 @@ export function WeightLogForm({
           disabled={!value.trim() || logWeight.isPending || saved}
           className="min-h-11 shrink-0 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
         >
-          {saved ? '✓ Saved' : 'Log'}
+          {saved ? t('today.progress.form.saved') : t('today.progress.form.log')}
         </button>
       </div>
       {error && (

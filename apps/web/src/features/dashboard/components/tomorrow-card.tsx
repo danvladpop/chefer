@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
+import { useT } from '@/lib/i18n';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@chefer/utils';
+import { mealTypeLabel } from './today-slot-notes';
 
 // ─── Tomorrow card (UX-04 §2/§3, T-04.7) ────────────────────────────────────────
 // The 21:30–03:59 band, or once tonight's dinner is done — "TOMORROW ·
@@ -21,6 +23,7 @@ const MEAL_COLOURS: Record<string, string> = {
 };
 
 export function TomorrowCard({ meal }: { meal: Tomorrow }) {
+  const { t } = useT();
   return (
     <div
       data-testid="tomorrow-card"
@@ -30,7 +33,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
         <Link
           href={`/recipes/${meal.recipe.id}`}
           className="relative block h-32 w-full shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-28"
-          aria-label={`Open ${meal.recipe.name}`}
+          aria-label={t('today.home.nextMeal.open', { name: meal.recipe.name })}
         >
           <RecipeThumbnail
             imageUrl={meal.recipe.imageUrl}
@@ -43,7 +46,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
           <div className="min-w-0">
             <div className="mb-1 flex flex-wrap gap-2">
               <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
-                Tomorrow
+                {t('today.home.nextMeal.tomorrow')}
               </span>
               <span
                 className={cn(
@@ -51,7 +54,7 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
                   MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600',
                 )}
               >
-                {meal.mealType}
+                {mealTypeLabel(t, meal.mealType)}
               </span>
             </div>
             <h2 className="font-serif text-base font-bold leading-snug text-gray-900">
@@ -63,7 +66,8 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
             data-testid="tomorrow-view-recipe"
             className="flex min-h-11 w-full items-center justify-center gap-1 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] sm:ml-auto sm:w-auto"
           >
-            View recipe <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            {t('today.home.nextMeal.viewRecipe')}{' '}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
       </div>

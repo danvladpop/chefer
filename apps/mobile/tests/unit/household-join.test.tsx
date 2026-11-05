@@ -16,6 +16,7 @@ import { safetyEdited } from '../../src/features/household/join/household-consen
 import { householdInviteMessage } from '../../src/features/household/join/household-join-screen';
 import { joinPortionPhrase } from '../../src/features/household/sharing/copy';
 import { readPendingHouseholdJoin } from '../../src/features/household/sharing/pending-household-join';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc, trpcError } from './friends-core-harness';
 import { settle } from './trainer-fixtures';
 
@@ -103,6 +104,27 @@ describe('household join: consent screen', () => {
     expect(screen.getByTestId('household-join-term-dislikedIngredients-olives')).toBeTruthy();
     expect(screen.getByText(c.joinSafetyNone)).toBeTruthy();
     expect(track).toHaveBeenCalledWith('household_invite_opened', { state: 'OK', signedIn: true });
+  });
+
+  it('speaks Romanian when the phone is in Romanian', async () => {
+    resetLocaleForTests(['ro-RO']);
+    try {
+      await renderWithTrpc(<HouseholdJoinRoute />, {
+        'household.previewInvite': () => preview(),
+        'user.me': () => CONSENTED,
+      });
+      await settle();
+      expect(screen.getByText('Intră în gospodărie cu Dan')).toBeTruthy();
+      expect(
+        screen.getByText('Mănânci ¾ din fiecare masă. Poți schimba asta mai târziu.'),
+      ).toBeTruthy();
+      expect(screen.getByText('Intră în gospodărie')).toBeTruthy();
+      expect(householdInviteMessage({ state: 'EXPIRED' })).toBe(
+        'Invitația aceasta a expirat. Cere una nouă.',
+      );
+    } finally {
+      resetLocaleForTests(['en-US']);
+    }
   });
 
   it('joins with the confirmed (edited) terms, then opens Meals', async () => {

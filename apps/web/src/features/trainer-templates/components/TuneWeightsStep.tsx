@@ -5,10 +5,10 @@ import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { NextTargetText } from '@/features/trainer/components/NextSessionPanel';
 import { useTrainerUnit } from '@/features/trainer/use-trainer-unit';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import {
   GYM_MAX_WEIGHT_KG,
-  TEMPLATE_COPY,
   type TrainerRoutineExerciseDto,
   type WeightUnit,
   type WorkoutTemplateDto,
@@ -22,8 +22,6 @@ import { formatLoad, kgToUnit, unitLabel, unitToKg, userFacingErrorMessage } fro
 // already set) next to the template's starting weight. A changed weight is
 // saved as that client's next-session target (`trainer.client.setNextTarget`,
 // the existing override); unchanged rows are left alone.
-
-const copy = TEMPLATE_COPY.tune;
 
 export interface TuneClient {
   clientId: string;
@@ -51,11 +49,13 @@ function WeightInput({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { t } = useT();
   const id = useId();
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <label htmlFor={id} className="text-xs font-medium text-gray-700">
-        Weight ({unitLabel(unit)})<span className="sr-only">: {name}</span>
+        {t('trainer.templates.tune.weightUnit', { unit: unitLabel(unit) })}
+        <span className="sr-only">: {name}</span>
       </label>
       <input
         id={id}
@@ -89,6 +89,7 @@ export function TuneWeightsStep({
   clients: TuneClient[];
   onDone: () => void;
 }) {
+  const { t } = useT();
   const unit = useTrainerUnit();
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -173,14 +174,14 @@ export function TuneWeightsStep({
       <div className="flex min-w-0 items-baseline justify-between gap-2">
         <h3 className="min-w-0 break-words font-semibold text-gray-900">{client.name}</h3>
         <span className="shrink-0 text-xs text-gray-500">
-          {copy.step(index + 1, clients.length)}
+          {t('trainer.templates.tune.step', { i: index + 1, n: clients.length })}
         </span>
       </div>
 
       {routine.isLoading ? (
         <div className="h-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-600">{copy.noWeightedExercises}</p>
+        <p className="text-sm text-gray-600">{t('trainer.templates.tune.noWeightedExercises')}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-gray-100">
           {rows.map((row) => {
@@ -210,14 +211,14 @@ export function TuneWeightsStep({
                         timed={meta?.isTimed ?? false}
                       />
                     ) : (
-                      copy.noHistory
+                      t('trainer.templates.tune.noHistory')
                     )}
                   </p>
                   {templateKg !== null && (
                     <p className="text-xs text-gray-500">
-                      {copy.templateDefault(
-                        formatLoad(templateKg, unit, load.loadType, { each: load.perHand }),
-                      )}
+                      {t('trainer.templates.tune.templateDefault', {
+                        load: formatLoad(templateKg, unit, load.loadType, { each: load.perHand }),
+                      })}
                     </p>
                   )}
                 </div>
@@ -236,10 +237,10 @@ export function TuneWeightsStep({
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="ghost" onClick={advance} disabled={saving}>
-          {copy.skip}
+          {t('trainer.templates.tune.skip')}
         </Button>
         <Button type="button" onClick={() => void saveAndAdvance()} loading={saving}>
-          {isLast ? copy.done : copy.next}
+          {isLast ? t('trainer.templates.tune.done') : t('trainer.templates.tune.next')}
         </Button>
       </div>
     </div>

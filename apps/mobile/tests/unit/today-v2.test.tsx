@@ -3,6 +3,7 @@ import type { NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/type
 import { weekdayOf } from '@chefer/utils';
 import HomeTab from '../../app/(main)/home';
 import { localDate } from '../../src/features/gym/offline/ids';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
 import { makeBootstrap } from './gym-fixtures';
@@ -615,5 +616,22 @@ describe('Today v2 — training', () => {
     expect(tile).toHaveTextContent(/313/);
     expect(tile).toHaveTextContent(/kcal you logged/);
     expect(tile).toHaveProp('accessibilityLabel', '313 kilocalories burned, as you logged');
+  });
+});
+
+// Lane J phase 4: the next meal card follows the UI language (`today.home.nextMeal.*`).
+describe('Today v2 — next meal in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('words the meal type, meta and actions in Romanian', async () => {
+    await renderToday();
+    expect(screen.getByTestId('next-meal-type')).toHaveTextContent('Prânz');
+    expect(screen.getByTestId('next-meal-meta')).toHaveTextContent('640 kcal · 25 min');
+    expect(screen.getByTestId('next-meal-eaten')).toHaveTextContent(/Mâncat/);
+    expect(screen.getByTestId('next-meal-skip')).toHaveProp(
+      'accessibilityLabel',
+      'Prânz: sari peste masă',
+    );
   });
 });

@@ -1,9 +1,10 @@
 import { View } from 'react-native';
-import type { AdherenceDayDto, AdherenceDto, AdherenceWeekDto, WeekStatus } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { AdherenceDayDto, AdherenceDto, AdherenceWeekDto } from '@chefer/types';
 import { Badge, ProgressBar, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
-import { formatStampDate } from '../../gym/routine/attribution';
-import { WEEKDAY_SHORT_LABELS } from '../../gym/routine/weekday';
+import { useT } from '../../../lib/i18n';
+import { formatShortDayT, weekdayNameT } from '../../coaching/copy';
 import { CoachingCard } from '../components/coaching-card';
 import { formatWeekdayDate } from '../format';
 
@@ -11,15 +12,6 @@ import { formatWeekdayDate } from '../format';
 // The last 8 weeks (sessions against goal: met / missed / paused) and a 14-day strip of planned days:
 // trained / missed / paused / rest. A pause is shown by its dates only, never the reason (the API never
 // sends one).
-
-const WEEK_STATUS_LABEL: Record<WeekStatus, string> = {
-  met: 'Met',
-  flex: 'Met',
-  paused: 'Paused',
-  under: 'Missed',
-  empty: 'No sessions',
-  current: 'This week',
-};
 
 export type DayState = 'trained' | 'missed' | 'paused' | 'planned' | 'rest';
 
@@ -31,61 +23,68 @@ export function dayState(day: AdherenceDayDto, isToday: boolean): DayState {
   return isToday ? 'planned' : 'missed';
 }
 
-const DAY_GLYPH: Record<DayState, string> = {
-  trained: '✓',
-  missed: '✕',
-  paused: 'P',
-  planned: '•',
-  rest: '·',
-};
+function dayGlyph(state: DayState, t: Translator['t']): string {
+  switch (state) {
+    case 'trained':
+      return '✓';
+    case 'missed':
+      return '✕';
+    case 'paused':
+      return t('coaching.trainer.adherence.pausedGlyph');
+    case 'planned':
+      return '•';
+    case 'rest':
+      return '·';
+  }
+}
 
-const DAY_WORD: Record<DayState, string> = {
-  trained: 'trained',
-  missed: 'missed',
-  paused: 'paused',
-  planned: 'planned today',
-  rest: 'rest',
-};
-
-function dayInitial(localDate: string): string {
+function dayInitial(localDate: string, t: Translator['t']): string {
   const [y, m, d] = localDate.split('-').map(Number);
   if (y === undefined || m === undefined || d === undefined) return '';
   const weekday = (new Date(y, m - 1, d).getDay() + 6) % 7;
-  return (WEEKDAY_SHORT_LABELS[weekday] ?? '').slice(0, 1);
+  return weekdayNameT(weekday, t).slice(0, 1);
 }
 
 function WeekRow({ week }: { week: AdherenceWeekDto }) {
+  const { t } = useT();
   const progress = week.goal > 0 ? week.sessions / week.goal : 0;
+  const date = formatShortDayT(week.weekStart, t);
+  const status = t(`coaching.trainer.adherence.weekShort.${week.status}`);
   return (
     <View
       testID={`trainer-adherence-week-${week.weekStart}`}
       accessible
-      accessibilityLabel={`Week of ${formatStampDate(week.weekStart)}: ${week.sessions} of ${week.goal} sessions, ${WEEK_STATUS_LABEL[week.status]}`}
+      accessibilityLabel={t('coaching.trainer.adherence.weekA11y', {
+        date,
+        sessions: week.sessions,
+        goal: week.goal,
+        status,
+      })}
       className="min-h-11 flex-row items-center gap-3"
     >
-      <Text className="w-16 text-subhead text-label-secondary">
-        {formatStampDate(week.weekStart)}
-      </Text>
+      <Text className="w-16 text-subhead text-label-secondary">{date}</Text>
       <View className="min-w-0 flex-1">
         <ProgressBar progress={progress} />
       </View>
       <Text className="w-10 text-right text-sm">
-        {week.sessions} / {week.goal}
+        {t('coaching.trainer.adherence.sessionsOfGoal', {
+          sessions: week.sessions,
+          goal: week.goal,
+        })}
       </Text>
-      <Badge variant={week.status === 'under' ? 'warning' : 'secondary'}>
-        {WEEK_STATUS_LABEL[week.status]}
-      </Badge>
+      <Badge variant={week.status === 'under' ? 'warning' : 'secondary'}>{status}</Badge>
     </View>
   );
 }
 
 export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
+  const { t } = useT();
   const lastIndex = adherence.days.length - 1;
   return (
     <View testID="trainer-adherence" className="gap-4">
       <CoachingCard className="gap-1">
         <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-          Last 14 days
+          {t('coaching.trainer.adherence.lastDays')}
         </Text>
         <View testID="trainer-adherence-strip" className="mt-2 flex-row justify-between">
           {adherence.days.map((day, i) => {
@@ -95,11 +94,14 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
                 key={day.localDate}
                 testID={`trainer-adherence-day-${day.localDate}`}
                 accessible
-                accessibilityLabel={`${formatWeekdayDate(day.localDate)}: ${DAY_WORD[state]}`}
+                accessibilityLabel={t('coaching.trainer.adherence.dayA11y', {
+                  date: formatWeekdayDate(day.localDate, t),
+                  state: t(`coaching.trainer.adherence.dayWord.${state}`),
+                })}
                 className="min-w-0 flex-1 items-center gap-1"
               >
                 <Text className="text-caption text-label-secondary">
-                  {dayInitial(day.localDate)}
+                  {dayInitial(day.localDate, t)}
                 </Text>
                 <View
                   className={cn(
@@ -111,7 +113,7 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
                   )}
                 >
                   <Text className="text-xs" importantForAccessibility="no">
-                    {DAY_GLYPH[state]}
+                    {dayGlyph(state, t)}
                   </Text>
                 </View>
               </View>
@@ -119,12 +121,12 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
           })}
         </View>
         <Text className="mt-2 text-caption text-label-secondary">
-          ✓ trained · ✕ missed · P paused · · rest day
+          {t('coaching.trainer.adherence.legendShort')}
         </Text>
       </CoachingCard>
       <CoachingCard className="gap-1">
         <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-          Last 8 weeks
+          {t('coaching.trainer.adherence.lastWeeks')}
         </Text>
         {adherence.weeks.map((week) => (
           <WeekRow key={week.weekStart} week={week} />

@@ -1,3 +1,4 @@
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { firstNameOf } from '../format';
@@ -12,9 +13,10 @@ export function useTrainerClientName(clientId: string): {
   firstName: string;
   keepItSimple: boolean;
 } {
+  const { t } = useT();
   const list = trpc.trainer.clients.list.useQuery({ today: localDate() });
   const row = list.data?.find((c) => c.clientId === clientId);
-  const name = row?.name ?? 'Client';
+  const name = row?.name ?? t('coaching.trainer.clientFallback');
   return { name, firstName: firstNameOf(name), keepItSimple: row?.keepItSimple === true };
 }
 

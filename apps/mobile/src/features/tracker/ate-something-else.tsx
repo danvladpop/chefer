@@ -19,6 +19,7 @@ import {
   type EatOutSize,
   type SlotRef,
 } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { ScanMealCard } from './scan-meal-card';
@@ -62,6 +63,7 @@ export function AteSomethingElseBody({
   /** A Snap log landed. */
   onScanned: () => void;
 }) {
+  const { t } = useT();
   // WP-08: protein-only mode asks protein first and never shows a calorie figure.
   const { proteinOnly, noNumbers } = useNumbersMode();
   const [cuisine, setCuisine] = useState<EatOutCuisine | null>(null);
@@ -99,7 +101,7 @@ export function AteSomethingElseBody({
   return (
     <View className="gap-5">
       <View className="gap-3">
-        {header('Quick estimate')}
+        {header(t('tracker.ateElse.tabs.estimate'))}
         <View testID="ate-else-cuisines" className="flex-row flex-wrap gap-2">
           {EAT_OUT_CUISINES.map((c) => (
             <Chip
@@ -116,7 +118,7 @@ export function AteSomethingElseBody({
           options={SIZE_OPTIONS}
           value={size}
           onChange={setSize}
-          accessibilityLabel="Size"
+          accessibilityLabel={t('tracker.ateElse.sizeLabelShort')}
           testID="ate-else-size"
         />
         {cuisine && (
@@ -135,16 +137,16 @@ export function AteSomethingElseBody({
               : proteinOnly
                 ? formatEatOutProtein(estimate)
                 : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
-            : 'Pick what you had for a rough estimate.'}
+            : t('tracker.ateElse.pickLong')}
         </Text>
         <Button testID="ate-else-log-it" disabled={!estimate} onPress={logEstimate}>
-          Log it
+          {t('tracker.ateElse.logIt')}
         </Button>
       </View>
 
       {recentRows.length > 0 && (
         <View className="gap-2">
-          {header('Recent')}
+          {header(t('tracker.ateElse.tabs.recent'))}
           {recentRows.map((r) => (
             <Pressable
               key={r.key}
@@ -152,10 +154,16 @@ export function AteSomethingElseBody({
               accessibilityRole="button"
               accessibilityLabel={
                 noNumbers
-                  ? `Log ${r.name} as what you had`
+                  ? t('tracker.ateElse.logAsHad', { name: r.name })
                   : proteinOnly
-                    ? `Log ${r.name}, about ${proteinLabel(r.protein)}, as what you had`
-                    : `Log ${r.name}, about ${formatKcal(r.kcal)} kilocalories, as what you had`
+                    ? t('tracker.ateElse.logAsHadProtein', {
+                        name: r.name,
+                        protein: proteinLabel(r.protein),
+                      })
+                    : t('tracker.ateElse.logAsHadKcal', {
+                        name: r.name,
+                        kcal: formatKcal(r.kcal),
+                      })
               }
               onPress={() =>
                 onReplace({
@@ -177,7 +185,9 @@ export function AteSomethingElseBody({
               </Text>
               {noNumbers ? null : (
                 <Text className="text-xs text-label-tertiary">
-                  {proteinOnly ? `≈ ${proteinLabel(r.protein)}` : `≈ ${formatKcal(r.kcal)} kcal`}
+                  {proteinOnly
+                    ? t('tracker.ateElse.approxProtein', { protein: proteinLabel(r.protein) })
+                    : t('tracker.ateElse.approxKcal', { kcal: formatKcal(r.kcal) })}
                 </Text>
               )}
             </Pressable>
@@ -186,9 +196,9 @@ export function AteSomethingElseBody({
       )}
 
       <View className="gap-3">
-        {header('Describe it or snap a photo')}
+        {header(t('tracker.ateElse.describeOrSnap'))}
         <Button testID="ate-else-describe" variant="outline" onPress={onDescribe}>
-          Describe it
+          {t('tracker.ateElse.describe')}
         </Button>
         <ScanMealCard date={date} replacesSlot={slot} onLogged={onScanned} />
       </View>

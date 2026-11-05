@@ -1,6 +1,7 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { HERO_LOGGED_HOLD_MS } from '@chefer/utils';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // P2-2: Today's next meal logs in one tap through tracker.logRecipe, then
 // refreshes the summary so the spotlight advances (F-PM-10).
@@ -203,5 +204,26 @@ describe('HeroMealCard (Today)', () => {
       expect(screen.getByTestId('today-ate-this')).toHaveTextContent('I ate this');
       expect(screen.queryByText('Logged Lentil Curry.')).toBeNull();
     });
+  });
+});
+
+// Lane J phase 4: the card follows the UI language (`today.home.nextMeal.*`).
+describe('HeroMealCard in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('words the badge, meal type, size line and actions in Romanian', async () => {
+    await render(<HeroMealCard meal={{ ...MEAL, portion: 1.5 }} isTomorrow={false} />);
+    expect(screen.getByText('Următoarea masă')).toBeOnTheScreen();
+    expect(screen.getByText('Cină')).toBeOnTheScreen();
+    expect(screen.getByText('700 kcal · porție 1½×')).toBeOnTheScreen();
+    expect(screen.getByTestId('today-ate-this')).toHaveTextContent('Am mâncat asta');
+    expect(screen.getByTestId('today-cook-it')).toHaveTextContent('Gătește');
+    await act(() => {
+      mockMutation.onSuccess?.({ rebalance: null });
+      return Promise.resolve();
+    });
+    expect(screen.getByText('Ai înregistrat Lentil Curry.')).toBeOnTheScreen();
+    expect(screen.getByText('Modifică în ziua completă')).toBeOnTheScreen();
   });
 });

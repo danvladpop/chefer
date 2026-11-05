@@ -20,6 +20,17 @@ export const nav = {
     schedule: 'Schedule',
     workouts: 'Workouts',
     trainerSettings: 'Trainer settings',
+    // Mobile tab bars (revamp shell: Shop · Meals · Today · Train · You; the
+    // old Food and Gym bars end in More).
+    meals: 'Meals',
+    train: 'Train',
+    you: 'You',
+    more: 'More',
+  },
+  /** Mobile tab-bar labels where the full name does not fit five tabs ("Cumpărături"). */
+  tabs: {
+    shop: 'Shop',
+    train: 'Train',
   },
   titles: {
     workout: 'Workout',
@@ -33,6 +44,26 @@ export const nav = {
     admin: 'Admin',
     findTrainer: 'Find a trainer',
     getStarted: 'Get Started',
+    pantry: 'Pantry',
+    achievements: 'Achievements',
+    curatedRecipes: 'Curated recipes',
+    newRecipe: 'New recipe',
+    recipe: 'Recipe',
+    editRecipe: 'Edit recipe',
+    cookMode: 'Cook mode',
+    pastWeeks: 'Past weeks',
+    pastMealPlan: 'Past meal plan',
+    allRoutines: 'All routines',
+    editRoutine: 'Edit routine',
+    newExercise: 'New exercise',
+    exercise: 'Exercise',
+    editExercise: 'Edit exercise',
+    workoutHistory: 'Workout history',
+    importWorkouts: 'Import workouts',
+    gymStats: 'Gym stats',
+    weeklyRecap: 'Weekly recap',
+    preferencesDescription: 'Manage your personal chef preferences',
+    mealSettings: 'Meal settings',
   },
   primary: 'Primary',
   more: 'More',
@@ -40,6 +71,14 @@ export const nav = {
   openMenu: 'Open navigation menu',
   closeMenu: 'Close menu',
   appMode: 'App mode',
+  settings: 'Settings',
+  /** A mobile tab's spoken name (tabAccessibilityLabel). */
+  tab: {
+    /** A tab with a badge: "You, 2 new". */
+    withBadge: { one: '{title}, {count} new', other: '{title}, {count} new' },
+    /** iOS VoiceOver: "Today, tab, 1 of 5". */
+    position: '{name}, tab, {position} of {total}',
+  },
   modes: {
     food: 'Food',
     gym: 'Gym',

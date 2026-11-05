@@ -1,17 +1,19 @@
-import {
-  COACHING_COPY,
-  type CoachedExerciseDto,
-  type CoachedSetDto,
-  type CoachedWorkoutDto,
-  type ExerciseMeta,
-  type NextTargetDto,
+import type { Translator } from '@chefer/i18n';
+import type {
+  CoachedExerciseDto,
+  CoachedSetDto,
+  CoachedWorkoutDto,
+  ExerciseMeta,
+  NextTargetDto,
 } from '@chefer/types';
-import {
-  formatDayWithWeekday,
-  formatLoad,
-  formatLoadNumber,
-  workoutTypeLabel,
-} from '@chefer/utils';
+import { formatLoad, formatLoadNumber, workoutTypeLabel } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
+import { formatDayWithWeekdayT } from '../coaching/copy';
+
+type T = Translator['t'];
+
+/** The UI language's `t` at call time (helpers called outside React). */
+const current = (): T => getTranslator().t;
 
 // Pure formatting for the trainer screens (spec §2.4, §2.5). Weights are shown in kg: the trainer's
 // own unit preference is not part of what a client shares, and the engine stores kg.
@@ -22,17 +24,21 @@ export function firstNameOf(name: string): string {
   return first && first !== '' ? first : name;
 }
 
-/** "Tue 30 Sep" for a device-local `YYYY-MM-DD` date (shared formatter, same words as web). */
-export const formatWeekdayDate = formatDayWithWeekday;
+/** "Tue 30 Sep" for a device-local `YYYY-MM-DD` date (same words as web), in the UI language. */
+export function formatWeekdayDate(value: string, t: T = current()): string {
+  return formatDayWithWeekdayT(value, t);
+}
 
 /** "Last set effort": reps in reserve, 3 meaning "3+". */
-export function rirText(rir: number | null): string | null {
+export function rirText(rir: number | null, t: T = current()): string | null {
   if (rir === null) return null;
-  return rir >= 3 ? 'Last set: 3+ reps in reserve' : `Last set: ${rir} in reserve`;
+  return rir >= 3
+    ? t('coaching.trainer.workouts.rirPlus')
+    : t('coaching.trainer.workouts.rir', { value: String(rir) });
 }
 
 /** One logged set as the trainer reads it: "60 kg × 8", "60 kg × 8 (warm-up)", "Not completed", cardio "20 min · 3.2 km". */
-export function formatCoachedSet(set: CoachedSetDto): string {
+export function formatCoachedSet(set: CoachedSetDto, t: T = current()): string {
   if (set.durationSec !== undefined && set.durationSec > 0 && set.reps <= 0) {
     const minutes = Math.round((set.durationSec / 60) * 10) / 10;
     const distance =
@@ -42,20 +48,20 @@ export function formatCoachedSet(set: CoachedSetDto): string {
     return `${minutes} min${distance}`;
   }
   const base = `${formatLoadNumber(set.weightKg, 'KG')} kg × ${set.reps}`;
-  if (!set.completed) return `${base} (not completed)`;
-  return set.isWarmup ? `${base} (warm-up)` : base;
+  if (!set.completed) return t('coaching.trainer.workouts.notCompleted', { set: base });
+  return set.isWarmup ? t('coaching.trainer.workouts.warmup', { set: base }) : base;
 }
 
 /**
  * PRD 2026-10 §4.3: a "Keep it simple" exercise ticked done with the planned numbers never edited reads
  * "Done as planned · 3 sets" — its sets are the plan, never shown as lifted weights. Null otherwise.
  */
-export function doneAsPlannedText(exercise: CoachedExerciseDto): string | null {
+export function doneAsPlannedText(exercise: CoachedExerciseDto, t: T = current()): string | null {
   if (!exercise.doneAsPlanned) return null;
   const n = exercise.sets.length;
   return n > 0
-    ? `${COACHING_COPY.trainerProfile.doneAsPlanned} · ${n} ${n === 1 ? 'set' : 'sets'}`
-    : COACHING_COPY.trainerProfile.doneAsPlanned;
+    ? t('coaching.trainer.profile.doneAsPlannedSets', { count: n })
+    : t('coaching.trainer.profile.doneAsPlanned');
 }
 
 /**
@@ -64,10 +70,14 @@ export function doneAsPlannedText(exercise: CoachedExerciseDto): string | null {
  */
 export function workoutTypeLine(
   workout: Pick<CoachedWorkoutDto, 'workoutType' | 'durationMin' | 'exercises'>,
+  t: T = current(),
 ): string | null {
   if (!workout.workoutType || workout.exercises.length > 0) return null;
+  // `workoutTypeLabel` (@chefer/utils) is still English: the workout types are not in a catalog yet.
   const label = workoutTypeLabel(workout.workoutType);
-  return workout.durationMin !== null ? `${label} · ${workout.durationMin} min` : label;
+  return workout.durationMin !== null
+    ? `${label} · ${t('common.counts.minutes', { count: workout.durationMin })}`
+    : label;
 }
 
 /** "62.5 kg × 6, 6, 6, 6" — the weight once, then each set's reps. */

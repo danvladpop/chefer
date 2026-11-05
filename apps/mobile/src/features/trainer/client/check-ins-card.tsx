@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { CHECK_IN_COPY } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
-import { checkInAnswersLine, formatDayWithWeekday } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
+import { checkInAnswersLineT, formatDayWithWeekdayT } from '../../coaching/copy';
 import { localDate } from '../../gym/offline/ids';
 import { CoachingCard } from '../components/coaching-card';
 
@@ -13,7 +13,7 @@ import { CoachingCard } from '../components/coaching-card';
 // Mirrors web CheckInsCard.tsx.
 
 export function CheckInsCard({ clientId, firstName }: { clientId: string; firstName: string }) {
-  const copy = CHECK_IN_COPY.trainer;
+  const { t } = useT();
   const [all, setAll] = useState(false);
   const checkIns = trpc.trainer.client.checkIns.useQuery({ clientId, today: localDate() });
   // A failed read (an older API, a client who just left) hides the card: the page says the rest.
@@ -24,15 +24,17 @@ export function CheckInsCard({ clientId, firstName }: { clientId: string; firstN
   return (
     <CoachingCard testID="trainer-check-ins" className="gap-3">
       <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-        {copy.cardTitle}
+        {t('coaching.checkIn.trainer.cardTitle')}
       </Text>
       {current && !current.answered ? (
         <Text testID="trainer-check-ins-waiting" className="text-subhead text-label-secondary">
-          {copy.waiting(firstName)}
+          {t('coaching.checkIn.trainer.waiting', { client: firstName })}
         </Text>
       ) : null}
       {items.length === 0 ? (
-        <Text className="text-subhead text-label-secondary">{copy.none(firstName)}</Text>
+        <Text className="text-subhead text-label-secondary">
+          {t('coaching.checkIn.trainer.none', { client: firstName })}
+        </Text>
       ) : null}
       {shown.map((item) => (
         <View
@@ -41,19 +43,23 @@ export function CheckInsCard({ clientId, firstName }: { clientId: string; firstN
           className="gap-0.5 border-t border-separator pt-3"
         >
           <Text className="text-subhead font-semibold text-label">
-            {copy.week(formatDayWithWeekday(item.periodStart))}
+            {t('coaching.checkIn.trainer.week', {
+              date: formatDayWithWeekdayT(item.periodStart, t),
+            })}
           </Text>
           <Text className="text-footnote text-label">
-            {checkInAnswersLine(item.questions, item.answers)}
+            {checkInAnswersLineT(item.questions, item.answers, t)}
           </Text>
           {item.note ? (
-            <Text className="text-footnote text-label-secondary">“{item.note}”</Text>
+            <Text className="text-footnote text-label-secondary">
+              {t('coaching.checkIn.trainer.quotedNote', { note: item.note })}
+            </Text>
           ) : null}
         </View>
       ))}
       {!all && items.length > 3 ? (
         <Button testID="trainer-check-ins-more" variant="outline" onPress={() => setAll(true)}>
-          {copy.showMore}
+          {t('coaching.checkIn.trainer.showMore')}
         </Button>
       ) : null}
     </CoachingCard>

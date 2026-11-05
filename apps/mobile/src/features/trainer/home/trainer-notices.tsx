@@ -1,7 +1,10 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, routineChangesLine, type CoachingNoticeDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { CoachingNoticeDto } from '@chefer/types';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { useCoachingNotices } from '../../coaching/api/use-coaching-notices';
+import { routineChangesLineT } from '../../coaching/copy';
 import { NoticeCard } from '../../coaching/notices/notice-card';
 
 // ─── The trainer's coaching notices (PRD 2026-10 §4.2, §4.3) ──────────────────
@@ -10,15 +13,18 @@ import { NoticeCard } from '../../coaching/notices/notice-card';
 // (answered in Requests, right below). Each is dismissible and read on every device.
 
 /** The line a trainer-side notice reads, or null for one this side never shows. */
-export function trainerNoticeTitle(notice: CoachingNoticeDto): string | null {
-  const copy = COACHING_COPY.notices;
+export function trainerNoticeTitle(
+  notice: CoachingNoticeDto,
+  t: Translator['t'] = getTranslator().t,
+): string | null {
+  const client = notice.other.name;
   switch (notice.kind) {
     case 'ROUTINE_UPDATED':
-      return copy.clientUpdated(notice.other.name);
+      return t('coaching.notices.clientUpdated', { client });
     case 'COACHING_ENDED':
-      return notice.endedBy === 'TRAINER' ? null : copy.endedByClient(notice.other.name);
+      return notice.endedBy === 'TRAINER' ? null : t('coaching.notices.endedByClient', { client });
     case 'REQUEST_RECEIVED':
-      return copy.requestReceived(notice.other.name);
+      return t('coaching.notices.requestReceived', { client });
     case 'REQUEST_ACCEPTED':
     case 'REQUEST_DECLINED':
     case 'BOOKING_CREATED':
@@ -30,9 +36,10 @@ export function trainerNoticeTitle(notice: CoachingNoticeDto): string | null {
 }
 
 export function TrainerNotices() {
+  const { t } = useT();
   const { notices, dismiss } = useCoachingNotices('CLIENT');
   const cards = notices.flatMap((notice) => {
-    const title = trainerNoticeTitle(notice);
+    const title = trainerNoticeTitle(notice, t);
     return title === null ? [] : [{ notice, title }];
   });
   if (cards.length === 0) return null;
@@ -49,7 +56,7 @@ export function TrainerNotices() {
               tone="brand"
               icon="clients"
               title={title}
-              detail={notice.changes?.length ? routineChangesLine(notice.changes) : null}
+              detail={notice.changes?.length ? routineChangesLineT(notice.changes, t) : null}
               {...(clientId
                 ? {
                     onView: () => {

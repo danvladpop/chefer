@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
-import { TEMPLATE_COPY, type TrainerRoutineExerciseDto, type WeightUnit } from '@chefer/types';
+import type { TrainerRoutineExerciseDto, WeightUnit } from '@chefer/types';
 import { Button, DONE_FIELD_PROPS, ErrorState, FormField, Input, Text } from '@chefer/ui-mobile';
 import { formatLoad, formatLoadNumber, unitLabel, userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useViewerUnits } from '../../friends/profile/use-viewer-units';
 import { parseStartingWeight } from '../../gym/routine/default-load-field';
@@ -52,6 +53,7 @@ export function TuneStep({
   last: boolean;
   onDone: () => void;
 }) {
+  const { t } = useT();
   const unit = useViewerUnits().weight;
   const utils = trpc.useUtils();
   // Fresh: the day was added a moment ago.
@@ -98,7 +100,7 @@ export function TuneStep({
       if (changes.length > 0) void utils.trainer.client.routine.invalidate({ clientId });
       onDone();
     } catch (error) {
-      Alert.alert('Could not save', userFacingErrorMessage(error));
+      Alert.alert(t('trainer.templates.tune.saveErrorTitle'), userFacingErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -115,7 +117,7 @@ export function TuneStep({
       </Text>
       {rows.length === 0 ? (
         <Text testID={`${testID}-nothing`} className="text-subhead text-label-secondary">
-          {TEMPLATE_COPY.tune.noWeightedExercises}
+          {t('trainer.templates.tune.noWeightedExercises')}
         </Text>
       ) : (
         rows.map((row) => {
@@ -124,8 +126,8 @@ export function TuneStep({
           const fmt = (kg: number) =>
             formatLoad(kg, unit, meta?.loadType ?? 'WEIGHTED', { each: meta?.perHand ?? false });
           const history = row.next.lastDoneDate
-            ? TEMPLATE_COPY.tune.last(fmt(row.next.suggestion.weightKg))
-            : TEMPLATE_COPY.tune.noHistory;
+            ? t('trainer.templates.tune.last', { load: fmt(row.next.suggestion.weightKg) })
+            : t('trainer.templates.tune.noHistory');
           const fallback = defaultOf(row.exerciseId);
           const label = `${name} (${unitLabel(unit)})`;
           const bad = parseStartingWeight(textOf(row), unit) === 'invalid';
@@ -136,11 +138,13 @@ export function TuneStep({
               label={name}
               hint={[
                 history,
-                fallback !== null ? TEMPLATE_COPY.tune.templateDefault(fmt(fallback)) : null,
+                fallback !== null
+                  ? t('trainer.templates.tune.templateDefault', { load: fmt(fallback) })
+                  : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}
-              {...(bad && { error: 'Enter a weight.' })}
+              {...(bad && { error: t('trainer.templates.tune.enterWeight') })}
             >
               <Input
                 testID={`${testID}-row-${row.exerciseId}-input`}
@@ -163,7 +167,7 @@ export function TuneStep({
           disabled={saving}
           onPress={onDone}
         >
-          {TEMPLATE_COPY.tune.skip}
+          {t('trainer.templates.tune.skip')}
         </Button>
         <Button
           testID={`${testID}-save`}
@@ -172,7 +176,7 @@ export function TuneStep({
           disabled={invalid}
           onPress={() => void save()}
         >
-          {last ? TEMPLATE_COPY.tune.done : TEMPLATE_COPY.tune.next}
+          {last ? t('trainer.templates.tune.done') : t('trainer.templates.tune.next')}
         </Button>
       </View>
     </View>

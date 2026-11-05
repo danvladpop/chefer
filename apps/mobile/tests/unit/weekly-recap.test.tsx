@@ -3,6 +3,7 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import type { WeeklyRecapDto } from '@chefer/types';
 import { RecapTodayCard } from '../../src/features/recap/recap-today-card';
 import { WeeklyRecapScreen } from '../../src/features/recap/weekly-recap-screen';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // Lane E2: "Your week in review" shows only what happened, a quiet week says
 // so kindly, and the share card's contents are the user's pick.
@@ -118,6 +119,29 @@ describe('WeeklyRecapScreen', () => {
       include: { cooking: true, protein: false, training: true },
     });
     expect(message).toBe('My week with Chefer, 12–18 Oct.');
+  });
+});
+
+describe('WeeklyRecapScreen in Romanian', () => {
+  afterEach(() => resetLocaleForTests(['en-US']));
+
+  it('reads the week in Romanian, plurals and share text included', async () => {
+    resetLocaleForTests(['ro-RO']);
+    mockRecap = { ...RECAP, label: '12–18 oct.' };
+    const user = userEvent.setup();
+    await render(wrap(<WeeklyRecapScreen />));
+    expect(screen.getByText('Săptămâna ta pe scurt')).toBeOnTheScreen();
+    expect(screen.getByText('9 mese gătite din plan')).toBeOnTheScreen();
+    expect(screen.getByText('2 rețete noi încercate')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Obiectivul de proteine atins în 4 din 6 zile înregistrate'),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('3 antrenamente')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('recap-share'));
+    await user.press(screen.getByTestId('recap-share-go'));
+    await waitFor(() => expect(mockShare).toHaveBeenCalled());
+    const message: unknown = mockShare.mock.calls[0]?.[1];
+    expect(message).toMatch(/^Săptămâna mea cu Chefer: 12–18 oct\.$/);
   });
 });
 

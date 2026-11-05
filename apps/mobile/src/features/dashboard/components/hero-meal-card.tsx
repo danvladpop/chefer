@@ -11,6 +11,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { trackMealLogged } from '../../../lib/analytics-events';
+import { useT } from '../../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { RecipeImage } from '../../recipes/recipe-image';
@@ -38,6 +39,7 @@ export function HeroMealCard({
    */
   onSlotActions?: ((meal: HeroMeal) => void) | undefined;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   // WP-08: protein-only mode shows no kcal on the card.
@@ -108,7 +110,7 @@ export function HeroMealCard({
       <Pressable
         testID="hero-meal-card-open"
         accessibilityRole="button"
-        accessibilityLabel={`Open ${meal.recipe.name}`}
+        accessibilityLabel={t('today.home.nextMeal.open', { name: meal.recipe.name })}
         onPress={openRecipe}
         className="active:opacity-80"
       >
@@ -121,7 +123,7 @@ export function HeroMealCard({
           <View className="flex-row flex-wrap gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
               <Text className="text-xs font-semibold uppercase text-primary-foreground">
-                {isTomorrow ? 'Tomorrow' : 'Next Meal'}
+                {isTomorrow ? t('today.home.nextMeal.tomorrow') : t('today.home.nextMeal.badge')}
               </Text>
             </View>
             <MealTypeBadge mealType={meal.mealType} />
@@ -134,7 +136,7 @@ export function HeroMealCard({
             <View className="flex-row items-center gap-1">
               <Ionicons name="time-outline" size={14} color={colors.labelTertiary} />
               <Text testID="hero-meal-time" className="text-xs text-label-tertiary">
-                {totalMins} min
+                {t('today.home.nextMeal.minutes', { minutes: totalMins })}
               </Text>
             </View>
             {(!proteinOnly || meal.portion !== undefined) && (
@@ -142,12 +144,17 @@ export function HeroMealCard({
                 <Ionicons name="flame-outline" size={14} color={colors.brand} />
                 <Text className="text-xs text-label-tertiary">
                   {proteinOnly
-                    ? `${formatPortion(meal.portion ?? 1)} portion`
-                    : `${meal.recipe.kcal} kcal${
-                        meal.portion !== undefined
-                          ? ` · ${formatPortion(meal.portion)} portion`
-                          : ''
-                      }`}
+                    ? t('today.home.nextMeal.portion', {
+                        portion: formatPortion(meal.portion ?? 1),
+                      })
+                    : meal.portion !== undefined
+                      ? t('today.home.nextMeal.sizeWithPortion.kcal', {
+                          kcal: meal.recipe.kcal,
+                          portion: t('today.home.nextMeal.portion', {
+                            portion: formatPortion(meal.portion),
+                          }),
+                        })
+                      : t('today.home.nextMeal.size.kcal', { kcal: meal.recipe.kcal })}
                 </Text>
               </View>
             )}
@@ -158,7 +165,7 @@ export function HeroMealCard({
       <View className="flex-row gap-2 p-4">
         {isTomorrow ? (
           <Button variant="outline" className="flex-1" onPress={openRecipe}>
-            View recipe
+            {t('today.home.nextMeal.viewRecipe')}
           </Button>
         ) : (
           <>
@@ -181,7 +188,7 @@ export function HeroMealCard({
                 })
               }
             >
-              {holding ? 'Logged ✓' : 'I ate this'}
+              {holding ? t('today.home.nextMeal.logged') : t('today.home.nextMeal.ateThis')}
             </Button>
             <Button
               testID={holding ? 'today-undo-logged' : 'today-cook-it'}
@@ -208,7 +215,7 @@ export function HeroMealCard({
                 });
               }}
             >
-              {holding ? 'Undo' : 'Cook it'}
+              {holding ? t('today.home.nextMeal.undo') : t('today.home.nextMeal.cookIt')}
             </Button>
             {onSlotActions && !holding && (
               <SlotOverflowButton
@@ -224,20 +231,22 @@ export function HeroMealCard({
 
       {logMutation.isError && (
         <Text className="px-4 pb-3 text-xs text-danger">
-          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
+          {t('today.home.nextMeal.logError', { error: userFacingErrorMessage(logMutation.error) })}
         </Text>
       )}
       {lastLogged && !logMutation.isError && (
         <Pressable
           testID="today-logged-status"
           accessibilityRole="button"
-          accessibilityLabel={`Logged ${lastLogged}. Change it in your full day`}
+          accessibilityLabel={t('today.home.nextMeal.loggedLabel', { name: lastLogged })}
           onPress={() => router.push('/tracker')}
           className="min-h-11 flex-row flex-wrap items-center gap-x-1 border-t border-border bg-positive/10 px-4 py-2.5"
         >
-          <Text className="text-xs text-positive">Logged {lastLogged}.</Text>
+          <Text className="text-xs text-positive">
+            {t('today.home.nextMeal.loggedName', { name: lastLogged })}
+          </Text>
           <Text className="text-xs font-semibold text-positive underline">
-            Change it in your full day
+            {t('today.home.nextMeal.changeInFullDay')}
           </Text>
         </Pressable>
       )}

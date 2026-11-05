@@ -7,10 +7,12 @@ import { isMobileUserAgent } from '@/features/coaching/lib/open-in-app';
 import { HealthDeclinedNotice } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { HOUSEHOLD_SHARING_COPY as COPY, type HouseholdInvitePreview } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { HouseholdInvitePreview } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { householdPortionPhrase, userFacingErrorMessage } from '@chefer/utils';
+import { householdPortionWords, userFacingErrorMessage } from '@chefer/utils';
 import { isHealthConsentRequired } from '../lib/conflict';
 import { appHouseholdJoinUrl } from '../lib/open-in-app';
 import { safetyEdited, SafetyTermsEditor, type SafetyLists } from './SafetyTermsEditor';
@@ -29,9 +31,12 @@ function Page({ children }: { children: React.ReactNode }) {
 }
 
 function Message({ body }: { body: string }) {
+  const { t } = useT();
   return (
     <Page>
-      <h1 className="font-serif text-2xl font-bold text-gray-900">{COPY.joinPageTitle}</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">
+        {t('household.sharing.joinPageTitle')}
+      </h1>
       <p className="mt-3 text-sm text-gray-700" data-testid="household-invite-message">
         {body}
       </p>
@@ -39,28 +44,48 @@ function Message({ body }: { body: string }) {
         href="/meal-plan"
         className="mt-6 inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline underline-offset-4"
       >
-        {COPY.goToMeals}
+        {t('household.sharing.goToMeals')}
       </Link>
     </Page>
   );
 }
 
 /** The one sentence for a state that cannot join, or null for OK. */
-export function inviteStateMessage(preview: HouseholdInvitePreview): string | null {
-  const copy = COPY.inviteState;
+export function inviteStateMessage(
+  t: Translator['t'],
+  preview: HouseholdInvitePreview,
+): string | null {
   switch (preview.state) {
     case 'OK':
       return null;
     case 'IN_OTHER_HOUSEHOLD':
-      return copy.IN_OTHER_HOUSEHOLD(preview.currentOwnerName ?? '');
+      return t('household.sharing.inviteState.IN_OTHER_HOUSEHOLD', {
+        owner: preview.currentOwnerName ?? '',
+      });
     default:
-      return copy[preview.state];
+      return t(`household.sharing.inviteState.${preview.state}`);
   }
 }
+
+/** "a standard portion" / "half a portion" / "1½ portions", for joinPortion. */
+export function householdPortionText(t: Translator['t'], portionFactor: number): string {
+  const words = householdPortionWords(portionFactor);
+  switch (words.kind) {
+    case 'fraction':
+      return t('household.sharing.portion.fraction', { value: words.value });
+    case 'many':
+      return t('household.sharing.portion.many', { value: words.value });
+    default:
+      return t(`household.sharing.portion.${words.kind}`);
+  }
+}
+
+const JOIN_SHARES = ['week', 'list', 'safety'] as const;
 
 const EMPTY: SafetyLists = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
 
 export function HouseholdJoinFlow({ code }: { code: string }) {
+  const { t } = useT();
   const router = useRouter();
   const utils = trpc.useUtils();
   // Always fresh: the answer changes while the page is away (link used, left a household).
@@ -153,18 +178,20 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
   if (preview.isLoading) {
     return (
       <Page>
-        <h1 className="sr-only">{COPY.joinPageTitle}</h1>
+        <h1 className="sr-only">{t('household.sharing.joinPageTitle')}</h1>
         <div className="h-64 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </Page>
     );
   }
 
   // A failed preview (flag off, malformed code, offline) reads like an unknown code.
-  if (preview.isError || !data) return <Message body={COPY.inviteState.NOT_FOUND} />;
+  if (preview.isError || !data) {
+    return <Message body={t('household.sharing.inviteState.NOT_FOUND')} />;
+  }
 
-  const message = inviteStateMessage(data);
+  const message = inviteStateMessage(t, data);
   if (message !== null || !profile) {
-    return <Message body={message ?? COPY.inviteState.NOT_FOUND} />;
+    return <Message body={message ?? t('household.sharing.inviteState.NOT_FOUND')} />;
   }
 
   const ownerName = data.ownerName ?? '';
@@ -176,9 +203,11 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
           className="flex flex-col gap-2 rounded-2xl border bg-white p-4 shadow-sm"
           data-testid="household-open-in-app"
         >
-          <h1 className="text-sm font-medium text-gray-900">{COPY.joinTitle(ownerName)}</h1>
+          <h1 className="text-sm font-medium text-gray-900">
+            {t('household.sharing.joinTitle', { ownerName })}
+          </h1>
           <Button asChild className="min-h-11">
-            <a href={appHouseholdJoinUrl(code)}>{COPY.openInApp}</a>
+            <a href={appHouseholdJoinUrl(code)}>{t('household.sharing.openInApp')}</a>
           </Button>
           <Button
             type="button"
@@ -186,7 +215,7 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
             className="min-h-11"
             onClick={() => setChoice('web')}
           >
-            {COPY.continueOnWeb}
+            {t('household.sharing.continueOnWeb')}
           </Button>
         </div>
       )}
@@ -197,33 +226,43 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
               id="household-join-title"
               className="font-serif text-2xl font-bold leading-tight text-gray-900"
             >
-              {COPY.joinTitle(ownerName)}
+              {t('household.sharing.joinTitle', { ownerName })}
             </h1>
-            <p className="mt-2 text-sm text-gray-700">{COPY.joinLede(ownerName, profile.name)}</p>
+            <p className="mt-2 text-sm text-gray-700">
+              {t('household.sharing.joinLede', { ownerName, profileName: profile.name })}
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {COPY.joinShares.map((line) => (
+              {JOIN_SHARES.map((line) => (
                 <li key={line} className="min-w-0 break-words">
-                  {line}
+                  {t(`household.sharing.joinShares.${line}`)}
                 </li>
               ))}
             </ul>
-            <p className="text-sm font-medium text-gray-900">{COPY.joinPrivate}</p>
+            <p className="text-sm font-medium text-gray-900">
+              {t('household.sharing.joinPrivate')}
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <div>
-              <h2 className="text-base font-semibold text-gray-900">{COPY.joinSafetyTitle}</h2>
-              <p className="mt-1 text-sm text-gray-600">{COPY.joinSafetyHint}</p>
+              <h2 className="text-base font-semibold text-gray-900">
+                {t('household.sharing.joinSafetyTitle')}
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">{t('household.sharing.joinSafetyHint')}</p>
             </div>
             <SafetyTermsEditor value={lists} onChange={setDraft} disabled={join.isPending} />
           </div>
 
           <div className="space-y-1 text-sm text-gray-700">
-            <p>{COPY.joinPortion(householdPortionPhrase(profile.portionFactor))}</p>
-            <p>{COPY.joinOwnPlansNote}</p>
+            <p>
+              {t('household.sharing.joinPortion', {
+                portion: householdPortionText(t, profile.portionFactor),
+              })}
+            </p>
+            <p>{t('household.sharing.joinOwnPlansNote')}</p>
           </div>
 
           {declined && <HealthDeclinedNotice testId="household-join-declined" />}
@@ -240,7 +279,7 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
               loading={join.isPending}
               onClick={onJoin}
             >
-              {COPY.joinAllow}
+              {t('household.sharing.joinAllow')}
             </Button>
             <Button
               type="button"
@@ -249,7 +288,7 @@ export function HouseholdJoinFlow({ code }: { code: string }) {
               disabled={join.isPending}
               onClick={() => router.push('/dashboard')}
             >
-              {COPY.joinDecline}
+              {t('household.sharing.joinDecline')}
             </Button>
           </div>
         </section>
