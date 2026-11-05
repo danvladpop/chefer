@@ -7,6 +7,7 @@ import {
   COACHING_COPY,
   COACHING_LIMITS,
   COACHING_RETENTION,
+  coachingConsentLabel,
   createClientRoutineInputSchema,
   createInviteInputSchema,
   FALLBACK_TRAINER_NAME,
@@ -16,6 +17,7 @@ import {
   normalizeInviteCode,
   saveNoteInputSchema,
   saveTrainerRoutineInputSchema,
+  setCoachingSharingInputSchema,
   setNextTargetInputSchema,
   TRAINER_MODE_API_LEVEL,
   trainerDisplayNameSchema,
@@ -214,9 +216,11 @@ describe('copy', () => {
     expect(c.willSee.join(' ')).toMatch(/never the reason/);
     expect(c.can('Ana').join(' ')).toMatch(/Ana changed/);
     expect(c.privateNotes('Ana')).toMatch(/private notes/);
-    for (const forbidden of ['food', 'body weight', 'nutrition targets', 'heart rate', 'age']) {
+    for (const forbidden of ['measurements', 'allergies', 'heart rate', 'age']) {
       expect(c.never).toContain(forbidden);
     }
+    // Lane K1: food and weight are the client's own opt-in, never shared by default.
+    expect(c.never).toMatch(/food and weight too, unless you choose to share them/);
     expect(c.oneTrainer('Ana')).toMatch(/routine stays yours/);
     expect(c.switchLine('Ion')).toContain('Ion');
     expect(c.switchTo('Ana')).toBe('Switch to Ana');
@@ -273,5 +277,31 @@ describe('limits and retention (counsel to confirm the retention numbers)', () =
       templateSoftDeleteDays: 30,
       clientExportIncludesTrainerNotes: false,
     });
+  });
+});
+
+describe('coaching data sharing (lane K1)', () => {
+  it('labels the consent-history rows: the coaching itself, and each sharing switch', () => {
+    const row = (providers: string[], granted: boolean) => ({
+      kind: 'COACHING_SHARING',
+      granted,
+      providers,
+    });
+    expect(coachingConsentLabel(row([], true))).toBe('Trainer access allowed');
+    expect(coachingConsentLabel(row(['FOOD'], true))).toBe('Food log shared with your trainer');
+    expect(coachingConsentLabel(row(['WEIGHT'], false))).toBe('Weight no longer shared');
+    expect(coachingConsentLabel({ kind: 'AI', granted: true, providers: [] })).toBeNull();
+  });
+
+  it('setSharing needs at least one switch', () => {
+    expect(setCoachingSharingInputSchema.safeParse({}).success).toBe(false);
+    expect(setCoachingSharingInputSchema.safeParse({ food: false }).success).toBe(true);
+  });
+
+  it('join and request accept the optional switches; older clients send none', () => {
+    expect(joinInputSchema.parse({ code: 'ABCD234567' })).not.toHaveProperty('share');
+    expect(
+      joinInputSchema.parse({ code: 'ABCD234567', share: { food: true, weight: false } }).share,
+    ).toEqual({ food: true, weight: false });
   });
 });

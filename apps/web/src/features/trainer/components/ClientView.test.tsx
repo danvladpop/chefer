@@ -27,6 +27,8 @@ vi.mock('../use-client-overview', () => ({
 vi.mock('./WorkoutsTab', () => ({ WorkoutsTab: () => null }));
 vi.mock('./PrivateNotesPanel', () => ({ PrivateNotesPanel: () => null }));
 vi.mock('./RemoveClientButton', () => ({ RemoveClientButton: () => null }));
+vi.mock('./WeekSummaryCard', () => ({ WeekSummaryCard: () => null }));
+vi.mock('./CheckInsCard', () => ({ CheckInsCard: () => null }));
 vi.mock('@/features/trainer-templates/components/AssignFromClientButton', () => ({
   AssignFromClientButton: ({ clientId }: { clientId: string }) => (
     <button type="button" data-client={clientId}>

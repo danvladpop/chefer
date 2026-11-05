@@ -11,7 +11,8 @@
 // recipient's Translator (ADR 0004), so the subject, body and <html lang>
 // follow User.locale ?? User.deviceLocale ?? 'en'.
 
-import type { Translator } from '@chefer/i18n';
+import { createTranslator, type Translator } from '@chefer/i18n';
+import { CHECK_IN_COPY, QUIET_COPY, QUIET_LIMITS } from '@chefer/types';
 
 export interface RenderedEmail {
   subject: string;
@@ -44,6 +45,8 @@ export interface WeekReadyEmailData {
   listTotal: string | null;
   planUrl: string;
   listUrl: string;
+  /** Lane E2: "Look back at last week" — the weekly recap page. Optional for older callers. */
+  recapUrl?: string;
   preferencesUrl: string;
   unsubscribeUrl: string;
 }
@@ -209,6 +212,7 @@ export function renderWeekReadyEmail(tr: Translator, data: WeekReadyEmailData): 
     '',
     `${seeWeek}: ${data.planUrl}`,
     `${tr.t('email.weekReady.shoppingList')}: ${data.listUrl}`,
+    ...(data.recapUrl ? [`${tr.t('email.weekReady.lookBack')}: ${data.recapUrl}`] : []),
     ...(upsell ? ['', upsell] : []),
     '',
     '—',
@@ -240,6 +244,13 @@ export function renderWeekReadyEmail(tr: Translator, data: WeekReadyEmailData): 
     paragraph(
       `<a href="${escapeHtml(data.listUrl)}" style="color:${BRAND};">${escapeHtml(tr.t('email.weekReady.openList'))}</a>`,
     ),
+    ...(data.recapUrl
+      ? [
+          paragraph(
+            `<a href="${escapeHtml(data.recapUrl)}" style="color:${BRAND};">${escapeHtml(tr.t('email.weekReady.lookBack'))}</a>`,
+          ),
+        ]
+      : []),
     ...(upsell ? [paragraph(escapeHtml(upsell), `color:${MUTED};font-size:13px;`)] : []),
   ].join('');
 
@@ -405,5 +416,98 @@ export function renderPasswordResetEmail(
       '',
       tr.t('email.passwordReset.notYou'),
     ].join('\n'),
+  };
+}
+
+// Coaching emails are still English; Lane J phase 4 moves their copy into the catalogs.
+const EN = createTranslator('en');
+
+// ─── Lane K3: a trainer's weekly check-in ─────────────────────────────────────
+
+export interface CheckInEmailData {
+  firstName: string | null;
+  trainerName: string;
+  /** Where to answer (the web Today; the app opens it as a universal link when installed). */
+  answerUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** "Ana's weekly check-in": no question or answer in the email itself, only the way in. */
+export function renderCheckInEmail(data: CheckInEmailData): RenderedEmail {
+  const copy = CHECK_IN_COPY.email;
+  const body = copy.body(data.trainerName);
+  const text = [
+    greeting(EN, data.firstName),
+    '',
+    body,
+    '',
+    `${copy.cta}: ${data.answerUrl}`,
+    '',
+    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+  ].join('\n');
+  const bodyHtml = [
+    paragraph(escapeHtml(greeting(EN, data.firstName))),
+    paragraph(escapeHtml(body)),
+    `<p style="margin:0 0 16px;">${button(copy.cta, data.answerUrl)}</p>`,
+  ].join('');
+  return {
+    subject: copy.subject(data.trainerName),
+    text,
+    html: layout({
+      lang: 'en',
+      preheader: copy.preheader,
+      bodyHtml,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
+    }),
+  };
+}
+
+// ─── Lane K4: the trainer's daily "went quiet" digest ─────────────────────────
+
+export interface QuietDigestEmailData {
+  firstName: string | null;
+  quietAfterDays: number;
+  /** Most quiet first; names only (no food, weight or check-in data). */
+  clients: { name: string; days: number }[];
+  clientsUrl: string;
+  unsubscribeUrl: string;
+}
+
+export function renderQuietDigestEmail(data: QuietDigestEmailData): RenderedEmail {
+  const copy = QUIET_COPY.email;
+  const shown = data.clients.slice(0, QUIET_LIMITS.digestMaxNames);
+  const more = data.clients.length - shown.length;
+  const lines = [
+    ...shown.map((c) => copy.line(c.name, c.days)),
+    ...(more > 0 ? [copy.more(more)] : []),
+  ];
+  const intro = copy.intro(data.quietAfterDays);
+  const text = [
+    greeting(EN, data.firstName),
+    '',
+    intro,
+    ...lines.map((l) => `- ${l}`),
+    '',
+    `${copy.cta}: ${data.clientsUrl}`,
+    '',
+    `${copy.unsubscribe}: ${data.unsubscribeUrl}`,
+  ].join('\n');
+  const bodyHtml = [
+    paragraph(escapeHtml(greeting(EN, data.firstName))),
+    paragraph(escapeHtml(intro)),
+    `<ul style="margin:0 0 16px;padding-left:20px;color:${INK};font-size:15px;line-height:1.5;">${lines
+      .map((l) => `<li>${escapeHtml(l)}</li>`)
+      .join('')}</ul>`,
+    `<p style="margin:0 0 16px;">${button(copy.cta, data.clientsUrl)}</p>`,
+  ].join('');
+  return {
+    subject: copy.subject(data.clients.length),
+    text,
+    html: layout({
+      lang: 'en',
+      preheader: copy.preheader,
+      bodyHtml,
+      footerHtml: `<a href="${escapeHtml(data.unsubscribeUrl)}" style="color:${MUTED};">${escapeHtml(copy.unsubscribe)}</a>`,
+    }),
   };
 }

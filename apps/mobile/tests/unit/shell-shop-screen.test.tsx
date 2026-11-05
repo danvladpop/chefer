@@ -1,8 +1,12 @@
+import { onlineManager } from '@tanstack/react-query';
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { HOUSEHOLD_SHARING_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
+import { KV_KEYS } from '../../src/features/gym/offline/keys';
 import { kv } from '../../src/features/gym/offline/kv';
 import { ShopScreen } from '../../src/features/shell/shop/shop-screen';
-import { renderWithTrpc, type Handlers } from './friends-core-harness';
+import { shopOutbox } from '../../src/features/shopping-list/shop-outbox';
+import { renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
 
 // 10 Oct redesign, board "Shop" → the new shell's Shop tab: aisle cards with
@@ -12,6 +16,7 @@ import { testQueryClient } from './friends-profile-fixtures';
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), navigate: jest.fn() },
   useLocalSearchParams: () => ({}),
+  useIsFocused: () => true,
 }));
 jest.mock('../../src/hooks/use-currency', () => ({ useCurrency: () => 'EUR' }));
 jest.mock('../../src/hooks/use-household', () => ({
@@ -57,6 +62,10 @@ beforeEach(() => {
   jest.clearAllMocks();
   resetSnackbarForTests();
   kv.remove('shop.aisles-expanded.v1');
+  // ADR 0003: every test starts with an empty Shop outbox.
+  kv.remove(KV_KEYS.shopOutbox);
+  shopOutbox.reload();
+  onlineManager.setOnline(true);
 });
 
 const rowOrder = (category: string) =>
@@ -108,6 +117,8 @@ describe('Shop tab (new shell)', () => {
         planId: 'p1',
         keys: ['spinach'],
         checked: true,
+        // ADR 0003: the device time of the tick (last write per item wins on the server).
+        at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as unknown,
       }),
     );
     await waitFor(() =>
@@ -188,20 +199,46 @@ describe('Shop tab (new shell)', () => {
     expect(screen.queryByText('Saffron')).toBeNull();
   });
 
-  it('a failed tick flips back', async () => {
+  it('a tick the server refuses for good (the plan is gone) flips back', async () => {
     const user = userEvent.setup();
     await renderWithTrpc(
       <ShopScreen />,
       base({
         'shoppingList.getForWeek': () => list([]),
         'shoppingList.toggleItems': () => {
-          throw new Error('boom');
+          throw trpcError('NOT_FOUND', 404);
         },
       }),
       testQueryClient(),
     );
     await user.press(await screen.findByTestId('shop-item-lemons'));
     await waitFor(() => expect(screen.getByTestId('shop-item-lemons')).not.toBeChecked());
+    expect(shopOutbox.entries()).toEqual([]);
+  });
+
+  it('ADR 0003: a tick that cannot reach the server stays ticked and waits in the outbox', async () => {
+    const user = userEvent.setup();
+    await renderWithTrpc(
+      <ShopScreen />,
+      base({
+        'shoppingList.getForWeek': () => list([]),
+        'shoppingList.toggleItems': () => {
+          throw new TypeError('Network request failed');
+        },
+      }),
+      testQueryClient(),
+    );
+    await user.press(await screen.findByTestId('shop-item-lemons'));
+    await waitFor(() =>
+      expect(shopOutbox.entries()).toEqual([
+        expect.objectContaining({ planId: 'p1', keys: ['lemons'], checked: true }),
+      ]),
+    );
+    expect(screen.getByTestId('shop-item-lemons')).toBeChecked();
+    // On disk, so a killed app still sends it later.
+    expect(kv.getJSON(KV_KEYS.shopOutbox)).toEqual([
+      expect.objectContaining({ keys: ['lemons'], checked: true }),
+    ]);
   });
 
   it('your own items keep their remove button, with Undo', async () => {
@@ -250,5 +287,68 @@ describe('Shop tab (new shell)', () => {
       testQueryClient(),
     );
     expect(await screen.findByTestId('shop-empty')).toBeOnTheScreen();
+  });
+});
+
+describe('Shop tab: a shared household list (ADR 0003)', () => {
+  const sharing = (role: 'OWNER' | 'PARTNER') => ({
+    enabled: true,
+    role,
+    canInvite: false,
+    ...(role === 'PARTNER' ? { owner: { name: 'Dan' } } : {}),
+    partners: [],
+    invites: [],
+  });
+
+  it('merges the partner’s ticks from shoppingList.sync and says who ticked', async () => {
+    const { calls } = await renderWithTrpc(
+      <ShopScreen />,
+      base({
+        'shoppingList.getForWeek': () => list([]),
+        'household.sharing': () => sharing('OWNER'),
+        'shoppingList.sync': () => ({
+          planId: 'p1',
+          revision: 'r1',
+          checkedKeys: ['milk'],
+          checkedBy: { milk: { name: 'Maria', isYou: false } },
+        }),
+      }),
+      testQueryClient(),
+    );
+    await waitFor(() => expect(screen.getByTestId('shop-item-milk')).toBeChecked());
+    expect(screen.getByTestId('shop-item-milk-who')).toHaveTextContent(
+      HOUSEHOLD_SHARING_COPY.checkedBy({ name: 'Maria', isYou: false }),
+    );
+    // Sync asks about the same week the list shows (Shop opens on next week at weekends).
+    const shown = calls.find((c) => c.path === 'shoppingList.getForWeek')?.input as
+      | { weekOffset: number }
+      | undefined;
+    expect(calls.find((c) => c.path === 'shoppingList.sync')?.input).toEqual({
+      weekOffset: shown?.weekOffset,
+    });
+  });
+
+  it('a partner sees whose list it is', async () => {
+    await renderWithTrpc(
+      <ShopScreen />,
+      base({
+        'household.sharing': () => sharing('PARTNER'),
+        'shoppingList.sync': () => ({
+          planId: 'p1',
+          revision: 'r1',
+          checkedKeys: ['spinach'],
+          checkedBy: {},
+        }),
+      }),
+      testQueryClient(),
+    );
+    expect(await screen.findByText(HOUSEHOLD_SHARING_COPY.partnerBanner('Dan'))).toBeOnTheScreen();
+  });
+
+  it('a solo household never polls', async () => {
+    const { paths } = await renderWithTrpc(<ShopScreen />, base(), testQueryClient());
+    await screen.findByText('Fruit & veg');
+    expect(paths()).not.toContain('shoppingList.sync');
+    expect(screen.queryByTestId('shop-partner-banner')).toBeNull();
   });
 });

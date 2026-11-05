@@ -338,8 +338,17 @@ export class MealPlanRepository implements IMealPlanRepository {
   async isRecipeInUserPlans(userId: string, recipeId: string): Promise<boolean> {
     // `meals` is a JSON array of { type, recipeId } — array_contains maps to
     // jsonb @>, which matches an element carrying this recipeId.
+    // ADR 0003: a partner may open what is in the household's (owner's) plans.
     const hit = await prisma.mealPlanDay.findFirst({
-      where: { mealPlan: { userId }, meals: { array_contains: [{ recipeId }] } },
+      where: {
+        mealPlan: {
+          OR: [
+            { userId },
+            { user: { householdAsOwner: { some: { partnerId: userId, status: 'ACTIVE' } } } },
+          ],
+        },
+        meals: { array_contains: [{ recipeId }] },
+      },
       select: { id: true },
     });
     return hit !== null;
@@ -492,37 +501,43 @@ export class MealPlanRepository implements IMealPlanRepository {
     slotIndex?: number,
     pinned?: boolean,
   ): Promise<void> {
-    const day = await prisma.mealPlanDay.findFirst({
-      where: { mealPlanId: planId, dayOfWeek },
-    });
-    if (!day) throw new Error(`Day ${dayOfWeek} not found in plan ${planId}`);
+    // ADR 0003: two people edit one week — the day's read-modify-write runs
+    // SERIALIZABLE (retried) so a concurrent edit to another slot isn't lost.
+    const written = await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({
+        where: { mealPlanId: planId, dayOfWeek },
+      });
+      if (!day) throw new Error(`Day ${dayOfWeek} not found in plan ${planId}`);
 
-    // A different dish drops the old slot's portion and pinned flag unless
-    // the caller explicitly sets a new one (P1-1, T-07.4): 1.5× — or "Your
-    // pick" — of the old recipe means nothing for the new one.
-    const meals = day.meals as unknown as PlanMealSlotJson[];
-    const target =
-      slotIndex !== undefined
-        ? meals[slotIndex]?.type === mealType
-          ? slotIndex
-          : -1
-        : meals.findIndex((m) => m.type === mealType);
-    if (target === -1) return;
-    const updated = meals.map((m, i) => {
-      if (i !== target) return m;
-      const { portion: _old, pinned: _oldPinned, ...rest } = m;
-      return {
-        ...rest,
-        recipeId: newRecipeId,
-        ...(portion !== undefined && portion !== 1 && { portion }),
-        ...(pinned && { pinned: true }),
-      };
-    });
+      // A different dish drops the old slot's portion and pinned flag unless
+      // the caller explicitly sets a new one (P1-1, T-07.4): 1.5× — or "Your
+      // pick" — of the old recipe means nothing for the new one.
+      const meals = day.meals as unknown as PlanMealSlotJson[];
+      const target =
+        slotIndex !== undefined
+          ? meals[slotIndex]?.type === mealType
+            ? slotIndex
+            : -1
+          : meals.findIndex((m) => m.type === mealType);
+      if (target === -1) return false;
+      const updated = meals.map((m, i) => {
+        if (i !== target) return m;
+        const { portion: _old, pinned: _oldPinned, ...rest } = m;
+        return {
+          ...rest,
+          recipeId: newRecipeId,
+          ...(portion !== undefined && portion !== 1 && { portion }),
+          ...(pinned && { pinned: true }),
+        };
+      });
 
-    await prisma.mealPlanDay.update({
-      where: { id: day.id },
-      data: { meals: updated },
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: { meals: updated },
+      });
+      return true;
     });
+    if (!written) return;
     // An edited copy is the user's week now: the Sunday worker must not
     // replace it (audit F-PLAN-4-2).
     await prisma.mealPlan.updateMany({
@@ -539,32 +554,34 @@ export class MealPlanRepository implements IMealPlanRepository {
     slotIndex: number | null,
     pinned: boolean,
   ): Promise<void> {
-    const day = await prisma.mealPlanDay.findFirst({
-      where: { mealPlanId: planId, dayOfWeek },
-    });
-    if (!day) return;
+    await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({
+        where: { mealPlanId: planId, dayOfWeek },
+      });
+      if (!day) return;
 
-    const meals = day.meals as unknown as PlanMealSlotJson[];
-    const target =
-      slotIndex !== null
-        ? meals[slotIndex]?.type === mealType
-          ? slotIndex
-          : -1
-        : meals.findIndex((m) => m.type === mealType);
-    if (target === -1) return;
+      const meals = day.meals as unknown as PlanMealSlotJson[];
+      const target =
+        slotIndex !== null
+          ? meals[slotIndex]?.type === mealType
+            ? slotIndex
+            : -1
+          : meals.findIndex((m) => m.type === mealType);
+      if (target === -1) return;
 
-    const updated = meals.map((m, i) => {
-      if (i !== target) return m;
-      if (!pinned) {
-        const { pinned: _drop, ...rest } = m;
-        return rest;
-      }
-      return { ...m, pinned: true };
-    });
+      const updated = meals.map((m, i) => {
+        if (i !== target) return m;
+        if (!pinned) {
+          const { pinned: _drop, ...rest } = m;
+          return rest;
+        }
+        return { ...m, pinned: true };
+      });
 
-    await prisma.mealPlanDay.update({
-      where: { id: day.id },
-      data: { meals: updated },
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: { meals: updated },
+      });
     });
   }
 
@@ -583,22 +600,24 @@ export class MealPlanRepository implements IMealPlanRepository {
     dayOfWeek: number,
     portions: (number | undefined)[],
   ): Promise<void> {
-    const day = await prisma.mealPlanDay.findFirst({
-      where: { mealPlanId: planId, dayOfWeek },
-    });
-    if (!day) return;
+    await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({
+        where: { mealPlanId: planId, dayOfWeek },
+      });
+      if (!day) return;
 
-    const meals = day.meals as unknown as PlanMealSlotJson[];
-    const updated = meals.map((m, i) => {
-      const portion = portions[i];
-      if (portion === undefined) return m;
-      const { portion: _old, ...rest } = m;
-      return { ...rest, ...(portion !== 1 && { portion }) };
-    });
+      const meals = day.meals as unknown as PlanMealSlotJson[];
+      const updated = meals.map((m, i) => {
+        const portion = portions[i];
+        if (portion === undefined) return m;
+        const { portion: _old, ...rest } = m;
+        return { ...rest, ...(portion !== 1 && { portion }) };
+      });
 
-    await prisma.mealPlanDay.update({
-      where: { id: day.id },
-      data: { meals: updated },
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: { meals: updated },
+      });
     });
   }
 

@@ -38,6 +38,8 @@ export interface UpsertChefProfileData {
   showNutritionOnToday?: boolean | null;
   /** WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (null = FULL). */
   numbersMode?: string | null;
+  /** Lane E1: `{ enabled, times }` (mealRemindersSchema, @chefer/types). */
+  mealReminders?: Prisma.InputJsonValue;
   /** Weekday -> DayKind ('lift' | 'run' | 'long_run' | 'rest'), e.g. `{ "5": "long_run" }`. */
   trainingDayKinds?: Prisma.InputJsonValue;
   timeZone?: string | null;

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NumbersModeProvider } from '../../numbers-mode/numbers-mode';
 import { StepGoal } from './step-goal';
 
 // T-22.3: goal/metrics disclaimer, visible by default (the standalone
@@ -25,5 +26,19 @@ describe('StepGoal', () => {
     render(<StepGoal value={null} onChange={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Recomposition' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Performance' })).toBeTruthy();
+  });
+
+  // Lane E3: the kcal effect is a nutrition figure.
+  it('shows each goal’s calorie effect only when numbers are shown', () => {
+    render(<StepGoal value={null} onChange={vi.fn()} />);
+    expect(screen.getByText('−500 kcal/day deficit')).toBeTruthy();
+    cleanup();
+    render(
+      <NumbersModeProvider mode="NONE">
+        <StepGoal value={null} onChange={vi.fn()} />
+      </NumbersModeProvider>,
+    );
+    expect(screen.queryByText(/kcal/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Lose Weight' })).toBeTruthy();
   });
 });

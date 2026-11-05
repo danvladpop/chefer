@@ -32,6 +32,7 @@ export const email: Catalog['email'] = {
     seeWeek: 'Vezi săptămâna',
     openList: 'Deschide lista de cumpărături',
     shoppingList: 'Lista de cumpărături',
+    lookBack: 'Privește înapoi la săptămâna trecută',
     upsell:
       'Săptămânile Premium învață din preparatele pe care le notezi și din ce ai deja în cămară.',
     preheader: '{dinners} în planul pentru {week}.',

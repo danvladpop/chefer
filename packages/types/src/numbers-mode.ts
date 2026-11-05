@@ -8,10 +8,13 @@ import { z } from 'zod';
 //   FULL          calories, macros, rings — the original experience
 //   PROTEIN_ONLY  one number: protein (ring "72 of 120 g protein", a per-meal
 //                 guide). Planning still balances kcal underneath.
-//   NONE          reserved for WP-16: accepted by the schema now, treated as
-//                 FULL by clients until WP-16 ships (`effectiveNumbersMode`).
+//   NONE          "Hide numbers" (market review 2026-10, lane E3): no calories
+//                 and no macro numbers anywhere — portions, "on plan" ticks and
+//                 qualitative progress instead. The ED-safe option, free for
+//                 every tier. Planning still balances kcal underneath.
 //
-// Old app builds ignore the field and keep showing full numbers.
+// Old app builds ignore the field and keep showing full numbers (an installed
+// binary's JS from before E3 maps NONE to FULL).
 
 export const NUMBERS_MODES = ['FULL', 'PROTEIN_ONLY', 'NONE'] as const;
 export const numbersModeSchema = z.enum(NUMBERS_MODES);
@@ -29,12 +32,27 @@ export function parseStoredNumbersMode(raw: string | null | undefined): NumbersM
   return parsed.success ? parsed.data : null;
 }
 
+export type EffectiveNumbersMode = NumbersMode;
+
+/** The mode clients render: null/unknown map to `FULL`. Accepts the raw stored string. */
+export function effectiveNumbersMode(mode: string | null | undefined): EffectiveNumbersMode {
+  return parseStoredNumbersMode(mode) ?? 'FULL';
+}
+
 /**
- * The mode clients should render today: null/unknown/`NONE` map to `FULL`
- * (NONE has no UI until WP-16). Accepts the raw stored string.
+ * Which nutrition numbers a mode shows — the ONE rule every surface follows:
+ * FULL shows everything, PROTEIN_ONLY only protein, NONE nothing (lane E3).
  */
-export function effectiveNumbersMode(mode: string | null | undefined): 'FULL' | 'PROTEIN_ONLY' {
-  return mode === 'PROTEIN_ONLY' ? 'PROTEIN_ONLY' : 'FULL';
+export function numbersVisibility(mode: EffectiveNumbersMode): {
+  kcal: boolean;
+  macros: boolean;
+  protein: boolean;
+} {
+  return {
+    kcal: mode === 'FULL',
+    macros: mode === 'FULL',
+    protein: mode !== 'NONE',
+  };
 }
 
 /**
