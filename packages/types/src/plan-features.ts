@@ -179,6 +179,16 @@ export const PLAN_FEATURES = {
     description: 'How many meal photos can be analysed per day. Resets at midnight UTC.',
     upsell: false,
   },
+  foodTextPerDay: {
+    // Lane A4 (owner decision 2026-10-22): typed "I ate…" logging outside the
+    // chat. Free with a daily cap, unlimited on premium. Enforced via
+    // AiCallLog type FOOD_TEXT (reserveFoodText, lib/quotas.ts).
+    free: 10,
+    premium: true,
+    label: 'Typed food logging',
+    description: 'Type what you ate and the chef turns it into entries. Resets at midnight UTC.',
+    upsell: false,
+  },
   recipeImportsPerDay: {
     // Enforced via AiCallLog type RECIPE_IMPORT (F5). Premium-only since
     // 2026-09-25 (per-user AI is premium): free users see a canned example.

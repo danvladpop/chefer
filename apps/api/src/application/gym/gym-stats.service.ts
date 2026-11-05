@@ -14,20 +14,24 @@ import type {
   E1rmSeriesDto,
   MonthlyRecapDto,
   MuscleVolumeWeekDto,
+  PersonalRecord,
   PrDto,
   RepPrRowDto,
   SessionSummaryDto,
   StatsRange,
   StreakInfo,
   WeekSummary,
+  WeightUnit,
 } from '@chefer/types';
 import {
   addDaysLocal,
   bestE1rm,
   collectPrs,
   completedSetsByWeek,
+  formatLoad,
   toSessionSummary,
   weekStartOf,
+  type ExerciseLookup,
 } from '@chefer/utils';
 import { gymContextLoader, summarizeUserWeeks, type GymContextLoader } from './gym-context.js';
 import { lookupFromRows, serverToday, toSessionDoc } from './mappers.js';
@@ -256,6 +260,91 @@ export class GymStatsService {
 
   // ─── internals ───────────────────────────────────────────────────────────
 
+  /**
+   * Lane E2 weekly recap: completed sessions in the Monday–Sunday week, its
+   * PRs (first-ever lifts are baselines, not PRs) and the current streak.
+   * Null for an account that never set up training.
+   */
+  async weekRecap(
+    userId: string,
+    weekStart: string,
+    today: string = serverToday(),
+  ): Promise<{
+    sessions: number;
+    prCount: number;
+    prs: { exerciseName: string; label: string }[];
+    streakWeeks: number;
+  } | null> {
+    const ctx = await this.contextLoader.load(userId);
+    if (!ctx.profileRow) return null;
+    const unit = ctx.profileRow.unit;
+    const weekEnd = addDaysLocal(weekStart, 6);
+    const [all, exerciseRows, weekData] = await Promise.all([
+      this.summaries(userId),
+      this.exerciseRepo.findVisible(userId),
+      this.weeksAndStreak(userId, today),
+    ]);
+    const lookup = lookupFromRows(exerciseRows).lookup;
+    const inWeek = (date: string) => date >= weekStart && date <= weekEnd;
+    const prs = collectPrs(all).filter((p) => !p.isFirst && inWeek(p.localDate));
+    return {
+      sessions: all.filter((s) => inWeek(s.localDate)).length,
+      prCount: prs.length,
+      prs: prs.slice(0, 3).map((p) => prLine(p, lookup, unit)),
+      streakWeeks: weekData.streak.current,
+    };
+  }
+
+  /**
+   * Lane E2 workout share card: one completed session's headline numbers and
+   * PRs. Never notes, heart rate or body weight. Null when the session is not
+   * the user's or not completed.
+   */
+  async sessionShareFacts(
+    userId: string,
+    sessionId: string,
+  ): Promise<{
+    title: string;
+    localDate: string;
+    exercises: number;
+    sets: number;
+    durationMin: number | null;
+    prs: { exerciseName: string; label: string }[];
+  } | null> {
+    const [all, exerciseRows, ctx] = await Promise.all([
+      this.summaries(userId),
+      this.exerciseRepo.findVisible(userId),
+      this.contextLoader.load(userId),
+    ]);
+    const unit = ctx.profileRow?.unit ?? 'KG';
+    const session = all.find((s) => s.id === sessionId);
+    if (!session) return null;
+    const lookup = lookupFromRows(exerciseRows).lookup;
+    const done = session.exercises.filter((e) => !e.skipped);
+    const sets = done.reduce(
+      (n, e) => n + e.sets.filter((set) => set.completed && !set.isWarmup).length,
+      0,
+    );
+    const minutes =
+      session.finishedAt === null
+        ? null
+        : Math.round(
+            (new Date(session.finishedAt).getTime() - new Date(session.startedAt).getTime()) /
+              60_000,
+          );
+    return {
+      title: session.name,
+      localDate: session.localDate,
+      exercises: done.length,
+      sets,
+      durationMin: minutes !== null && minutes > 0 ? minutes : null,
+      prs: collectPrs(all)
+        .filter((p) => p.sessionId === sessionId && !p.isFirst)
+        .slice(0, 3)
+        .map((p) => prLine(p, lookup, unit)),
+    };
+  }
+
   private async summaries(
     userId: string,
     opts: { exerciseIds?: string[]; fromLocalDate?: string } = {},
@@ -277,6 +366,19 @@ export class GymStatsService {
       today,
     });
   }
+}
+
+/** A PR as the recap and share cards show it: "Bench Press", "62.5 kg × 5". */
+function prLine(
+  pr: PersonalRecord,
+  lookup: ExerciseLookup,
+  unit: WeightUnit,
+): { exerciseName: string; label: string } {
+  const meta = lookup(pr.exerciseId);
+  return {
+    exerciseName: meta?.name ?? 'Exercise',
+    label: `${formatLoad(pr.weightKg, unit, meta?.loadType, { each: meta?.perHand })} × ${pr.reps}`,
+  };
 }
 
 /** "2026-01" ± n months. */

@@ -4,6 +4,9 @@ export * from './plan-features';
 export * from './gym';
 export * from './preferences';
 export * from './numbers-mode';
+export * from './meal-reminders';
+export * from './share-cards';
+export * from './weekly-recap';
 export * from './training-nutrition';
 export * from './household';
 export * from './household-sharing';
@@ -272,3 +275,6 @@ export type ErrorCode =
   | 'BAD_REQUEST'
   | 'RATE_LIMIT_EXCEEDED'
   | 'SERVICE_UNAVAILABLE';
+export * from './packaged-product';
+export * from './saved-meals';
+export * from './food-text';

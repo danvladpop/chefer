@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -16,7 +17,9 @@ import {
   customEntryChipLabel,
   formatDate,
   formatPortion,
+  metaLine,
   nutritionLabel,
+  portionLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
@@ -29,6 +32,7 @@ import { DayFitNote } from '../../tracker/day-fit-note';
 import { EditEntrySheet } from '../../tracker/edit-entry-sheet';
 import { EditRecipeEntrySheet } from '../../tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../../tracker/invalidate';
+import { MealActionsSheet } from '../../tracker/meal-actions-sheet';
 import { PartlyLoggedRow } from '../../tracker/partly-logged-row';
 import { QuickAddSheet } from '../../tracker/quick-add-sheet';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
@@ -112,6 +116,7 @@ export function YourDayScreen() {
     refetch,
     dayTargets,
     proteinOnly,
+    noNumbers,
     slotFlow,
     planned,
     states,
@@ -121,17 +126,27 @@ export function YourDayScreen() {
     ? `Today, ${formatDate(selectedDate, 'weekday-short').replace(',', '')}`
     : formatDate(selectedDate, 'weekday-short').replace(',', '');
 
+  const [mealActionsOpen, setMealActionsOpen] = useState(false);
   const copyAction = (
-    <IconButton
-      testID="tracker-copy-day"
-      accessibilityLabel={`Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`}
-      variant="tinted"
-      icon={<Icon name="copy" color={colors.brand} size={20} />}
-      onPress={() => {
-        t.copyDayMutation.reset();
-        t.setCopyDayOpen(true);
-      }}
-    />
+    <View className="flex-row gap-2">
+      <IconButton
+        testID="tracker-meal-actions"
+        accessibilityLabel="Save or copy a meal"
+        variant="tinted"
+        icon={<Icon name="meals" color={colors.brand} size={20} />}
+        onPress={() => setMealActionsOpen(true)}
+      />
+      <IconButton
+        testID="tracker-copy-day"
+        accessibilityLabel={`Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`}
+        variant="tinted"
+        icon={<Icon name="copy" color={colors.brand} size={20} />}
+        onPress={() => {
+          t.copyDayMutation.reset();
+          t.setCopyDayOpen(true);
+        }}
+      />
+    </View>
   );
 
   // The also-eaten list, flat: meal type and "estimated" move into each row's meta line.
@@ -199,6 +214,11 @@ export function YourDayScreen() {
                 fat={{ value: t.loggedFat, target: dayTargets?.fatG ?? 65 }}
                 proteinOnly={proteinOnly}
                 proteinGuide={data?.proteinGuide?.label}
+                onPlan={{
+                  eaten: states.filter((st) => st.status === 'eaten' || st.status === 'replaced')
+                    .length,
+                  planned: planned.length,
+                }}
                 header={
                   data?.trainingDay ? (
                     <TrainingDayNote t={data.trainingDay} isToday={isToday} className="mb-0" />
@@ -253,7 +273,7 @@ export function YourDayScreen() {
                             <Text className="text-subhead font-semibold text-brand">{type}</Text>
                             <StatusLine
                               testID={`tracker-slot-replaced-${meal.key}`}
-                              text={youHadText(entry, proteinOnly)}
+                              text={youHadText(entry, proteinOnly, noNumbers)}
                               actionLabel={entryId ? SLOT_COPY.remove : undefined}
                               onAction={
                                 entryId && entry.custom
@@ -337,12 +357,20 @@ export function YourDayScreen() {
                                   {meal.recipeName}
                                 </Text>
                                 <Text className="text-caption text-label-secondary">
-                                  {nutritionLabel(
-                                    { kcal: meal.kcal * portion, protein: meal.protein * portion },
-                                    proteinOnly,
+                                  {metaLine(
+                                    nutritionLabel(
+                                      {
+                                        kcal: meal.kcal * portion,
+                                        protein: meal.protein * portion,
+                                      },
+                                      proteinOnly,
+                                      noNumbers,
+                                    ),
+                                    // Lane E3 "Hide numbers": the portion stands in for the figures.
+                                    noNumbers && portionLabel(portion),
+                                    planPortionOf(meal) !== 1 &&
+                                      `plan ${formatPortion(planPortionOf(meal))}`,
                                   )}
-                                  {planPortionOf(meal) !== 1 &&
-                                    ` · plan ${formatPortion(planPortionOf(meal))}`}
                                 </Text>
                               </View>
                               {/* WP-06: only a meal still to eat can be swapped or skipped. */}
@@ -439,7 +467,13 @@ export function YourDayScreen() {
                                 {m.recipeName}
                               </Text>
                               <Text className="text-caption text-label-secondary">
-                                {`${nutritionLabel(m, proteinOnly)}${portionText} · ${mealTypeLabel(m.mealType)}`}
+                                {metaLine(
+                                  `${nutritionLabel(m, proteinOnly, noNumbers)}${portionText}`.replace(
+                                    /^ · /,
+                                    '',
+                                  ),
+                                  mealTypeLabel(m.mealType),
+                                )}
                               </Text>
                             </PressableScale>
                             {m.entryId ? (
@@ -474,7 +508,11 @@ export function YourDayScreen() {
                               {row.name}
                             </Text>
                             <Text className="text-caption text-label-secondary">
-                              {`${nutritionLabel(row, proteinOnly)} · ${mealTypeLabel(row.mealType)} · ${customEntryChipLabel(row.estimatedBy)}`}
+                              {metaLine(
+                                nutritionLabel(row, proteinOnly, noNumbers),
+                                mealTypeLabel(row.mealType),
+                                customEntryChipLabel(row.estimatedBy),
+                              )}
                             </Text>
                           </PressableScale>
                           <IconButton
@@ -575,6 +613,12 @@ export function YourDayScreen() {
             view={t.targetsView}
           />
 
+          <MealActionsSheet
+            visible={mealActionsOpen}
+            onClose={() => setMealActionsOpen(false)}
+            date={dateStr}
+            loggedMealTypes={(data?.log?.loggedMeals ?? []).map((m) => m.mealType)}
+          />
           <ConfirmSheet
             visible={t.copyDayOpen}
             onClose={() => t.setCopyDayOpen(false)}

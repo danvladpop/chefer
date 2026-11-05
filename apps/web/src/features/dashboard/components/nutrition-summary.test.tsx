@@ -100,17 +100,14 @@ describe('NutritionSummary — ring label (§2.11, T-35.5)', () => {
 });
 
 describe('NutritionSummary (MO-06)', () => {
-  it('marks the calorie ring and only the over-target macro bar as over', () => {
+  it('lane E3: over target is never coloured as a warning — no over state on the ring or bars', () => {
     render(<NutritionSummary nutrition={motionBase} />);
     const ring = screen.getByRole('progressbar', { name: '2810 of 2728 kcal eaten today' });
-    expect(ring).toHaveAttribute('data-over', 'true');
-    expect(screen.getByRole('progressbar', { name: 'Fat: 148 of 91 grams eaten' })).toHaveAttribute(
-      'data-over',
-      'true',
-    );
+    expect(ring).not.toHaveAttribute('data-over');
     expect(
-      screen.getByRole('progressbar', { name: 'Protein: 120 of 140 grams eaten' }),
+      screen.getByRole('progressbar', { name: 'Fat: 148 of 91 grams eaten' }),
     ).not.toHaveAttribute('data-over');
+    expect(document.body.innerHTML).not.toMatch(/amber|d97706/);
   });
 
   it('animates bars with scaleX from the left, never width', () => {
