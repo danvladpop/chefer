@@ -8,6 +8,7 @@ import {
 } from '@chefer/database';
 import type { WeeklyRecapDto } from '@chefer/types';
 import {
+  dateOnlyKey,
   lastCompletedWeekStart,
   mondayOf,
   recapFoodCounts,
@@ -69,7 +70,7 @@ export class RecapService {
 
     const counts = recapFoodCounts({
       logs: logs.map((log) => ({
-        date: log.date.toISOString().slice(0, 10),
+        date: dateOnlyKey(log.date),
         loggedMeals: Array.isArray(log.loggedMeals)
           ? (log.loggedMeals as unknown as LoggedMealRef[])
           : [],
