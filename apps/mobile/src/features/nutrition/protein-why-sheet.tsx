@@ -1,5 +1,6 @@
 import type { ProteinWhy } from '@chefer/types';
 import { ExplainSheet } from '@chefer/ui-mobile';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // ─── ProteinWhySheet (WP-08, D-5) ───────────────────────────────────────────────
 // "Why this protein number?" The sentence comes from the API's `proteinWhy`
@@ -18,6 +19,8 @@ export interface ProteinWhySheetProps {
 }
 
 export function ProteinWhySheet({ visible, onClose, why, action, testID }: ProteinWhySheetProps) {
+  // Lane E3 "Hide numbers": the protein target is never explained in figures.
+  const { noNumbers } = useNumbersMode();
   const rows = why
     ? [
         { label: 'Protein a day', value: `${why.effectiveG} g` },
@@ -29,6 +32,7 @@ export function ProteinWhySheet({ visible, onClose, why, action, testID }: Prote
           : []),
       ]
     : [];
+  if (noNumbers) return null;
   return (
     <ExplainSheet
       visible={visible}

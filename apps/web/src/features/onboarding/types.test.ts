@@ -87,8 +87,8 @@ describe('wizardDataFromPreferences — numbers mode (WP-08)', () => {
     expect(wizardDataFromPreferences(prefs('PROTEIN_ONLY')).numbersMode).toBe('PROTEIN_ONLY');
   });
 
-  it('reads NONE (reserved for WP-16) and anything unknown as the full numbers', () => {
-    expect(wizardDataFromPreferences(prefs('NONE')).numbersMode).toBe('FULL');
+  it('keeps NONE ("Hide numbers", lane E3) and reads anything unknown as the full numbers', () => {
+    expect(wizardDataFromPreferences(prefs('NONE')).numbersMode).toBe('NONE');
     expect(wizardDataFromPreferences(prefs('whatever')).numbersMode).toBe('FULL');
     expect(wizardDataFromPreferences(prefs(null)).numbersMode).toBe('FULL');
   });

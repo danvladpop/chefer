@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { NumbersModeProvider } from '@/features/numbers-mode/numbers-mode';
 import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -927,5 +928,60 @@ describe('QuickAddSheet — type what you ate (lane A4)', () => {
     );
     fireEvent.click(screen.getByTestId('tracker-quick-add'));
     expect(screen.queryByTestId('log-sheet-type-it')).toBeNull();
+  });
+});
+
+describe('QuickAddSheet — "Hide numbers" on the packaged and typed flows (lanes A + E3)', () => {
+  function renderHidden() {
+    render(
+      <NumbersModeProvider mode="NONE">
+        <QuickAddSheet date="2026-09-26" onLogged={onLogged} />
+      </NumbersModeProvider>,
+    );
+    fireEvent.click(screen.getByTestId('tracker-quick-add'));
+  }
+
+  it('a scanned product shows no kcal, protein or macros and still logs', async () => {
+    m.lookupBarcode.mockResolvedValue({
+      status: 'found',
+      product: OAT_DRINK,
+      origin: 'cache',
+      warnings: [],
+      stale: false,
+    });
+    renderHidden();
+    fireEvent.click(screen.getByTestId('log-sheet-scan-barcode'));
+    fireEvent.change(screen.getByTestId('product-barcode-input'), {
+      target: { value: '7394376616037' },
+    });
+    fireEvent.click(screen.getByTestId('product-barcode-find'));
+    await screen.findByTestId('product-name');
+
+    expect(screen.queryByTestId('product-live-nutrition')).toBeNull();
+    expect(screen.getByTestId('product-card').textContent).not.toMatch(/kcal|protein|\d g [PCF]\b/);
+    expect(screen.getByTestId('product-log').textContent).toBe('Log it');
+    fireEvent.click(screen.getByTestId('product-log'));
+    expect(m.logProduct).toHaveBeenCalled();
+  });
+
+  it('typed items show no figures and the log button carries no kcal total', () => {
+    m.parsedItems = [
+      {
+        key: '0',
+        text: '2 eggs',
+        name: 'Egg',
+        source: 'ingredient',
+        unit: 'g',
+        grams: 100,
+        per100g: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+      },
+    ];
+    renderHidden();
+    fireEvent.click(screen.getByTestId('log-sheet-type-it'));
+    fireEvent.change(screen.getByTestId('food-text-input'), { target: { value: '2 eggs' } });
+    fireEvent.click(screen.getByTestId('food-text-read'));
+
+    expect(screen.getByTestId('food-text-item-0').textContent).not.toMatch(/kcal|protein|\d g P/);
+    expect(screen.getByTestId('food-text-log').textContent).toBe('Log 1 item');
   });
 });

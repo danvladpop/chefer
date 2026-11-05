@@ -32,7 +32,7 @@ export function TrainingDayNote({
   className?: string;
 }) {
   const [whyOpen, setWhyOpen] = useState(false);
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   if (!t.isTrainingDay) return null;
   const kind = t.kind ?? 'lift';
   const isRun = trainingGlyph(kind) === 'walk-outline';
@@ -48,7 +48,8 @@ export function TrainingDayNote({
         <p className="flex items-center gap-1.5 text-xs font-semibold text-[#944a00]">
           <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0" data-testid="training-day-line">
-            {`Training day · +${t.proteinBonus} g protein`}
+            {/* Lane E3 "Hide numbers": the day is named, the bump is not. */}
+            {noNumbers ? 'Training day' : `Training day · +${t.proteinBonus} g protein`}
           </span>
         </p>
       </div>

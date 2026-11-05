@@ -38,6 +38,8 @@ export interface WeekReadyEmailData {
   listTotal: string | null;
   planUrl: string;
   listUrl: string;
+  /** Lane E2: "Look back at last week" — the weekly recap page. Optional for older callers. */
+  recapUrl?: string;
   preferencesUrl: string;
   unsubscribeUrl: string;
 }
@@ -191,6 +193,7 @@ export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
     '',
     `See your week: ${data.planUrl}`,
     `Shopping list: ${data.listUrl}`,
+    ...(data.recapUrl ? [`Look back at last week: ${data.recapUrl}`] : []),
     ...(upsell ? ['', upsell] : []),
     '',
     '—',
@@ -219,6 +222,13 @@ export function renderWeekReadyEmail(data: WeekReadyEmailData): RenderedEmail {
     paragraph(
       `<a href="${escapeHtml(data.listUrl)}" style="color:${BRAND};">Open the shopping list</a>`,
     ),
+    ...(data.recapUrl
+      ? [
+          paragraph(
+            `<a href="${escapeHtml(data.recapUrl)}" style="color:${BRAND};">Look back at last week</a>`,
+          ),
+        ]
+      : []),
     ...(upsell ? [paragraph(escapeHtml(upsell), `color:${MUTED};font-size:13px;`)] : []),
   ].join('');
 

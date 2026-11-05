@@ -280,6 +280,16 @@ export interface EventMap {
   // ─── Switch pages (market review 2026-10, lane L) — web, public ───────────────
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
+
+  // ─── Engagement (market review 2026-10, lane E) ────────────────────────────
+  /** E1: the onboarding "Remind me at mealtimes?" answer (`denied` = the OS said no). */
+  meal_reminders_offer_answered: { answer: 'yes' | 'no' | 'denied' };
+  /** E1: a Settings change (either platform); `meals` = meals with a reminder. */
+  meal_reminders_changed: { enabled: boolean; meals: number; surface: 'mobile' | 'web' };
+  /** E2: a share card was created and the share sheet shown; `completed` = not dismissed. */
+  share_card_shared: { kind: 'recipe' | 'cook' | 'workout' | 'recap'; completed: boolean };
+  /** E2: the weekly recap screen opened. */
+  weekly_recap_viewed: { from: 'today' | 'link' | 'menu'; empty: boolean };
   // Lane D4: on-device progress photos (never the photo, never a count of them).
   progress_photo_added: { source: 'camera' | 'library' };
   progress_photos_compared: Record<string, never>;
