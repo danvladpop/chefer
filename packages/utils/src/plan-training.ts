@@ -273,7 +273,7 @@ export function trainingExplainCopy(input: {
   if (lifts.length > 0 && liftFirst) {
     parts.push(
       liftFirst.kcalBonus > 0
-        ? `You train on ${names(lifts)}. On those days ${verb} about ${fmt(liftFirst.kcalBonus)} kcal and ${liftFirst.proteinBonus} g of protein, mostly around your workout, to help you recover and build muscle.`
+        ? `You train on ${names(lifts)}. On those days ${verb} about ${fmt(liftFirst.kcalBonus)} kcal and ${liftFirst.proteinBonus} g of protein, mostly around your workout, to help you recover from the session.`
         : `You train on ${names(lifts)}.`,
     );
     if (liftFirst.kcalBonus > 0) {

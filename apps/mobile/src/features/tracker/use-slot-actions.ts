@@ -9,7 +9,7 @@ import {
   type DayEntry,
   type SlotRef,
 } from '@chefer/utils';
-import { trackMealLogged } from '../../lib/analytics-events';
+import { trackMealLogged, type MealLogMethod } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
@@ -50,6 +50,8 @@ export type ReplaceInput = {
   carbs?: number;
   fat?: number;
   unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[];
+  /** How the replacement was entered (analytics only, never sent to the API). */
+  method: MealLogMethod;
 };
 
 export function useSlotActions(dateStr: string) {
@@ -181,7 +183,7 @@ export function useSlotActions(dateStr: string) {
       },
       {
         onSuccess: (result) => {
-          trackMealLogged('replaced', input.slot.mealType);
+          trackMealLogged('replaced', input.slot.mealType, input.method);
           recordRebalanceOutcome(result);
           onLogged?.();
           confirmReplaced(input.name, input.slot.mealType, result.entryId);

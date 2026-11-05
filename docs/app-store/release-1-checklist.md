@@ -74,9 +74,10 @@ false })` now clears the transport queue (`clearQueue()`), so a batch queued whi
   is not sent at the next 30 s / background flush. Test:
   `apps/mobile/tests/unit/analytics-optout-queue.test.ts`. The proxy run below includes a step that
   checks it on a real phone.
-- **Open gap:** `setCurrentUserId()` is never called, so "Link usage to my account" has no effect
-  today (events always carry the random session id). The privacy page says linked counts "can carry"
-  the account ID, which stays true either way.
+- ~~**Open gap:** `setCurrentUserId()` is never called~~ **Fixed 2026-10-22:** `SessionUserHost`
+  passes `user.me`'s id on sign-in and `null` on sign-out; `signOut()` and an account switch turn
+  linking off. Tests: `analytics.test.ts` ("linking switches the distinct id…"),
+  `session-user-host.test.tsx`, `sign-out.test.ts`. With linking on, events carry the account id.
 - The build carrying the check needs a **test** PostHog key. On a normal production build the
   variables are unset and the result is trivially zero; that is the current state of the store build.
 

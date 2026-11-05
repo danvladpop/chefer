@@ -68,6 +68,7 @@ function mockMutateDay(stored: LoggedMealEntry[], skipped: SlotRefJson[] = []) {
     totalProtein: 0,
     totalCarbs: 0,
     totalFat: 0,
+    incomplete: false,
     updatedAt: new Date(),
   });
   vi.mocked(dailyLogRepository.mutateDay).mockImplementation(async (_userId, _date, mutate) =>
@@ -190,6 +191,7 @@ describe('trackerService.copyDay (T-19.3)', () => {
       totalProtein: 20,
       totalCarbs: 60,
       totalFat: 15,
+      incomplete: false,
       updatedAt: new Date(),
     });
     mockMutateDay([]);
@@ -236,6 +238,7 @@ describe('trackerService.recents (T-19.1)', () => {
         totalProtein: 0,
         totalCarbs: 0,
         totalFat: 0,
+        incomplete: false,
         updatedAt: new Date(),
       },
       {
@@ -258,6 +261,7 @@ describe('trackerService.recents (T-19.1)', () => {
         totalProtein: 0,
         totalCarbs: 0,
         totalFat: 0,
+        incomplete: false,
         updatedAt: new Date(),
       },
     ] as never);
@@ -563,6 +567,7 @@ describe('trackerService unknownMacros (UX-FOOD-11)', () => {
         totalProtein: 0,
         totalCarbs: 0,
         totalFat: 0,
+        incomplete: false,
         updatedAt: new Date(),
       },
     ]);

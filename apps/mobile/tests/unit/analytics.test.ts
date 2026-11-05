@@ -37,14 +37,18 @@ function withEnv(overrides: Record<string, string | undefined>) {
  * `analytics.ts` pulls in `expo-sqlite` transitively, which can reinstall
  * React Native's own fetch polyfill and silently undo an earlier mock.
  */
-function loadAnalytics(fetchMock: FetchMock): Loaded {
+let kvBackend: ReturnType<KvModule['createMemoryKvBackend']> | null = null;
+
+/** `keepDeviceStore`: the next cold start of the same phone (the KV survives). */
+function loadAnalytics(fetchMock: FetchMock, { keepDeviceStore = false } = {}): Loaded {
   jest.resetModules();
   // Dynamic reload after resetModules() needs require(), not a static
   // top-level import — the same pattern used elsewhere in this test suite
   // (e.g. tests/unit/gym-today.test.tsx).
   /* eslint-disable @typescript-eslint/no-require-imports */
   const kv = require('../../src/features/gym/offline/kv') as KvModule;
-  kv.setKvBackendForTests(kv.createMemoryKvBackend());
+  if (!keepDeviceStore || kvBackend === null) kvBackend = kv.createMemoryKvBackend();
+  kv.setKvBackendForTests(kvBackend);
 
   const analytics = require('../../src/lib/analytics') as AnalyticsModule;
   const transport = require('../../src/lib/analytics-transport') as TransportModule;
@@ -54,8 +58,19 @@ function loadAnalytics(fetchMock: FetchMock): Loaded {
   return { ...analytics, ...transport };
 }
 
+interface SentEvent {
+  event: string;
+  distinct_id: string;
+  properties: Record<string, unknown>;
+}
 interface SentBatch {
-  batch: { distinct_id: string }[];
+  batch: SentEvent[];
+}
+
+function eventsSent(fetchMock: FetchMock): SentEvent[] {
+  return fetchMock.mock.calls
+    .map((call) => JSON.parse(call[1].body as string) as SentBatch)
+    .flatMap((body) => body.batch);
 }
 
 function distinctIdsSent(fetchMock: FetchMock): string[] {
@@ -100,7 +115,7 @@ describe('mobile analytics (T-12.2)', () => {
   it('AC1: an unlinked event carries the session id, never an account id', async () => {
     const analytics = loadAnalytics(fetchMock);
     analytics.setCurrentUserId('user-1'); // signed in, but not linked
-    analytics.track('app_opened', {});
+    analytics.track('app_opened', { from: 'launch' });
     await analytics.flush();
 
     const [distinctId] = distinctIdsSent(fetchMock);
@@ -111,11 +126,11 @@ describe('mobile analytics (T-12.2)', () => {
   it('AC2: linking to the account changes the distinct_id on the very next event', async () => {
     const analytics = loadAnalytics(fetchMock);
     analytics.setCurrentUserId('user-1');
-    analytics.track('app_opened', {});
+    analytics.track('app_opened', { from: 'launch' });
     await analytics.flush();
 
     analytics.setAnalyticsConsent({ linked: true });
-    analytics.track('app_opened', {});
+    analytics.track('app_opened', { from: 'launch' });
     await analytics.flush();
 
     const [beforeLink, afterLink] = distinctIdsSent(fetchMock);
@@ -126,7 +141,7 @@ describe('mobile analytics (T-12.2)', () => {
   it('AC3: turning anonymous counting off means fetch is never called', async () => {
     const analytics = loadAnalytics(fetchMock);
     analytics.setAnalyticsConsent({ anonymous: false });
-    analytics.track('app_opened', {});
+    analytics.track('app_opened', { from: 'launch' });
     await analytics.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -151,12 +166,128 @@ describe('mobile analytics (T-12.2)', () => {
     expect(analytics.getAnalyticsConsent().linked).toBe(false);
   });
 
+  // ─── Account linking (market review 2026-10, lane B) ─────────────────────
+  // SessionUserHost calls setCurrentUserId on sign-in (user.me resolved),
+  // sign-out (null) and account switch (another id).
+
+  it('linking switches the distinct id to the account, and sign-out switches it back', async () => {
+    const analytics = loadAnalytics(fetchMock);
+    analytics.setAnalyticsConsent({ linked: true });
+    analytics.track('app_opened', { from: 'launch' }); // user.me not resolved yet
+    analytics.setCurrentUserId('user-1'); // user.me resolved
+    analytics.track('app_opened', { from: 'resume' });
+    analytics.setCurrentUserId(null); // signed out
+    analytics.track('app_opened', { from: 'resume' });
+    await analytics.flush();
+
+    expect(distinctIdsSent(fetchMock)).toEqual([
+      analytics.getSessionIdForTests(),
+      'user-1',
+      analytics.getSessionIdForTests(),
+    ]);
+  });
+
+  it('a linked event makes a PostHog person; an unlinked one never does', async () => {
+    const analytics = loadAnalytics(fetchMock);
+    analytics.setCurrentUserId('user-1');
+    analytics.track('app_opened', { from: 'launch' });
+    analytics.setAnalyticsConsent({ linked: true });
+    analytics.track('app_opened', { from: 'resume' });
+    await analytics.flush();
+
+    expect(eventsSent(fetchMock).map((e) => e.properties)).toEqual([
+      { from: 'launch', $process_person_profile: false },
+      { from: 'resume', $process_person_profile: true },
+    ]);
+  });
+
+  it("switching accounts turns linking off: account B never inherits account A's choice", async () => {
+    const analytics = loadAnalytics(fetchMock);
+    analytics.setCurrentUserId('user-a');
+    analytics.setAnalyticsConsent({ linked: true });
+    analytics.setCurrentUserId('user-b');
+    analytics.track('app_opened', { from: 'resume' });
+    await analytics.flush();
+
+    expect(analytics.getAnalyticsConsent()).toEqual({ anonymous: true, linked: false });
+    expect(distinctIdsSent(fetchMock)).toEqual([analytics.getSessionIdForTests()]);
+  });
+
+  it('a cold start with linking on links as soon as the account is known again', async () => {
+    const first = loadAnalytics(fetchMock);
+    first.setAnalyticsConsent({ linked: true }); // persisted on the device
+    const analytics = loadAnalytics(fetchMock, { keepDeviceStore: true }); // next launch, same KV
+    analytics.setCurrentUserId('user-1');
+    analytics.track('app_opened', { from: 'launch' });
+    await analytics.flush();
+
+    expect(distinctIdsSent(fetchMock)).toEqual(['user-1']);
+  });
+
+  it('posts the batch to the EU endpoint with the project key', async () => {
+    const analytics = loadAnalytics(fetchMock);
+    analytics.track('app_opened', { from: 'launch' });
+    await analytics.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe('https://eu.i.posthog.com/batch/');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toMatchObject({ api_key: 'test-key' });
+  });
+
+  it('a trailing slash on the host still posts to /batch/', async () => {
+    withEnv({
+      EXPO_PUBLIC_POSTHOG_KEY: 'test-key',
+      EXPO_PUBLIC_POSTHOG_HOST: 'https://eu.i.posthog.com/',
+    });
+    const analytics = loadAnalytics(fetchMock);
+    analytics.track('app_opened', { from: 'launch' });
+    await analytics.flush();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://eu.i.posthog.com/batch/');
+  });
+
+  it.each([
+    ['a non-EU host', 'https://us.i.posthog.com'],
+    ['plain http', 'http://eu.i.posthog.com'],
+    ['an empty value', ''],
+    ['a malformed value', 'eu.i.posthog.com'],
+  ])('%s turns analytics off instead of crashing the app at startup', async (_name, host) => {
+    withEnv({ EXPO_PUBLIC_POSTHOG_KEY: 'test-key', EXPO_PUBLIC_POSTHOG_HOST: host });
+    const analytics = loadAnalytics(fetchMock);
+
+    expect(analytics.isTransportEnabled()).toBe(false);
+    analytics.track('app_opened', { from: 'launch' });
+    await analytics.flush();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a key without a host (or a host without a key) sends nothing', async () => {
+    withEnv({ EXPO_PUBLIC_POSTHOG_KEY: 'test-key', EXPO_PUBLIC_POSTHOG_HOST: undefined });
+    const keyOnly = loadAnalytics(fetchMock);
+    keyOnly.track('app_opened', { from: 'launch' });
+    await keyOnly.flush();
+
+    withEnv({
+      EXPO_PUBLIC_POSTHOG_KEY: undefined,
+      EXPO_PUBLIC_POSTHOG_HOST: 'https://eu.i.posthog.com',
+    });
+    const hostOnly = loadAnalytics(fetchMock);
+    hostOnly.track('app_opened', { from: 'launch' });
+    await hostOnly.flush();
+
+    expect(keyOnly.isTransportEnabled()).toBe(false);
+    expect(hostOnly.isTransportEnabled()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('no key configured = the transport is disabled and never queues or fetches', async () => {
     withEnv({ EXPO_PUBLIC_POSTHOG_KEY: undefined, EXPO_PUBLIC_POSTHOG_HOST: undefined });
     const analytics = loadAnalytics(fetchMock);
 
     expect(analytics.isTransportEnabled()).toBe(false);
-    analytics.track('app_opened', {});
+    analytics.track('app_opened', { from: 'launch' });
     await analytics.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();

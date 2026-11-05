@@ -16,6 +16,7 @@ const db = vi.hoisted(() => {
     householdClear: op('household.clear'),
     chefClear: op('chef.clear'),
     weightClear: op('weight.clear'),
+    bodyClear: op('body.clear'),
     targetChangeDelete: op('targetChange.deleteMany'),
     safetyReportUpdate: op('safetyReport.updateMany'),
     consentCreate: op('consentEvent.create'),
@@ -40,6 +41,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
     householdMemberRepository: { clearHealthData: db.householdClear },
     chefProfileRepository: { clearHealthData: db.chefClear },
     weightEntryRepository: { deleteAllForUser: db.weightClear },
+    bodyMeasurementRepository: { deleteAllForUser: db.bodyClear },
     consentEventRepository: { record: vi.fn() },
   };
 });
@@ -93,12 +95,19 @@ describe('PrivacyService.withdrawHealthData', () => {
       'household.clear', // every member's allergies / diets / dislikes
       'chef.clear', // goal, body metrics, own targets
       'weight.clear', // every weigh-in
+      'body.clear', // every body measurement (lane D3)
       'targetChange.deleteMany', // before/after copies of goal and targets
       'safetyReport.updateMany', // allergy snapshot inside report rows
       'user.setHealthConsent', // cache cleared
       'consentEvent.create', // the withdrawal is recorded
     ]);
-    for (const clear of [db.dietaryClear, db.householdClear, db.chefClear, db.weightClear]) {
+    for (const clear of [
+      db.dietaryClear,
+      db.householdClear,
+      db.chefClear,
+      db.weightClear,
+      db.bodyClear,
+    ]) {
       expect(clear).toHaveBeenCalledWith('u1');
     }
     expect(db.setHealthConsent).toHaveBeenCalledWith('u1', null, null);

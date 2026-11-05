@@ -190,7 +190,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
     onSuccess: (data, variables) => {
-      trackMealLogged('snap', variables.mealType);
+      trackMealLogged('snap', variables.mealType, 'photo');
       recordRebalanceOutcome(data);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught

@@ -54,3 +54,8 @@ export * from './cover-image';
 export * from './load-confirmation';
 // "Keep it simple" Today: planned workout, week ring, minutes + ~kcal this week.
 export * from './simple-today';
+
+// G2: Strong / Hevy workout import (parse + name matching).
+export * from './workout-import';
+export * from './workout-import-match';
+export * from './workout-import-copy';

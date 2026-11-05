@@ -261,6 +261,67 @@ describe('TrainingNutritionService.targetsForDay — the bump gate (T-06.1, T-06
     expect(training?.trainingDay.isTrainingDay).toBe(false);
   });
 
+  // Owner decision 2026-10-22: MAINTAIN lifters get the same training-day bump
+  // as GAIN_MUSCLE, behind exactly the same tier / flag gate. LOSE_WEIGHT stays flat.
+  describe.each(['GAIN_MUSCLE', 'MAINTAIN'] as const)('%s lifter', (goal) => {
+    const goalProfile = { ...RAW, goal } as never;
+    const gate = (opts: { widened?: boolean; access: boolean }) =>
+      service({ ...lifter, days, widened: opts.widened === true }).svc.targetsForDay(
+        'u1',
+        goalProfile,
+        monday,
+        opts.access,
+      );
+
+    it('flag off, not entitled: previewed, not applied', async () => {
+      const { training } = await gate({ access: false });
+      expect(training?.trainingDay.isTrainingDay).toBe(true);
+      expect(training?.trainingDay.kcalBonus).toBeGreaterThan(0);
+      expect(training?.trainingDay.applied).toBe(false);
+      expect(training?.adjustedTargets).toBeNull();
+    });
+
+    it('flag on (free): applied, calories above the base', async () => {
+      const { targets, training } = await gate({ access: false, widened: true });
+      expect(training?.trainingDay.applied).toBe(true);
+      expect(training?.adjustedTargets?.dailyCalorieTarget).toBeGreaterThan(
+        targets.dailyCalorieTarget,
+      );
+    });
+
+    it('entitled: applied without the flag', async () => {
+      const { training } = await gate({ access: true });
+      expect(training?.trainingDay.applied).toBe(true);
+    });
+
+    it('a rest day carries no bump', async () => {
+      const { svc } = service({ ...lifter, days, widened: true });
+      const { training } = await svc.targetsForDay(
+        'u1',
+        goalProfile,
+        { localDate: '2026-09-29', weekday: 1 },
+        true,
+      );
+      expect(training?.trainingDay.isTrainingDay).toBe(false);
+      expect(training?.trainingDay.kcalBonus).toBe(0);
+      expect(training?.adjustedTargets).toBeNull();
+    });
+  });
+
+  it('LOSE_WEIGHT gets no training-day payload at all, flag on or off, entitled or not', async () => {
+    for (const widened of [false, true]) {
+      for (const access of [false, true]) {
+        const { training } = await service({ ...lifter, days, widened }).svc.targetsForDay(
+          'u1',
+          { ...RAW, goal: 'LOSE_WEIGHT' } as never,
+          monday,
+          access,
+        );
+        expect(training).toBeNull();
+      }
+    }
+  });
+
   it('LOSE_WEIGHT never gets a run bump even widened (a cut is not eaten back)', async () => {
     const { svc } = service({ ...lifter, days, kinds: { '5': 'run' }, widened: true });
     const { training } = await svc.targetsForDay(
@@ -326,7 +387,7 @@ describe('TrainingNutritionService.trainingWeek (T-06.2)', () => {
     });
     const { trainingDays } = await svc.trainingWeek(
       'u1',
-      { ...RAW, goal: 'MAINTAIN' } as never,
+      { ...RAW, goal: 'LOSE_WEIGHT' } as never,
       monday,
       true,
     );

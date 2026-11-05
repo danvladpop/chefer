@@ -55,7 +55,7 @@ Capture is production-only (`NEXT_PUBLIC_POSTHOG_DEV=1` to test locally).
   wave-0 shape with a richer one — `plan_generated { slotsCount, keptPicks }`
   and `meal_logged { source, mealType }` — the old shapes below keep firing
   through the permissive overload until L-PLAN/L-TRACK adopt the new one.
-- **This lane's own events** (T-12.4): `app_opened` (mobile launch),
+- **This lane's own events** (T-12.4): `app_opened` (mobile launch; since 2026-10-22 `{ from: 'launch' | 'resume' }`, see "Mobile funnel" below),
   `analytics_consent_changed { anonymous, linked }` (either switch flips),
   `meal_logged { source, mealType }` (tracker, new shape above).
 
@@ -96,9 +96,11 @@ Gaps and rules:
   All go through `capture()`, so the "Send anonymous usage counts" switch applies. Web `plan_generated` still
   sends the older `tier, weekOffset` shape.
 - **Privacy labels first (OA-2):** the owner must update the App Store privacy
-  labels (and the in-app privacy copy) to cover these usage events BEFORE any
-  `EXPO_PUBLIC_POSTHOG_KEY` is set in `eas.json` / the deploy workflow. No key
-  is configured today, so every event above is a no-op in production builds.
+  label and Play Data safety to cover these usage events BEFORE the
+  `EXPO_PUBLIC_POSTHOG_KEY` / `_HOST` repo variables (deploy OTA job) or EAS
+  env are set. The exact answers are in `docs/app-store/ios/privacy-and-rating.md`
+  and `docs/app-store/android/data-safety.md`. Until a key is set, every event
+  above is a no-op in production builds.
 - **No key needed for the beta numbers:** `docs/beta-dashboard.sql` computes
   daily actives, 2-days-in-7 activation, weekly retention by signup week and
   the food-vs-gym split straight from our own Postgres tables
@@ -191,6 +193,84 @@ G4-C through the typed wrapper. Migrating the first six onto
 `captureGymEvent` is a low-risk follow-up (naming/shape already match
 `GymEventMap`) — left alone here to avoid touching the workout/routine files
 mid-flight for other in-progress work.
+
+## Mobile funnel: PostHog on (market review 2026-10, Q18 reversed)
+
+The owner reversed Q18 on 2026-10-22: mobile sends its typed events to PostHog EU, gated on
+the two consent switches, so new features and D1/D7/D30 retention can be measured. The deploy
+OTA job bundles the key from the `EXPO_PUBLIC_POSTHOG_KEY` / `EXPO_PUBLIC_POSTHOG_HOST` repo
+variables (`infrastructure.md` §13).
+
+### Who the numbers cover
+
+| Measure                                    | Covers                                    | Why                                                                                                                        |
+| ------------------------------------------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Event counts, trends, breakdowns           | Everyone with anonymous counts on         | Every event is sent                                                                                                        |
+| Funnels inside one app launch              | Everyone with anonymous counts on         | The unlinked id lasts one cold start (never stored)                                                                        |
+| Retention, multi-day funnels, "first time" | Only users who turned **linking** on      | Only a linked id is stable across launches. Unlinked events set `$process_person_profile: false`, so they create no person |
+| Everyone's retention and activation        | `docs/beta-dashboard.sql` on our Postgres | No key needed; counts signups, activity and plans from our own tables                                                      |
+
+To get anonymous retention in PostHog, the app would have to store a random install id on the
+device. That changes the privacy design (the policy says the id is "never stored") and needs
+an owner decision. It is not part of this change.
+
+### Funnel coverage audit (2026-10-22)
+
+| Funnel step             | Event (mobile)                                                    | Status                                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| App opened              | `app_opened { from: 'launch' \| 'resume' }`                       | **Changed.** Fired by `SessionUserHost` once the account is known, plus a `resume` after 30+ min away                                 |
+| Signed up               | `signup_completed`                                                | Already there                                                                                                                         |
+| Onboarding completed    | `onboarding_completed { jobs, trainingStyles? }`                  | Already there (wizard and V4)                                                                                                         |
+| First plan generated    | `plan_generated { slotsCount, keptPicks }`                        | Already there (Plan, onboarding first week, premium). "First" = PostHog's first-time filter, linked users only                        |
+| "Ate as planned" tick   | `meal_logged { source: 'planned' }`                               | Already there                                                                                                                         |
+| Off-plan log, by method | `meal_logged { source: 'replaced' \| 'quick' \| 'snap', method }` | **New property `method`**: `search`, `photo`, `quick_add`, `recent`, `cook`. Lane A adds `barcode` and `saved_meal` to the same union |
+| Shopping item checked   | `list_item_checked { items }`                                     | **New.** After `shoppingList.toggleItems` succeeds with `checked: true` (Shop tab and the legacy list)                                |
+| Recipe imported         | `recipe_imported { via: 'link' \| 'text' \| 'video' }`            | **New.** On `recipe.importSave` success                                                                                               |
+| Cook mode finished      | `cook_finished`                                                   | Already there                                                                                                                         |
+| Workout saved           | `workout_finished` (gym map), `coached_workout_finished`          | Already there (full and simple workout screens; coached sessions)                                                                     |
+| Follow                  | `friend_follow { source, outcome }`                               | Already there                                                                                                                         |
+| Coaching join           | `coaching_joined`, `coaching_requested`                           | **New.** Invite-link join success; a directory request sent (the trainer accepts on their side)                                       |
+
+`method` is how the food was entered: `search` (a recipe or ingredient row found by
+searching in the Log sheet), `photo` (photo scan), `quick_add` (typed name and numbers, or
+the "ate out" estimate), `recent` (the Recent list, in the Log sheet or "Ate something
+else"), `cook` (cook mode with no plan slot). A planned tick sends no `method`.
+
+**Web:** not changed here. Web does not send `method`, `list_item_checked`, `recipe_imported` or
+the coaching events yet (follow-up). It does not fire `app_opened` either; its retention comes
+from `$pageview`.
+
+### ☐ PostHog dashboard — "Mobile funnel & retention" (owner builds it once events arrive)
+
+Create one dashboard in the EU project. PostHog pickers list only events that have fired, so
+build it after the first OTA with the key, or after sending one of each event from a test
+build (a throwaway project is safer than prod). Mobile sends to **web's PostHog project** (same
+key, so a linked user is one person on both, and account deletion's `deletePerson` covers mobile
+too), so filter every insight on **`$lib` is not set** to see mobile only (mobile events carry no
+`$lib`; web's SDK sets `$lib = web`), or break down by `$lib` to compare.
+
+1. **Activation funnel** (Funnel, conversion window 1 day, aggregating by unique users):
+   `app_opened` → `signup_completed` → `onboarding_completed` → `plan_generated` →
+   `meal_logged` (source = `planned`). Unlinked ids last one launch, so this measures
+   same-launch activation; leave the window at 1 day.
+2. **Retention: D1/D7/D30** (Retention): start event `app_opened` (first time), return event
+   `app_opened`, period **Day**, 31 periods; read D1, D7, D30 off the table. A second copy
+   with period **Week**. Linked users only (see above). Breakdown: none.
+3. **Retention by first action** (Retention): start event `plan_generated` (first time),
+   return event `app_opened`, Day. Then copies with start `meal_logged` and `workout_finished`.
+   Answers: does planning or training first keep people longer.
+4. **How off-plan meals are logged** (Trend, weekly, stacked bar): `meal_logged` where
+   `source` ≠ `planned`, **breakdown by `method`**. Shows whether barcode and saved meals
+   (lane A) take over from search and quick add.
+5. **On-plan share** (Trend, weekly, formula): A = `meal_logged` where `source` = `planned`,
+   B = `meal_logged` total, formula `A / B`.
+6. **Feature usage** (Trend, weekly, stacked): `list_item_checked` (sum of `items` and
+   count), `recipe_imported` (breakdown `via`), `cook_finished`, `workout_finished`,
+   `friend_follow`, `coaching_joined`, `coaching_requested`.
+7. **Opens per day** (Trend, daily): `app_opened`, breakdown by `from`. A low `resume` share
+   means the 30-minute rule is too strict, or that most opens are cold starts.
+8. **Consent health** (Trend, weekly): `analytics_consent_changed`, breakdown by `anonymous`
+   and `linked`. How many people turn counting off or linking on.
 
 ## ✅ PostHog dashboard — "Upgrade funnel" (built 2026-08-22)
 

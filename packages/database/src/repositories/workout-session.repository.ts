@@ -3,6 +3,7 @@ import type {
   Prisma,
   SessionExercise,
   SessionSet,
+  WorkoutImportSource,
   WorkoutSession,
   WorkoutStatus,
   WorkoutType,
@@ -81,6 +82,11 @@ export interface SessionDocWriteData {
   engineVersion: number;
   /** Simple training mode: the workout's type; null on typeless routine/freestyle workouts. */
   workoutType: WorkoutType | null;
+  /**
+   * G2: set only by the Strong / Hevy import. Omitted on every other write, so
+   * a phone later editing an imported workout keeps the marker.
+   */
+  importSource?: WorkoutImportSource;
   exercises: SessionExerciseWriteData[];
 }
 
@@ -126,6 +132,8 @@ export interface IWorkoutSessionRepository {
     opts: UpsertSessionOptions,
   ): Promise<UpsertSessionResult>;
   findByIdForUser(userId: string, id: string): Promise<SessionWithChildren | null>;
+  /** G2: which of these session ids the user already has (a re-import skips them). */
+  findExistingIds(userId: string, ids: string[]): Promise<string[]>;
   /** Newest first, DISCARDED excluded; cursor = last item of the previous page. */
   listForUser(
     userId: string,
@@ -205,6 +213,7 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
         clientUpdatedAt: doc.clientUpdatedAt,
         engineVersion: doc.engineVersion,
         workoutType: doc.workoutType,
+        ...(doc.importSource && { importSource: doc.importSource }),
         ...(opts.coached && {
           loggedById: opts.coached.loggedById,
           bookingId: opts.coached.bookingId,
@@ -261,6 +270,15 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
       }
       return { status: 'written', previous, rotationAdvanced };
     });
+  }
+
+  async findExistingIds(userId: string, ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await prisma.workoutSession.findMany({
+      where: { userId, id: { in: ids } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
   }
 
   async findByIdForUser(userId: string, id: string): Promise<SessionWithChildren | null> {

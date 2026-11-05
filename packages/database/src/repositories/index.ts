@@ -77,7 +77,15 @@ export {
   weightEntryRepository,
   type IWeightEntryRepository,
   type CreateWeightEntryData,
+  type ImportedWeightEntryData,
 } from './weight-entry.repository';
+
+export {
+  BodyMeasurementRepository,
+  bodyMeasurementRepository,
+  type IBodyMeasurementRepository,
+  type BodyMeasurementValuesData,
+} from './body-measurement.repository';
 
 export {
   ChefReviewRepository,
@@ -421,6 +429,19 @@ export {
   type TemplateAssignmentRow,
   type TemplateNameRow,
 } from './workout-template.repository';
+
+// Curated recipe ingest (market review F1)
+export {
+  CuratedRecipeDraftRepository,
+  curatedRecipeDraftRepository,
+  CuratedDraftStateError,
+  type ICuratedRecipeDraftRepository,
+  type CuratedDraftCreateData,
+  type CuratedDraftPatch,
+  type CuratedRecipeCreateData,
+  type CuratedPublishData,
+  type ApprovedCuratedDraft,
+} from './curated-recipe-draft.repository';
 
 export {
   RecipeImageRepository,

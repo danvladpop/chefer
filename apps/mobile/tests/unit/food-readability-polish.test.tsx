@@ -50,6 +50,7 @@ jest.mock('../../src/lib/trpc', () => ({
       rate: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
     },
     user: {
+      exportArchive: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       deleteSelf: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
     },
     auth: {

@@ -44,7 +44,7 @@ describe('analytics opt-out with a non-empty queue', () => {
     );
     const analytics = load(fetchMock);
 
-    analytics.track('app_opened', {}); // counting is on (default), so this is queued
+    analytics.track('app_opened', { from: 'launch' }); // counting is on (default), so this is queued
     analytics.setAnalyticsConsent({ anonymous: false }); // user opts out before the flush
     await analytics.flush(); // the 30 s timer or the background listener
 

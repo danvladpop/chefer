@@ -16,7 +16,7 @@ import type { SafetyChecks, TableSafety } from '@chefer/types';
 import { rankForSlot, recipeMealTypeHint } from '@chefer/utils';
 import type { RecipeData } from '../../lib/ai/types.js';
 import {
-  CURATED_POOL_BY_TYPE,
+  curatedMealTypeOf,
   ensureCuratedRecipes,
   safeCuratedPools,
 } from '../../lib/curated-recipes/index.js';
@@ -102,18 +102,6 @@ export type RecipeListRow = Omit<Recipe, FollowingColumns> &
   };
 
 type MealTypeKey = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-
-let curatedMealTypes: Map<string, MealTypeKey> | null = null;
-/** Curated recipe id → its meal type (the pools are static, built once). */
-function curatedMealTypeOf(id: string): MealTypeKey | undefined {
-  if (!curatedMealTypes) {
-    curatedMealTypes = new Map();
-    for (const [type, pool] of Object.entries(CURATED_POOL_BY_TYPE)) {
-      for (const recipe of pool) curatedMealTypes.set(recipe.id, type as MealTypeKey);
-    }
-  }
-  return curatedMealTypes.get(id);
-}
 
 /** Rows scanned to find the best matches for a slot (the repo caps a read at 200). */
 const SLOT_RANK_WINDOW = 200;

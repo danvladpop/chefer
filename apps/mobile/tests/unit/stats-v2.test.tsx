@@ -250,11 +250,15 @@ describe('Stats (new shell)', () => {
     expect(screen.getByTestId('progress-weight-few')).toBeOnTheScreen();
     await user.press(screen.getByTestId('progress-range-90'));
     expect(await screen.findByTestId('progress-weight-change')).toHaveTextContent(
-      '−1.9 kg in 90 days',
+      'Trend −1.9 kg over 90 days',
     );
+    // Lane D1: the trend weight sits under the last weigh-in, and the chart
+    // explains its line.
+    expect(screen.getByTestId('progress-weight-trend')).toHaveTextContent('Trend 72.4 kg');
+    expect(screen.getByTestId('progress-weight-explainer')).toHaveTextContent(/trend weight/);
     await user.press(screen.getByTestId('progress-range-365'));
     expect(await screen.findByTestId('progress-weight-change')).toHaveTextContent(
-      '−1.9 kg in a year',
+      'Trend −1.9 kg over a year',
     );
     await user.press(screen.getByTestId('stats-log-weight'));
     expect(screen.getByTestId('stats-weight-input')).toBeOnTheScreen();

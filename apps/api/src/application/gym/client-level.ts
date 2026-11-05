@@ -28,9 +28,11 @@ import { isFlagEnabled } from '../../lib/flags.js';
 //                                                     and the coaching consent-history rows
 //                                                     (COACHING_API_LEVEL in @chefer/types). Gated on
 //                                                     the RAW `ctx.clientApiLevel`, not effectiveLevel().
-//   7  W5 L-GYMDATA's OTA                          — also renders INTERVALS, requested exercises
-//                                                     and routine cardio slots
-//                                                     (INTERVALS_API_LEVEL in @chefer/types)
+//   8  trainer mode's OTA (M3)                     — coached workouts, bookings (not gym logging)
+//   9  W5 L-GYMDATA's OTA (not built yet)          — also renders INTERVALS, requested exercises
+//                                                     and routine cardio slots (INTERVALS_API_LEVEL
+//                                                     in @chefer/types; was 7, moved twice as 6 and
+//                                                     8 were claimed — G3 fixed this stale row)
 //
 // Why cardio is level 3, not 2: `x-chefer-api-level` is a single shared
 // counter across every feature (§2.8), and wave 1's unrelated consent-

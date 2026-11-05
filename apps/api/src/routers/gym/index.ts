@@ -9,6 +9,7 @@ import { understandsTrainerMode } from '../../lib/client-contract-level.js';
 import { isCoachingEnabledFor } from '../../lib/coaching-flags.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
 import { gymExportRouter } from './export.router.js';
+import { gymImportRouter } from './import.router.js';
 import { gymLibraryRouter } from './library.router.js';
 import { gymPauseRouter } from './pause.router.js';
 import { gymProfileRouter } from './profile.router.js';
@@ -53,4 +54,5 @@ export const gymRouter = router({
   stats: gymStatsRouter,
   pause: gymPauseRouter,
   export: gymExportRouter,
+  import: gymImportRouter,
 });

@@ -22,6 +22,7 @@ import {
   isOnboardingGateHandled,
   markOnboardingGateHandled,
 } from '../../src/features/onboarding/onboarding-gate';
+import { getAnalyticsConsent, setAnalyticsConsent } from '../../src/lib/analytics';
 import {
   bindSessionQueryClient,
   getToken,
@@ -238,6 +239,13 @@ describe('signOut()', () => {
     mockRemindersFail = true;
     await signOut();
     expect(getToken()).toBeNull();
+  });
+
+  it('turns "Link usage to my account" off, so the next account starts unlinked', async () => {
+    setAnalyticsConsent({ anonymous: true, linked: true });
+    await signOut();
+    expect(getAnalyticsConsent()).toEqual({ anonymous: true, linked: false });
+    expect(kv.getJSON('analytics.consent')).toEqual({ anonymous: true, linked: false });
   });
 
   it('runs once for several simultaneous calls (a burst of 401s)', async () => {
