@@ -11,11 +11,13 @@ import type {
   DayPlan,
   EstimateIngredientPricesOptions,
   ExtractedRecipe,
+  FoodTextParseItem,
   IAIService,
   IngredientPriceEstimate,
   MealPhotoEstimate,
   MealPlanDayRequest,
   MealPlanInput,
+  NutritionLabelReading,
   ProseRewriteInput,
   RecipeData,
   RecipeExtractionSource,
@@ -219,6 +221,19 @@ export class ChainAIService implements IAIService {
       'analyzeMealPhoto',
       'vision',
       (s) => s.analyzeMealPhoto(imageBase64, mimeType),
+      { imageBase64, mimeType },
+    );
+  }
+
+  parseFoodText(text: string): Promise<FoodTextParseItem[]> {
+    return this.run('parseFoodText', 'chat', (s) => s.parseFoodText(text), text);
+  }
+
+  readNutritionLabel(imageBase64: string, mimeType: string): Promise<NutritionLabelReading> {
+    return this.run(
+      'readNutritionLabel',
+      'vision',
+      (s) => s.readNutritionLabel(imageBase64, mimeType),
       { imageBase64, mimeType },
     );
   }

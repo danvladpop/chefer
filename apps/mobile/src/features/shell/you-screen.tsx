@@ -15,6 +15,7 @@ import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
+import { noticeText, useHouseholdNotices } from '../household/sharing/household-notices';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
 import { ChefCard } from '../progress/chef-card';
@@ -117,6 +118,9 @@ export function YouScreen() {
   const household = householdSummary(members.map((m) => m.name));
   // Kitchen progress (gamification flag + revamp shell + availability): extra rows, the Chef card.
   const progressOn = useProgressEnabled();
+  // ADR 0003: "Maria joined your household" waits on the Household row (no server push).
+  const householdNotices = useHouseholdNotices();
+  const latestNotice = householdNotices[0];
 
   const row = (item: Row) => (
     <ListRow
@@ -165,6 +169,12 @@ export function YouScreen() {
               testID="you-household"
               title="Household"
               {...(household ? { value: household } : {})}
+              {...(latestNotice ? { subtitle: noticeText(latestNotice) } : {})}
+              badge={
+                householdNotices.length > 0 ? (
+                  <CountPill count={householdNotices.length} testID="you-household-badge" />
+                ) : null
+              }
               icon={<Icon name="household" color={colors.brand} />}
               onPress={() => router.push('/household')}
             />

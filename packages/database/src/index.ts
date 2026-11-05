@@ -67,6 +67,22 @@ export {
   type IHouseholdMemberRepository,
   type CreateHouseholdMemberData,
   type UpdateHouseholdMemberData,
+  HouseholdSharingRepository,
+  householdSharingRepository,
+  householdDisplayName,
+  unionSafetyTerms,
+  type IHouseholdSharingRepository,
+  type ActiveHouseholdLink,
+  type ConfirmedSafety,
+  type CreateHouseholdInviteData,
+  type HouseholdEndedByValue,
+  type HouseholdInviteWithMember,
+  type JoinHouseholdData,
+  type JoinHouseholdResult,
+  HOUSEHOLD_NOTIFICATION_KINDS,
+  HouseholdNoticeRepository,
+  householdNoticeRepository,
+  type HouseholdNotificationKindDb,
   PantryItemRepository,
   pantryItemRepository,
   type IPantryItemRepository,
@@ -122,6 +138,11 @@ export {
   trainingPauseRepository,
   type ITrainingPauseRepository,
   type CreateTrainingPauseData,
+  // Lane E2: share-card snapshots
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
   // Weekly emails (audit P2-5)
   WeeklyEmailRepository,
   weeklyEmailRepository,
@@ -340,6 +361,17 @@ export {
   uploadReferenceRepository,
   type IUploadReferenceRepository,
   type PurgeResult,
+  // Packaged products (ADR 0006)
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
+  // Saved meals (lane A2)
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
   ProgressEventRepository,
   progressEventRepository,
@@ -498,6 +530,10 @@ export type {
   RecipeIngredient,
   // Phase 2 AI cost tracking
   AiUsageEvent,
+  // Packaged products (ADR 0006)
+  PackagedProduct,
+  // Saved meals (lane A2)
+  SavedMeal,
   CuratedRecipeDraft,
 } from '@prisma/client';
 export {
@@ -508,6 +544,7 @@ export {
   IngredientNoticeKind,
   NutritionSource,
   NutritionStatus,
+  PackagedProductSource,
   UserRole,
   PostStatus,
   Prisma,

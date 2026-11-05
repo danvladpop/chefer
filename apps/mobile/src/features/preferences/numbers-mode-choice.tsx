@@ -4,12 +4,12 @@ import { Text } from '@chefer/ui-mobile';
 import { NUMBERS_MODE_COPY } from '@chefer/utils';
 import { OptionRow } from './components/option-row';
 
-// "What do you want to keep an eye on?" (WP-08): the two numbers modes a user can
-// pick today. Controlled, so it serves both the onboarding goal step (saved with
-// the rest of setup) and the Preferences card (saved at once). NONE is reserved
-// for WP-16 and is not offered.
+// "What do you want to keep an eye on?" (WP-08): the numbers modes a user can
+// pick. Controlled, so it serves both the onboarding goal step (saved with the
+// rest of setup) and the Preferences card (saved at once). Lane E3 adds "Hide
+// numbers" (NONE) as an equal third option.
 
-export type NumbersModeChoiceValue = Extract<NumbersMode, 'FULL' | 'PROTEIN_ONLY'>;
+export type NumbersModeChoiceValue = NumbersMode;
 
 export function NumbersModeChoice({
   value,
@@ -42,6 +42,14 @@ export function NumbersModeChoice({
         icon="barbell-outline"
         label={NUMBERS_MODE_COPY.proteinTitle}
         description={NUMBERS_MODE_COPY.proteinDetail}
+      />
+      <OptionRow
+        testID={`${testIDPrefix}-none`}
+        selected={value === 'NONE'}
+        onPress={() => !disabled && onChange('NONE')}
+        icon="eye-off-outline"
+        label={NUMBERS_MODE_COPY.noneTitle}
+        description={NUMBERS_MODE_COPY.noneDetail}
       />
     </View>
   );

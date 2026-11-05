@@ -23,8 +23,8 @@ export default async function LoginPage({
     next?: string | string[];
   }>;
 }) {
-  // WP-18: an invite link sends signed-out visitors here with `?next=` (only a
-  // coaching join path is honoured) and they return to it after signing in.
+  // WP-18: an invite link sends signed-out visitors here with `?next=` (only an
+  // invite join path is honoured) and they return to it after signing in.
   const params = await searchParams;
   const next = safeNextPath(params.next);
   // Validate the session rather than trusting the cookie's presence — a stale

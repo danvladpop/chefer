@@ -15,3 +15,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS "coaching_links_one_active_trainer"
 CREATE UNIQUE INDEX IF NOT EXISTS "coaching_requests_one_pending"
   ON "coaching_requests" ("clientId")
   WHERE "status" = 'PENDING';
+
+-- Packaged products (ADR 0006): one shared Open Food Facts row per barcode.
+-- @@unique([ownerId, barcode]) covers private rows only (NULLs are distinct).
+CREATE UNIQUE INDEX IF NOT EXISTS "packaged_products_public_barcode"
+  ON "packaged_products" ("barcode")
+  WHERE "ownerId" IS NULL;
+
+-- ADR 0003 household sharing: a person is a partner in at most one household,
+-- and a member profile is claimed by at most one partner. The join transaction
+-- checks both first; these indexes are the database-level backstop.
+CREATE UNIQUE INDEX IF NOT EXISTS "household_links_one_active_partner"
+  ON "household_links" ("partnerId")
+  WHERE "status" = 'ACTIVE';
+CREATE UNIQUE INDEX IF NOT EXISTS "household_links_one_active_member"
+  ON "household_links" ("memberId")
+  WHERE "status" = 'ACTIVE';

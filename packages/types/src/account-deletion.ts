@@ -15,6 +15,9 @@ export const ACCOUNT_DELETION_COPY = {
     'Household members, feedback, and your sign-in on every device',
   ],
   backups: 'Backup copies age out within about 30 days.',
+  // Lane D4: progress photos never leave the phone (owner decision 2026-10-22).
+  progressPhotos:
+    'Progress photos are only on your phone. Deleting your account in the app removes them; deleting the app does too.',
   passwordLabel: 'Your password',
   forgotPassword: 'Forgot your password?',
   resetSending: 'Sending…',

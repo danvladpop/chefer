@@ -3,6 +3,7 @@ import { ACHIEVEMENT_IDS } from '@chefer/types';
 import {
   ACHIEVEMENTS,
   buildAchievements,
+  hiddenAchievements,
   newUnlocks,
   tierFor,
   type ProgressCounters,
@@ -74,6 +75,25 @@ describe('newUnlocks', () => {
 
   it('is empty when nothing new was reached', () => {
     expect(newUnlocks(zero, [])).toEqual([]);
+  });
+});
+
+// Lane E3: "Hide numbers" drops the protein reward, as it drops the quest.
+describe('hiddenAchievements', () => {
+  it('leaves Protein pro off the shelf only in Hide numbers', () => {
+    expect(hiddenAchievements('NONE')).toEqual(['PROTEIN_PRO']);
+    expect(hiddenAchievements('PROTEIN_ONLY')).toEqual([]);
+    expect(hiddenAchievements('FULL')).toEqual([]);
+    expect(hiddenAchievements(null)).toEqual([]);
+  });
+
+  it('a hidden achievement is in no group, the totals or closest next', () => {
+    const full = buildAchievements({ ...zero, proteinDays: 4 }, []);
+    const dto = buildAchievements({ ...zero, proteinDays: 4 }, [], hiddenAchievements('NONE'));
+    const ids = dto.groups.flatMap((g) => g.items.map((i) => i.id));
+    expect(ids).not.toContain('PROTEIN_PRO');
+    expect(dto.total).toBe(full.total - 3);
+    expect(dto.closestNext?.id).not.toBe('PROTEIN_PRO');
   });
 });
 

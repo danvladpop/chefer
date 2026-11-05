@@ -47,6 +47,12 @@ export interface LoggedMealEntry {
    * clients see an ordinary custom entry (same `mealType`) and total it.
    */
   replacesSlot?: SlotRefJson | undefined;
+  /**
+   * A CUSTOM entry logged from a packaged product (ADR 0006): which product
+   * and how many grams. The numbers above are already scaled; older clients
+   * see an ordinary custom entry and total it.
+   */
+  product?: { id: string; grams: number } | undefined;
 }
 
 /** A plan slot of one day: the meal type and its index in the day's `meals`. */
@@ -78,6 +84,10 @@ export interface UpsertDailyLogData {
 export interface IDailyLogRepository {
   findByDate(userId: string, date: Date): Promise<DailyLog | null>;
   findLastN(userId: string, days: number): Promise<DailyLog[]>;
+  /** Lane E2 recap: the logs with `from` ≤ date < `to` (UTC-midnight dates), oldest first. */
+  findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
+  /** Lane E2 recap: every recipe id logged on a day before `before` ("new recipes tried"). */
+  findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>>;
   /** Lane K: the user's logs from `from` to `to` (both UTC-midnight `@db.Date` days, inclusive), oldest first. */
   findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]>;
   /**
@@ -164,11 +174,34 @@ export class DailyLogRepository implements IDailyLogRepository {
     });
   }
 
+  async findInRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
+    return prisma.dailyLog.findMany({
+      where: { userId, date: { gte: from, lt: to } },
+      orderBy: { date: 'asc' },
+    });
+  }
+
   async findRange(userId: string, from: Date, to: Date): Promise<DailyLog[]> {
     return prisma.dailyLog.findMany({
       where: { userId, date: { gte: from, lte: to } },
       orderBy: { date: 'asc' },
     });
+  }
+
+  async findRecipeIdsLoggedBefore(userId: string, before: Date): Promise<Set<string>> {
+    const rows = await prisma.dailyLog.findMany({
+      where: { userId, date: { lt: before } },
+      select: { loggedMeals: true },
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (!Array.isArray(row.loggedMeals)) continue;
+      for (const entry of row.loggedMeals) {
+        const recipeId = (entry as { recipeId?: unknown } | null)?.recipeId;
+        if (typeof recipeId === 'string') ids.add(recipeId);
+      }
+    }
+    return ids;
   }
 
   async lastLoggedDates(userIds: readonly string[], since: Date): Promise<Map<string, Date>> {

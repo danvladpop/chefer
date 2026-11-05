@@ -90,6 +90,30 @@ const PLAN = {
   })),
 };
 
+// Lane E1: "Remind me at mealtimes?" — the planned meals' suggested times.
+const REMINDERS = {
+  reminders: {
+    enabled: false,
+    times: { breakfast: '08:00', lunch: '12:30', dinner: '18:30', snack: null },
+  },
+  chosen: false,
+  planSlots: ['breakfast', 'lunch', 'dinner'],
+  planDays: [0, 1, 2, 3, 4, 5, 6],
+};
+const mockSaveReminders = jest.fn();
+jest.mock('../../src/features/notifications/meal-reminder-settings', () => ({
+  useSaveMealReminders: () => ({ mutate: mockSaveReminders }),
+}));
+jest.mock('../../src/lib/use-notification-permission', () => ({
+  refreshNotificationPermission: jest.fn(),
+  useNotificationPermission: () => 'undetermined',
+}));
+let mockNotificationsAllowed = true;
+jest.mock('../../src/features/gym/reminders/permission', () => ({
+  ensureGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+  hasGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+}));
+
 type MutationOpts =
   | { onSuccess?: (data: unknown) => void; onError?: (e: unknown) => void }
   | undefined;
@@ -133,6 +157,13 @@ jest.mock('../../src/lib/trpc', () => {
         },
       },
       profile: { flags: { useQuery: () => ({ data: mockFlags }) } },
+      notifications: {
+        getMealReminders: {
+          useQuery: (_input: unknown, o: { enabled: boolean }) => ({
+            data: o.enabled ? REMINDERS : undefined,
+          }),
+        },
+      },
       gym: {
         profile: {
           completeSimpleSetup: {
@@ -201,6 +232,7 @@ beforeEach(() => {
   clearOnboardingV4Draft();
   mockPremium = false;
   mockFlags = undefined;
+  mockNotificationsAllowed = true;
   mockSetJobs.mockResolvedValue({});
   mockDisplayPrefs.mockResolvedValue({});
   mockBasics.mockResolvedValue({});
@@ -211,7 +243,8 @@ beforeEach(() => {
 describe('Onboarding V4', () => {
   // Each test drives the whole flow (up to eight steps, the week build and the reveal): ~3 s
   // locally, 2-3x that on CI runners, where Jest's 5 s default made the longest one flaky.
-  jest.setTimeout(20_000);
+  // 30 s since lane E1 added the reminders offer to the longest flow.
+  jest.setTimeout(30_000);
 
   it('meals + train: saves, builds and reveals the week, offers Premium, sets up training, lands on Today', async () => {
     const user = await renderFlow();
@@ -261,6 +294,16 @@ describe('Onboarding V4', () => {
     expect(screen.getByText('Dinner 0')).toBeOnTheScreen();
     expect(screen.getByText('23 items on your list')).toBeOnTheScreen();
     await user.press(screen.getByTestId('onb-v4-continue'));
+
+    // Lane E1: the planned meals with their suggested times; yes asks the OS and saves.
+    await screen.findByTestId('onb-v4-reminders');
+    expect(screen.getByText('Remind me at mealtimes?')).toBeOnTheScreen();
+    expect(screen.getByText('Breakfast')).toBeOnTheScreen();
+    expect(screen.getByText('18:30')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('onb-v4-reminders-yes'));
+    await waitFor(() =>
+      expect(mockSaveReminders).toHaveBeenCalledWith({ ...REMINDERS.reminders, enabled: true }),
+    );
 
     await screen.findByTestId('onb-v4-premium');
     await user.press(screen.getByTestId('onb-v4-premium-on'));
@@ -326,7 +369,8 @@ describe('Onboarding V4', () => {
     await screen.unmount();
 
     await renderFlow();
-    await screen.findByTestId('onb-v4-premium');
+    // Past the reveal: the next step is the mealtime-reminders offer (lane E1).
+    await screen.findByTestId('onb-v4-reminders');
     expect(mockGenerate).toHaveBeenCalledTimes(1);
   });
 
@@ -404,6 +448,27 @@ describe('Onboarding V4', () => {
     expect(mockCompleteSimpleSetup).not.toHaveBeenCalled();
   });
 
+  it('a refused notification permission keeps reminders off and lets setup go on', async () => {
+    mockPremium = true;
+    mockNotificationsAllowed = false;
+    const user = await renderFlow();
+    await user.press(screen.getByTestId('onb-v4-job-TRACK'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-goal');
+    await user.press(screen.getByTestId('onb-v4-goal-GOOD_FOOD'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-aboutYou');
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-safety');
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-reminders');
+    await user.press(screen.getByTestId('onb-v4-reminders-yes'));
+    expect(await screen.findByTestId('onb-v4-reminders-off')).toBeOnTheScreen();
+    expect(mockSaveReminders).toHaveBeenCalledWith({ ...REMINDERS.reminders, enabled: false });
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(food)'));
+  });
+
   it('premium users never see the Premium step', async () => {
     mockPremium = true;
     const user = await renderFlow();
@@ -418,7 +483,10 @@ describe('Onboarding V4', () => {
     await user.press(screen.getByTestId('onb-v4-continue'));
     await screen.findByTestId('onb-v4-safety');
     await user.press(screen.getByTestId('onb-v4-continue'));
-    // Track only: no week to build, no Premium step → done.
+    // Track only: no week to build; "Not now" to reminders records the answer; no Premium step → done.
+    await screen.findByTestId('onb-v4-reminders');
+    await user.press(screen.getByTestId('onb-v4-reminders-no'));
+    expect(mockSaveReminders).toHaveBeenCalledWith({ ...REMINDERS.reminders, enabled: false });
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(food)'));
     expect(screen.queryByTestId('onb-v4-premium')).toBeNull();
     expect(mockSafety).not.toHaveBeenCalled();
@@ -479,6 +547,6 @@ describe('Onboarding V4', () => {
     expect(await screen.findByText('The kitchen is busy.')).toBeOnTheScreen();
     expect(screen.getByTestId('onb-v4-build-retry')).toBeOnTheScreen();
     await user.press(screen.getByTestId('onb-v4-build-skip'));
-    await screen.findByTestId('onb-v4-premium');
+    await screen.findByTestId('onb-v4-reminders');
   });
 });
