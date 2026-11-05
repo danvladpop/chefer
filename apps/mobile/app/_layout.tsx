@@ -186,6 +186,7 @@ export default function RootLayout() {
                       <Stack.Screen name="import-recipe" />
                       <Stack.Screen name="household" />
                       <Stack.Screen name="my-weeks" />
+                      <Stack.Screen name="recap" />
                       <Stack.Screen name="recipe-form" />
                       {/* Gym stack routes (placeholders until wave G2 fills them). */}
                       <Stack.Screen name="gym/setup" />

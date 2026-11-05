@@ -53,8 +53,10 @@ export function PlanDayTotals({
 }) {
   const colors = useThemeColors();
   // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const totals = sumPlanDay(meals);
+  // Lane E3 "Hide numbers": no day total and no shortfall line.
+  if (noNumbers) return null;
   const status = planDayStatus({
     kcal: totals.kcal,
     calorieTarget: proteinOnly ? undefined : calorieTarget,

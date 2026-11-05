@@ -498,6 +498,13 @@ export {
   SavedMealNameTakenError,
   type ISavedMealRepository,
 } from './saved-meal.repository';
+// Lane E2 (market review 2026-10): share-card snapshots
+export {
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
+} from './share-card.repository';
 // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
 export {
   ProgressEventRepository,

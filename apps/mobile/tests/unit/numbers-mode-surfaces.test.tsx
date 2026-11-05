@@ -88,10 +88,10 @@ describe('useNumbersMode', () => {
   }
   const text = () => screen.getByTestId('probe').props.children as string;
 
-  it('is FULL with no provider, and for null, NONE (reserved) and unknown values', async () => {
+  it('is FULL with no provider, and for null and unknown values (NONE is "Hide numbers", lane E3)', async () => {
     await render(<Probe />);
     expect(text()).toBe('FULL/false');
-    for (const raw of [null, 'NONE', 'SOMETHING_NEW']) {
+    for (const raw of [null, 'SOMETHING_NEW']) {
       await render(
         <NumbersModeProvider mode={raw}>
           <Probe />

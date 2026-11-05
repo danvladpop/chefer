@@ -5,6 +5,8 @@ export * from './gym';
 export * from './preferences';
 export * from './numbers-mode';
 export * from './meal-reminders';
+export * from './share-cards';
+export * from './weekly-recap';
 export * from './training-nutrition';
 export * from './household';
 export * from './ai-consent';

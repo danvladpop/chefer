@@ -18,9 +18,11 @@ import { privacyRouter } from './privacy.router.js';
 import { productsRouter } from './products.router.js';
 import { profileRouter } from './profile.router.js';
 import { progressRouter } from './progress.router.js';
+import { recapRouter } from './recap.router.js';
 import { recipeRouter } from './recipe.router.js';
 import { safetyRouter } from './safety.router.js';
 import { savedMealsRouter } from './saved-meals.router.js';
+import { shareRouter } from './share.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
 import { targetsRouter } from './targets.router.js';
 import { trackerRouter } from './tracker.router.js';
@@ -48,6 +50,9 @@ export const appRouter = router({
   mealPlan: mealPlanRouter,
   notifications: notificationsRouter,
   pantry: pantryRouter,
+  // Lane E2 (market review 2026-10): weekly recap + share cards
+  recap: recapRouter,
+  share: shareRouter,
   preferences: preferencesRouter,
   // Wave-0 stubs (T-00.10) — router + service wired now so no lane edits
   // this file later; real procedures land wave 1.
