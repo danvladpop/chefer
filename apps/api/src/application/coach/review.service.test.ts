@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCoachExplanation,
   buildTemplateReviewText,
   computeReviewMetrics,
   computeWeightTrend,
+  decideAdjustment,
   decideAdjustmentKcal,
   type AdjustmentInput,
   type WeightPoint,
@@ -287,6 +289,117 @@ describe('decideAdjustmentKcal', () => {
 });
 
 // ─── Template review text ─────────────────────────────────────────────────────
+
+// ─── Why the coach decided (lane D2) ──────────────────────────────────────────
+
+describe('decideAdjustment — the reason behind each decision', () => {
+  const base: AdjustmentInput = {
+    goal: 'LOSE_WEIGHT',
+    adherencePct: 71,
+    trendKgPerWeek: 0,
+    prevTrendKgPerWeek: 0,
+    currentTargetKcal: 2100,
+    bmr: 1700,
+    tdee: 2600,
+    age: 30,
+  };
+
+  const cases: [name: string, input: Partial<AdjustmentInput>, kcal: number, reason: string][] = [
+    ['LOSE flat two reviews in a row', {}, -100, 'plateau'],
+    ['LOSE flat this week only', { prevTrendKgPerWeek: null }, 0, 'plateau_watch'],
+    ['LOSE moving down', { trendKgPerWeek: -0.4 }, 0, 'on_track'],
+    ['LOSE flat but already at the floor', { currentTargetKcal: 1870 }, 0, 'at_floor'],
+    ['LOSE under 18', { age: 16 }, 0, 'under_18'],
+    ['GAIN not rising', { goal: 'GAIN_MUSCLE', trendKgPerWeek: 0 }, 100, 'gain_stall'],
+    ['GAIN rising', { goal: 'GAIN_MUSCLE', trendKgPerWeek: 0.2 }, 0, 'on_track'],
+    [
+      'GAIN not rising but at the ceiling',
+      { goal: 'GAIN_MUSCLE', currentTargetKcal: 3100 },
+      0,
+      'at_ceiling',
+    ],
+    ['under four complete days', { adherencePct: 43 }, 0, 'few_complete_days'],
+    ['no trend', { trendKgPerWeek: null }, 0, 'no_trend'],
+    ['no body metrics', { bmr: null, tdee: null }, 0, 'no_body_metrics'],
+    ['maintain', { goal: 'MAINTAIN' }, 0, 'no_direction'],
+    ['no goal', { goal: null, adherencePct: 0 }, 0, 'no_direction'],
+  ];
+
+  it.each(cases)('%s', (_name, input, kcal, reason) => {
+    expect(decideAdjustment({ ...base, ...input })).toEqual({ kcal, reason });
+  });
+});
+
+describe('computeReviewMetrics — partly logged days (lane D2)', () => {
+  it('count as logged but stay out of the averages', () => {
+    const metrics = computeReviewMetrics(
+      [dayLog(0, 2000), dayLog(1, 2200), { ...dayLog(2, 500), incomplete: true }, dayLog(3, 0, 0)],
+      [],
+    );
+    expect(metrics).toMatchObject({
+      adherencePct: Math.round((3 / 7) * 100),
+      completeDays: 2,
+      incompleteDays: 1,
+      avgDailyKcal: 2100,
+    });
+  });
+});
+
+describe('buildCoachExplanation', () => {
+  const metrics = computeReviewMetrics(
+    [dayLog(0, 2000), dayLog(1, 2000), dayLog(2, 2000), dayLog(3, 2000)],
+    points([
+      [0, 80],
+      [3, 80],
+      [6, 80],
+      [9, 80],
+      [12, 80],
+    ]),
+    new Date(T0.getTime() + 13 * DAY_MS),
+  );
+
+  it('carries the trend, the intake and the decision', () => {
+    expect(
+      buildCoachExplanation({
+        decision: { kcal: -100, reason: 'plateau' },
+        withholdSuggestion: false,
+        goal: 'LOSE_WEIGHT',
+        metrics,
+        prevTrendKgPerWeek: 0,
+        targetKcal: 2100,
+      }),
+    ).toEqual({
+      version: 1,
+      reason: 'plateau',
+      suggestedKcal: -100,
+      goal: 'LOSE_WEIGHT',
+      trend: {
+        fromDate: '2026-08-03',
+        toDate: '2026-08-15',
+        fromKg: 80,
+        toKg: 80,
+        spanDays: 12,
+        weighIns: 5,
+        kgPerWeek: 0,
+      },
+      prevKgPerWeek: 0,
+      intake: { avgKcal: 2000, completeDays: 4, incompleteDays: 0, targetKcal: 2100 },
+    });
+  });
+
+  it('withholds the number for free accounts', () => {
+    expect(
+      buildCoachExplanation({
+        decision: { kcal: -100, reason: 'plateau' },
+        withholdSuggestion: true,
+        goal: 'LOSE_WEIGHT',
+        metrics,
+        prevTrendKgPerWeek: 0,
+        targetKcal: 2100,
+      }).suggestedKcal,
+    ).toBeNull();
+  });
+});
 
 describe('buildTemplateReviewText', () => {
   const base = {

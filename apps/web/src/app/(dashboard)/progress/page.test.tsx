@@ -33,6 +33,9 @@ vi.mock('@/lib/trpc', () => ({
     preferences: { get: { useQuery: () => ({ data: { chefProfile: { goal: 'MAINTAIN' } } }) } },
   },
 }));
+vi.mock('@/features/coach/components/BodyMeasurementsSection', () => ({
+  BodyMeasurementsSection: () => <div data-testid="body-measurements" />,
+}));
 vi.mock('@/features/coach/components/WeightEntriesList', () => ({
   WeightEntriesList: () => <div data-testid="weight-entries" />,
 }));
