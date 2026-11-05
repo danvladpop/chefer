@@ -1,23 +1,29 @@
 'use client';
 
+import { weekdayNameT } from '@/features/coaching/lib/dates';
 import type { DraftDay } from '@/features/gym/routine/draft';
-import { COACHING_COPY } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import { createTranslator, type Translator } from '@chefer/i18n';
 import { Button } from '@chefer/ui';
-import { WEEKDAY_SHORT, workoutTypeLabel } from '@chefer/utils';
+import { workoutTypeLabel } from '@chefer/utils';
 
 // ─── A routine day's workout type, as the trainer sees it (PRD 2026-10 §4.3) ──
 // A "Keep it simple" client plans their week as workout types (My week, ADR
 // 0001): a type-only day ("Tue · Yoga") has no exercises. The trainer sees the
 // type and can set, change or remove it; the picker is My week's sheet.
 
+const EN = createTranslator('en').t;
+
 /** "Tue · Yoga" (just "Yoga" when the day has no weekday). */
-export function dayTypeLine(day: Pick<DraftDay, 'plannedWeekday' | 'workoutType'>): string | null {
+export function dayTypeLine(
+  day: Pick<DraftDay, 'plannedWeekday' | 'workoutType'>,
+  t: Translator['t'] = EN,
+): string | null {
   if (!day.workoutType) return null;
-  const weekday = day.plannedWeekday !== null ? WEEKDAY_SHORT[day.plannedWeekday] : undefined;
+  const weekday = day.plannedWeekday !== null ? weekdayNameT(day.plannedWeekday, t) : undefined;
+  // `workoutTypeLabel` (@chefer/utils) is still English: the workout types are not in a catalog yet.
   return [weekday, workoutTypeLabel(day.workoutType)].filter(Boolean).join(' · ');
 }
-
-const copy = COACHING_COPY.trainerProfile.workoutType;
 
 export function DayWorkoutTypeRow({
   day,
@@ -32,7 +38,8 @@ export function DayWorkoutTypeRow({
   onEdit: () => void;
   onClear: () => void;
 }) {
-  const line = dayTypeLine(day);
+  const { t } = useT();
+  const line = dayTypeLine(day, t);
   if (!line) {
     return (
       <Button
@@ -41,15 +48,18 @@ export function DayWorkoutTypeRow({
         size="sm"
         className="min-h-11 w-full"
         onClick={onEdit}
-        aria-label={`${copy.set}: ${day.name}`}
+        aria-label={t('coaching.trainer.profile.workoutType.setFor', { day: day.name })}
       >
-        {copy.set}
+        {t('coaching.trainer.profile.workoutType.set')}
       </Button>
     );
   }
   const typeOnly =
     day.workoutType && day.exercises.length === 0
-      ? copy.typeOnly(workoutTypeLabel(day.workoutType), clientName)
+      ? t('coaching.trainer.profile.workoutType.typeOnly', {
+          type: workoutTypeLabel(day.workoutType),
+          client: clientName,
+        })
       : null;
   return (
     <div className="flex flex-col gap-1">
@@ -66,9 +76,9 @@ export function DayWorkoutTypeRow({
           size="sm"
           className="min-h-11 shrink-0"
           onClick={onEdit}
-          aria-label={`${copy.change} ${copy.label.toLowerCase()}: ${day.name}`}
+          aria-label={t('coaching.trainer.profile.workoutType.changeFor', { day: day.name })}
         >
-          {copy.change}
+          {t('coaching.trainer.profile.workoutType.change')}
         </Button>
         <Button
           type="button"
@@ -76,9 +86,9 @@ export function DayWorkoutTypeRow({
           size="sm"
           className="min-h-11 shrink-0"
           onClick={onClear}
-          aria-label={`${copy.remove}: ${day.name}`}
+          aria-label={t('coaching.trainer.profile.workoutType.removeFor', { day: day.name })}
         >
-          {copy.remove}
+          {t('coaching.trainer.profile.workoutType.remove')}
         </Button>
       </div>
       {typeOnly ? (

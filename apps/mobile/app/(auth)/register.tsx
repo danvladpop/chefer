@@ -15,7 +15,6 @@ import {
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
-import { AUTH_COPY } from '../../src/features/auth/copy';
 import { setEmailHint } from '../../src/features/auth/email-hint';
 import { isAccountExistsError } from '../../src/features/auth/errors';
 import { NEW_PASSWORD_FIELD_PROPS } from '../../src/features/auth/password-fields';
@@ -32,11 +31,13 @@ import { saveCredentials } from '../../src/features/auth/save-credentials';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
+import { authValidationMessage } from '../../src/features/auth/validation-copy';
 import { AccountV4 } from '../../src/features/onboarding-v4/account-v4';
 import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
 import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
-import { getTranslator } from '../../src/lib/i18n';
+import { getTranslator, useT } from '../../src/lib/i18n';
+import { rich } from '../../src/lib/i18n/rich';
 import { trpc } from '../../src/lib/trpc';
 
 // UX-25 (T-25.1) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25 / B-31.
@@ -54,6 +55,7 @@ function RegisterScreenV3() {
 }
 
 function RegisterForm() {
+  const { t } = useT();
   const firstNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
@@ -157,11 +159,11 @@ function RegisterForm() {
   return (
     <>
       <Text variant="title" testID="register-title">
-        Create your account
+        {t('auth.register.title')}
       </Text>
-      <Text variant="muted">{AUTH_COPY.registerSubtitle}</Text>
+      <Text variant="muted">{t('auth.register.subtitle')}</Text>
 
-      <AuthField label="First name (optional)">
+      <AuthField label={t('auth.fields.firstNameOptional')}>
         <Controller
           control={control}
           name="firstName"
@@ -183,7 +185,10 @@ function RegisterForm() {
         />
       </AuthField>
 
-      <AuthField label="Email" error={errors.email?.message}>
+      <AuthField
+        label={t('auth.fields.emailShort')}
+        error={authValidationMessage(t, errors.email?.message)}
+      >
         <Controller
           control={control}
           name="email"
@@ -208,7 +213,10 @@ function RegisterForm() {
         />
       </AuthField>
 
-      <AuthField label="Password" error={errors.password?.message}>
+      <AuthField
+        label={t('auth.fields.password')}
+        error={authValidationMessage(t, errors.password?.message)}
+      >
         <Controller
           control={control}
           name="password"
@@ -236,8 +244,8 @@ function RegisterForm() {
       </AuthField>
 
       <AuthField
-        label="Confirm password"
-        error={confirmError}
+        label={t('auth.fields.confirmPassword')}
+        error={authValidationMessage(t, confirmError)}
         errorTestID="register-confirm-password-error"
       >
         <Controller
@@ -273,25 +281,29 @@ function RegisterForm() {
             testID="register-accept-terms"
             checked={value}
             onChange={onChange}
-            error={errors.acceptedTerms?.message}
+            error={authValidationMessage(t, errors.acceptedTerms?.message)}
             errorTestID="register-accept-terms-error"
           >
-            {AUTH_COPY.registerTermsLabel}{' '}
-            <Text
-              accessibilityRole="link"
-              className="text-sm text-primary underline"
-              onPress={() => openLegal('terms')}
-            >
-              Terms
-            </Text>
-            {' and the '}
-            <Text
-              accessibilityRole="link"
-              className="text-sm text-primary underline"
-              onPress={() => openLegal('privacy')}
-            >
-              Privacy Policy
-            </Text>
+            {rich(t, 'auth.register.agreeTerms', {
+              terms: (
+                <Text
+                  accessibilityRole="link"
+                  className="text-sm text-primary underline"
+                  onPress={() => openLegal('terms')}
+                >
+                  {t('auth.links.terms')}
+                </Text>
+              ),
+              privacy: (
+                <Text
+                  accessibilityRole="link"
+                  className="text-sm text-primary underline"
+                  onPress={() => openLegal('privacy')}
+                >
+                  {t('auth.links.privacy')}
+                </Text>
+              ),
+            })}
           </ConsentCheckbox>
         )}
       />
@@ -304,10 +316,10 @@ function RegisterForm() {
             testID="register-age-confirm"
             checked={value}
             onChange={onChange}
-            error={errors.ageConfirmed?.message}
+            error={authValidationMessage(t, errors.ageConfirmed?.message)}
             errorTestID="register-age-confirm-error"
           >
-            {AUTH_COPY.registerAgeLabel}
+            {t('auth.register.ageLabel')}
           </ConsentCheckbox>
         )}
       />
@@ -327,7 +339,7 @@ function RegisterForm() {
                 className="min-h-11 justify-center"
               >
                 <Text variant="muted" className="font-semibold text-primary">
-                  Sign in instead
+                  {t('auth.register.signInInstead')}
                 </Text>
               </Pressable>
               <Pressable
@@ -337,7 +349,7 @@ function RegisterForm() {
                 className="min-h-11 justify-center"
               >
                 <Text variant="muted" className="font-semibold text-primary">
-                  Reset your password
+                  {t('auth.register.resetPassword')}
                 </Text>
               </Pressable>
             </View>
@@ -346,7 +358,7 @@ function RegisterForm() {
       )}
 
       <Button testID="register-submit" loading={register.isPending} onPress={() => void onSubmit()}>
-        Create account
+        {t('auth.register.submit')}
       </Button>
 
       {/* WP-22: Continue with Apple / Google — tapping one is the consent
@@ -354,10 +366,10 @@ function RegisterForm() {
       <SocialSignIn />
 
       <View className="flex-row justify-center gap-1">
-        <Text variant="muted">Already have an account?</Text>
+        <Text variant="muted">{t('auth.register.haveAccount')}</Text>
         <Link href="/login" testID="register-to-login">
           <Text variant="muted" className="font-semibold text-primary">
-            Sign in
+            {t('auth.register.signIn')}
           </Text>
         </Link>
       </View>

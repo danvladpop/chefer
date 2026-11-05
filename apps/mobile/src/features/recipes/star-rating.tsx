@@ -6,12 +6,12 @@ import {
   cn,
   composeNotesWithLikedBy,
   parseLikedBy,
-  RATING_LABELS,
   stripLikedBy,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { useIsPremium } from '../../hooks/use-is-premium';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNudge } from '../premium/nudge-cap';
 import { openPremium } from '../premium/open-premium';
@@ -33,12 +33,8 @@ export interface StarRatingProps {
   className?: string;
 }
 
-export function StarRating({
-  recipeId,
-  title = 'Rate this recipe',
-  hint,
-  className,
-}: StarRatingProps) {
+export function StarRating({ recipeId, title, hint, className }: StarRatingProps) {
+  const { t } = useT();
   const isPremium = useIsPremium();
   const colors = useThemeColors();
   const notesRef = useRef<TextInput>(null);
@@ -100,7 +96,7 @@ export function StarRating({
     >
       <View className="gap-0.5">
         <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-          {title}
+          {title ?? t('recipes.rating.title')}
         </Text>
         {hint ? <Text className="text-subhead text-label-secondary">{hint}</Text> : null}
       </View>
@@ -114,7 +110,7 @@ export function StarRating({
               key={star}
               testID={`star-rating-${star}`}
               accessibilityRole="radio"
-              accessibilityLabel={`Rate ${star} star${star === 1 ? '' : 's'}`}
+              accessibilityLabel={t('recipes.rating.rateStars', { count: star })}
               accessibilityState={{ selected: selected === star }}
               onPress={() => pick(star)}
               hitSlop={2}
@@ -130,7 +126,7 @@ export function StarRating({
         })}
         {selected > 0 && (
           <Text testID="star-rating-label" className="ml-2 text-subhead text-label-secondary">
-            {RATING_LABELS[selected]}
+            {t(`recipes.rating.labels.${selected as 1 | 2 | 3 | 4 | 5}`)}
           </Text>
         )}
       </View>
@@ -138,13 +134,15 @@ export function StarRating({
       {/* Who liked it (F2) — optional member chips, stored in the notes */}
       {members.length > 0 && (
         <View className="gap-1.5">
-          <Text className="text-caption font-semibold text-label-secondary">Who liked it?</Text>
+          <Text className="text-caption font-semibold text-label-secondary">
+            {t('recipes.rating.whoLiked')}
+          </Text>
           <View className="flex-row flex-wrap gap-1.5">
             {['Me', ...members.map((m) => m.name)].map((name) => (
               <Chip
                 key={name}
                 testID={`star-rating-liked-${name}`}
-                label={name}
+                label={name === 'Me' ? t('recipes.rating.me') : name}
                 selected={likedBy.includes(name)}
                 onPress={() => toggleLikedBy(name)}
               />
@@ -157,14 +155,14 @@ export function StarRating({
         ref={notesRef}
         onFocus={() => scrollFieldIntoView(notesRef.current)}
         testID="star-rating-notes"
-        accessibilityLabel="Rating notes"
+        accessibilityLabel={t('recipes.rating.notesLabel')}
         value={notes}
         onChangeText={(text) => {
           setNotes(text);
           setSaved(false);
           setHydrated(true);
         }}
-        placeholder="Any notes? (optional)"
+        placeholder={t('recipes.rating.notesPlaceholder')}
         multiline
         maxLength={400}
         className="h-auto min-h-16 py-2"
@@ -173,7 +171,7 @@ export function StarRating({
 
       <TrainButton
         testID="star-rating-save"
-        label={saved ? '✓ Saved' : 'Save rating'}
+        label={saved ? t('recipes.rating.saved') : t('recipes.rating.save')}
         disabled={selected === 0 || saved}
         loading={rateMutation.isPending}
         onPress={() =>
@@ -202,26 +200,27 @@ export function StarRating({
  * across every source, and a dismissal keeps this one quiet for 7 days.
  */
 function RatingNudge() {
+  const { t } = useT();
   const { visible, dismiss } = useNudge('post-rating');
   const colors = useThemeColors();
   if (!visible) return null;
   return (
     <View testID="star-rating-nudge" className="flex-row items-center gap-2">
-      <Text className="min-w-0 flex-1 text-caption text-brand">
-        Premium turns your ratings into next week&apos;s menu.
-      </Text>
+      <Text className="min-w-0 flex-1 text-caption text-brand">{t('recipes.rating.nudge')}</Text>
       <Pressable
         testID="star-rating-nudge-open"
         accessibilityRole="button"
         onPress={() => openPremium('post-rating')}
         className="min-h-11 justify-center"
       >
-        <Text className="text-caption font-semibold text-brand">See what Premium adds</Text>
+        <Text className="text-caption font-semibold text-brand">
+          {t('recipes.rating.nudgeOpen')}
+        </Text>
       </Pressable>
       <Pressable
         testID="star-rating-nudge-dismiss"
         accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+        accessibilityLabel={t('recipes.detail.dismiss')}
         onPress={dismiss}
         className="h-11 w-11 items-center justify-center"
       >

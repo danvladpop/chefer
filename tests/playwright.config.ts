@@ -50,7 +50,15 @@ export default defineConfig({
     {
       name: 'mobile',
       testMatch: /mobile-.*\.spec\.ts/,
-      use: { ...devices['iPhone 12'], storageState: AUTH_FILE },
+      // PLAYWRIGHT_LOCALE=ro-RO runs the sweep in Romanian (ADR 0004): the
+      // browser's Accept-Language picks the UI language. Romanian strings are
+      // longer, so overflow at 320px must be checked in both languages. The
+      // setup project signs in in English either way.
+      use: {
+        ...devices['iPhone 12'],
+        storageState: AUTH_FILE,
+        ...(process.env['PLAYWRIGHT_LOCALE'] ? { locale: process.env['PLAYWRIGHT_LOCALE'] } : {}),
+      },
       dependencies: ['setup'],
     },
     {

@@ -2,49 +2,55 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { nextQuery } from '@/features/coaching/lib/next-path';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { deviceSupportedLocale } from '@chefer/i18n';
+import { deviceSupportedLocale, type Translator } from '@chefer/i18n';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 
 // UX-25 (T-25.2) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25.
 
-const registerSchema = z
-  .object({
-    firstName: z.string().min(1, 'First name is required').max(50),
-    lastName: z.string().min(1, 'Last name is required').max(50),
-    // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
-    email: z
-      .string()
-      .trim()
-      .min(1, 'Email is required')
-      .email('Please enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters').max(100),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-    // T-39.1 / T-26.5: real checkboxes that must be ticked before submit —
-    // the boolean starts `false`, so this stays `z.boolean().refine`, not
-    // `z.literal(true)` (which would type the field as the literal `true`
-    // and reject the unchecked default).
-    acceptedTerms: z
-      .boolean()
-      .refine((v) => v, { message: 'You must agree to the Terms and the Privacy Policy' }),
-    ageConfirmed: z.boolean().refine((v) => v, { message: 'You must confirm you are 16 or older' }),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+const makeRegisterSchema = (t: Translator['t']) =>
+  z
+    .object({
+      firstName: z.string().min(1, t('auth.validation.firstNameRequired')).max(50),
+      lastName: z.string().min(1, t('auth.validation.lastNameRequired')).max(50),
+      // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
+      email: z
+        .string()
+        .trim()
+        .min(1, t('auth.validation.emailRequired'))
+        .email(t('auth.validation.emailInvalid')),
+      password: z
+        .string()
+        .min(8, t('auth.validation.passwordMin', { min: 8 }))
+        .max(100),
+      confirmPassword: z.string().min(1, t('auth.validation.confirmRequired')),
+      // T-39.1 / T-26.5: real checkboxes that must be ticked before submit —
+      // the boolean starts `false`, so this stays `z.boolean().refine`, not
+      // `z.literal(true)` (which would type the field as the literal `true`
+      // and reject the unchecked default).
+      acceptedTerms: z.boolean().refine((v) => v, { message: t('auth.validation.termsRequired') }),
+      ageConfirmed: z.boolean().refine((v) => v, { message: t('auth.validation.ageRequired') }),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t('auth.validation.mismatch'),
+      path: ['confirmPassword'],
+    });
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+type RegisterFormValues = z.infer<ReturnType<typeof makeRegisterSchema>>;
 
 export function RegisterForm({ next = null }: { next?: string | null }) {
+  const { t } = useT();
+  const registerSchema = useMemo(() => makeRegisterSchema(t), [t]);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -62,7 +68,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       router.refresh();
     },
     onError: (err) => {
-      setServerError(userFacingErrorMessage(err, 'Registration failed. Please try again.'));
+      setServerError(userFacingErrorMessage(err, t('auth.register.failed')));
       // UX-ACC-15: "already exists" is not a dead end — offer Sign in / Reset.
       setAccountExists(err.data?.code === 'CONFLICT');
     },
@@ -140,13 +146,13 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
                 href={`/login${nextQuery(next)}`}
                 className="touch-target relative font-medium underline underline-offset-4"
               >
-                Sign in instead
+                {t('auth.register.signInInstead')}
               </Link>
               <Link
                 href="/forgot-password"
                 className="touch-target relative font-medium underline underline-offset-4"
               >
-                Reset your password
+                {t('auth.register.resetPassword')}
               </Link>
             </p>
           )}
@@ -157,7 +163,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-3">
         <div className="space-y-1.5">
           <label htmlFor="firstName" className="block text-sm font-medium">
-            First name
+            {t('auth.fields.firstName')}
             <span className="ml-1 text-destructive" aria-hidden="true">
               *
             </span>
@@ -169,7 +175,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             autoFocus
             disabled={isPending}
             className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Alice"
+            placeholder={t('auth.placeholders.firstName')}
             aria-invalid={errors.firstName ? 'true' : undefined}
             aria-describedby={errors.firstName ? 'firstName-error' : undefined}
             {...register('firstName')}
@@ -183,7 +189,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
 
         <div className="space-y-1.5">
           <label htmlFor="lastName" className="block text-sm font-medium">
-            Last name
+            {t('auth.fields.lastName')}
             <span className="ml-1 text-destructive" aria-hidden="true">
               *
             </span>
@@ -194,7 +200,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             autoComplete="family-name"
             disabled={isPending}
             className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Johnson"
+            placeholder={t('auth.placeholders.lastName')}
             aria-invalid={errors.lastName ? 'true' : undefined}
             aria-describedby={errors.lastName ? 'lastName-error' : undefined}
             {...register('lastName')}
@@ -210,7 +216,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       {/* Email */}
       <div className="space-y-1.5">
         <label htmlFor="email" className="block text-sm font-medium">
-          Email address
+          {t('auth.fields.email')}
           <span className="ml-1 text-destructive" aria-hidden="true">
             *
           </span>
@@ -221,7 +227,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
           autoComplete="username"
           disabled={isPending}
           className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="you@example.com"
+          placeholder={t('auth.placeholders.email')}
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email', {
@@ -241,7 +247,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       {/* Password */}
       <div className="space-y-1.5">
         <label htmlFor="password" className="block text-sm font-medium">
-          Password
+          {t('auth.fields.password')}
           <span className="ml-1 text-destructive" aria-hidden="true">
             *
           </span>
@@ -253,7 +259,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             autoComplete="new-password"
             disabled={isPending}
             className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 pr-12 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Min. 8 characters"
+            placeholder={t('auth.placeholders.passwordMin')}
             aria-invalid={errors.password ? 'true' : undefined}
             aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
@@ -262,7 +268,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             type="button"
             className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? t('auth.password.hide') : t('auth.password.show')}
           >
             {showPassword ? (
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -301,7 +307,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
       {/* Confirm Password */}
       <div className="space-y-1.5">
         <label htmlFor="confirmPassword" className="block text-sm font-medium">
-          Confirm password
+          {t('auth.fields.confirmPassword')}
           <span className="ml-1 text-destructive" aria-hidden="true">
             *
           </span>
@@ -312,7 +318,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
           autoComplete="new-password"
           disabled={isPending}
           className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="Re-enter your password"
+          placeholder={t('auth.placeholders.passwordAgain')}
           aria-invalid={errors.confirmPassword ? 'true' : undefined}
           aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
           {...register('confirmPassword')}
@@ -336,14 +342,28 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             {...register('acceptedTerms')}
           />
           <span>
-            I agree to the{' '}
-            <a href="/terms" target="_blank" rel="noreferrer" className="text-primary underline">
-              Terms
-            </a>{' '}
-            and the{' '}
-            <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary underline">
-              Privacy Policy
-            </a>
+            {rich(t, 'auth.register.agreeTerms', {
+              terms: (
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                >
+                  {t('auth.links.terms')}
+                </a>
+              ),
+              privacy: (
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                >
+                  {t('auth.links.privacy')}
+                </a>
+              ),
+            })}
           </span>
         </label>
         {errors.acceptedTerms && (
@@ -362,7 +382,7 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
             aria-describedby={errors.ageConfirmed ? 'ageConfirmed-error' : undefined}
             {...register('ageConfirmed')}
           />
-          <span>I&rsquo;m 16 or older</span>
+          <span>{t('auth.register.ageLabel')}</span>
         </label>
         {errors.ageConfirmed && (
           <p id="ageConfirmed-error" className="text-sm text-destructive" role="alert">
@@ -401,10 +421,10 @@ export function RegisterForm({ next = null }: { next?: string | null }) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            Creating account...
+            {t('auth.register.submitting')}
           </>
         ) : (
-          'Create account'
+          t('auth.register.submit')
         )}
       </button>
     </form>

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { EmptyState, ErrorState, Screen, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { useCoachingAvailability } from '../../trainer/api/use-coaching-availability';
 import { TRAINER_SCREEN_CLASS, TrainerHeader } from '../../trainer/components/trainer-header';
-import { COACHING_MOBILE_COPY } from '../copy';
 
 // The client-side coaching routes (Find a trainer, a trainer's card) ask `coaching.availability` first,
 // like Your trainer: pending → blank, unreachable → Retry, off → "Coaching isn’t available right now."
@@ -25,6 +25,7 @@ export function CoachingGate({
   title: string;
   children: ReactNode;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const { enabled, isLoading, unreachable, retry } = useCoachingAvailability();
   const header = <TrainerHeader testID={`${testID}-header`} title={title} />;
@@ -55,7 +56,7 @@ export function CoachingGate({
         {header}
         <EmptyState
           icon={<Icon name="yourTrainer" color={colors.labelTertiary} size={40} />}
-          title={COACHING_MOBILE_COPY.unavailable}
+          title={t('coaching.join.unavailable')}
         />
       </Screen>
     );

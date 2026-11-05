@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '@chefer/i18n';
 import RegisterPage from './page';
 
 // Onboarding V4 flag switch on /register: on → "Save your plan"; off (or the
@@ -8,6 +9,10 @@ import RegisterPage from './page';
 const m = vi.hoisted(() => ({ flags: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+// The page reads the request's language from cookies()/headers(), which only exist in a request.
+vi.mock('@/lib/i18n/server', () => ({
+  getServerTranslator: () => Promise.resolve(createTranslator('en')),
+}));
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: unknown; href: string }) => (
     <a href={href}>{children as never}</a>

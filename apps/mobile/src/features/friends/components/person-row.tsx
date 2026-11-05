@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
+import type { FriendUserSummary } from '@chefer/types';
 import { Avatar, PressableScale, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { TrainerTag, trainerTagLabel } from './trainer-tag';
 
 // ─── PersonRow (UX §3.2, §13) ─────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export function PersonRow({
   onPress,
   testID = `friends-person-${person.id}`,
 }: PersonRowProps) {
+  const { t } = useT();
   const { fontScale } = useWindowDimensions();
   const stacked = trailing != null && fontScale >= PERSON_ROW_STACK_FONT_SCALE;
   // PRD 2026-10 §4.1: a trainer reads "{name}, Trainer, {gym line}, {secondary}".
@@ -92,7 +94,7 @@ export function PersonRow({
           pressScale="card"
           accessibilityRole="button"
           accessibilityLabel={label}
-          accessibilityHint={FRIENDS_COPY.announce.personRowHint}
+          accessibilityHint={t('friends.announce.personRowHint')}
           onPress={onPress ?? (() => router.push(`/friends/${person.id}`))}
           className="min-h-11 min-w-0 flex-1 flex-row items-center gap-3"
         >

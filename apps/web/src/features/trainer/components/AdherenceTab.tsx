@@ -1,24 +1,13 @@
-import { formatShortDay, weekdayIndexOf, weekdayName } from '@/features/coaching/lib/dates';
-import {
-  COACHING_LIMITS,
-  type AdherenceDayDto,
-  type AdherenceDto,
-  type WeekStatus,
-} from '@chefer/types';
+'use client';
+
+import { formatShortDayT, weekdayIndexOf, weekdayNameT } from '@/features/coaching/lib/dates';
+import { useT } from '@/lib/i18n';
+import { COACHING_LIMITS, type AdherenceDayDto, type AdherenceDto } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 // ─── Adherence (spec §2.5 tab 3) ──────────────────────────────────────────────
 // Eight weeks against the client's goal and a 14-day strip of planned days. A
 // pause shows as "Paused" with its dates only: the reason is never shared.
-
-const WEEK_LABEL: Record<WeekStatus, string> = {
-  met: 'Goal met',
-  flex: 'Goal met',
-  under: 'Missed',
-  paused: 'Paused',
-  empty: 'No sessions',
-  current: 'This week',
-};
 
 type DayState = 'trained' | 'missed' | 'paused' | 'rest';
 
@@ -28,13 +17,6 @@ export function dayState(day: AdherenceDayDto): DayState {
   return day.planned ? 'missed' : 'rest';
 }
 
-const DAY_LABEL: Record<DayState, string> = {
-  trained: 'Trained',
-  missed: 'Missed',
-  paused: 'Paused',
-  rest: 'Rest',
-};
-
 const DAY_TONE: Record<DayState, string> = {
   trained: 'border-emerald-300 bg-emerald-50 text-emerald-800',
   missed: 'border-amber-300 bg-amber-50 text-amber-900',
@@ -43,6 +25,7 @@ const DAY_TONE: Record<DayState, string> = {
 };
 
 export function AdherenceView({ adherence }: { adherence: AdherenceDto }) {
+  const { t } = useT();
   const weeks = adherence.weeks.slice(-COACHING_LIMITS.adherenceWeeks);
   return (
     <div className="flex flex-col gap-4">
@@ -51,7 +34,7 @@ export function AdherenceView({ adherence }: { adherence: AdherenceDto }) {
         className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
       >
         <h2 id="adherence-weeks" className="font-semibold text-gray-900">
-          Last 8 weeks
+          {t('coaching.trainer.adherence.lastWeeks')}
         </h2>
         <ul className="mt-3 flex flex-col divide-y divide-gray-100">
           {weeks.map((week) => (
@@ -61,14 +44,19 @@ export function AdherenceView({ adherence }: { adherence: AdherenceDto }) {
               data-testid="adherence-week"
             >
               <span className="min-w-0 text-gray-700">
-                Week of {formatShortDay(week.weekStart)}
+                {t('coaching.trainer.adherence.weekOf', {
+                  date: formatShortDayT(week.weekStart, t),
+                })}
               </span>
               <span className="flex shrink-0 items-center gap-3">
                 <span className="font-medium text-gray-900">
-                  {week.sessions} / {week.goal}
+                  {t('coaching.trainer.adherence.sessionsOfGoal', {
+                    sessions: week.sessions,
+                    goal: week.goal,
+                  })}
                 </span>
                 <span className="w-20 text-right text-xs text-gray-500">
-                  {WEEK_LABEL[week.status]}
+                  {t(`coaching.trainer.adherence.week.${week.status}`)}
                 </span>
               </span>
             </li>
@@ -81,13 +69,17 @@ export function AdherenceView({ adherence }: { adherence: AdherenceDto }) {
         className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
       >
         <h2 id="adherence-days" className="font-semibold text-gray-900">
-          Last 14 days
+          {t('coaching.trainer.adherence.lastDays')}
         </h2>
         <ul className="mt-3 grid grid-cols-7 gap-1.5" data-testid="adherence-strip">
           {adherence.days.map((day) => {
             const state = dayState(day);
-            const weekday = weekdayName(weekdayIndexOf(day.localDate) ?? 0);
-            const label = `${weekday} ${formatShortDay(day.localDate)}: ${DAY_LABEL[state]}`;
+            const weekday = weekdayNameT(weekdayIndexOf(day.localDate) ?? 0, t);
+            const label = t('coaching.trainer.adherence.dayLabel', {
+              weekday,
+              date: formatShortDayT(day.localDate, t),
+              state: t(`coaching.trainer.adherence.day.${state}`),
+            });
             return (
               <li
                 key={day.localDate}
@@ -113,9 +105,7 @@ export function AdherenceView({ adherence }: { adherence: AdherenceDto }) {
             );
           })}
         </ul>
-        <p className="mt-3 text-xs text-gray-500">
-          ✓ trained · ✕ planned, missed · ‖ paused · · rest
-        </p>
+        <p className="mt-3 text-xs text-gray-500">{t('coaching.trainer.adherence.legend')}</p>
       </section>
     </div>
   );

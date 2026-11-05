@@ -1,6 +1,7 @@
 import { View } from 'react-native';
-import { FRIENDS_COPY, type FriendWorkoutDto } from '@chefer/types';
+import type { FriendWorkoutDto } from '@chefer/types';
 import { Text } from '@chefer/ui-mobile';
+import { useT } from '../../../../lib/i18n';
 import type { ViewerUnits } from '../use-viewer-units';
 import { FriendWorkoutCard } from './friend-workout-card';
 
@@ -17,10 +18,11 @@ export function FriendLastSevenDays({
   units: ViewerUnits;
   testID?: string;
 }) {
+  const { t } = useT();
   if (workouts.length === 0) {
     return (
       <Text testID={`${testID}-empty`} variant="muted" className="py-4 text-center">
-        {FRIENDS_COPY.gym.noWorkouts}
+        {t('friends.gym.noWorkouts')}
       </Text>
     );
   }

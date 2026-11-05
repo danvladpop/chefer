@@ -234,14 +234,21 @@ export { ListRow, ListSection, type ListRowProps, type ListSectionProps } from '
 export { SurfaceCard, type SurfaceCardProps } from './components/surface-card';
 export { useResolvedScheme, useThemeColors } from './hooks/use-theme-colors';
 // 10 Oct redesign (docs/design/feedback/2026-10-10): shared tiles, gauge, macros
-export { CalorieGauge, type CalorieGaugeProps } from './components/calorie-gauge';
+export {
+  CalorieGauge,
+  type CalorieGaugeFigures,
+  type CalorieGaugeLabels,
+  type CalorieGaugeProps,
+} from './components/calorie-gauge';
 export { DayStrip, type DayStripDay, type DayStripProps } from './components/day-strip';
 export { EntryCard, type EntryCardProps } from './components/entry-card';
 export {
   MACRO_META,
   MacroRow,
   MacroTiles,
+  type MacroFigures,
   type MacroKey,
+  type MacroLabels,
   type MacroRowProps,
   type MacroTilesProps,
 } from './components/macro';

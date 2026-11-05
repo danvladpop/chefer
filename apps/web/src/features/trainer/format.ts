@@ -1,7 +1,11 @@
+import { createTranslator, type Translator } from '@chefer/i18n';
 import type { CoachedSetDto, ExerciseLoadType, WeightUnit } from '@chefer/types';
 import { formatLoad, unitLabel } from '@chefer/utils';
 
 type LoadFormat = { loadType: ExerciseLoadType; perHand?: boolean };
+
+// English when no translator is passed (older callers).
+const EN = createTranslator('en').t;
 
 /** "62.5 kg × 6, 6, 6, 6" (identical reps collapse to the list as given). */
 export function targetText(
@@ -21,8 +25,9 @@ export function coachedSetText(
   set: CoachedSetDto,
   unit: WeightUnit,
   load: LoadFormat = { loadType: 'WEIGHTED' },
+  t: Translator['t'] = EN,
 ): string {
-  const prefix = set.isWarmup ? 'W ' : '';
+  const prefix = set.isWarmup ? `${t('gym.workout.setRow.warmupShort')} ` : '';
   if (set.durationSec !== undefined || set.distanceM !== undefined) {
     const parts: string[] = [];
     if (set.durationSec !== undefined) parts.push(`${Math.round(set.durationSec / 60)} min`);
@@ -33,8 +38,8 @@ export function coachedSetText(
 }
 
 /** "last set: 2 reps in reserve" (3 = "3+"). */
-export function rirText(rir: number): string {
-  return `Last set: ${rir >= 3 ? '3+' : rir} in reserve`;
+export function rirText(rir: number, t: Translator['t'] = EN): string {
+  return t('coaching.trainer.workouts.rir', { value: rir >= 3 ? '3+' : String(rir) });
 }
 
 export { unitLabel };

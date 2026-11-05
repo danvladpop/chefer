@@ -1,6 +1,8 @@
 import { ActivityIndicator, View } from 'react-native';
-import { coachingConsentLabel, FRIENDS_COPY, healthSyncConsentLabel } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { healthSyncConsentLabel } from '@chefer/types';
 import { Card, ErrorState, Text, useQueryState, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 
 // ─── Consent history (UX-39, T-39.2) ───────────────────────────────────────────
@@ -34,39 +36,55 @@ interface ConsentEventRow {
   createdAt: Date | string;
 }
 
-function describe(event: ConsentEventRow): string {
-  const version = event.documentVersion ? ` (v${event.documentVersion})` : '';
-  const providers = event.providers.length > 0 ? ` (${event.providers.join(', ')})` : '';
+function describe(event: ConsentEventRow, t: Translator['t']): string {
+  const { documentVersion: version } = event;
   switch (event.kind) {
     case 'TERMS':
-      return event.granted ? `Terms accepted${version}` : 'Terms declined';
+      if (!event.granted) return t('consent.history.termsDeclined');
+      return version
+        ? t('consent.history.termsAcceptedVersion', { version })
+        : t('consent.history.termsAccepted');
     case 'PRIVACY':
-      return event.granted ? `Privacy Policy accepted${version}` : 'Privacy Policy declined';
+      if (!event.granted) return t('consent.history.privacyDeclined');
+      return version
+        ? t('consent.history.privacyAcceptedVersion', { version })
+        : t('consent.history.privacyAccepted');
     case 'AGE':
-      return "Confirmed you're 16 or older";
+      return t('consent.history.age');
     case 'AI':
-      return event.granted ? `AI features allowed${providers}` : 'AI features revoked';
+      if (!event.granted) return t('consent.history.aiRevoked');
+      return event.providers.length > 0
+        ? t('consent.history.aiAllowedProviders', { providers: event.providers.join(', ') })
+        : t('consent.history.aiAllowed');
     case 'ANALYTICS_ANON':
-      return `Usage analytics: anonymous ${event.granted ? 'on' : 'off'}`;
+      return event.granted
+        ? t('consent.history.analyticsAnonOn')
+        : t('consent.history.analyticsAnonOff');
     case 'ANALYTICS_LINKED':
-      return `Usage analytics: ${event.granted ? 'linked to account' : 'unlinked from account'}`;
+      return event.granted
+        ? t('consent.history.analyticsLinked')
+        : t('consent.history.analyticsUnlinked');
     case 'EMAIL_WEEK_READY':
-      return `Weekly email (Monday): ${event.granted ? 'on' : 'off'}`;
+      return event.granted
+        ? t('consent.history.emailWeekReadyOn')
+        : t('consent.history.emailWeekReadyOff');
     case 'EMAIL_RECAP':
-      return `Weekly email (Sunday recap): ${event.granted ? 'on' : 'off'}`;
+      return event.granted ? t('consent.history.emailRecapOn') : t('consent.history.emailRecapOff');
     case 'AUTO_PLAN':
-      return `Plan my week every Sunday: ${event.granted ? 'on' : 'off'}`;
+      return event.granted ? t('consent.history.autoPlanOn') : t('consent.history.autoPlanOff');
     case 'HEALTH':
-      return event.granted ? 'Health information allowed' : 'Health information withdrawn';
+      return event.granted
+        ? t('consent.history.healthAllowed')
+        : t('consent.history.healthWithdrawn');
     case 'SOCIAL_SHARING':
       // Following (code name `friends`): turned on, made public, shared
       // targets (granted) or turned off (withdrawn) — implementation-plan §7.
-      return FRIENDS_COPY.consent.label(event.granted);
+      return event.granted ? t('friends.consent.labelOn') : t('friends.consent.labelOff');
     case 'COACHING_SHARING':
       // Trainer coaching (WP-18): joined a trainer (granted) or the link ended (withdrawn). Level 6+ only:
       // the API filters these rows out below it, so an older bundle never prints the raw enum.
       // Lane K1: providers ['FOOD'] / ['WEIGHT'] is a sharing switch ("Food log shared with your trainer").
-      return coachingConsentLabel(event) ?? event.kind;
+      return coachingLabel(event, t);
     case 'HEALTH_SYNC':
       // C2: providers = [platform, ...types on]. Only binaries with health sync
       // write these rows, and this label ships before them (OTA), so no level gate.
@@ -76,18 +94,17 @@ function describe(event: ConsentEventRow): string {
   }
 }
 
-function formatDate(at: Date | string): string {
-  return new Date(at).toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+/** `coachingConsentLabel` (@chefer/types) in the UI language. */
+function coachingLabel(event: ConsentEventRow, t: Translator['t']): string {
+  const state = event.granted ? 'granted' : 'withdrawn';
+  const data = event.providers[0];
+  if (data === 'FOOD' || data === 'WEIGHT') return t(`coaching.consentHistory.${data}.${state}`);
+  return t(`coaching.consentHistory.${state}`);
 }
 
 export function ConsentHistory() {
   const colors = useThemeColors();
+  const { t, date } = useT();
   const historyQuery = trpc.privacy.getConsentHistory.useQuery();
   // UX-X-12: a failed load is not "Nothing recorded yet" — that would tell a
   // user their consent history is empty when we simply could not read it.
@@ -95,29 +112,29 @@ export function ConsentHistory() {
 
   return (
     <Card testID="profile-consent-history" className="gap-2">
-      <Text variant="heading">Consent history</Text>
+      <Text variant="heading">{t('consent.history.title')}</Text>
       {state === 'loading' ? (
         <ActivityIndicator color={colors.brand} />
       ) : state === 'error' ? (
         <ErrorState
           testID="consent-history-error"
-          title="Couldn't load your consent history"
+          title={t('consent.history.loadError')}
           onRetry={retry}
           className="py-4"
         />
       ) : state === 'empty' || !data ? (
         <Text variant="muted" className="text-xs">
-          Nothing recorded yet.
+          {t('consent.history.empty')}
         </Text>
       ) : (
         <View className="gap-1.5">
           {data.map((event) => (
             <View key={event.id} className="flex-row justify-between gap-3">
               <Text className="min-w-0 flex-1 text-sm text-label">
-                {describe(event as ConsentEventRow)}
+                {describe(event as ConsentEventRow, t)}
               </Text>
               <Text variant="muted" className="shrink-0 text-xs">
-                {formatDate(event.createdAt)}
+                {date(event.createdAt, 'datetime')}
               </Text>
             </View>
           ))}

@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import type { EquipmentProfile, ExerciseMeta, WeightUnit } from '@chefer/types';
 import { Text, ValueStepper } from '@chefer/ui-mobile';
 import { formatLoad } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { NumberSheet } from './number-sheet';
 import { loggingProfile, nextLoad, weightModeOf } from './workout-model';
 
@@ -47,6 +48,7 @@ export function TargetFields({
   /** Tapping a value asks the parent to open the keypad. */
   onEdit: (field: 'weight' | 'reps') => void;
 }) {
+  const { t } = useT();
   const stepWeight = useCallback(
     (kg: number, direction: 1 | -1) => nextLoad(kg, direction, meta, profile),
     [meta, profile],
@@ -60,15 +62,17 @@ export function TargetFields({
     [unit, meta.loadType, meta.perHand],
   );
   const formatReps = useCallback((r: number) => String(r), []);
-  const repsLabel = meta.isTimed ? 'Seconds' : 'Reps';
+  const repsLabel = meta.isTimed
+    ? t('gym.workout.logger.setRow.stepperSeconds')
+    : t('gym.workout.logger.setRow.stepperReps');
 
   return (
     <>
       <View className="gap-1">
-        <Text variant="label">Weight</Text>
+        <Text variant="label">{t('gym.workout.logger.setRow.stepperWeight')}</Text>
         <ValueStepper
           testID={`${testID}-weight`}
-          name="Weight"
+          name={t('gym.workout.logger.setRow.stepperWeight')}
           value={weightKg}
           next={stepWeight}
           onChange={onWeightKg}
@@ -78,7 +82,7 @@ export function TargetFields({
         />
       </View>
       <View className="gap-1">
-        <Text variant="label">{repsLabel} on the first set</Text>
+        <Text variant="label">{t('gym.session.edit.firstSet', { field: repsLabel })}</Text>
         <ValueStepper
           testID={`${testID}-reps`}
           name={repsLabel}
@@ -90,7 +94,7 @@ export function TargetFields({
           onPressValue={() => onEdit('reps')}
         />
         <Text testID={`${testID}-reps-all`} variant="muted">
-          All sets: {allReps.join(' / ')}
+          {t('gym.session.edit.allSets', { sets: allReps.join(' / ') })}
         </Text>
       </View>
     </>
@@ -119,7 +123,10 @@ export function TargetKeypad({
   repsFirst: number;
   onRepsFirst: (reps: number) => void;
 }) {
-  const repsLabel = meta.isTimed ? 'Seconds' : 'Reps';
+  const { t } = useT();
+  const repsLabel = meta.isTimed
+    ? t('gym.workout.logger.setRow.stepperSeconds')
+    : t('gym.workout.logger.setRow.stepperReps');
   return (
     <NumberSheet
       key={editing ?? 'closed'}
@@ -127,7 +134,7 @@ export function TargetKeypad({
       onClose={onClose}
       kind={editing === 'reps' ? 'reps' : 'weight'}
       value={editing === 'reps' ? repsFirst : weightKg}
-      title={`${meta.name} · ${editing === 'reps' ? repsLabel : 'Weight'}`}
+      title={`${meta.name} · ${editing === 'reps' ? repsLabel : t('gym.workout.logger.setRow.stepperWeight')}`}
       unit={unit}
       meta={meta}
       profile={loggingProfile(meta, profile)}

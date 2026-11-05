@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { BOOKING_COPY, BOOKING_DURATION_CHIPS, BOOKING_DURATION_LIMITS } from '@chefer/types';
+import { BOOKING_DURATION_CHIPS, BOOKING_DURATION_LIMITS } from '@chefer/types';
 import {
   Chip,
   DONE_FIELD_PROPS,
@@ -11,15 +11,10 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import {
-  addDaysLocal,
-  cn,
-  formatDayWithWeekday,
-  isChipDuration,
-  isValidBookingDuration,
-} from '@chefer/utils';
+import { addDaysLocal, cn, isChipDuration, isValidBookingDuration } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
-import { clockOf } from './booking-model';
+import { useT } from '../../../lib/i18n';
+import { clockOf, dayLabel } from './booking-model';
 
 // The booking editor's own fields (§6.3). The app's shared TimePicker snaps
 // to quarter hours; bookings need 5-minute steps, so Start is an hour grid
@@ -45,6 +40,7 @@ export function DateStepperField({
   testID: string;
 }) {
   const colors = useThemeColors();
+  const tr = useT();
   const prev = addDaysLocal(value, -step);
   const next = addDaysLocal(value, step);
   return (
@@ -53,7 +49,7 @@ export function DateStepperField({
       <View className="min-h-12 flex-row items-center rounded-control bg-surface-sunken px-1">
         <IconButton
           testID={`${testID}-prev`}
-          accessibilityLabel={BOOKING_COPY.editor.earlier(label)}
+          accessibilityLabel={tr.t('trainer.bookings.editor.earlier', { field: label })}
           disabled={prev < min}
           icon={
             <Icon name="chevronBack" color={prev < min ? colors.labelTertiary : colors.brand} />
@@ -66,11 +62,11 @@ export function DateStepperField({
           numberOfLines={1}
           className="min-w-0 flex-1 text-center text-body font-semibold text-label"
         >
-          {formatDayWithWeekday(value)}
+          {dayLabel(tr, value)}
         </Text>
         <IconButton
           testID={`${testID}-next`}
-          accessibilityLabel={BOOKING_COPY.editor.later(label)}
+          accessibilityLabel={tr.t('trainer.bookings.editor.later', { field: label })}
           disabled={next > max}
           icon={
             <Icon name="chevronRight" color={next > max ? colors.labelTertiary : colors.brand} />
@@ -135,6 +131,7 @@ export function StartTimeField({
   testID: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [h, m] = value.split(':').map(Number) as [number, number];
   const rows = (items: number[], per: number) =>
@@ -146,13 +143,13 @@ export function StartTimeField({
       <PressableScale
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={`${BOOKING_COPY.editor.start}: ${value}`}
+        accessibilityLabel={t('trainer.bookings.editor.startValue', { time: value })}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen((o) => !o)}
         className="min-h-12 flex-row items-center justify-between rounded-control bg-surface-sunken px-4"
       >
         <Text className="text-subhead font-semibold text-label-secondary">
-          {BOOKING_COPY.editor.start}
+          {t('trainer.bookings.editor.start')}
         </Text>
         <View className="flex-row items-center gap-1">
           <Text testID={`${testID}-value`} className="text-body font-semibold text-label">
@@ -213,6 +210,7 @@ export function DurationField({
   onChange: (min: number) => void;
   testID: string;
 }) {
+  const { t } = useT();
   const chip = isChipDuration(value);
   const [custom, setCustom] = useState(!chip);
   const [text, setText] = useState(String(value));
@@ -220,14 +218,14 @@ export function DurationField({
   return (
     <View className="gap-2">
       <Text className="text-subhead font-semibold text-label-secondary">
-        {BOOKING_COPY.editor.duration}
+        {t('trainer.bookings.editor.duration')}
       </Text>
       <View className="flex-row flex-wrap gap-2">
         {BOOKING_DURATION_CHIPS.map((min) => (
           <Chip
             key={min}
             testID={`${testID}-${min}`}
-            label={BOOKING_COPY.editor.minutes(min)}
+            label={t('trainer.bookings.editor.minutes', { n: min })}
             selected={!custom && value === min}
             onPress={() => {
               setCustom(false);
@@ -238,7 +236,7 @@ export function DurationField({
         ))}
         <Chip
           testID={`${testID}-custom`}
-          label={BOOKING_COPY.editor.custom}
+          label={t('trainer.bookings.editor.custom')}
           selected={custom}
           onPress={() => setCustom(true)}
         />
@@ -247,7 +245,7 @@ export function DurationField({
         <View className="flex-row items-center gap-2">
           <Input
             testID={`${testID}-input`}
-            accessibilityLabel={BOOKING_COPY.editor.customLabel(MIN, MAX)}
+            accessibilityLabel={t('trainer.bookings.editor.customLabel', { min: MIN, max: MAX })}
             aria-invalid={invalid}
             keyboardType="number-pad"
             {...DONE_FIELD_PROPS}
@@ -264,7 +262,7 @@ export function DurationField({
             className="w-24 text-center"
           />
           <Text className="text-subhead text-label-secondary">
-            {BOOKING_COPY.editor.customHint(MIN, MAX)}
+            {t('trainer.bookings.editor.customHint', { min: MIN, max: MAX })}
           </Text>
         </View>
       ) : null}

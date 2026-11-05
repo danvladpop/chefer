@@ -2,11 +2,12 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { resumeSummary, selectTodaysSession, todayStatus, weekdayOf } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { setMode } from '../mode-store';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useGymReminders } from '../reminders/use-gym-reminders';
-import { weekdayLabel } from '../routine/weekday';
+import { weekdayName } from '../routine/weekday';
 import { useActiveWorkout } from '../use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
 import { supersetsOf } from '../workout/workout-model';
@@ -29,6 +30,7 @@ import { setupLocalDate, workoutForDay } from './today-helpers';
 const EYEBROW_TONIGHT_HOUR = 16;
 
 export function TodaysWorkoutCard() {
+  const { t } = useT();
   const { data: bootstrap } = useGymBootstrap();
   const activeWorkout = useActiveWorkout();
   const pausedAt = useActiveSessionPausedAt();
@@ -56,7 +58,14 @@ export function TodaysWorkoutCard() {
       supersets: supersetsOf(session, bootstrap),
       lookup: libraryLookup(bootstrap),
     });
-    const stateLabel = summary.state === 'paused' ? 'Workout paused' : 'Workout in progress';
+    const stateLabel =
+      summary.state === 'paused'
+        ? t('today.shell.training.paused')
+        : t('today.shell.training.inProgress');
+    const progress = t('today.shell.training.exercisesDone', {
+      done: summary.exercisesDone,
+      count: summary.exercisesTotal,
+    });
     const goToWorkout = () => {
       setMode('gym');
       router.push('/gym/workout');
@@ -68,13 +77,13 @@ export function TodaysWorkoutCard() {
             {summary.name}
           </Text>
           <Text testID="todays-workout-card-resume-label" className="mt-0.5 font-medium">
-            {`${stateLabel} · ${summary.exercisesDone} of ${summary.exercisesTotal} exercises`}
+            {`${stateLabel} · ${progress}`}
           </Text>
           {/* UX-GYM-09: the running rest, so minimising the workout never hides it. */}
           <RestCountdown testID="todays-workout-card-rest" className="mt-0.5" />
         </View>
         <Button testID="todays-workout-card-resume-button" size="sm" onPress={goToWorkout}>
-          Resume
+          {t('today.shell.training.resume')}
         </Button>
       </Card>
     );
@@ -86,10 +95,10 @@ export function TodaysWorkoutCard() {
         <Card className="flex-row items-center justify-between gap-3">
           <View className="min-w-0 flex-1">
             <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-              Training
+              {t('today.shell.training.title')}
             </Text>
             <Text testID="todays-workout-card-label" className="mt-0.5 font-medium">
-              Start training — set up in 90 seconds
+              {t('gym.todaysWorkout.setupLine')}
             </Text>
           </View>
         </Card>
@@ -112,10 +121,13 @@ export function TodaysWorkoutCard() {
       <Pressable testID="todays-workout-card" accessibilityRole="button" onPress={goToGym}>
         <Card className="gap-0.5">
           <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-            Today&apos;s workout
+            {t('gym.todaysWorkout.title')}
           </Text>
           <Text testID="todays-workout-card-label" className="font-medium">
-            {`Done today ✓ · Next: ${status.dayName} on ${weekdayLabel(status.weekday)}`}
+            {t('gym.todaysWorkout.doneNext', {
+              day: status.dayName,
+              weekday: weekdayName(t, status.weekday),
+            })}
           </Text>
         </Card>
       </Pressable>
@@ -126,10 +138,13 @@ export function TodaysWorkoutCard() {
     return (
       <Card testID="todays-workout-card" className="gap-1">
         <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-          Today&apos;s workout
+          {t('gym.todaysWorkout.title')}
         </Text>
         <Text testID="todays-workout-card-label" className="font-medium">
-          {`Rest day · Next: ${status.dayName} on ${weekdayLabel(status.weekday)}`}
+          {t('today.shell.training.restNext', {
+            day: status.dayName,
+            weekday: weekdayName(t, status.weekday),
+          })}
         </Text>
         <Pressable
           testID="todays-workout-card-train-anyway"
@@ -137,7 +152,9 @@ export function TodaysWorkoutCard() {
           onPress={goToGym}
           className="min-h-11 justify-center"
         >
-          <Text className="text-sm font-medium text-primary">Train anyway</Text>
+          <Text className="text-sm font-medium text-primary">
+            {t('today.shell.training.trainAnyway')}
+          </Text>
         </Pressable>
       </Card>
     );
@@ -155,10 +172,10 @@ export function TodaysWorkoutCard() {
       : null;
   const offSchedule = pinnedWeekday !== null && pinnedWeekday !== weekdayOf(today);
   const eyebrow = offSchedule
-    ? 'UP NEXT'
+    ? t('gym.todaysWorkout.eyebrow.upNext')
     : new Date().getHours() >= EYEBROW_TONIGHT_HOUR
-      ? 'TRAINING TONIGHT'
-      : 'TRAINING TODAY';
+      ? t('gym.todaysWorkout.eyebrow.tonight')
+      : t('gym.todaysWorkout.eyebrow.today');
   const handleStart = () => {
     setMode('gym');
     activeWorkout.start({ kind: 'planned', workout: nextWorkout });
@@ -174,10 +191,19 @@ export function TodaysWorkoutCard() {
         {nextWorkout.dayName}
       </Text>
       <Text variant="muted" className="text-xs">
-        {`${offSchedule ? `Usually ${weekdayLabel(pinnedWeekday)} · ` : ''}~${nextWorkout.estimatedMin} min · ${nextWorkout.exercises.length} exercises`}
+        {offSchedule
+          ? t('gym.todaysWorkout.metaUsually', {
+              weekday: weekdayName(t, pinnedWeekday),
+              min: nextWorkout.estimatedMin,
+              count: nextWorkout.exercises.length,
+            })
+          : t('gym.todaysWorkout.meta', {
+              min: nextWorkout.estimatedMin,
+              count: nextWorkout.exercises.length,
+            })}
       </Text>
       <Button testID="todays-workout-card-start" size="lg" className="mt-1" onPress={handleStart}>
-        Start workout
+        {t('today.shell.training.startWorkout')}
       </Button>
     </Card>
   );

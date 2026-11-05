@@ -13,12 +13,13 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
-  LEGAL_TITLES,
+  LEGAL_TITLE_KEYS,
   legalAnchorFor,
   legalDocFor,
   legalWebPath,
 } from '../../src/features/legal/legal-docs';
 import { getWebUrl } from '../../src/lib/api-url';
+import { useT } from '../../src/lib/i18n';
 import { shouldLoadLegalUrl } from '../../src/lib/webview-guard';
 
 // T-39.1: the in-app legal screen — `react-native-webview` is already linked
@@ -55,10 +56,11 @@ function nightStyleScript(colors: Record<ColorRole, string>): string {
 export default function LegalDocScreen() {
   const colors = useThemeColors();
   const scheme = useResolvedScheme();
+  const { t } = useT();
   const params = useLocalSearchParams<{ doc: string; anchor?: string }>();
   const doc = legalDocFor(params.doc);
   const anchor = legalAnchorFor(params.anchor);
-  const title = doc ? LEGAL_TITLES[doc] : 'Legal';
+  const title = doc ? t(LEGAL_TITLE_KEYS[doc]) : t('legal.app.screenTitle');
   // The guard compares against the bare page; the WebView opens at the anchor.
   const pageUrl = getWebUrl(legalWebPath(doc ?? 'terms'));
   const sourceUrl = anchor ? `${pageUrl}#${anchor}` : pageUrl;
@@ -73,7 +75,7 @@ export default function LegalDocScreen() {
         <Pressable
           testID="legal-back"
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           onPress={() => router.back()}
           className="h-11 w-11 items-center justify-center"
         >
@@ -86,8 +88,8 @@ export default function LegalDocScreen() {
       {doc === null ? (
         <View testID="legal-not-found" className="flex-1 justify-center">
           <EmptyState
-            title="We couldn’t find that page"
-            description="The Terms of Service and the Privacy Policy are the documents that live here."
+            title={t('legal.app.notFoundTitle')}
+            description={t('legal.app.notFoundBody')}
           />
           <View className="gap-2 px-6">
             <Button
@@ -95,21 +97,21 @@ export default function LegalDocScreen() {
               variant="outline"
               onPress={() => router.replace('/legal/terms')}
             >
-              Read the Terms of Service
+              {t('legal.app.readTerms')}
             </Button>
             <Button
               testID="legal-open-privacy"
               variant="outline"
               onPress={() => router.replace('/legal/privacy')}
             >
-              Read the Privacy Policy
+              {t('legal.app.readPrivacy')}
             </Button>
           </View>
         </View>
       ) : failed ? (
         <View testID="legal-error" className="flex-1 items-center justify-center gap-3 px-6">
           <Text variant="muted" className="text-center">
-            Couldn’t load this page. Check your connection and try again.
+            {t('legal.app.loadError')}
           </Text>
           <Button
             testID="legal-retry"
@@ -120,7 +122,7 @@ export default function LegalDocScreen() {
               setAttempt((n) => n + 1);
             }}
           >
-            Try again
+            {t('common.actions.retry')}
           </Button>
         </View>
       ) : (

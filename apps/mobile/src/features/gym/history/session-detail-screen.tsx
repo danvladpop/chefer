@@ -26,9 +26,9 @@ import {
   profileDistanceUnit,
   toSessionSummary,
   trackingTypeOf,
-  weekdayDateLabel,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { ShellChromeProvider, ShellTopBar, useShellChrome } from '../../shell/shell-chrome';
 import { TrainButton } from '../../shell/train/train-button';
@@ -39,6 +39,7 @@ import { useIsOnline } from '../library-screens/online-status';
 import { StackBackButton } from '../library-screens/stack-back-button';
 import { outbox } from '../offline/outbox';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { weekdayDateLabelT } from '../workout/session-when-fields';
 import { sessionDurationMin, viewFromDoc, viewFromSummary, type SessionView } from './session-view';
 import { useSessionActions } from './use-session-actions';
 
@@ -79,6 +80,7 @@ function TopBar({ actions }: { actions: ReactNode }) {
 }
 
 export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
+  const { t, intlTag } = useT();
   const colors = useThemeColors();
   const online = useIsOnline();
   const bootstrapQuery = useGymBootstrap();
@@ -129,16 +131,16 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
             accessibilityRole="header"
             className="text-title2 font-bold text-label"
           >
-            Session
+            {t('gym.session.title')}
           </Text>
           {bootstrapLoad.load === 'loading' || docQuery.isLoading ? (
-            <Text className="text-subhead text-label-secondary">Loading…</Text>
+            <Text className="text-subhead text-label-secondary">{t('common.states.loading')}</Text>
           ) : bootstrapLoad.load === 'error' ||
             (docQuery.isError && !isNotFoundError(docQuery.error)) ? (
             // UX-GYM-24: a failed load has Retry; it is not "Session not found".
             <ErrorState
               testID="session-detail-error"
-              title="Couldn’t load this session"
+              title={t('gym.session.couldNotLoad')}
               onRetry={() => {
                 bootstrapLoad.retry();
                 if (online) void docQuery.refetch();
@@ -147,8 +149,8 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           ) : (
             <EmptyState
               testID="session-detail-not-found"
-              title="Session not found"
-              description={online ? 'It may have been deleted.' : 'Connect to load it.'}
+              title={t('gym.session.notFoundTitle')}
+              description={online ? t('gym.session.mayBeDeleted') : t('gym.session.connectToLoad')}
             />
           )}
         </View>
@@ -166,7 +168,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
     ? view.exercises.flatMap((e) => e.sets).find((s) => s.intensityRpe !== undefined)?.intensityRpe
     : undefined;
 
-  const dateLabel = weekdayDateLabel(view.localDate);
+  const dateLabel = weekdayDateLabelT(view.localDate, t);
   // Trainer mode M3: "Logged by Ana" on a workout the trainer logged for you. `session.get`
   // carries it for any date; the bootstrap summary (12-week window) is the offline fallback.
   const loggedBy = loggedByLabel(fullDoc?.loggedBy ? fullDoc : summary);
@@ -174,15 +176,15 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
     <>
       <TrainButton
         testID="session-detail-edit"
-        label="Edit"
+        label={t('common.actions.edit')}
         variant="ghost"
-        accessibilityLabel={`Edit ${view.name}, ${dateLabel}`}
+        accessibilityLabel={t('gym.session.editA11y', { name: view.name, date: dateLabel })}
         onPress={() => actions.edit(actionSession)}
         className="px-3"
       />
       <IconButton
         testID="session-detail-options"
-        accessibilityLabel={`Options for ${view.name}, ${dateLabel}`}
+        accessibilityLabel={t('gym.session.optionsFor', { label: `${view.name}, ${dateLabel}` })}
         icon={<Icon name="more" color={colors.brand} />}
         onPress={() => actions.openMenu(actionSession)}
         className="-mr-2"
@@ -204,9 +206,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
             {view.name}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {formatLocalDateLong(view.localDate)}
-            {duration !== null ? ` · ${duration} min` : ''}
-            {view.isDeload ? ' · Deload' : ''}
+            {formatLocalDateLong(view.localDate, intlTag)}
+            {duration !== null ? ` · ${t('common.counts.minutes', { count: duration })}` : ''}
+            {view.isDeload ? ` · ${t('gym.workout.view.deload')}` : ''}
           </Text>
           {loggedBy ? (
             <Text testID="session-detail-logged-by" className="text-subhead text-label-secondary">
@@ -230,7 +232,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
             </Text>
             {activityEffort !== undefined ? (
               <Text className="text-subhead text-label-secondary">
-                {`Effort: ${effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`}`}
+                {t('gym.session.effort', {
+                  value: effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`,
+                })}
               </Text>
             ) : null}
           </TrainCard>
@@ -260,7 +264,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                 </Text>
                 {exercise.skipped ? (
                   <View className="rounded-full bg-surface-sunken px-2 py-0.5">
-                    <Text className="text-caption font-semibold text-label-secondary">Skipped</Text>
+                    <Text className="text-caption font-semibold text-label-secondary">
+                      {t('gym.session.skipped')}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -280,7 +286,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                         {set.caloriesKcal !== undefined
                           ? ` · ~${Math.round(set.caloriesKcal)} kcal`
                           : ''}
-                        {!set.completed ? ' (not logged)' : ''}
+                        {!set.completed ? ` ${t('gym.session.notLogged')}` : ''}
                       </Text>
                     </View>
                   ))
@@ -296,7 +302,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                   let warmupN = 0;
                   let workingN = 0;
                   return exercise.sets.map((set, i) => {
-                    const label = set.isWarmup ? `Warm-up ${++warmupN}` : `Set ${++workingN}`;
+                    const label = set.isWarmup
+                      ? t('gym.workout.setName.warmup', { n: ++warmupN })
+                      : t('gym.workout.setName.set', { n: ++workingN });
                     return (
                       <View
                         key={i}
@@ -322,7 +330,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                         >
                           {formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })}{' '}
                           × {set.reps}
-                          {!set.completed ? ' (not done)' : ''}
+                          {!set.completed ? ` ${t('gym.session.notDone')}` : ''}
                         </Text>
                       </View>
                     );
@@ -330,7 +338,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                 })()}
               {!exercise.skipped && exercise.lastSetRir !== null ? (
                 <Text className="text-subhead text-label-secondary">
-                  RIR: {exercise.lastSetRir}
+                  {t('gym.session.rirLine', { value: exercise.lastSetRir })}
                 </Text>
               ) : null}
               {exercise.notes ? (

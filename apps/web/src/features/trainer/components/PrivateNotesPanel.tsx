@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, COACHING_LIMITS } from '@chefer/types';
+import { COACHING_LIMITS } from '@chefer/types';
 
 // ─── Private notes (spec §2.5) ────────────────────────────────────────────────
 // One free-text note per client, autosaved. Opaque text: never logged, never sent
@@ -17,7 +18,7 @@ export function PrivateNotesPanel({
   clientId: string;
   clientName: string;
 }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const textId = useId();
   const hintId = useId();
   const utils = trpc.useUtils();
@@ -69,11 +70,11 @@ export function PrivateNotesPanel({
   );
 
   const status = failed
-    ? 'Couldn’t save. We’ll try again when you type.'
+    ? t('coaching.trainer.privateNoteFailed')
     : value !== saved || save.isPending
-      ? 'Saving…'
+      ? t('common.states.saving')
       : saved
-        ? 'Saved'
+        ? t('common.states.saved')
         : '';
 
   return (
@@ -82,10 +83,10 @@ export function PrivateNotesPanel({
       data-testid="trainer-private-notes"
     >
       <label htmlFor={textId} className="font-semibold text-gray-900">
-        {copy.privateNote}
+        {t('coaching.trainer.privateNote')}
       </label>
       <p id={hintId} className="text-xs text-gray-500">
-        {copy.privateNoteHint(clientName)}
+        {t('coaching.trainer.privateNoteHint', { client: clientName })}
       </p>
       <textarea
         id={textId}

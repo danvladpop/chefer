@@ -17,6 +17,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
+import type { Catalog } from '@chefer/i18n';
 
 // ─── Navigation model ─────────────────────────────────────────────────────────
 // Single source of truth shared by the desktop SideBar, the mobile BottomNav,
@@ -29,11 +30,15 @@ import {
 // the server renders the right nav with no flash. The functions are pure: the
 // caller passes whether trainer mode is available (`NavOptions`).
 
+/** A `nav.items.*` key: messages without placeholders, so `t(key)` needs no params. */
+export type NavLabelKey = `nav.items.${keyof Catalog['nav']['items']}`;
+
 export interface NavItem {
   href: string;
-  label: string;
+  /** Catalog key of the label, translated where the item renders. */
+  labelKey: NavLabelKey;
   /** Shorter label for the bottom tab bar, where horizontal space is scarce. */
-  shortLabel?: string;
+  shortLabelKey?: NavLabelKey;
   icon: LucideIcon;
   /**
    * Match `href` exactly instead of as a prefix. Gym "Today" lives at `/gym`,
@@ -56,22 +61,27 @@ export interface NavItem {
 export const FOOD_NAV_ITEMS: readonly NavItem[] = [
   {
     href: '/dashboard',
-    label: 'Today',
+    labelKey: 'nav.items.today',
     icon: Sunrise,
     alsoActiveFor: ['/tracker'],
   },
-  { href: '/meal-plan', label: 'Meal Planner', shortLabel: 'Plan', icon: CalendarDays },
+  {
+    href: '/meal-plan',
+    labelKey: 'nav.items.mealPlanner',
+    shortLabelKey: 'nav.items.plan',
+    icon: CalendarDays,
+  },
   {
     href: '/shopping-list',
-    label: 'Shop',
+    labelKey: 'nav.items.shop',
     icon: ShoppingCart,
     alsoActiveFor: ['/pantry'],
   },
-  { href: '/recipes', label: 'Cookbook', icon: BookOpen },
-  { href: '/progress', label: 'Progress', icon: TrendingUp },
-  { href: '/my-weeks', label: 'My weeks', icon: Repeat, alsoActiveFor: ['/history'] },
-  { href: '/profile', label: 'Profile', icon: User },
-  { href: '/preferences', label: 'Preferences', icon: Settings },
+  { href: '/recipes', labelKey: 'nav.items.cookbook', icon: BookOpen },
+  { href: '/progress', labelKey: 'nav.items.progress', icon: TrendingUp },
+  { href: '/my-weeks', labelKey: 'nav.items.myWeeks', icon: Repeat, alsoActiveFor: ['/history'] },
+  { href: '/profile', labelKey: 'nav.items.profile', icon: User },
+  { href: '/preferences', labelKey: 'nav.items.preferences', icon: Settings },
 ] as const;
 
 /**
@@ -87,19 +97,19 @@ export const NAV_ITEMS: readonly NavItem[] = FOOD_NAV_ITEMS;
 export const GYM_NAV_ITEMS: readonly NavItem[] = [
   {
     href: '/gym',
-    label: 'Today',
+    labelKey: 'nav.items.today',
     icon: Sun,
     exact: true,
     alsoActiveFor: ['/gym/workout', '/gym/summary', '/gym/setup', '/gym/session'],
   },
-  { href: '/gym/routine', label: 'Routine', icon: ListChecks },
-  { href: '/gym/exercises', label: 'Exercises', icon: Dumbbell },
-  { href: '/gym/stats', label: 'Stats', icon: BarChart3 },
+  { href: '/gym/routine', labelKey: 'nav.items.routine', icon: ListChecks },
+  { href: '/gym/exercises', labelKey: 'nav.items.exercises', icon: Dumbbell },
+  { href: '/gym/stats', labelKey: 'nav.items.stats', icon: BarChart3 },
 ] as const;
 
 /** Gym destinations that live in the drawer / below the sidebar's main list. */
 export const GYM_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
-  { href: '/gym/settings', label: 'Gym settings', icon: SlidersHorizontal },
+  { href: '/gym/settings', labelKey: 'nav.items.gymSettings', icon: SlidersHorizontal },
 ] as const;
 
 /**
@@ -107,7 +117,11 @@ export const GYM_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
  * lower group, the phone's More drawer) only to a user whose trainer tools are
  * on. Not part of any mode's static list, so it never shows by default.
  */
-export const TRAINER_NAV_ITEM: NavItem = { href: '/trainer', label: 'Clients', icon: UsersRound };
+export const TRAINER_NAV_ITEM: NavItem = {
+  href: '/trainer',
+  labelKey: 'nav.items.clients',
+  icon: UsersRound,
+};
 
 // ─── Trainer mode (trainer-mode.md §5.3) ──────────────────────────────────────
 
@@ -132,21 +146,21 @@ export function isTrainerClientPath(pathname: string): boolean {
 
 /** Trainer mode in sidebar order: Today first. */
 export const TRAINER_MODE_NAV_ITEMS: readonly NavItem[] = [
-  { href: '/trainer/today', label: 'Today', icon: House },
+  { href: '/trainer/today', labelKey: 'nav.items.today', icon: House },
   {
     href: '/trainer/schedule',
-    label: 'Schedule',
+    labelKey: 'nav.items.schedule',
     icon: CalendarDays,
     // Booking detail and the coached logger belong to the calendar (M3).
     alsoActiveFor: ['/trainer/bookings', '/trainer/coach'],
   },
   {
     href: '/trainer/clients',
-    label: 'Clients',
+    labelKey: 'nav.items.clients',
     icon: UsersRound,
     alsoActiveWhen: isTrainerClientPath,
   },
-  { href: '/trainer/workouts', label: 'Workouts', icon: Dumbbell },
+  { href: '/trainer/workouts', labelKey: 'nav.items.workouts', icon: Dumbbell },
 ] as const;
 
 /** The phone tab bar: Today in the middle, as in Food mode and the mobile app (§5.3). */
@@ -163,8 +177,8 @@ export const TRAINER_MODE_TAB_BAR_ITEMS: readonly NavItem[] = TRAINER_MODE_TAB_B
 
 /** Trainer mode's drawer / lower sidebar group (trainer You on web, §6.8). */
 export const TRAINER_MODE_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
-  { href: '/trainer/settings', label: 'Trainer settings', icon: UserCog },
-  { href: '/profile', label: 'Profile', icon: User },
+  { href: '/trainer/settings', labelKey: 'nav.items.trainerSettings', icon: UserCog },
+  { href: '/profile', labelKey: 'nav.items.profile', icon: User },
 ] as const;
 
 /**

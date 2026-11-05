@@ -6,6 +6,7 @@ import { KV_KEYS } from '../../src/features/gym/offline/keys';
 import { kv } from '../../src/features/gym/offline/kv';
 import { ShopScreen } from '../../src/features/shell/shop/shop-screen';
 import { shopOutbox } from '../../src/features/shopping-list/shop-outbox';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
 
@@ -350,5 +351,21 @@ describe('Shop tab: a shared household list (ADR 0003)', () => {
     await screen.findByText('Fruit & veg');
     expect(paths()).not.toContain('shoppingList.sync');
     expect(screen.queryByTestId('shop-partner-banner')).toBeNull();
+  });
+});
+
+// Lane J phase 4: the Shop screen in Romanian.
+describe('Shop tab in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('aisles, status, count and field speak Romanian', async () => {
+    await renderWithTrpc(<ShopScreen />, base(), testQueryClient());
+    expect(await screen.findByText('Fructe și legume')).toBeOnTheScreen();
+    expect(screen.getByText('Carne și pește')).toBeOnTheScreen();
+    expect(screen.getByTestId('shop-group-produce-status')).toHaveTextContent('1 din 2 rămase');
+    expect(screen.getByTestId('shop-done-count')).toHaveTextContent('1 din 5 gata');
+    expect(screen.getByLabelText('Caută sau adaugă un produs')).toBeOnTheScreen();
+    expect(screen.getByText('Săptămâna asta')).toBeOnTheScreen();
   });
 });

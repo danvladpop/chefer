@@ -24,6 +24,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
+import { useT } from '../../lib/i18n';
 import { useActiveSessionRecord } from '../gym/offline/active-session-store';
 import { getGymOwner } from '../gym/offline/owner';
 import { openCoachedLogger, useCoachedMiniBarGroups } from '../trainer-coach/coached-mini-bar';
@@ -107,6 +108,7 @@ function MiniBarView({
   onPress: () => void;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   // Large screens: line up with the screens' readable column instead of
   // stretching "Resume" a window's width away from the workout's name.
   const { gutter } = useReadableLayout();
@@ -137,7 +139,9 @@ function MiniBarView({
             {detail}
           </Text>
         </View>
-        <Text className="text-callout font-semibold text-brand-on">Resume</Text>
+        <Text className="text-callout font-semibold text-brand-on">
+          {t('today.shell.miniBar.resume')}
+        </Text>
       </PressableScale>
     </Animated.View>
   );
@@ -155,6 +159,7 @@ function useNow(active: boolean): number {
 }
 
 function OwnerMiniBar() {
+  const { t } = useT();
   const record = useActiveSessionRecord();
   const owner = getGymOwner();
   const running =
@@ -173,9 +178,16 @@ function OwnerMiniBar() {
     <MiniBarView
       testID="workout-mini-bar"
       title={record.doc.name}
-      detail={`${minutes} min · ${done} of ${record.doc.exercises.length} exercises`}
-      accessibilityLabel={`${record.doc.name}, in progress, ${minutes} minutes`}
-      accessibilityHint="Opens your workout"
+      detail={t('today.shell.miniBar.detail', {
+        count: record.doc.exercises.length,
+        minutes,
+        done,
+      })}
+      accessibilityLabel={t('today.shell.miniBar.spoken', {
+        count: minutes,
+        name: record.doc.name,
+      })}
+      accessibilityHint={t('today.shell.miniBar.hint')}
       onPress={() => router.push('/gym/workout')}
     />
   );
@@ -187,6 +199,7 @@ function OwnerMiniBar() {
  * trainer's own workout bar when both run.
  */
 function CoachedMiniBars() {
+  const { t } = useT();
   const groups = useCoachedMiniBarGroups();
   const now = useNow(groups.length > 0);
   return groups.map((group, index) => {
@@ -196,9 +209,9 @@ function CoachedMiniBars() {
         key={group.bookingKey}
         testID={index === 0 ? 'coached-mini-bar' : `coached-mini-bar-${index}`}
         title={group.label}
-        detail={`${minutes} min · ${group.dayName}`}
-        accessibilityLabel={`${group.label}, in progress, ${minutes} minutes`}
-        accessibilityHint="Opens the coached workout"
+        detail={t('today.shell.miniBar.coachedDetail', { minutes, day: group.dayName })}
+        accessibilityLabel={t('today.shell.miniBar.spoken', { count: minutes, name: group.label })}
+        accessibilityHint={t('today.shell.miniBar.coachedHint')}
         onPress={() => openCoachedLogger(group)}
       />
     );

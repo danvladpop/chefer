@@ -3,6 +3,7 @@ import { Image, View, type ImageStyle, type StyleProp, type ViewStyle } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { resolveRecipeImage, type RecipeImageStatus } from '../../lib/recipe-image';
 
 // UX-REC-10: a recipe photo that fails to load (the image host answers 402
@@ -13,11 +14,6 @@ import { resolveRecipeImage, type RecipeImageStatus } from '../../lib/recipe-ima
 // PENDING for its generated image) gets the same placeholder instead of a stock
 // dish; with `showStatusLabel` it also says the photo is coming or unavailable,
 // like web's RecipeImage.
-
-const STATUS_LABEL = {
-  preparing: 'Preparing photo…',
-  unavailable: 'Photo unavailable',
-} as const;
 
 export function RecipeImage({
   imageUrl,
@@ -42,6 +38,7 @@ export function RecipeImage({
   iconSize?: number;
   testID?: string;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   // Keyed by the URL that failed, so a changed photo gets a fresh try.
   const [failedUri, setFailedUri] = useState<string | null>(null);
@@ -52,7 +49,12 @@ export function RecipeImage({
       : resolved;
 
   if (view.kind !== 'photo') {
-    const label = showStatusLabel && view.kind !== 'none' ? STATUS_LABEL[view.kind] : undefined;
+    const label =
+      showStatusLabel && view.kind !== 'none'
+        ? view.kind === 'preparing'
+          ? t('recipes.image.preparingShort')
+          : t('recipes.image.unavailable')
+        : undefined;
     return (
       <View
         testID={testID ? `${testID}-placeholder` : undefined}

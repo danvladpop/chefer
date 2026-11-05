@@ -65,6 +65,8 @@ function setup(opts: { profile?: TrainerProfile | null; existing?: CoachingCheck
           clientId: 'maria',
           email: 'm@x.dev',
           firstName: 'Maria',
+          locale: null,
+          deviceLocale: null,
         },
       ]),
       claimEmail: vi.fn(async () => true),
@@ -206,6 +208,26 @@ describe('email sweep', () => {
     expect(message?.subject).toBe('Ana’s weekly check-in');
     expect(message?.headers?.['List-Unsubscribe']).toContain('COACHING_CHECK_IN');
     expect(message?.text).not.toMatch(/ENERGY|SLEEP/);
+  });
+
+  it('goes out in the client’s language (ADR 0004)', async () => {
+    const { service, deps } = setup();
+    vi.mocked(deps.checkIns.findEmailRecipients).mockResolvedValueOnce([
+      {
+        trainerId: 'ana',
+        trainerName: 'Ana',
+        clientId: 'maria',
+        email: 'm@x.dev',
+        firstName: 'Maria',
+        locale: null,
+        deviceLocale: 'ro',
+      },
+    ]);
+    await service.sendCheckInEmails(new Date('2026-10-25T09:00:00Z'));
+    const message = vi.mocked(deps.email.send).mock.calls[0]?.[0];
+    expect(message?.subject).toBe('Bilanțul săptămânal de la Ana');
+    expect(message?.text).toContain('Răspunde în Chefer');
+    expect(message?.html).toContain('lang="ro"');
   });
 
   it('a claimed period is skipped; a failed send releases its claim', async () => {

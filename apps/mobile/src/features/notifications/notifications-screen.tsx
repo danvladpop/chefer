@@ -1,9 +1,10 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import { IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
-import { ENGAGEMENT_COPY } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
+import { useT } from '../../lib/i18n';
 import {
   refreshNotificationPermission,
   useNotificationPermission,
@@ -31,11 +32,13 @@ import { MealReminderSettings } from './meal-reminder-settings';
 /** The redesign's card: a surface on the canvas with a hairline border. */
 const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 
-function trainingReminderSummary(profile: {
-  reminderEnabled: boolean;
-  reminderTime: string | null;
-}): string {
-  return profile.reminderEnabled && profile.reminderTime ? `On, at ${profile.reminderTime}` : 'Off';
+function trainingReminderSummary(
+  profile: { reminderEnabled: boolean; reminderTime: string | null },
+  t: Translator['t'],
+): string {
+  return profile.reminderEnabled && profile.reminderTime
+    ? t('today.engagement.notifications.training.on', { time: profile.reminderTime })
+    : t('today.engagement.notifications.training.off');
 }
 
 function TrainingRemindersRow() {
@@ -43,24 +46,28 @@ function TrainingRemindersRow() {
   const profile = bootstrap.data?.profile ?? null;
   // Food-only accounts have no training profile — nothing to remind about.
   const colors = useThemeColors();
+  const { t } = useT();
   if (!profile) return null;
+  const summary = trainingReminderSummary(profile, t);
   return (
     <View className="overflow-hidden rounded-card border border-separator bg-surface">
       <Pressable
         testID="notifications-training"
         accessibilityRole="button"
-        accessibilityLabel={`Training reminders. ${trainingReminderSummary(profile)}`}
+        accessibilityLabel={t('today.engagement.notifications.training.label', { summary })}
         onPress={() => router.push('/gym/settings?section=reminders')}
         style={({ pressed }) => (pressed ? { backgroundColor: colors.surfaceSunken } : undefined)}
         className="min-h-14 flex-row items-center gap-3 px-4 py-3"
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-body text-label">Training reminders</Text>
+          <Text className="text-body text-label">
+            {t('today.engagement.notifications.training.title')}
+          </Text>
           <Text
             testID="notifications-training-summary"
             className="mt-0.5 text-subhead text-label-secondary"
           >
-            {trainingReminderSummary(profile)}
+            {summary}
           </Text>
         </View>
         <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
@@ -71,15 +78,15 @@ function TrainingRemindersRow() {
 
 function RestTimerAlertsCard() {
   const permission = useNotificationPermission();
+  const { t } = useT();
   return (
     <View testID="notifications-rest-timer" className={CARD}>
       <View className="gap-1">
         <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-          Rest-timer alerts
+          {t('today.engagement.notifications.restTimer.title')}
         </Text>
         <Text className="text-subhead text-label-secondary">
-          A “Rest is over” alert when Chefer is in the background during a workout or a cooking
-          timer.
+          {t('today.engagement.notifications.restTimer.body')}
         </Text>
       </View>
       {permission === 'granted' && (
@@ -87,13 +94,13 @@ function RestTimerAlertsCard() {
           testID="notifications-rest-timer-on"
           className="self-start rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
         >
-          On
+          {t('today.engagement.notifications.restTimer.on')}
         </Text>
       )}
       {permission === 'undetermined' && (
         <TrainButton
           testID="notifications-rest-timer-enable"
-          label="Turn on alerts"
+          label={t('today.engagement.notifications.restTimer.enable')}
           variant="tinted"
           icon="notifications"
           className="self-start"
@@ -105,7 +112,7 @@ function RestTimerAlertsCard() {
       {permission === 'denied' && (
         <NotificationsOffRow
           testID="notifications-rest-timer-off"
-          message="Rest-timer alerts are off"
+          message={t('today.engagement.notifications.restTimer.off')}
         />
       )}
     </View>
@@ -125,12 +132,13 @@ function BookingRemindersCard() {
 
 export function NotificationsScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
       <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
         <IconButton
           testID="notifications-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/you'))}
           className="-ml-2"
@@ -141,7 +149,7 @@ export function NotificationsScreen() {
           numberOfLines={1}
           className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          Notifications
+          {t('today.engagement.notifications.title')}
         </Text>
       </View>
       <ScrollView
@@ -154,13 +162,13 @@ export function NotificationsScreen() {
         <BookingRemindersCard />
         <View testID="notifications-meal-reminders" className={CARD}>
           <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-            {ENGAGEMENT_COPY.remindersCardTitle}
+            {t('today.reminders.cardTitle')}
           </Text>
           <MealReminderSettings testIDPrefix="notifications-meals" />
         </View>
         <View testID="notifications-food-nudges" className={CARD}>
           <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-            Food nudges
+            {t('today.engagement.notifications.foodNudges')}
           </Text>
           <FoodNudgeSwitches testIDPrefix="notifications-nudge" />
         </View>

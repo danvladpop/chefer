@@ -42,6 +42,7 @@ import {
   type SessionSupersetSlot,
   type WorkoutFocus,
 } from '@chefer/utils';
+import { getTranslator } from '../../../lib/i18n';
 
 // Pure helpers behind the active-workout screen (gym_plan.md §1.3). No React,
 // no stores: everything here is unit-testable and cheap enough to call from
@@ -85,7 +86,7 @@ export function unitOf(bootstrap: GymBootstrap | undefined): WeightUnit {
 export function fallbackMeta(exerciseId: string): ExerciseDto {
   return {
     id: exerciseId,
-    name: 'Exercise',
+    name: getTranslator().t('gym.workout.exerciseCard.fallbackName'),
     category: 'COMPOUND',
     movementPattern: exerciseId,
     equipment: 'MACHINE',
@@ -221,10 +222,11 @@ export function currentExerciseId(
 
 /** "Set 2" / "Warm-up 1" — how a set is named in its card. */
 export function setLabelOf(se: SessionExerciseDoc, setId: string): string | null {
+  const { t } = getTranslator();
   const warm = warmupSetsOf(se).findIndex((s) => s.id === setId);
-  if (warm >= 0) return `Warm-up ${warm + 1}`;
+  if (warm >= 0) return t('gym.workout.setName.warmup', { n: warm + 1 });
   const work = workingSets(se).findIndex((s) => s.id === setId);
-  return work >= 0 ? `Set ${work + 1}` : null;
+  return work >= 0 ? t('gym.workout.setName.set', { n: work + 1 }) : null;
 }
 
 /** True once the last working set (by position) is ticked — the RIR chips' trigger. */
@@ -324,11 +326,9 @@ export function lastNoteFor(
 
 const PR_RANK: Record<PrKind, number> = { e1rm: 3, weight: 2, reps: 1 };
 
-export const PR_LABELS: Record<PrKind, string> = {
-  e1rm: 'PR · e1RM',
-  weight: 'PR · weight',
-  reps: 'PR · reps',
-};
+/** The PR pill's text, in the UI language at call time. */
+export const prLabel = (kind: PrKind): string =>
+  getTranslator().t(`gym.workout.logger.setRow.pr.${kind}`);
 
 /**
  * The single live PR badge for an exercise (research §4.2 #8: at most one per
@@ -644,8 +644,6 @@ export function directionOf(suggestion: Suggestion): Direction {
 
 export const DIRECTION_ICON: Record<Direction, string> = { up: '↑', same: '=', down: '↓' };
 
-export const DIRECTION_LABEL: Record<Direction, string> = {
-  up: 'Going up',
-  same: 'Same targets',
-  down: 'Going down',
-};
+/** The "Next time" direction chip's label, in the UI language at call time. */
+export const directionLabel = (direction: Direction): string =>
+  getTranslator().t(`gym.summary.direction.${direction}`);

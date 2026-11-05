@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
-import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
+import type { Catalog } from '@chefer/i18n';
+import type { FriendsMeDto } from '@chefer/types';
 import { Text, useSnackbar, useThemeColors } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 import { useUpdateSettings, type UpdateSettingsInput } from './use-update-settings';
 
@@ -16,33 +18,36 @@ import { useUpdateSettings, type UpdateSettingsInput } from './use-update-settin
 
 type Settings = NonNullable<FriendsMeDto['settings']>;
 type Section = 'plan' | 'recipes' | 'workouts' | 'targets';
+/** `friends.settings.*` messages without placeholders. */
+type SettingsKey =
+  `friends.settings.${keyof Catalog['friends']['settings'] & ('plan' | 'recipes' | 'workouts' | 'targets' | 'targetsDetail')}`;
 
 const SWITCHES: readonly {
   section: Section;
   key: 'sharePlan' | 'shareRecipes' | 'shareWorkouts' | 'shareTargets';
-  label: string;
-  detail?: string;
+  label: SettingsKey;
+  detail?: SettingsKey;
 }[] = [
-  { section: 'plan', key: 'sharePlan', label: FRIENDS_COPY.settings.plan },
-  { section: 'recipes', key: 'shareRecipes', label: FRIENDS_COPY.settings.recipes },
-  { section: 'workouts', key: 'shareWorkouts', label: FRIENDS_COPY.settings.workouts },
+  { section: 'plan', key: 'sharePlan', label: 'friends.settings.plan' },
+  { section: 'recipes', key: 'shareRecipes', label: 'friends.settings.recipes' },
+  { section: 'workouts', key: 'shareWorkouts', label: 'friends.settings.workouts' },
   {
     section: 'targets',
     key: 'shareTargets',
-    label: FRIENDS_COPY.settings.targets,
-    detail: FRIENDS_COPY.settings.targetsDetail,
+    label: 'friends.settings.targets',
+    detail: 'friends.settings.targetsDetail',
   },
 ];
 
-const TARGETS_CONFIRM: ConfirmCopy = {
-  title: FRIENDS_COPY.targets.confirm.title,
-  body: FRIENDS_COPY.targets.confirm.body,
-  confirmLabel: FRIENDS_COPY.targets.confirm.cta,
-  cancelLabel: FRIENDS_COPY.common.cancel,
-  destructive: false,
-};
-
 export function SharingSection({ settings }: { settings: Settings }) {
+  const { t } = useT();
+  const targetsConfirm: ConfirmCopy = {
+    title: t('friends.targets.confirm.title'),
+    body: t('friends.targets.confirm.body'),
+    confirmLabel: t('friends.targets.confirm.cta'),
+    cancelLabel: t('friends.common.cancel'),
+    destructive: false,
+  };
   const { save } = useUpdateSettings();
   const snackbar = useSnackbar();
   const colors = useThemeColors();
@@ -51,7 +56,10 @@ export function SharingSection({ settings }: { settings: Settings }) {
   const afterSave = (section: Section, on: boolean, hidden: number) => {
     track('friends_sharing_changed', { section, on });
     if (section === 'recipes' && on && hidden > 0) {
-      snackbar.show({ message: FRIENDS_COPY.activated.filterHidden(hidden), tone: 'info' });
+      snackbar.show({
+        message: t('friends.activated.filterHidden', { count: hidden }),
+        tone: 'info',
+      });
     }
   };
 
@@ -59,7 +67,7 @@ export function SharingSection({ settings }: { settings: Settings }) {
     const input: UpdateSettingsInput = { [key]: on };
     const outcome = await save(input, { optimistic: true });
     if (!outcome.ok) {
-      snackbar.show({ message: FRIENDS_COPY.settings.saveError });
+      snackbar.show({ message: t('friends.settings.saveError') });
       return;
     }
     afterSave(section, on, outcome.result.filterHiddenRecipes);
@@ -67,41 +75,45 @@ export function SharingSection({ settings }: { settings: Settings }) {
 
   return (
     <View testID="friends-settings-sharing" className="gap-1">
-      {SWITCHES.map(({ section, key, label, detail }) => (
-        <View
-          key={key}
-          testID={`friends-settings-row-${section}`}
-          className="min-h-11 flex-row items-center gap-3 py-2"
-        >
-          <View className="min-w-0 flex-1">
-            <Text className="text-body text-label">{label}</Text>
-            {detail ? (
-              <Text className="mt-0.5 text-subhead text-label-secondary">{detail}</Text>
-            ) : null}
+      {SWITCHES.map(({ section, key, label: labelKey, detail: detailKey }) => {
+        const label = t(labelKey);
+        const detail = detailKey ? t(detailKey) : undefined;
+        return (
+          <View
+            key={key}
+            testID={`friends-settings-row-${section}`}
+            className="min-h-11 flex-row items-center gap-3 py-2"
+          >
+            <View className="min-w-0 flex-1">
+              <Text className="text-body text-label">{label}</Text>
+              {detail ? (
+                <Text className="mt-0.5 text-subhead text-label-secondary">{detail}</Text>
+              ) : null}
+            </View>
+            <Switch
+              testID={`friends-settings-share-${section}`}
+              accessibilityRole="switch"
+              accessibilityLabel={label}
+              accessibilityState={{ checked: settings[key] }}
+              value={settings[key]}
+              onValueChange={(on) => {
+                if (section === 'targets' && on) {
+                  setTargetsVisible(true);
+                  return;
+                }
+                void toggle(section, key, on);
+              }}
+              trackColor={{ true: colors.brand, false: colors.separator }}
+            />
           </View>
-          <Switch
-            testID={`friends-settings-share-${section}`}
-            accessibilityRole="switch"
-            accessibilityLabel={label}
-            accessibilityState={{ checked: settings[key] }}
-            value={settings[key]}
-            onValueChange={(on) => {
-              if (section === 'targets' && on) {
-                setTargetsVisible(true);
-                return;
-              }
-              void toggle(section, key, on);
-            }}
-            trackColor={{ true: colors.brand, false: colors.separator }}
-          />
-        </View>
-      ))}
+        );
+      })}
 
       <FriendsConfirmSheet
         testID="friends-settings-targets-confirm"
         visible={targetsVisible}
-        copy={TARGETS_CONFIRM}
-        errorMessage={FRIENDS_COPY.settings.saveError}
+        copy={targetsConfirm}
+        errorMessage={t('friends.settings.saveError')}
         onConfirm={async () => {
           const outcome = await save({ shareTargets: true });
           return outcome.ok;

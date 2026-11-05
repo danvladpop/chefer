@@ -7,8 +7,6 @@
 // Module-level flag, like `session-expired.ts`: the sign-out itself flips the
 // auth gate, so there is no navigation to attach a param to.
 
-export const ACCOUNT_DELETED_NOTICE = 'Your account and data have been deleted.';
-
 let deleted = false;
 const listeners = new Set<() => void>();
 

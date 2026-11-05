@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { HEALTH_CONSENT_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { getHealthConsentDeclined } from '../health-declined-flag';
 import { useHealthConsent } from '../use-health-consent';
@@ -20,6 +20,7 @@ import { useHealthConsent } from '../use-health-consent';
 // per session when they have some stored but have not allowed it.
 
 export function HealthConsentTodayNotice() {
+  const { t } = useT();
   const { consented, requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [declined, setDeclined] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -32,13 +33,13 @@ export function HealthConsentTodayNotice() {
         data-testid="health-consent-notice-card"
         className="rounded-xl border border-amber-300 bg-amber-50 p-4"
       >
-        <p className="text-sm font-semibold text-amber-900">{HEALTH_CONSENT_COPY.todayCardTitle}</p>
+        <p className="text-sm font-semibold text-amber-900">{t('consent.health.todayCardTitle')}</p>
         <div className="mt-2 flex gap-2">
           <Button size="sm" onClick={() => requestHealthConsent(() => undefined)}>
-            {HEALTH_CONSENT_COPY.todayCardAction}
+            {t('consent.health.todayCardAction')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
-            Dismiss
+            {t('consent.health.dismiss')}
           </Button>
         </div>
       </div>

@@ -4,17 +4,14 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { trackSharingChosen } from '@/lib/analytics-events';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
-import {
-  COACHING_COPY,
-  NO_COACHING_SHARE,
-  type CoachingShareChoice,
-  type TrainerCardDto,
-} from '@chefer/types';
+import { NO_COACHING_SHARE, type CoachingShareChoice, type TrainerCardDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
-import { formatShortDay } from '../lib/dates';
+import { trainerNameOrFallbackT } from '../lib/copy';
+import { formatShortDayT } from '../lib/dates';
 import { clearPendingTrainer, rememberPendingTrainer } from '../lib/pending-join';
 import { ConsentScreen } from './ConsentScreen';
 import { TrainerNameBlock } from './TrainerBadge';
@@ -24,20 +21,19 @@ import { TrainerNameBlock } from './TrainerBadge';
 // Anyone who is not a findable trainer (or is blocked either way) gets the one
 // uniform "This trainer isn't available".
 
-const copy = COACHING_COPY.request;
-
 function Page({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-lg px-4 py-6 sm:px-6 sm:py-10">{children}</div>;
 }
 
 function BackToFind() {
+  const { t } = useT();
   return (
     <Link
       href="/coaching/find"
       className="-ml-2 mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
     >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      {COACHING_COPY.find.title}
+      {t('coaching.find.title')}
     </Link>
   );
 }
@@ -62,12 +58,16 @@ function CardAction({
   onCancel: () => void;
   cancelling: boolean;
 }) {
+  const { t } = useT();
+  const trainer = trainerNameOrFallbackT(card.name, t);
   if (card.relation === 'YOUR_TRAINER') {
     return (
       <div className="flex flex-col gap-3" data-testid="trainer-card-yours">
-        <p className="text-sm font-medium text-gray-900">{copy.yourTrainer(card.name)}</p>
+        <p className="text-sm font-medium text-gray-900">
+          {t('coaching.request.yourTrainer', { trainer })}
+        </p>
         <Button asChild variant="outline" className="min-h-11 self-start">
-          <Link href="/profile#your-trainer">{COACHING_COPY.yourTrainer.title}</Link>
+          <Link href="/profile#your-trainer">{t('coaching.yourTrainer.title')}</Link>
         </Button>
       </div>
     );
@@ -76,9 +76,13 @@ function CardAction({
     return (
       <div className="flex flex-col gap-3" data-testid="trainer-card-requested">
         <div>
-          <p className="text-sm font-medium text-gray-900">{copy.pending(card.name)}</p>
+          <p className="text-sm font-medium text-gray-900">
+            {t('coaching.request.pending', { trainer })}
+          </p>
           {expiresAt && (
-            <p className="text-sm text-gray-600">{copy.expires(formatShortDay(expiresAt))}</p>
+            <p className="text-sm text-gray-600">
+              {t('coaching.request.expires', { date: formatShortDayT(expiresAt, t) })}
+            </p>
           )}
         </div>
         <Button
@@ -88,7 +92,7 @@ function CardAction({
           loading={cancelling}
           onClick={onCancel}
         >
-          {copy.cancel}
+          {t('coaching.request.cancel')}
         </Button>
       </div>
     );
@@ -96,7 +100,7 @@ function CardAction({
   if (!card.acceptingClients) {
     return (
       <p className="text-sm font-medium text-gray-900" data-testid="trainer-card-not-taking">
-        {COACHING_COPY.find.notTaking}
+        {t('coaching.find.notTaking')}
       </p>
     );
   }
@@ -104,10 +108,12 @@ function CardAction({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-gray-900" data-testid="trainer-card-other-pending">
-          {copy.otherPending(card.pendingRequestTo)}
+          {t('coaching.request.otherPending', {
+            trainer: trainerNameOrFallbackT(card.pendingRequestTo, t),
+          })}
         </p>
         <Button asChild variant="outline" className="min-h-11 self-start">
-          <Link href="/profile#your-trainer">{COACHING_COPY.yourTrainer.title}</Link>
+          <Link href="/profile#your-trainer">{t('coaching.yourTrainer.title')}</Link>
         </Button>
       </div>
     );
@@ -115,10 +121,10 @@ function CardAction({
   if (card.needsGymSetup) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-gray-700">{COACHING_COPY.consent.needsSetup}</p>
+        <p className="text-sm text-gray-700">{t('coaching.consent.needsSetup')}</p>
         <Button asChild className="min-h-11 self-start">
           <Link href="/gym/setup" onClick={() => rememberPendingTrainer(card.trainerId)}>
-            Set up training
+            {t('coaching.join.setUpTraining')}
           </Link>
         </Button>
       </div>
@@ -126,12 +132,13 @@ function CardAction({
   }
   return (
     <Button type="button" className="min-h-11 self-start" onClick={onAsk}>
-      {copy.ask}
+      {t('coaching.request.ask')}
     </Button>
   );
 }
 
 export function TrainerProfileView({ trainerId }: { trainerId: string }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   // Always fresh: relation and gym setup change while the page is away.
   const card = trpc.coaching.trainerCard.useQuery(
@@ -162,7 +169,7 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
     meta: { silent: true },
     onSuccess: () => {
       refresh();
-      showAppToast({ message: copy.cancelled, type: 'success' });
+      showAppToast({ message: t('coaching.request.cancelled'), type: 'success' });
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
   });
@@ -170,7 +177,7 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
   if (card.isLoading) {
     return (
       <Page>
-        <h1 className="sr-only">{COACHING_COPY.find.title}</h1>
+        <h1 className="sr-only">{t('coaching.find.title')}</h1>
         <div className="h-48 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </Page>
     );
@@ -181,9 +188,9 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
     return (
       <Page>
         <BackToFind />
-        <h1 className="font-serif text-2xl font-bold text-gray-900">{COACHING_COPY.find.title}</h1>
+        <h1 className="font-serif text-2xl font-bold text-gray-900">{t('coaching.find.title')}</h1>
         <p role="alert" className="mt-3 text-sm text-gray-700" data-testid="trainer-unavailable">
-          {notFound ? COACHING_COPY.server.trainerUnavailable : userFacingErrorMessage(card.error)}
+          {notFound ? t('coaching.find.unavailable') : userFacingErrorMessage(card.error)}
         </p>
         {!notFound && (
           <Button
@@ -192,7 +199,7 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
             className="mt-4 min-h-11"
             onClick={() => void card.refetch()}
           >
-            {COACHING_COPY.common.retry}
+            {t('coaching.common.retry')}
           </Button>
         )}
       </Page>
@@ -200,6 +207,7 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
   }
 
   const trainer = card.data;
+  const trainerName = trainerNameOrFallbackT(trainer.name, t);
 
   if (step === 'sent') {
     return (
@@ -208,11 +216,13 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
           className="font-serif text-2xl font-bold text-gray-900"
           data-testid="coaching-request-sent"
         >
-          {copy.sent(trainer.name)}
+          {t('coaching.request.sent', { trainer: trainerName })}
         </h1>
-        <p className="mt-3 text-sm text-gray-700">{copy.pending(trainer.name)}</p>
+        <p className="mt-3 text-sm text-gray-700">
+          {t('coaching.request.pending', { trainer: trainerName })}
+        </p>
         <Button asChild variant="outline" className="mt-6 min-h-11">
-          <Link href="/profile#your-trainer">{COACHING_COPY.yourTrainer.title}</Link>
+          <Link href="/profile#your-trainer">{t('coaching.yourTrainer.title')}</Link>
         </Button>
       </Page>
     );
@@ -222,16 +232,19 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
     return (
       <Page>
         <ConsentScreen
-          title={copy.askTitle(trainer.name)}
-          trainerName={trainer.name}
+          title={t('coaching.request.askTitle', { trainer: trainerName })}
+          trainerName={trainerName}
           currentTrainerName={trainer.currentTrainerName}
           switchNote={
             trainer.currentTrainerName
-              ? copy.switchNote(trainer.currentTrainerName, trainer.name)
+              ? t('coaching.request.switchNote', {
+                  current: trainer.currentTrainerName,
+                  trainer: trainerName,
+                })
               : null
           }
-          footnote={copy.noFollow}
-          allowLabel={copy.sendConsent}
+          footnote={t('coaching.request.noFollow')}
+          allowLabel={t('coaching.request.sendConsent')}
           busy={request.isPending}
           error={error}
           onAllow={() => {
@@ -270,7 +283,7 @@ export function TrainerProfileView({ trainerId }: { trainerId: string }) {
           onCancel={() => cancel.mutate({ source: 'web' })}
           cancelling={cancel.isPending}
         />
-        <p className="text-xs text-gray-500">{COACHING_COPY.find.unverified}</p>
+        <p className="text-xs text-gray-500">{t('coaching.find.unverified')}</p>
       </section>
     </Page>
   );

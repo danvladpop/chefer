@@ -4,14 +4,12 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Search } from 'lucide-react';
 import {
-  BOOKING_COPY,
   BOOKING_DURATION_CHIPS,
   BOOKING_DURATION_LIMITS,
-  COACHING_COPY,
-  TRAINER_MODE_COPY,
   TRAINER_MODE_LIMITS,
   type BookingScope,
   type BookingWorkoutRef,
@@ -20,7 +18,6 @@ import {
 import { Button, pressControl, Sheet } from '@chefer/ui';
 import {
   bookingDraftFrom,
-  bookingOverlapWarnings,
   bookingWeekRange,
   cn,
   deviceTimeZone,
@@ -31,11 +28,11 @@ import {
   toBookingPatch,
   toCreateBookingInput,
   userFacingErrorMessage,
-  validateBookingDraft,
   weekStartOf,
   type BookingDraft,
   type BookingDraftClient,
 } from '@chefer/utils';
+import { bookingDraftErrorTexts, bookingOverlapTexts } from '../lib/schedule-layout';
 import { useInvalidateBookings, useOnline } from '../use-bookings';
 import { ScopeChoice } from './ScopeChoice';
 
@@ -56,7 +53,6 @@ export type EditorTarget =
     }
   | { mode: 'edit'; booking: TrainerBookingDto };
 
-const copy = BOOKING_COPY.editor;
 const MAX_CLIENTS = TRAINER_MODE_LIMITS.clientsPerBooking;
 
 const inputCls =
@@ -111,6 +107,7 @@ function ClientWorkoutSelect({
   fallbackName: string | null;
   onChange: (choice: BookingWorkoutRef) => void;
 }) {
+  const tr = useT();
   const id = useId();
   const routine = trpc.trainer.client.routine.useQuery(
     { clientId: client.clientId, today: localDate() },
@@ -133,10 +130,10 @@ function ClientWorkoutSelect({
         className={inputCls}
         data-testid="booking-workout-select"
       >
-        <option value="next">{copy.nextDay}</option>
+        <option value="next">{tr.t('trainer.bookings.editor.nextDay')}</option>
         {!known && <option value={value}>{fallbackName ?? '…'}</option>}
         {days.length > 0 && (
-          <optgroup label={routine.data?.name ?? copy.workout}>
+          <optgroup label={routine.data?.name ?? tr.t('trainer.bookings.editor.workout')}>
             {days.map((d) => (
               <option key={d.id} value={`day:${d.id}`}>
                 {d.name}
@@ -145,7 +142,7 @@ function ClientWorkoutSelect({
           </optgroup>
         )}
         {templates.length > 0 && (
-          <optgroup label={copy.template}>
+          <optgroup label={tr.t('trainer.bookings.editor.template')}>
             {templates.map((t) => (
               <option key={t.id} value={`tpl:${t.id}`}>
                 {t.name}
@@ -179,6 +176,7 @@ function EditorForm({
     note: useId(),
     noteHint: useId(),
   };
+  const tr = useT();
   const timeZone = useMemo(deviceTimeZone, []);
   const online = useOnline();
   const invalidate = useInvalidateBookings();
@@ -233,14 +231,15 @@ function EditorForm({
     bookingWeekRange(validDate ? weekStartOf(draft.date) : weekStartOf(localDate()), timeZone),
     { enabled: validDate, retry: false, staleTime: 60_000 },
   );
-  const warnings = bookingOverlapWarnings(
+  const warnings = bookingOverlapTexts(
+    tr,
     draft,
     week.data?.bookings ?? [],
     timeZone,
     editing?.id ?? null,
   );
 
-  const errors = validateBookingDraft(draft);
+  const errors = bookingDraftErrorTexts(tr, draft);
   const visibleErrors = showErrors ? errors : {};
 
   const done = (booking: TrainerBookingDto) => {
@@ -288,7 +287,7 @@ function EditorForm({
       return;
     }
     if (!online) {
-      setError(BOOKING_COPY.schedule.offline);
+      setError(tr.t('trainer.bookings.schedule.offline'));
       return;
     }
     if (!editing || !original) {
@@ -321,7 +320,9 @@ function EditorForm({
   if (askScope) {
     return (
       <div className="flex flex-col gap-3 px-5 py-4">
-        <h3 className="font-semibold text-gray-900">{copy.scopeTitle}</h3>
+        <h3 className="font-semibold text-gray-900">
+          {tr.t('trainer.bookings.editor.scopeTitle')}
+        </h3>
         <ScopeChoice busy={busy} onPick={saveEdit} onCancel={() => setAskScope(false)} />
       </div>
     );
@@ -340,7 +341,7 @@ function EditorForm({
       {!editing && (
         <div className="flex flex-col gap-2">
           <span id={`${ids.clients}-type`} className={labelCls}>
-            {copy.type}
+            {tr.t('trainer.bookings.editor.type')}
           </span>
           <div
             role="group"
@@ -355,7 +356,9 @@ function EditorForm({
                 onClick={() => set({ kind })}
                 className={chipCls(draft.kind === kind)}
               >
-                {kind === 'BOOKING' ? copy.booking : copy.block}
+                {kind === 'BOOKING'
+                  ? tr.t('trainer.bookings.editor.booking')
+                  : tr.t('trainer.bookings.editor.block')}
               </button>
             ))}
           </div>
@@ -369,13 +372,13 @@ function EditorForm({
           aria-invalid={visibleErrors.clients ? true : undefined}
           data-testid="booking-editor-clients"
         >
-          <legend className={labelCls}>{copy.clients}</legend>
+          <legend className={labelCls}>{tr.t('trainer.bookings.editor.clients')}</legend>
           <p id={ids.clientsHint} className="text-xs text-gray-600">
-            {copy.clientsMax(MAX_CLIENTS)}
+            {tr.t('trainer.bookings.editor.clientsMax', { count: MAX_CLIENTS })}
           </p>
           <div className="relative">
             <label htmlFor={ids.search} className="sr-only">
-              {TRAINER_MODE_COPY.clients.search}
+              {tr.t('trainer.clients.search')}
             </label>
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -385,7 +388,7 @@ function EditorForm({
               id={ids.search}
               type="search"
               value={query}
-              placeholder={TRAINER_MODE_COPY.clients.search}
+              placeholder={tr.t('trainer.clients.search')}
               autoComplete="off"
               enterKeyHint="search"
               onChange={(e) => setQuery(e.target.value)}
@@ -398,7 +401,7 @@ function EditorForm({
           {clients.isLoading ? (
             <div className="h-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
           ) : rows.length === 0 ? (
-            <p className="text-sm text-gray-600">{COACHING_COPY.trainer.clientsEmpty}</p>
+            <p className="text-sm text-gray-600">{tr.t('coaching.trainer.clientsEmpty')}</p>
           ) : (
             <ul className="flex max-h-56 flex-col overflow-y-auto rounded-lg border border-gray-200">
               {shownClients.map((c) => {
@@ -420,7 +423,7 @@ function EditorForm({
               })}
               {shownClients.length === 0 && (
                 <li className="px-3 py-3 text-sm text-gray-600">
-                  {TRAINER_MODE_COPY.clients.searchEmpty(query.trim())}
+                  {tr.t('trainer.clients.searchEmpty', { query: query.trim() })}
                 </li>
               )}
             </ul>
@@ -432,7 +435,7 @@ function EditorForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={ids.date} className={labelCls}>
-            {copy.date}
+            {tr.t('trainer.bookings.editor.date')}
           </label>
           <input
             id={ids.date}
@@ -448,7 +451,7 @@ function EditorForm({
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={ids.time} className={labelCls}>
-            {copy.start}
+            {tr.t('trainer.bookings.editor.start')}
           </label>
           <input
             id={ids.time}
@@ -467,7 +470,7 @@ function EditorForm({
 
       <div className="flex flex-col gap-2">
         <span id={`${ids.duration}-label`} className={labelCls}>
-          {copy.duration}
+          {tr.t('trainer.bookings.editor.duration')}
         </span>
         <div
           role="group"
@@ -485,7 +488,7 @@ function EditorForm({
               }}
               className={chipCls(!custom && draft.durationMin === min)}
             >
-              {copy.minutes(min)}
+              {tr.t('trainer.bookings.editor.minutes', { n: min })}
             </button>
           ))}
           <button
@@ -494,13 +497,16 @@ function EditorForm({
             onClick={() => setCustom(true)}
             className={chipCls(custom)}
           >
-            {copy.custom}
+            {tr.t('trainer.bookings.editor.custom')}
           </button>
         </div>
         {custom && (
           <div className="flex min-w-0 flex-col gap-1">
             <label htmlFor={ids.duration} className="text-xs font-medium text-gray-700">
-              {copy.customLabel(BOOKING_DURATION_LIMITS.min, BOOKING_DURATION_LIMITS.max)}
+              {tr.t('trainer.bookings.editor.customLabel', {
+                min: BOOKING_DURATION_LIMITS.min,
+                max: BOOKING_DURATION_LIMITS.max,
+              })}
             </label>
             <input
               id={ids.duration}
@@ -522,7 +528,7 @@ function EditorForm({
 
       {!editing && (
         <fieldset className="flex flex-col gap-2">
-          <legend className={labelCls}>{copy.repeat}</legend>
+          <legend className={labelCls}>{tr.t('trainer.bookings.editor.repeat')}</legend>
           <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">
             {(['NONE', 'WEEKLY'] as const).map((repeat) => (
               <label
@@ -536,14 +542,16 @@ function EditorForm({
                   checked={draft.repeat === repeat}
                   onChange={() => set({ repeat })}
                 />
-                {repeat === 'NONE' ? copy.noRepeat : copy.weekly}
+                {repeat === 'NONE'
+                  ? tr.t('trainer.bookings.editor.noRepeat')
+                  : tr.t('trainer.bookings.editor.weekly')}
               </label>
             ))}
           </div>
           {draft.repeat === 'WEEKLY' && (
             <div className="flex min-w-0 flex-col gap-1">
               <label htmlFor={ids.until} className="text-xs font-medium text-gray-700">
-                {copy.until}
+                {tr.t('trainer.bookings.editor.until')}
               </label>
               <input
                 id={ids.until}
@@ -560,7 +568,9 @@ function EditorForm({
                 className={cn(inputCls, 'sm:max-w-56')}
               />
               <p id={`${ids.until}-hint`} className="text-xs text-gray-600">
-                {copy.weeksDefault(TRAINER_MODE_LIMITS.defaultWeeklyRepeats)}
+                {tr.t('trainer.bookings.editor.weeksDefault', {
+                  count: TRAINER_MODE_LIMITS.defaultWeeklyRepeats,
+                })}
               </p>
               <FieldError id={`${ids.until}-err`} message={visibleErrors.until} />
             </div>
@@ -570,7 +580,7 @@ function EditorForm({
 
       {isBooking && draft.clients.length > 0 && (
         <fieldset className="flex min-w-0 flex-col gap-2" data-testid="booking-editor-workouts">
-          <legend className={labelCls}>{copy.workout}</legend>
+          <legend className={labelCls}>{tr.t('trainer.bookings.editor.workout')}</legend>
           {draft.clients.map((c) => (
             <ClientWorkoutSelect
               key={c.clientId}
@@ -591,7 +601,7 @@ function EditorForm({
 
       <div className="flex min-w-0 flex-col gap-1">
         <label htmlFor={ids.location} className={labelCls}>
-          {copy.location}
+          {tr.t('trainer.bookings.editor.location')}
         </label>
         <input
           id={ids.location}
@@ -613,7 +623,7 @@ function EditorForm({
       {isBooking && (
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={ids.note} className={labelCls}>
-            {copy.note}
+            {tr.t('trainer.bookings.editor.note')}
           </label>
           <textarea
             id={ids.note}
@@ -626,7 +636,7 @@ function EditorForm({
             className="w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-base focus:border-gray-400 focus:outline-none sm:text-sm"
           />
           <p id={ids.noteHint} className="text-xs text-gray-600">
-            {copy.noteHint}
+            {tr.t('trainer.bookings.editor.noteHint')}
           </p>
           <FieldError id={`${ids.note}-err`} message={visibleErrors.note} />
         </div>
@@ -652,7 +662,7 @@ function EditorForm({
 
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <Button type="submit" className="min-h-11 sm:flex-1" loading={busy}>
-          {copy.save}
+          {tr.t('trainer.bookings.editor.save')}
         </Button>
         <Button
           type="button"
@@ -661,7 +671,7 @@ function EditorForm({
           onClick={onClose}
           disabled={busy}
         >
-          {COACHING_COPY.common.cancel}
+          {tr.t('common.actions.cancel')}
         </Button>
       </div>
     </form>
@@ -678,13 +688,17 @@ export function BookingEditor({
   onClose: () => void;
   onSaved?: (booking: TrainerBookingDto) => void;
 }) {
+  const tr = useT();
   // Keep the last target while the sheet animates out (MO-02 exit).
   const [shown, setShown] = useState<{ target: EditorTarget; key: number } | null>(null);
   useEffect(() => {
     if (target) setShown((prev) => ({ target, key: (prev?.key ?? 0) + 1 }));
   }, [target]);
   const current = target ?? shown?.target ?? null;
-  const title = current?.mode === 'edit' ? copy.editTitle : copy.newTitle;
+  const title =
+    current?.mode === 'edit'
+      ? tr.t('trainer.bookings.editor.editTitle')
+      : tr.t('trainer.bookings.editor.newTitle');
   return (
     <Sheet open={target !== null} onClose={onClose} title={title} size="lg">
       {current && shown && (

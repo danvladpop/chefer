@@ -3,7 +3,6 @@ import { Keyboard, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   barcodeSchema,
-  PACKAGED_PRODUCT_COPY,
   type BarcodeLookupResult,
   type NutritionLabelDraft,
   type PackagedProductDraft,
@@ -20,6 +19,7 @@ import {
 } from '@chefer/utils';
 import { useEntitlement } from '../../../hooks/use-entitlement';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useAiConsent } from '../../ai-consent/ai-consent-provider';
 import { openPremium } from '../../premium/open-premium';
@@ -71,6 +71,7 @@ export function ProductFlow({
   onLogged,
 }: ProductFlowProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const requestAiConsent = useAiConsent();
   const { enabled: canScanLabel } = useEntitlement('mealScansPerDay');
@@ -113,7 +114,8 @@ export function ProductFlow({
   const lookupTyped = async () => {
     const parsed = barcodeSchema.safeParse(typed);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? PACKAGED_PRODUCT_COPY.unreadable);
+      // barcodeSchema's one refinement: the digits don't make a valid barcode.
+      setError(t('tracker.packaged.barcodeInvalid'));
       return;
     }
     Keyboard.dismiss();
@@ -273,15 +275,14 @@ export function ProductFlow({
   const cameraNotice = cameraDenied && (
     <View className="gap-2 rounded-lg bg-muted p-3">
       <Text variant="muted" className="text-xs">
-        Chefer needs camera access to photograph a barcode. You can turn it on in Settings, or pick
-        a photo instead.
+        {t('tracker.packaged.cameraDenied')}
       </Text>
       <View className="flex-row gap-2">
         <Button variant="outline" className="flex-1" onPress={() => void Linking.openSettings()}>
-          Open Settings
+          {t('tracker.packaged.openSettings')}
         </Button>
         <Button variant="outline" className="flex-1" onPress={() => void lookupPhoto('library')}>
-          Choose a photo
+          {t('tracker.packaged.choosePhoto')}
         </Button>
       </View>
     </View>
@@ -293,17 +294,20 @@ export function ProductFlow({
         <View className="gap-1 rounded-xl border border-border bg-card p-3">
           <Text className="text-sm font-semibold text-label">
             {state.unreadable
-              ? PACKAGED_PRODUCT_COPY.unreadable
-              : PACKAGED_PRODUCT_COPY.notFoundTitle}
+              ? t('tracker.packaged.unreadable')
+              : t('tracker.packaged.notFoundTitle')}
           </Text>
           {!state.unreadable && (
             <Text className="text-xs text-label-secondary">
-              {PACKAGED_PRODUCT_COPY.notFoundBody}
+              {t('tracker.packaged.notFoundBody')}
             </Text>
           )}
         </View>
         {state.unreadable ? (
-          <ScanAnother label="Try again" onPress={() => setState({ step: 'start' })} />
+          <ScanAnother
+            label={t('tracker.packaged.tryAgain')}
+            onPress={() => setState({ step: 'start' })}
+          />
         ) : (
           <>
             <Button
@@ -314,8 +318,9 @@ export function ProductFlow({
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="camera-outline" size={16} color={colors.onBrand} />
                 <Text className="text-sm font-medium text-primary-foreground">
-                  {PACKAGED_PRODUCT_COPY.photographLabel}
-                  {canScanLabel ? '' : ' · Premium'}
+                  {canScanLabel
+                    ? t('tracker.packaged.photographLabel')
+                    : t('tracker.packaged.photographLabelPremium')}
                 </Text>
               </View>
             </Button>
@@ -330,7 +335,7 @@ export function ProductFlow({
                 })
               }
             >
-              {PACKAGED_PRODUCT_COPY.enterProduct}
+              {t('tracker.packaged.enterProduct')}
             </Button>
           </>
         )}
@@ -347,7 +352,7 @@ export function ProductFlow({
   return (
     <View testID="product-start" className="gap-3">
       <Text variant="muted" className="text-sm">
-        {PACKAGED_PRODUCT_COPY.scanBarcodeHint}
+        {t('tracker.packaged.scanBarcodeHint')}
       </Text>
       <View className="flex-row gap-2">
         <Button
@@ -359,7 +364,7 @@ export function ProductFlow({
         >
           <View className="flex-row items-center gap-1.5">
             <Ionicons name="barcode-outline" size={16} color={colors.brand} />
-            <Text className="text-sm font-medium text-primary">Camera</Text>
+            <Text className="text-sm font-medium text-primary">{t('tracker.packaged.camera')}</Text>
           </View>
         </Button>
         <Button
@@ -371,25 +376,25 @@ export function ProductFlow({
         >
           <View className="flex-row items-center gap-1.5">
             <Ionicons name="images-outline" size={16} color={colors.brand} />
-            <Text className="text-sm font-medium text-primary">Photos</Text>
+            <Text className="text-sm font-medium text-primary">{t('tracker.packaged.photos')}</Text>
           </View>
         </Button>
       </View>
       {cameraNotice}
       <View className="gap-1">
         <Text className="text-xs font-medium text-label-secondary">
-          {PACKAGED_PRODUCT_COPY.typeBarcode}
+          {t('tracker.packaged.typeBarcode')}
         </Text>
         <View className="flex-row items-center gap-2">
           <Input
             testID="product-barcode-input"
-            accessibilityLabel={PACKAGED_PRODUCT_COPY.typeBarcode}
+            accessibilityLabel={t('tracker.packaged.typeBarcode')}
             value={typed}
             onChangeText={(text) => {
               setTyped(cleanBarcodeInput(text));
               setError(null);
             }}
-            placeholder="e.g. 5000159484695"
+            placeholder={t('tracker.packaged.barcodePlaceholder')}
             keyboardType="number-pad"
             className="min-w-0 flex-1"
             {...DONE_FIELD_PROPS}
@@ -402,7 +407,7 @@ export function ProductFlow({
             disabled={typed.length < 8}
             onPress={() => void lookupTyped()}
           >
-            {PACKAGED_PRODUCT_COPY.findProduct}
+            {t('tracker.packaged.findProduct')}
           </Button>
         </View>
       </View>
@@ -415,21 +420,14 @@ export function ProductFlow({
           {error}
         </Text>
       )}
-      <Text className="text-xs text-label-secondary">
-        {PACKAGED_PRODUCT_COPY.attribution} (ODbL)
-      </Text>
+      <Text className="text-xs text-label-secondary">{t('tracker.packaged.attributionShort')}</Text>
     </View>
   );
 }
 
-function ScanAnother({
-  label = 'Scan another barcode',
-  onPress,
-}: {
-  label?: string;
-  onPress: () => void;
-}) {
+function ScanAnother({ label, onPress }: { label?: string; onPress: () => void }) {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <Pressable
       testID="product-scan-another"
@@ -438,7 +436,9 @@ function ScanAnother({
       className="min-h-11 flex-row items-center gap-1 self-start"
     >
       <Ionicons name="barcode-outline" size={16} color={colors.brand} />
-      <Text className="text-sm font-medium text-primary">{label}</Text>
+      <Text className="text-sm font-medium text-primary">
+        {label ?? t('tracker.packaged.scanAnother')}
+      </Text>
     </Pressable>
   );
 }

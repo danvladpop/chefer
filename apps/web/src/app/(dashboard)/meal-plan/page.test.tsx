@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setFormatLocale } from '@chefer/utils';
 import MealPlanPage from './page';
 
 // FB7-11 / FB7-04 on the Plan page: no price line, no pantry banner, ONE "Week
@@ -366,5 +368,35 @@ describe('Plan page — a partner in a shared household (ADR 0003)', () => {
     expect(screen.queryByTestId('plan-generate-empty')).toBeNull();
     expect(screen.queryByTestId('plan-regenerate')).toBeNull();
     expect(screen.getByTestId('plan-owner-only').textContent).toContain('Only Dan can do this');
+  });
+});
+
+describe('Plan page — in Romanian (Lane J)', () => {
+  afterEach(() => setFormatLocale(null));
+
+  it('renders the page chrome, the week options button and the weekday headers in Romanian', () => {
+    m.partnerOf = 'Dan';
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <MealPlanPage />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Planificator de mese');
+    expect(screen.getByLabelText('Săptămâna următoare')).toBeTruthy();
+    expect(document.body.textContent).toContain('Luni');
+    expect(document.body.textContent).not.toContain('Monday');
+    expect(screen.getByTestId('household-partner-banner').textContent).toContain('Dan');
+  });
+
+  it('the owner sees Week options and My weeks in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <MealPlanPage />
+      </I18nProvider>,
+    );
+    expect(screen.getByTestId('plan-week-options').textContent).toContain(
+      'Opțiuni pentru săptămână',
+    );
+    expect(screen.getByTestId('plan-my-weeks-link').textContent).toContain('Săptămânile mele');
   });
 });

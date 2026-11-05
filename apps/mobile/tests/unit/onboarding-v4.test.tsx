@@ -8,6 +8,7 @@ import {
 } from '../../src/features/onboarding-v4/draft-store';
 import { OnboardingV4 } from '../../src/features/onboarding-v4/onboarding-v4';
 import { readOnboardingV4Welcome } from '../../src/features/onboarding-v4/welcome-card-store';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // Onboarding V4 (flag `onboardingV4`, docs/onboarding-review-2026-10): the
 // short flow saves through the same procedures as V3 and lands on Today.
@@ -467,6 +468,34 @@ describe('Onboarding V4', () => {
     expect(mockSaveReminders).toHaveBeenCalledWith({ ...REMINDERS.reminders, enabled: false });
     await user.press(screen.getByTestId('onb-v4-continue'));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/(food)'));
+  });
+
+  it('speaks Romanian, up to the mealtime reminders offer', async () => {
+    resetLocaleForTests(['ro-RO']);
+    try {
+      mockPremium = true;
+      const user = await renderFlow();
+      expect(screen.getByText('Ce te aduce aici?')).toBeOnTheScreen();
+      expect(screen.getByText('Să-mi notez mesele')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('onb-v4-job-TRACK'));
+      await user.press(screen.getByTestId('onb-v4-continue'));
+      await screen.findByTestId('onb-v4-goal');
+      expect(screen.getByText('Care e obiectivul tău?')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('onb-v4-goal-GOOD_FOOD'));
+      await user.press(screen.getByTestId('onb-v4-continue'));
+      await screen.findByTestId('onb-v4-aboutYou');
+      expect(screen.getByText('Despre tine')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Vârstă, ani')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('onb-v4-continue'));
+      await screen.findByTestId('onb-v4-safety');
+      expect(screen.getByText('Mănânc de toate')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('onb-v4-continue'));
+      await screen.findByTestId('onb-v4-reminders');
+      expect(screen.getByText('Îți amintim la ora mesei?')).toBeOnTheScreen();
+      expect(screen.getByText('Da, amintește-mi')).toBeOnTheScreen();
+    } finally {
+      resetLocaleForTests(['en-US']);
+    }
   });
 
   it('premium users never see the Premium step', async () => {

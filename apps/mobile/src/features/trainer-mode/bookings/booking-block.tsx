@@ -2,17 +2,12 @@ import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, Line, Pattern, Rect } from 'react-native-svg';
 import { router } from 'expo-router';
-import { BOOKING_COPY, type TrainerBookingDto } from '@chefer/types';
+import type { TrainerBookingDto } from '@chefer/types';
 import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
-import {
-  bookingBlockLabel,
-  bookingTime,
-  bookingWhat,
-  bookingWho,
-  bookingZoneHint,
-  cn,
-} from '@chefer/utils';
+import { bookingTime, bookingWhat, cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trainerBookingHref } from '../open-booking';
+import { bookingBlockLabelText, bookingWhoText, bookingZoneHintText } from './booking-model';
 
 // One booking on the calendar (§6.2): its time, client name(s) ("Maria + 1")
 // and workout; blocked time greyed and hatched; cancelled greyed; the "In
@@ -61,19 +56,20 @@ export function BookingBlock({
   tall: boolean;
 }) {
   const colors = useThemeColors();
+  const tr = useT();
   const blocked = booking.kind === 'BLOCK';
   const cancelled = booking.cancelledAt !== null;
   const muted = blocked || cancelled;
   const startTime = bookingTime(booking.startsAt, zone);
-  const who = bookingWho(booking);
+  const who = bookingWhoText(tr, booking);
   const what = bookingWhat(booking);
-  const hint = bookingZoneHint(booking, zone);
+  const hint = bookingZoneHintText(tr, booking, zone);
   return (
     // MO-01: the block scales on press like every card-sized target.
     <PressableScale
       testID={`schedule-block-${booking.id}`}
       accessibilityRole="button"
-      accessibilityLabel={bookingBlockLabel(booking, zone)}
+      accessibilityLabel={bookingBlockLabelText(tr, booking, zone)}
       onPress={() => router.push(trainerBookingHref(booking.id))}
       className={cn(
         'h-full w-full overflow-hidden rounded-inner border-l-4 px-1.5 py-0.5',
@@ -107,7 +103,7 @@ export function BookingBlock({
           maxFontSizeMultiplier={1.3}
           className="text-caption text-label-secondary"
         >
-          {cancelled ? BOOKING_COPY.schedule.cancelled : what}
+          {cancelled ? tr.t('trainer.bookings.schedule.cancelled') : what}
         </Text>
       ) : null}
       {!compact && tall && hint ? (

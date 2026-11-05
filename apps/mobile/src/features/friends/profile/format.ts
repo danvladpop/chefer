@@ -1,35 +1,28 @@
+import type { Translator } from '@chefer/i18n';
+
 // ─── Following profile: date and label formatting ─────────────────────────────
-// Fixed English labels (no Intl: Hermes' locale data varies by build), the
-// same Mon-first weekday convention as the plan (0 = Monday … 6 = Sunday).
-// Dates from the API are the OWNER's local calendar days (`YYYY-MM-DD`), so
-// they are read as plain calendar dates, never shifted through a time zone.
+// Names come from the `common` catalog tables (no Intl: Hermes' locale data
+// varies by build), the same Mon-first weekday convention as the plan
+// (0 = Monday … 6 = Sunday). Dates from the API are the OWNER's local calendar
+// days (`YYYY-MM-DD`), so they are read as plain calendar dates, never shifted
+// through a time zone.
 
-export const MONTHS_SHORT = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+const MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
 ] as const;
 
-export const WEEKDAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
-
-export const WEEKDAYS_FULL = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-] as const;
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 type CalendarDay = { year: number; month: number; day: number; weekday: number };
 
@@ -47,32 +40,51 @@ export function parseCalendarDay(iso: string): CalendarDay | null {
 }
 
 /** `2026-09-28` → `28 Sep` (the `Week of {d MMM}` fragment). */
-export function formatDayMonth(iso: string): string {
+export function formatDayMonth(iso: string, t: Translator['t']): string {
   const c = parseCalendarDay(iso);
   if (!c) return iso;
-  return `${c.day} ${MONTHS_SHORT[c.month - 1] ?? ''}`.trim();
+  const month = MONTH_KEYS[c.month - 1];
+  if (!month) return iso;
+  return t('friends.format.dayMonth', { day: c.day, month: t(`common.monthsShort.${month}`) });
 }
 
 /** `2026-09-29` → `Tue 29 Sep` (a workout card's date). */
-export function formatWeekdayDayMonth(iso: string): string {
+export function formatWeekdayDayMonth(iso: string, t: Translator['t']): string {
   const c = parseCalendarDay(iso);
   if (!c) return iso;
-  return `${WEEKDAYS_SHORT[c.weekday] ?? ''} ${formatDayMonth(iso)}`.trim();
+  return t('friends.format.weekdayDayMonth', {
+    weekday: weekdayShort(c.weekday, t),
+    dayMonth: formatDayMonth(iso, t),
+  });
 }
 
 /** 0 → `Monday`. */
-export function weekdayFull(dayOfWeek: number): string {
-  return WEEKDAYS_FULL[dayOfWeek] ?? '';
+export function weekdayFull(dayOfWeek: number, t: Translator['t']): string {
+  const key = WEEKDAY_KEYS[dayOfWeek];
+  return key ? t(`common.weekdays.${key}`) : '';
 }
 
 /** 0 → `Mon`. */
-export function weekdayShort(dayOfWeek: number): string {
-  return WEEKDAYS_SHORT[dayOfWeek] ?? '';
+export function weekdayShort(dayOfWeek: number, t: Translator['t']): string {
+  const key = WEEKDAY_KEYS[dayOfWeek];
+  return key ? t(`common.weekdaysShort.${key}`) : '';
 }
 
 /** `lunch` as it reads mid-sentence (`Add to Tue lunch`). */
-export function mealTypeLabel(type: string): string {
-  return type.toLowerCase();
+export function mealTypeLabel(type: string, t: Translator['t']): string {
+  const lower = type.toLowerCase();
+  switch (lower) {
+    case 'breakfast':
+      return t('friends.meal.breakfast');
+    case 'lunch':
+      return t('friends.meal.lunch');
+    case 'dinner':
+      return t('friends.meal.dinner');
+    case 'snack':
+      return t('friends.meal.snack');
+    default:
+      return lower;
+  }
 }
 
 /** Rest in seconds → `2:30` (UX §10 `m:ss`). */

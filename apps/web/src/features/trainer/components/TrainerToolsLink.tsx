@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useOptionalAppMode } from '@/features/nav/mode-context';
+import { useT } from '@/lib/i18n';
 import { ChevronRight, UsersRound } from 'lucide-react';
-import { COACHING_COPY } from '@chefer/types';
 import { useTrainerStatus } from '../use-trainer-status';
 
 /**
@@ -11,6 +11,7 @@ import { useTrainerStatus } from '../use-trainer-status';
  * trainer tools, and gone once trainer mode replaces it (trainer-mode.md §6.9).
  */
 export function TrainerToolsLink() {
+  const { t } = useT();
   const { canBeTrainer, active, displayName } = useTrainerStatus();
   const trainerModeAvailable = useOptionalAppMode()?.trainerModeAvailable ?? false;
   if (trainerModeAvailable || (!canBeTrainer && !active)) return null;
@@ -24,11 +25,11 @@ export function TrainerToolsLink() {
         <UsersRound className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-gray-900">{COACHING_COPY.trainer.title}</span>
+        <span className="block font-semibold text-gray-900">{t('coaching.trainer.title')}</span>
         <span className="block text-sm text-gray-600">
           {active
-            ? `${COACHING_COPY.trainer.clients}${displayName ? ` · ${displayName}` : ''}`
-            : COACHING_COPY.trainer.turnOnTitle}
+            ? `${t('coaching.trainer.clients')}${displayName ? ` · ${displayName}` : ''}`
+            : t('coaching.trainer.turnOnTitle')}
         </span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />

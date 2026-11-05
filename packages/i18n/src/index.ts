@@ -12,6 +12,7 @@ export {
 } from './resolve';
 export { roReviewStatus, type ReviewStatus } from './review-status';
 export { createTranslator, type Translator } from './translator';
+export { monthsShort } from './months';
 export type {
   Catalog,
   MessageKey,

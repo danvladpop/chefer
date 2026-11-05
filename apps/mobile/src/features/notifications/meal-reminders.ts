@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { MealReminders, PlanSlot } from '@chefer/types';
-import { MEAL_REMINDER_NOTIFICATION, mealReminderMoments } from '@chefer/utils';
+import { mealReminderMoments } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
 import { hasGymReminderPermission } from '../gym/reminders/permission';
 
 // Meal-time reminders (market review 2026-10, lane E1): one LOCAL notification
@@ -81,17 +82,21 @@ export function syncMealReminders({
     const moments = mealReminderMoments(now, reminders, planDays, doneToday);
     if (moments.length === 0) return;
     if (!(await hasGymReminderPermission())) return;
+    // Text in the UI language at scheduling time; a language change re-plans
+    // the window (use-meal-reminders.ts), so pending reminders follow it.
+    const { t } = getTranslator();
     try {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-          name: 'Mealtime reminders',
+          name: t('today.engagement.reminderSettings.channel'),
           importance: Notifications.AndroidImportance.DEFAULT,
         });
       }
       for (const { slot, at } of moments) {
         await Notifications.scheduleNotificationAsync({
           content: {
-            ...MEAL_REMINDER_NOTIFICATION[slot],
+            title: t(`today.reminders.notification.${slot}.title`),
+            body: t(`today.reminders.notification.${slot}.body`),
             sound: false,
             data: { app: MEAL_REMINDER_APP_TAG, slot },
           },

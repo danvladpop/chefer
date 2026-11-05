@@ -1,15 +1,12 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
+import type { AiConsentFeature } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
-import {
-  aiConsentBackupLine,
-  aiConsentIntro,
-  needsAiDataConsent,
-  onAiConsentRequired,
-} from '@chefer/utils';
+import { needsAiDataConsent, onAiConsentRequired } from '@chefer/utils';
+import { aiConsentBackupLine, aiConsentFeatureLines, aiConsentIntro } from './ai-consent-copy';
 import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
@@ -51,10 +48,11 @@ export function useAiConsentOpen(): boolean {
 }
 
 export function AiConsentProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { data: me } = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
   const providers = useAiProviderDisclosure();
-  const backupLine = aiConsentBackupLine(providers);
+  const backupLine = aiConsentBackupLine(t, providers);
   const [pending, setPending] = useState<{ feature: AiConsentFeature; run: () => void } | null>(
     null,
   );
@@ -128,44 +126,44 @@ export function AiConsentProvider({ children }: { children: React.ReactNode }) {
       <Sheet
         open={pending !== null}
         onClose={close}
-        title={AI_CONSENT_COPY.title}
+        title={t('consent.ai.title')}
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={close} data-testid="ai-consent-not-now">
-              {AI_CONSENT_COPY.notNow}
+              {t('consent.ai.notNow')}
             </Button>
             <Button onClick={allow} disabled={grant.isPending} data-testid="ai-consent-allow">
-              {grant.isPending ? AI_CONSENT_COPY.saving : AI_CONSENT_COPY.allow}
+              {grant.isPending ? t('consent.ai.saving') : t('consent.ai.allow')}
             </Button>
           </div>
         }
       >
         <div className="space-y-3 px-5 pb-2 text-sm text-gray-700" data-testid="ai-consent-sheet">
-          <p>{aiConsentIntro(feature, providers)}</p>
+          <p>{aiConsentIntro(t, feature, providers)}</p>
           <div>
-            <h3 className="font-semibold text-gray-900">{AI_CONSENT_COPY.sentHeading}</h3>
+            <h3 className="font-semibold text-gray-900">{t('consent.ai.sentHeading')}</h3>
             <ul className="mt-1 list-disc space-y-1 pl-5">
-              {AI_CONSENT_FEATURE_DATA[feature].data.map((line) => (
+              {aiConsentFeatureLines(t, feature).map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
           </div>
-          <p className="font-medium text-gray-900">{AI_CONSENT_COPY.noTraining}</p>
+          <p className="font-medium text-gray-900">{t('consent.ai.noTraining')}</p>
           {backupLine && <p>{backupLine}</p>}
-          <p>{AI_CONSENT_COPY.control}</p>
+          <p>{t('consent.ai.control')}</p>
           <p>
             <a
-              href={AI_CONSENT_COPY.privacyPath}
+              href="/privacy"
               target="_blank"
               rel="noreferrer"
               className="touch-target relative text-[#944a00] underline underline-offset-4"
             >
-              {AI_CONSENT_COPY.privacyLabel}
+              {t('consent.ai.privacyLabel')}
             </a>
           </p>
           {grant.isError && (
             <p role="alert" className="text-red-700">
-              {AI_CONSENT_COPY.saveError}
+              {t('consent.ai.saveError')}
             </p>
           )}
         </div>

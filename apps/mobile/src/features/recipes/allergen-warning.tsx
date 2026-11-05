@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, conflictHeadline, type ConflictLike } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 
 // Mirrors apps/web/src/features/recipes/components/AllergenWarning.tsx: shown
 // wherever a recipe conflicts with the viewer's allergies or dietary
@@ -19,6 +20,7 @@ export function AllergenWarningBanner({
   details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   if (!warnings || warnings.length === 0) return null;
   const headline = conflictHeadline(warnings, details);
@@ -33,8 +35,8 @@ export function AllergenWarningBanner({
     >
       <Ionicons name="warning" size={16} color={colors.danger} style={{ marginTop: 2 }} />
       <Text className="min-w-0 flex-1 text-subhead text-danger">
-        <Text className="text-subhead font-semibold text-danger">{headline}.</Text> This recipe
-        conflicts with your allergies or diet — check the ingredients or swap it.
+        <Text className="text-subhead font-semibold text-danger">{headline}.</Text>{' '}
+        {t('recipes.allergen.banner')}
       </Text>
     </View>
   );

@@ -1,12 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Keyboard, RefreshControl, View } from 'react-native';
-import {
-  BOOKING_COPY,
-  COACHING_COPY,
-  COACHING_LIMITS,
-  TRAINER_MODE_COPY,
-  TRAINER_MODE_LIMITS,
-} from '@chefer/types';
+import type { MessageKey } from '@chefer/i18n';
+import { COACHING_LIMITS, TRAINER_MODE_LIMITS } from '@chefer/types';
 import {
   EmptyState,
   ErrorState,
@@ -20,6 +15,7 @@ import {
 } from '@chefer/ui-mobile';
 import { filterClients, sortClients, type ClientSort } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
@@ -36,26 +32,29 @@ import { useTrainerBadges } from '../use-trainer-mode';
 // "Invite a client" sits in the top bar and opens the invite flow as a sheet.
 // Turning tools off and the profile moved to trainer You (§6.8).
 
-const COPY = TRAINER_MODE_COPY.clients;
-
 /** M3 (§6.4): "Next booking" joins the sorts (soonest first, none last). */
 
 const SORT_OPTIONS = [
-  { value: 'name', label: COPY.sortName, testID: 'trainer-clients-sort-name' },
+  { value: 'name', labelKey: 'trainer.clients.sortName', testID: 'trainer-clients-sort-name' },
   {
     value: 'lastWorkout',
-    label: COPY.sortLastWorkout,
+    labelKey: 'trainer.clients.sortLastWorkout',
     testID: 'trainer-clients-sort-last-workout',
   },
   {
     value: 'nextBooking',
-    label: BOOKING_COPY.today.nextBooking,
+    labelKey: 'trainer.bookings.today.nextBooking',
     testID: 'trainer-clients-sort-next-booking',
   },
-] as const satisfies readonly { value: ClientSort; label: string; testID: string }[];
+] as const satisfies readonly { value: ClientSort; labelKey: MessageKey; testID: string }[];
 
 export function ClientsScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
+  const sortOptions = SORT_OPTIONS.map(({ labelKey, ...option }) => ({
+    ...option,
+    label: t(labelKey),
+  }));
   const [inviteOpen, setInviteOpen] = useState(false);
   const utils = trpc.useUtils();
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() });
@@ -86,7 +85,7 @@ export function ClientsScreen() {
   const invite = (
     <IconButton
       testID="trainer-clients-invite"
-      accessibilityLabel={TRAINER_MODE_COPY.today.inviteClient}
+      accessibilityLabel={t('trainer.today.inviteClient')}
       variant="tinted"
       icon={<Icon name="invite" color={colors.brand} />}
       onPress={() => setInviteOpen(true)}
@@ -94,7 +93,9 @@ export function ClientsScreen() {
   );
 
   return (
-    <ShellChromeProvider value={{ kind: 'tab-root', title: COPY.title, actions: invite }}>
+    <ShellChromeProvider
+      value={{ kind: 'tab-root', title: t('trainer.clients.title'), actions: invite }}
+    >
       <Screen className="bg-canvas px-0" testID="trainer-clients">
         <KeyboardAwareScrollView
           testID="trainer-clients-scroll"
@@ -116,10 +117,10 @@ export function ClientsScreen() {
             <EmptyState
               testID="trainer-clients-empty"
               icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
-              title={COACHING_COPY.trainer.clientsEmpty}
-              description={COACHING_COPY.trainer.turnOnBody}
+              title={t('coaching.trainer.clientsEmpty')}
+              description={t('coaching.trainer.turnOnBody')}
               action={{
-                label: TRAINER_MODE_COPY.today.inviteClient,
+                label: t('trainer.today.inviteClient'),
                 testID: 'trainer-clients-empty-invite',
                 onPress: () => setInviteOpen(true),
               }}
@@ -127,13 +128,16 @@ export function ClientsScreen() {
           ) : (
             <View className="gap-3">
               <Text testID="trainer-clients-capacity" className="text-subhead text-label-secondary">
-                {COPY.capacity(rows.length, COACHING_LIMITS.maxActiveClients)}
+                {t('trainer.clients.capacity', {
+                  n: rows.length,
+                  count: COACHING_LIMITS.maxActiveClients,
+                })}
               </Text>
               {searchable ? (
                 <SearchField
                   testID="trainer-clients-search"
-                  accessibilityLabel={COPY.search}
-                  placeholder={COPY.search}
+                  accessibilityLabel={t('trainer.clients.search')}
+                  placeholder={t('trainer.clients.search')}
                   value={query}
                   onChangeText={setQuery}
                   onSubmitEditing={() => Keyboard.dismiss()}
@@ -142,9 +146,9 @@ export function ClientsScreen() {
               {rows.length > 1 ? (
                 <SegmentedControl
                   testID="trainer-clients-sort"
-                  accessibilityLabel={COPY.sortLabel}
+                  accessibilityLabel={t('trainer.clients.sortLabel')}
                   size="xs"
-                  options={SORT_OPTIONS}
+                  options={sortOptions}
                   value={sort}
                   onChange={setSort}
                 />
@@ -154,7 +158,7 @@ export function ClientsScreen() {
                   testID="trainer-clients-search-empty"
                   className="py-6 text-center text-subhead text-label-secondary"
                 >
-                  {COPY.searchEmpty(query.trim())}
+                  {t('trainer.clients.searchEmpty', { query: query.trim() })}
                 </Text>
               ) : (
                 shown.map((row) => <ClientRow key={row.clientId} row={row} />)

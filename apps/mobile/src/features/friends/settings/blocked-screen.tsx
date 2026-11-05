@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
+import type { FriendUserSummary } from '@chefer/types';
 import {
   duration,
   EmptyState,
@@ -12,6 +12,7 @@ import {
   useReducedMotion,
   useThemeColors,
 } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
 import { FriendsGate } from '../components/friends-gate';
@@ -29,6 +30,7 @@ import { SettingsTopBar } from './settings-screen';
 // 11 Oct restyle: the shell's top bar, canvas and colour roles.
 
 function BlockedBody() {
+  const { t } = useT();
   const query = trpc.friends.blocked.useInfiniteQuery(
     {},
     { getNextPageParam: (last) => last.nextCursor ?? undefined },
@@ -53,7 +55,7 @@ function BlockedBody() {
     return (
       <ErrorState
         testID="friends-blocked-error"
-        title={FRIENDS_COPY.home.sectionError('list')}
+        title={t('friends.home.sectionError.list')}
         onRetry={() => void query.refetch()}
       />
     );
@@ -80,7 +82,7 @@ function BlockedBody() {
           <EmptyState
             testID="friends-blocked-empty"
             icon={<Ionicons name="ban-outline" size={40} color={colors.labelTertiary} />}
-            title={FRIENDS_COPY.blocked.empty}
+            title={t('friends.blocked.empty')}
           />
         }
         renderItem={({ item }) => (
@@ -92,9 +94,9 @@ function BlockedBody() {
               trailing={
                 <TrainButton
                   testID={`friends-blocked-unblock-${item.id}`}
-                  label={FRIENDS_COPY.unblock.cta}
+                  label={t('friends.unblock.cta')}
                   variant="outline"
-                  accessibilityLabel={`${FRIENDS_COPY.unblock.cta} ${item.displayName}`}
+                  accessibilityLabel={t('friends.blocked.unblockLabel', { name: item.displayName })}
                   onPress={() => {
                     setTarget(item);
                     setVisible(true);
@@ -118,11 +120,12 @@ function BlockedBody() {
 }
 
 export function FriendsBlockedScreen() {
+  const { t } = useT();
   return (
     <FriendsGate>
       <Screen testID="friends-blocked" className="bg-canvas px-0">
         <SettingsTopBar
-          title={FRIENDS_SCREEN_TITLES.blocked}
+          title={t(FRIENDS_SCREEN_TITLES.blocked)}
           fallback="/friends/settings"
           testID="friends-blocked-header"
         />

@@ -13,6 +13,7 @@ import {
   buildReviewUserPrompt,
   buildRewriteProseUserPrompt,
   buildSwapUserPrompt,
+  buildTranslateRecipeUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
@@ -30,6 +31,7 @@ import {
   REVIEW_SYSTEM_PROMPT,
   REWRITE_PROSE_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
+  translateRecipeSystemPrompt,
 } from './prompts.js';
 import {
   annotatedExtractionSchema,
@@ -42,6 +44,7 @@ import {
   parseMealPhotoResponse,
   parseNutritionLabelResponse,
   recipeLineRepairResponseSchema,
+  recipeTranslationDraftSchema,
   rewrittenProseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
@@ -67,6 +70,8 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
+  RecipeTranslationDraft,
+  RecipeTranslationInput,
   RewrittenProse,
   SwapInput,
   WeekPlanResponse,
@@ -258,6 +263,18 @@ const ANNOTATED_EXTRACTION_SCHEMA: Schema = {
     assumptions: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
   required: ['recipe', 'confidence', 'assumptions'],
+};
+
+/** Lane J phase 3: the translated text of one recipe (ADR 0004). */
+const RECIPE_TRANSLATION_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    description: { type: Type.STRING },
+    instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
+    ingredientNames: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ['name', 'description', 'instructions', 'ingredientNames'],
 };
 
 const REWRITTEN_PROSE_SCHEMA: Schema = {
@@ -1099,5 +1116,31 @@ export class GeminiAIService implements IAIService {
     const text = response.text?.trim();
     if (!text) throw new Error('GeminiAIService: empty review text');
     return text;
+  }
+  async translateRecipe(input: RecipeTranslationInput): Promise<RecipeTranslationDraft> {
+    const response = await this.generateWithRetry(
+      {
+        model: this.models.main,
+        contents: buildTranslateRecipeUserPrompt(input),
+        config: {
+          systemInstruction: translateRecipeSystemPrompt(input.locale),
+          responseMimeType: 'application/json',
+          responseSchema: RECIPE_TRANSLATION_SCHEMA,
+          temperature: 0.3,
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      },
+      'translateRecipe',
+    );
+    const raw = response.text;
+    if (!raw) throw new Error('GeminiAIService: empty response from translateRecipe');
+    const parsed = recipeTranslationDraftSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) {
+      throw new Error(
+        `GeminiAIService: translateRecipe response failed validation — ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
   }
 }

@@ -5,14 +5,15 @@ import { ConfirmSheet, NumericReturnBar, Text, useThemeColors } from '@chefer/ui
 import {
   bodyWeightInUnit,
   formatBodyWeight,
-  formatDate,
   parseBodyWeight,
   userFacingErrorMessage,
   type UnitSystem,
 } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useHealthConsent, type RequestHealthConsent } from '../privacy/use-health-consent';
+import { weightErrorText } from './coach-copy';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1) — mobile counterpart of web
 // features/coach/WeightEntriesList. Hosted on /progress (as on web) and, for
@@ -30,6 +31,8 @@ function EntryRow({
   requestHealthConsent: RequestHealthConsent;
 }) {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const [editing, setEditing] = useState(false);
   // R-21: iOS's decimal-pad has no Done key — the shared accessory bar gives it
   // one (unique per row so the native ids never collide).
@@ -65,12 +68,12 @@ function EntryRow({
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
-  const dateLabel = formatDate(new Date(entry.recordedAt), 'weekday-short');
+  const dateLabel = tr.date(new Date(entry.recordedAt), 'weekday-short');
 
   const save = () => {
     const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(weightErrorText(tr, parsed.error));
       return;
     }
     setError(null);
@@ -105,7 +108,11 @@ function EntryRow({
             onSubmitEditing={save}
             inputAccessoryViewID={barId}
             keyboardType="decimal-pad"
-            accessibilityLabel={`Weight on ${dateLabel} in ${system === 'IMPERIAL' ? 'pounds' : 'kilograms'}`}
+            accessibilityLabel={
+              system === 'IMPERIAL'
+                ? t('today.progress.entries.inputLb', { date: dateLabel })
+                : t('today.progress.entries.inputKg', { date: dateLabel })
+            }
             className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         ) : (
@@ -114,7 +121,11 @@ function EntryRow({
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'save' : 'edit'}`}
           accessibilityRole="button"
-          accessibilityLabel={editing ? 'Save weight' : `Edit ${weightLabel} on ${dateLabel}`}
+          accessibilityLabel={
+            editing
+              ? t('today.progress.entries.save')
+              : t('today.progress.entries.edit', { weight: weightLabel, date: dateLabel })
+          }
           disabled={update.isPending}
           onPress={editing ? save : () => setEditing(true)}
           className="h-11 w-11 items-center justify-center"
@@ -128,7 +139,11 @@ function EntryRow({
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'cancel' : 'delete'}`}
           accessibilityRole="button"
-          accessibilityLabel={editing ? 'Cancel editing' : `Delete ${weightLabel} on ${dateLabel}`}
+          accessibilityLabel={
+            editing
+              ? t('today.progress.entries.cancel')
+              : t('today.progress.entries.delete', { weight: weightLabel, date: dateLabel })
+          }
           disabled={remove.isPending}
           onPress={
             editing
@@ -152,7 +167,7 @@ function EntryRow({
         <NumericReturnBar
           nativeID={barId}
           testID={`weight-entry-${entry.id}-numeric-bar`}
-          label="Done"
+          label={t('common.actions.done')}
           onPress={() => Keyboard.dismiss()}
         />
       )}
@@ -161,10 +176,10 @@ function EntryRow({
         testID={`weight-entry-${entry.id}-delete-confirm`}
         visible={confirmingDelete}
         onClose={() => setConfirmingDelete(false)}
-        title="Delete weigh-in?"
-        body={`${weightLabel} on ${dateLabel}`}
-        confirmLabel="Delete"
-        cancelLabel="Keep"
+        title={t('today.progress.entries.confirmTitle')}
+        body={t('today.progress.entries.confirmBody', { weight: weightLabel, date: dateLabel })}
+        confirmLabel={t('common.actions.delete')}
+        cancelLabel={t('today.progress.entries.keep')}
         destructive
         busy={remove.isPending}
         error={confirmingDelete ? error : null}

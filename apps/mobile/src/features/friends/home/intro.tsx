@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import {
-  FRIENDS_COPY,
   LEGAL_VERSIONS,
   type ActivateResultDto,
   type FriendsMeDto,
@@ -25,12 +25,14 @@ import {
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { openLegal } from '../../legal/open-legal';
 import { textRejectedOf } from '../api/friends-errors';
 import { useIsOnline } from '../api/use-is-online';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
+import { turnOnSectionsList } from '../settings/shared-sections';
 
 // ─── Turn on Following (UX §4.1, PRD FR-02, E1) ───────────────────────────────
 // `/friends` for someone who hasn't turned Following on. Nothing is stored
@@ -42,16 +44,16 @@ import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 // BAD_REQUEST + `data.textRejected: 'name'` shows `intro.nameRejected` under
 // the fields. No email field, no email copy — people are found by name only.
 
-/** What the Public confirm lists as shared on turn-on (plan, recipes, workouts are on by default). */
-const PUBLIC_CONFIRM_SECTIONS = 'meals, recipes and workouts';
-
-const PUBLIC_CONFIRM: ConfirmCopy = {
-  title: FRIENDS_COPY.public.confirm.title,
-  body: FRIENDS_COPY.public.confirm.body(PUBLIC_CONFIRM_SECTIONS),
-  confirmLabel: FRIENDS_COPY.public.confirm.cta,
-  cancelLabel: FRIENDS_COPY.common.cancel,
-  destructive: false,
-};
+/** The Public confirm; it lists what is shared on turn-on (plan, recipes, workouts are on by default). */
+function publicConfirmCopy(t: Translator['t']): ConfirmCopy {
+  return {
+    title: t('friends.public.confirm.title'),
+    body: t('friends.public.confirm.body', { sections: turnOnSectionsList(t) }),
+    confirmLabel: t('friends.public.confirm.cta'),
+    cancelLabel: t('friends.common.cancel'),
+    destructive: false,
+  };
+}
 
 export type FriendsIntroProps = {
   me: FriendsMeDto;
@@ -61,13 +63,13 @@ export type FriendsIntroProps = {
 
 type NameErrors = { first?: string; last?: string };
 
-function validateNames(first: string, last: string): NameErrors {
+function validateNames(first: string, last: string, t: Translator['t']): NameErrors {
   const errors: NameErrors = {};
   if (first.trim().length < 1 || first.trim().length > 50) {
-    errors.first = FRIENDS_COPY.intro.firstNameError;
+    errors.first = t('friends.intro.firstNameError');
   }
   if (last.trim().length < 1 || last.trim().length > 50) {
-    errors.last = FRIENDS_COPY.intro.lastNameError;
+    errors.last = t('friends.intro.lastNameError');
   }
   return errors;
 }
@@ -109,6 +111,7 @@ function VisibilityCard({
 
 function IntroForm({ me, onActivated }: FriendsIntroProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const activate = trpc.friends.activate.useMutation({ meta: { silent: true } });
   const online = useIsOnline();
@@ -123,7 +126,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
   const [failed, setFailed] = useState(false);
   const [publicConfirm, setPublicConfirm] = useState(false);
 
-  const errors = attempted ? validateNames(firstName, lastName) : {};
+  const errors = attempted ? validateNames(firstName, lastName, t) : {};
   const busy = activate.isPending;
 
   const submit = async (chosen: ProfileVisibility) => {
@@ -156,7 +159,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
   const turnOn = () => {
     if (busy) return;
     setAttempted(true);
-    const problems = validateNames(firstName, lastName);
+    const problems = validateNames(firstName, lastName, t);
     if (problems.first || problems.last) {
       haptics.error();
       return;
@@ -185,7 +188,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
               accessibilityRole="alert"
               className="pb-1 text-center text-sm text-destructive"
             >
-              {FRIENDS_COPY.intro.error}
+              {t('friends.intro.error')}
             </Text>
           ) : null}
           <Button
@@ -193,10 +196,10 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
             size="lg"
             loading={busy}
             disabled={!online}
-            accessibilityHint={online ? undefined : FRIENDS_COPY.offline.needsConnection}
+            accessibilityHint={online ? undefined : t('friends.offline.needsConnection')}
             onPress={turnOn}
           >
-            {FRIENDS_COPY.intro.cta}
+            {t('friends.intro.cta')}
           </Button>
           <Button
             testID="friends-intro-not-now"
@@ -204,21 +207,21 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
             disabled={busy}
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           >
-            {FRIENDS_COPY.intro.notNow}
+            {t('friends.intro.notNow')}
           </Button>
         </View>
       }
     >
       <View className="gap-2">
         <Text accessibilityRole="header" variant="title" className="text-xl">
-          {FRIENDS_COPY.intro.title}
+          {t('friends.intro.title')}
         </Text>
-        <Text variant="muted">{FRIENDS_COPY.intro.body}</Text>
+        <Text variant="muted">{t('friends.intro.body')}</Text>
       </View>
 
       <View className="gap-3">
         <Text accessibilityRole="header" variant="muted" className="text-xs uppercase">
-          {FRIENDS_COPY.intro.nameHeading}
+          {t('friends.intro.nameHeading')}
         </Text>
         <View className="flex-row items-start gap-3">
           <View className="pt-6">
@@ -226,7 +229,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           </View>
           <FormField
             testID="friends-intro-first"
-            label={FRIENDS_COPY.intro.firstName}
+            label={t('friends.intro.firstName')}
             required
             error={errors.first}
             className="min-w-0 flex-1"
@@ -243,9 +246,9 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
               textContentType="givenName"
               returnKeyType="next"
               maxLength={50}
-              accessibilityLabel={FRIENDS_COPY.intro.firstName}
+              accessibilityLabel={t('friends.intro.firstName')}
               accessibilityHint={
-                errors.first ?? (nameRejected ? FRIENDS_COPY.intro.nameRejected : undefined)
+                errors.first ?? (nameRejected ? t('friends.intro.nameRejected') : undefined)
               }
               onSubmitEditing={() => lastRef.current?.focus()}
               submitBehavior="submit"
@@ -253,7 +256,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           </FormField>
           <FormField
             testID="friends-intro-last"
-            label={FRIENDS_COPY.intro.lastName}
+            label={t('friends.intro.lastName')}
             required
             error={errors.last}
             className="min-w-0 flex-1"
@@ -271,9 +274,9 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
               textContentType="familyName"
               {...DONE_FIELD_PROPS}
               maxLength={50}
-              accessibilityLabel={FRIENDS_COPY.intro.lastName}
+              accessibilityLabel={t('friends.intro.lastName')}
               accessibilityHint={
-                errors.last ?? (nameRejected ? FRIENDS_COPY.intro.nameRejected : undefined)
+                errors.last ?? (nameRejected ? t('friends.intro.nameRejected') : undefined)
               }
               onFocus={() => scrollIntoView(lastRef.current)}
             />
@@ -286,24 +289,24 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
             accessibilityLiveRegion="polite"
             className="text-sm text-destructive"
           >
-            {FRIENDS_COPY.intro.nameRejected}
+            {t('friends.intro.nameRejected')}
           </Text>
         ) : null}
       </View>
 
       <View className="gap-2" accessibilityRole="radiogroup">
         <Text accessibilityRole="header" variant="muted" className="text-xs uppercase">
-          {FRIENDS_COPY.intro.whoHeading}
+          {t('friends.intro.whoHeading')}
         </Text>
         <VisibilityCard
           testID="friends-intro-visibility-private"
-          label={FRIENDS_COPY.visibility.private}
+          label={t('friends.visibility.private')}
           checked={visibility === 'PRIVATE'}
           onPress={() => setVisibility('PRIVATE')}
         />
         <VisibilityCard
           testID="friends-intro-visibility-public"
-          label={FRIENDS_COPY.visibility.public}
+          label={t('friends.visibility.public')}
           checked={visibility === 'PUBLIC'}
           onPress={() => setVisibility('PUBLIC')}
         />
@@ -311,35 +314,35 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
 
       <View className="gap-2">
         <Text accessibilityRole="header" variant="muted" className="text-xs uppercase">
-          {FRIENDS_COPY.intro.whatHeading}
+          {t('friends.intro.whatHeading')}
         </Text>
         {[
-          FRIENDS_COPY.intro.what.plan,
-          FRIENDS_COPY.intro.what.recipes,
-          FRIENDS_COPY.intro.what.workouts,
+          t('friends.intro.what.plan'),
+          t('friends.intro.what.recipes'),
+          t('friends.intro.what.workouts'),
         ].map((line) => (
           <View key={line} className="flex-row items-start gap-2">
             <Ionicons name="checkmark" size={18} color={colors.brand} />
             <Text className="min-w-0 flex-1">{line}</Text>
           </View>
         ))}
-        <Text variant="muted">{FRIENDS_COPY.intro.what.change}</Text>
+        <Text variant="muted">{t('friends.intro.what.change')}</Text>
       </View>
 
       <View className="gap-2">
         <Text accessibilityRole="header" variant="muted" className="text-xs uppercase">
-          {FRIENDS_COPY.intro.neverHeading}
+          {t('friends.intro.neverHeading')}
         </Text>
-        <Text variant="muted">{FRIENDS_COPY.intro.never}</Text>
-        <Text variant="muted">{FRIENDS_COPY.intro.findable}</Text>
+        <Text variant="muted">{t('friends.intro.never')}</Text>
+        <Text variant="muted">{t('friends.intro.findable')}</Text>
         <PressableScale
           testID="friends-intro-policy"
           accessibilityRole="link"
-          accessibilityLabel={FRIENDS_COPY.intro.policy}
+          accessibilityLabel={t('friends.intro.policy')}
           onPress={() => openLegal('privacy')}
           className="min-h-11 flex-row items-center gap-1 self-start"
         >
-          <Text className="text-sm font-medium text-primary">{FRIENDS_COPY.intro.policy}</Text>
+          <Text className="text-sm font-medium text-primary">{t('friends.intro.policy')}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.brand} />
         </PressableScale>
       </View>
@@ -347,7 +350,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
       <FriendsConfirmSheet
         testID="friends-intro-public-confirm"
         visible={publicConfirm}
-        copy={PUBLIC_CONFIRM}
+        copy={publicConfirmCopy(t)}
         onClose={() => setPublicConfirm(false)}
         onConfirm={() => true}
         // Chained: the activation starts only once the confirm is fully gone.
@@ -358,9 +361,10 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
 }
 
 export function FriendsIntro(props: FriendsIntroProps) {
+  const { t } = useT();
   return (
     <Screen testID="friends-intro" edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <FriendsScreenHeader title={FRIENDS_COPY.home.title} testID="friends-intro-header" />
+      <FriendsScreenHeader title={t('friends.home.title')} testID="friends-intro-header" />
       <IntroForm {...props} />
     </Screen>
   );

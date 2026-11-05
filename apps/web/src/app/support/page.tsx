@@ -1,113 +1,93 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { aiProviderNames } from '@/features/ai-consent/provider-names';
 import { StoreBadges, StoreTrademarks } from '@/features/app-stores/components/StoreBadges';
 import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { fetchAiProviderDisclosure } from '@/lib/ai-providers';
-import { SUPPORT_EMAIL, type AiProviderDisclosure } from '@chefer/types';
-import { aiDisclosureProviders, formatAiProviderNames } from '@chefer/utils';
+import { rich } from '@/lib/i18n/rich';
+import { getServerTranslator } from '@/lib/i18n/server';
+import { SUPPORT_EMAIL } from '@chefer/types';
+import { aiDisclosureProviders } from '@chefer/utils';
 
-export const metadata: Metadata = {
-  ...smartAppBanner(),
-  title: 'Help & Support',
-  description: 'How to get help with Chefer: contact, password reset, account deletion and AI.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return {
+    ...smartAppBanner(),
+    title: t('legal.support.metaTitle'),
+    description: t('legal.support.metaDescription'),
+  };
+}
 
 // Public support page — the Support URL App Store Connect requires. No auth
 // (not in middleware.ts PROTECTED_ROUTES); same look as /privacy and /terms.
 
 const linkClass = 'touch-target relative text-[#944a00] underline underline-offset-4';
 
-const faq = (ai: AiProviderDisclosure): { q: string; a: React.ReactNode }[] => [
-  {
-    q: 'How do I reset my password?',
-    a: (
-      <>
-        On the sign-in screen, tap <em>Forgot password?</em> and enter your email. We send a link
-        that lets you choose a new password; it expires after a short while, so use it soon. No
-        email? Check your spam folder, or write to us.
-      </>
-    ),
-  },
-  {
-    q: 'How do I delete my account?',
-    a: (
-      <>
-        Go to <em>Profile → Delete account</em>, on the web or in the app. Confirm with your
-        password and type DELETE. Your account and all of its data — preferences, plans, logs,
-        recipes, workouts and household — are removed straight away and you are signed out on every
-        device. This can&apos;t be undone. Want a copy first? Use{' '}
-        <em>Profile → Your data → Download my data</em>. See the{' '}
-        <Link href="/privacy" className={linkClass}>
-          privacy policy
-        </Link>{' '}
-        for how long backups keep a copy.
-      </>
-    ),
-  },
-  {
-    q: 'How does Chefer use AI?',
-    a: (
-      <>
-        Premium meal plans and swaps, meal-photo scanning, recipe import, the AI chef chat and the
-        AI shopping-list tidy-up send the data each one needs (for example your preferences and
-        allergies, goals and body metrics, or the photo or message you submitted) to{' '}
-        {formatAiProviderNames(aiDisclosureProviders(ai))} to produce the result. We ask for your
-        permission before the first one runs, and you can turn it off at any time in{' '}
-        <em>Profile → AI &amp; your data</em>. Your data is not used to train AI models. AI output
-        can be wrong — always check ingredients against your allergies.
-      </>
-    ),
-  },
-  {
-    q: 'Is Premium free?',
-    a: <>Yes. Every Premium feature is free to use, and Chefer never takes payment details.</>,
-  },
-];
-
 export default async function SupportPage() {
-  const FAQ = faq(await fetchAiProviderDisclosure());
+  const { t } = await getServerTranslator();
+  const ai = await fetchAiProviderDisclosure();
+  const faq: { q: string; a: React.ReactNode }[] = [
+    { q: t('legal.support.faq.resetQ'), a: rich(t, 'legal.support.faq.resetA') },
+    {
+      q: t('legal.support.faq.deleteQ'),
+      a: rich(t, 'legal.support.faq.deleteA', {
+        privacy: (
+          <Link href="/privacy" className={linkClass}>
+            {t('legal.support.faq.deletePrivacyLink')}
+          </Link>
+        ),
+      }),
+    },
+    {
+      q: t('legal.support.faq.aiQ'),
+      a: rich(
+        t,
+        'legal.support.faq.aiA',
+        {},
+        { providers: aiProviderNames(aiDisclosureProviders(ai), t) },
+      ),
+    },
+    { q: t('legal.support.faq.premiumQ'), a: t('legal.support.faq.premiumA') },
+  ];
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="font-serif text-3xl font-semibold text-gray-900">Help &amp; Support</h1>
-      <p className="mt-2 text-sm text-gray-500">Chefer · last updated 26 September 2026</p>
+      <h1 className="font-serif text-3xl font-semibold text-gray-900">
+        {t('legal.support.title')}
+      </h1>
+      <p className="mt-2 text-sm text-gray-500">{t('legal.support.updated')}</p>
 
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-gray-700">
         <section>
-          <h2 className="mb-1 font-semibold text-gray-900">What Chefer is</h2>
-          <p>
-            Chefer plans a week of meals around your goals and allergies, prices the shopping list,
-            tracks what you eat and plans your gym training. It runs on the web and in the Chefer
-            app, with one account for both.
-          </p>
+          <h2 className="mb-1 font-semibold text-gray-900">{t('legal.support.what.title')}</h2>
+          <p>{t('legal.support.what.p1')}</p>
         </section>
 
         <section>
-          <h2 className="mb-1 font-semibold text-gray-900">Get the app</h2>
-          <p>Sign in with the same account you use on the web.</p>
+          <h2 className="mb-1 font-semibold text-gray-900">{t('legal.support.app.title')}</h2>
+          <p>{t('legal.support.app.p1')}</p>
           <StoreBadges campaign="support" className="mt-1 justify-start" />
         </section>
 
         <section>
-          <h2 className="mb-1 font-semibold text-gray-900">Get help</h2>
+          <h2 className="mb-1 font-semibold text-gray-900">{t('legal.support.help.title')}</h2>
           <ul className="list-disc space-y-1 pl-5">
+            <li>{rich(t, 'legal.support.help.i1')}</li>
             <li>
-              In the app: <em>Send feedback</em> (in the menu on the web, under <em>More</em> in the
-              app). A person reads every note.
-            </li>
-            <li>
-              By email:{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className={linkClass}>
-                {SUPPORT_EMAIL}
-              </a>
-              . Include the email address you signed up with so we can find your account.
+              {rich(t, 'legal.support.help.i2', {
+                email: (
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className={linkClass}>
+                    {SUPPORT_EMAIL}
+                  </a>
+                ),
+              })}
             </li>
           </ul>
         </section>
 
         <section>
-          <h2 className="mb-2 font-semibold text-gray-900">Frequently asked questions</h2>
+          <h2 className="mb-2 font-semibold text-gray-900">{t('legal.support.faq.title')}</h2>
           <div className="space-y-4">
-            {FAQ.map(({ q, a }) => (
+            {faq.map(({ q, a }) => (
               <div key={q}>
                 <h3 className="font-medium text-gray-900">{q}</h3>
                 <p className="mt-1">{a}</p>
@@ -119,15 +99,15 @@ export default async function SupportPage() {
 
       <p className="mt-10 text-sm">
         <Link href="/" className={linkClass}>
-          ← Back to Chefer
+          {t('legal.common.backToChefer')}
         </Link>{' '}
         ·{' '}
         <Link href="/privacy" className={linkClass}>
-          Privacy Policy
+          {t('legal.common.privacyPolicy')}
         </Link>{' '}
         ·{' '}
         <Link href="/terms" className={linkClass}>
-          Terms of Service
+          {t('legal.common.termsOfService')}
         </Link>
       </p>
       <StoreTrademarks className="mt-6" />

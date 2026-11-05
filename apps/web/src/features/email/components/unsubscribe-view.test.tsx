@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UnsubscribeView } from './unsubscribe-view';
@@ -65,5 +66,24 @@ describe('UnsubscribeView (P2-5)', () => {
     expect(screen.getByRole('link', { name: 'Open Preferences' }).getAttribute('href')).toBe(
       '/preferences',
     );
+  });
+
+  it('speaks Romanian: the scope sentence and Undo (lane J)', () => {
+    m.state = {
+      isError: false,
+      isPending: false,
+      data: { scope: 'WEEKLY_RECAP', weekReady: true, weeklyRecap: false },
+      variables: { token: 'signed.token' },
+    };
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <UnsubscribeView />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('status').textContent).toBe(
+      'Te-ai dezabonat de la emailul de duminică „Săptămâna ta pe scurt”.',
+    );
+    expect(screen.getByRole('button', { name: 'Anulează' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Gestionează toate setările de email' })).toBeTruthy();
   });
 });

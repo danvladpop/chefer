@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Sparkles, X } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -33,7 +34,7 @@ interface NutritionLike {
   fiber: number;
 }
 
-const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 export function PremiumChangesCard({
   planId,
@@ -54,6 +55,7 @@ export function PremiumChangesCard({
   const [compareOpen, setCompareOpen] = useState(false);
   // WP-08: protein-only mode drops the server's calorie lines and the calorie-miss line (and its Fix it).
   const { proteinOnly } = useNumbersMode();
+  const { t } = useT();
   if (dismissed) return null;
   const misses = proteinOnly ? [] : missLines(changes.misses ?? []);
   const lines = proteinOnly
@@ -68,7 +70,7 @@ export function PremiumChangesCard({
       <div className="flex items-start justify-between gap-2">
         <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-amber-900">
           <Sparkles className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
-          What Premium changed
+          {t('plan.premiumChanges.title')}
         </h2>
         <button
           type="button"
@@ -76,7 +78,7 @@ export function PremiumChangesCard({
             dismissChanges(planId);
             setDismissed(true);
           }}
-          aria-label="Dismiss what Premium changed"
+          aria-label={t('plan.premiumChanges.dismiss')}
           className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-amber-700 hover:bg-amber-100"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -99,7 +101,7 @@ export function PremiumChangesCard({
               onClick={() => onFix(miss.firstDay)}
               className="min-h-11 px-1 text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
             >
-              Fix it
+              {t('plan.premiumChanges.fix')}
             </button>
           </li>
         ))}
@@ -111,7 +113,7 @@ export function PremiumChangesCard({
           onClick={() => setCompareOpen(true)}
           className="mt-1 min-h-11 text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
         >
-          Compare with your free week
+          {t('plan.premiumChanges.compare')}
         </button>
       )}
       {previousPlanId && (
@@ -150,32 +152,36 @@ function CompareDialog({
   );
   // WP-08: protein-only mode compares protein alone.
   const { proteinOnly, noNumbers } = useNumbersMode();
-  const cell = (t: { kcal: number; protein: number }) =>
-    t.kcal > 0
+  const { t } = useT();
+  const cell = (day: { kcal: number; protein: number }) =>
+    day.kcal > 0
       ? noNumbers
-        ? 'Planned'
+        ? t('plan.premiumChanges.planned')
         : proteinOnly
-          ? `${t.protein} g protein`
-          : `${formatKcal(t.kcal)} kcal · ${t.protein} g`
-      : 'Not planned';
+          ? t('plan.premiumChanges.cellProtein', { grams: day.protein })
+          : t('plan.premiumChanges.cellKcalProtein', {
+              kcal: formatKcal(day.kcal),
+              grams: day.protein,
+            })
+      : t('plan.premiumChanges.notPlanned');
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Compare with your free week"
-      description={
-        proteinOnly
-          ? 'Daily protein, before and after'
-          : 'Daily calories and protein, before and after'
-      }
+      title={t('plan.premiumChanges.compare')}
+      description={t(
+        proteinOnly ? 'plan.premiumChanges.compareBodyProtein' : 'plan.premiumChanges.compareBody',
+      )}
       size="md"
     >
       <div className="px-5 pb-5" data-testid="premium-compare">
-        {isLoading && <p className="py-6 text-center text-sm text-gray-500">Loading…</p>}
+        {isLoading && (
+          <p className="py-6 text-center text-sm text-gray-500">{t('common.states.loading')}</p>
+        )}
         {isError && (
           <p role="alert" className="py-6 text-center text-sm text-red-600">
-            Couldn&apos;t load the free week.
+            {t('plan.premiumChanges.loadError')}
           </p>
         )}
         {data && (
@@ -183,21 +189,21 @@ function CompareDialog({
             <thead>
               <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th scope="col" className="py-2 pr-2">
-                  Day
+                  {t('plan.premiumChanges.day')}
                 </th>
                 <th scope="col" className="py-2 pr-2">
-                  Free week
+                  {t('plan.premiumChanges.freeWeek')}
                 </th>
                 <th scope="col" className="py-2">
-                  Premium week
+                  {t('plan.premiumChanges.premiumWeek')}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {DAY_SHORT.map((label, dayOfWeek) => (
-                <tr key={label} className="border-t border-gray-100">
+              {DAY_KEYS.map((key, dayOfWeek) => (
+                <tr key={key} className="border-t border-gray-100">
                   <th scope="row" className="py-2 pr-2 font-medium text-gray-700">
-                    {label}
+                    {t(`common.weekdaysShort.${key}`)}
                   </th>
                   <td className="py-2 pr-2 text-gray-600">
                     {cell(dayTotals(data.days, dayOfWeek))}

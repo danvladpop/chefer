@@ -1,7 +1,7 @@
 import { Alert } from 'react-native';
-import { HOUSEHOLD_SHARING_COPY } from '@chefer/types';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
 import { useInvalidateHousehold } from './use-household-sharing';
@@ -11,6 +11,7 @@ import { useInvalidateHousehold } from './use-household-sharing';
  * with the owner; the partner's own plans come back, so every plan and list read is refetched.
  */
 export function LeaveHouseholdButton({ ownerName }: { ownerName: string }) {
+  const { t } = useT();
   const invalidate = useInvalidateHousehold();
   const leave = trpc.household.leave.useMutation({
     meta: { silent: true },
@@ -18,23 +19,27 @@ export function LeaveHouseholdButton({ ownerName }: { ownerName: string }) {
       track('household_left', { by: 'partner' });
       invalidate();
     },
-    onError: (err) => Alert.alert(HOUSEHOLD_SHARING_COPY.leave, userFacingErrorMessage(err)),
+    onError: (err) => Alert.alert(t('household.sharing.leave'), userFacingErrorMessage(err)),
   });
   return (
     <TrainButton
       testID="household-leave"
-      label={HOUSEHOLD_SHARING_COPY.leave}
+      label={t('household.sharing.leave')}
       variant="danger"
       loading={leave.isPending}
       onPress={() =>
-        Alert.alert(HOUSEHOLD_SHARING_COPY.leave, HOUSEHOLD_SHARING_COPY.leaveConfirm(ownerName), [
-          { text: HOUSEHOLD_SHARING_COPY.cancel, style: 'cancel' },
-          {
-            text: HOUSEHOLD_SHARING_COPY.leave,
-            style: 'destructive',
-            onPress: () => leave.mutate(),
-          },
-        ])
+        Alert.alert(
+          t('household.sharing.leave'),
+          t('household.sharing.leaveConfirm', { ownerName }),
+          [
+            { text: t('household.sharing.cancel'), style: 'cancel' },
+            {
+              text: t('household.sharing.leave'),
+              style: 'destructive',
+              onPress: () => leave.mutate(),
+            },
+          ],
+        )
       }
     />
   );

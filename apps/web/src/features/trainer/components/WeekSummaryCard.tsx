@@ -1,15 +1,17 @@
 'use client';
 
+import { formatDayWithWeekdayT } from '@/features/coaching/lib/dates';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_DATA_COPY } from '@chefer/types';
-import { formatBodyWeight, formatDayWithWeekday, weekSummaryLines } from '@chefer/utils';
+import { formatBodyWeight } from '@chefer/utils';
+import { weekSummaryLinesT } from '../data-lines';
 import { useTrainerUnit } from '../use-trainer-unit';
 
 // ─── Client › "Last 7 days" (lane K2) ─────────────────────────────────────────
 // Workouts against the goal always; the food log and weight only while the
 // client shares them (the API sends neither otherwise). The words come from
-// `weekSummaryLines`, the same lines mobile renders. Weights in the trainer's
+// `weekSummaryLinesT`, the same lines mobile renders. Weights in the trainer's
 // own gym unit.
 
 function Section({ title, lines, testId }: { title: string; lines: string[]; testId: string }) {
@@ -26,6 +28,8 @@ function Section({ title, lines, testId }: { title: string; lines: string[]; tes
 }
 
 export function WeekSummaryCard({ clientId, firstName }: { clientId: string; firstName: string }) {
+  const tr = useT();
+  const { t } = tr;
   const unit = useTrainerUnit();
   const week = trpc.trainer.client.weekSummary.useQuery(
     { clientId, today: localDate() },
@@ -36,10 +40,15 @@ export function WeekSummaryCard({ clientId, firstName }: { clientId: string; fir
   }
   if (week.isError) return null;
   const system = unit === 'LB' ? 'IMPERIAL' : 'METRIC';
-  const lines = weekSummaryLines(week.data, firstName, {
-    weightKg: (kg, signed) => formatBodyWeight(kg, system, signed ? { signed: true } : {}),
-    date: formatDayWithWeekday,
-  });
+  const lines = weekSummaryLinesT(
+    week.data,
+    firstName,
+    {
+      weightKg: (kg, signed) => formatBodyWeight(kg, system, signed ? { signed: true } : {}),
+      date: (d) => formatDayWithWeekdayT(d, t),
+    },
+    tr,
+  );
   return (
     <section
       aria-labelledby="trainer-week-title"
@@ -47,7 +56,7 @@ export function WeekSummaryCard({ clientId, firstName }: { clientId: string; fir
       className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm"
     >
       <h2 id="trainer-week-title" className="font-semibold text-gray-900">
-        {COACHING_DATA_COPY.week.title}
+        {t('coaching.trainer.data.week.title')}
       </h2>
       <p className="text-sm text-gray-800" data-testid="trainer-week-workouts">
         {lines.workouts}
@@ -56,14 +65,14 @@ export function WeekSummaryCard({ clientId, firstName }: { clientId: string; fir
         {lines.food && (
           <Section
             testId="trainer-week-food"
-            title={COACHING_DATA_COPY.food.heading}
+            title={t('coaching.trainer.data.food.heading')}
             lines={lines.food}
           />
         )}
         {lines.weight && (
           <Section
             testId="trainer-week-weight"
-            title={COACHING_DATA_COPY.weight.heading}
+            title={t('coaching.trainer.data.weight.heading')}
             lines={lines.weight}
           />
         )}

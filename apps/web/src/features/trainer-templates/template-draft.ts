@@ -5,8 +5,15 @@
 // share (search, validation, the assign and update sheets) are in
 // `@chefer/utils` (coaching/templates).
 import { makeKey, type DraftRoutine } from '@/features/gym/routine/draft';
-import type { TemplateDoc, WorkoutTemplateDto, WorkoutType } from '@chefer/types';
-import { normalizeSupersets } from '@chefer/utils';
+import type { Translator } from '@chefer/i18n';
+import type {
+  TemplateDoc,
+  WorkoutTemplateAssignmentDto,
+  WorkoutTemplateDto,
+  WorkoutTemplateSummaryDto,
+  WorkoutType,
+} from '@chefer/types';
+import { normalizeSupersets, workoutTypeLabel } from '@chefer/utils';
 
 /** The editor route for a template not created yet. */
 export const NEW_TEMPLATE_ID = 'new';
@@ -100,3 +107,41 @@ export function templateDocKey(doc: TemplateDoc): string {
 
 /** Shared with mobile: a new template is created only once it has a name plus an exercise or a type. */
 export { hasTemplateContent } from '@chefer/utils';
+
+// ─── Template labels in the UI language (Lane J, ADR 0004) ────────────────────
+// The translated twins of @chefer/utils' `templateSummaryLine` and
+// `templateAssignmentStatusText` (which still write English). Kept identical
+// on web and mobile until they move to a shared home.
+
+/** A library row's detail line: "Lower body · 5 exercises · ~45 min". */
+export function templateSummaryText(tr: Translator, row: WorkoutTemplateSummaryDto): string {
+  return [
+    row.workoutType ? workoutTypeLabel(row.workoutType) : null,
+    tr.t('trainer.templates.library.exercises', { count: row.exerciseCount }),
+    row.estimatedMin !== null
+      ? tr.t('trainer.templates.library.minutes', { n: row.estimatedMin })
+      : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+}
+
+/** "Not assigned yet" / "Assigned to 3 clients". */
+export function templateAssignedText(tr: Translator, count: number): string {
+  return count === 0
+    ? tr.t('trainer.templates.library.notAssigned')
+    : tr.t('trainer.templates.library.assigned', { count });
+}
+
+/** "Older version" or "Up to date", plus "Edited since" when someone changed the day. */
+export function templateAssignmentStatusLabel(
+  tr: Translator,
+  a: Pick<WorkoutTemplateAssignmentDto, 'outdated' | 'editedSince'>,
+): string {
+  const version = a.outdated
+    ? tr.t('trainer.templates.update.olderVersion')
+    : tr.t('trainer.templates.update.upToDate');
+  return a.editedSince
+    ? `${version} · ${tr.t('trainer.templates.update.editedSinceLabel')}`
+    : version;
+}

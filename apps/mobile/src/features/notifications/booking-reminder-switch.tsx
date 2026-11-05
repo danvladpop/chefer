@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
-import { BOOKING_COPY } from '@chefer/types';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import type { BookingReminderRole } from '@chefer/utils';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
+import { useT } from '../../lib/i18n';
 import {
   refreshNotificationPermission,
   useNotificationPermission,
@@ -25,6 +25,7 @@ export function BookingReminderSwitch({
   testID: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const prefs = useBookingReminderPrefs();
   const permission = useNotificationPermission();
   const [refused, setRefused] = useState(false);
@@ -50,21 +51,24 @@ export function BookingReminderSwitch({
     <View className="gap-1">
       <View className="min-h-11 flex-row items-center justify-between gap-3 py-1">
         <View className="min-w-0 flex-1">
-          <Text className="text-body text-label">{BOOKING_COPY.reminders.setting}</Text>
+          <Text className="text-body text-label">{t('trainer.bookings.reminders.setting')}</Text>
           <Text className="mt-0.5 text-subhead text-label-secondary">
-            {BOOKING_COPY.reminders.settingHint}
+            {t('trainer.bookings.reminders.settingHint')}
           </Text>
         </View>
         <Switch
           testID={testID}
-          accessibilityLabel={BOOKING_COPY.reminders.setting}
+          accessibilityLabel={t('trainer.bookings.reminders.setting')}
           value={prefs[role] && !denied}
           onValueChange={change}
           trackColor={{ true: colors.brand, false: colors.separator }}
         />
       </View>
       {denied ? (
-        <NotificationsOffRow testID={`${testID}-off`} message={BOOKING_COPY.reminders.off} />
+        <NotificationsOffRow
+          testID={`${testID}-off`}
+          message={t('trainer.bookings.reminders.off')}
+        />
       ) : null}
     </View>
   );

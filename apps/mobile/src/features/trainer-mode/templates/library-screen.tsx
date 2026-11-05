@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Keyboard, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
-import { TEMPLATE_COPY, TRAINER_MODE_LIMITS, type WorkoutTemplateSummaryDto } from '@chefer/types';
+import { TRAINER_MODE_LIMITS, type WorkoutTemplateSummaryDto } from '@chefer/types';
 import {
   Chip,
   EmptyState,
@@ -16,16 +16,17 @@ import {
 } from '@chefer/ui-mobile';
 import {
   filterTemplates,
-  formatShortDay,
-  templateSummaryLine,
   templateWorkoutTypes,
   workoutTypeLabel,
   type TemplateTypeFilter,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
 import { ShellChromeProvider, ShellTopBar } from '../../shell/shell-chrome';
+import { dayLabel } from '../bookings/booking-model';
+import { templateAssignedText, templateSummaryText } from './template-draft';
 
 // ─── Workouts: the template library (trainer-mode.md §6.6, M2) ────────────────
 // The trainer's templates, most recently edited first: name, workout type, exercises, minutes,
@@ -33,15 +34,18 @@ import { ShellChromeProvider, ShellTopBar } from '../../shell/shell-chrome';
 // workout type (the types present). "New template" (the top bar) opens the editor on a new template,
 // which is only created once it has a name. Tap a row → the editor.
 
-const COPY = TEMPLATE_COPY.library;
 const ALL = 'ALL';
 
 export const NEW_TEMPLATE_HREF = '/trainer/templates/new';
 
 function TemplateRow({ row }: { row: WorkoutTemplateSummaryDto }) {
   const colors = useThemeColors();
-  const detail = templateSummaryLine(row);
-  const status = `${COPY.assigned(row.assignedCount)} · ${COPY.edited(formatShortDay(row.updatedAt))}`;
+  const tr = useT();
+  const detail = templateSummaryText(tr, row);
+  const edited = tr.t('trainer.templates.library.edited', {
+    date: dayLabel(tr, row.updatedAt, 'short'),
+  });
+  const status = `${templateAssignedText(tr, row.assignedCount)} · ${edited}`;
   return (
     // MO-01: a card-sized tap target scales on press.
     <PressableScale
@@ -67,6 +71,7 @@ function TemplateRow({ row }: { row: WorkoutTemplateSummaryDto }) {
 
 export function TemplateLibraryScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   const list = trpc.trainer.templates.list.useQuery({});
   const [query, setQuery] = useState('');
   const [type, setType] = useState<TemplateTypeFilter>(ALL);
@@ -85,7 +90,7 @@ export function TemplateLibraryScreen() {
   const newButton = (
     <IconButton
       testID="templates-new"
-      accessibilityLabel={COPY.newTemplate}
+      accessibilityLabel={t('trainer.templates.library.newTemplate')}
       variant="tinted"
       disabled={atLimit}
       icon={<Icon name="add" color={colors.brand} />}
@@ -94,7 +99,9 @@ export function TemplateLibraryScreen() {
   );
 
   return (
-    <ShellChromeProvider value={{ kind: 'tab-root', title: COPY.title, actions: newButton }}>
+    <ShellChromeProvider
+      value={{ kind: 'tab-root', title: t('trainer.templates.library.title'), actions: newButton }}
+    >
       <Screen className="bg-canvas px-0" testID="templates-library">
         <KeyboardAwareScrollView
           testID="templates-library-scroll"
@@ -113,10 +120,10 @@ export function TemplateLibraryScreen() {
             <EmptyState
               testID="templates-library-empty"
               icon={<Icon name="workouts" color={colors.labelTertiary} size={40} />}
-              title={COPY.emptyTitle}
-              description={COPY.emptyBody}
+              title={t('trainer.templates.library.emptyTitle')}
+              description={t('trainer.templates.library.emptyBody')}
               action={{
-                label: COPY.newTemplate,
+                label: t('trainer.templates.library.newTemplate'),
                 testID: 'templates-library-empty-new',
                 onPress: openNew,
               }}
@@ -125,8 +132,8 @@ export function TemplateLibraryScreen() {
             <View className="gap-3">
               <SearchField
                 testID="templates-search"
-                accessibilityLabel={COPY.search}
-                placeholder={COPY.search}
+                accessibilityLabel={t('trainer.templates.library.search')}
+                placeholder={t('trainer.templates.library.search')}
                 value={query}
                 onChangeText={setQuery}
                 onSubmitEditing={() => Keyboard.dismiss()}
@@ -139,24 +146,26 @@ export function TemplateLibraryScreen() {
                 >
                   <Chip
                     testID="templates-type-all"
-                    label={COPY.filterAll}
+                    label={t('trainer.templates.library.filterAll')}
                     selected={activeType === ALL}
                     onPress={() => setType(ALL)}
                   />
-                  {types.map((t) => (
+                  {types.map((wt) => (
                     <Chip
-                      key={t}
-                      testID={`templates-type-${t}`}
-                      label={workoutTypeLabel(t)}
-                      selected={activeType === t}
-                      onPress={() => setType(t)}
+                      key={wt}
+                      testID={`templates-type-${wt}`}
+                      label={workoutTypeLabel(wt)}
+                      selected={activeType === wt}
+                      onPress={() => setType(wt)}
                     />
                   ))}
                 </View>
               ) : null}
               {atLimit ? (
                 <Text testID="templates-limit" className="text-subhead text-label-secondary">
-                  {COPY.limit(TRAINER_MODE_LIMITS.templatesPerTrainer)}
+                  {t('trainer.templates.library.limit', {
+                    max: TRAINER_MODE_LIMITS.templatesPerTrainer,
+                  })}
                 </Text>
               ) : null}
               {shown.length === 0 ? (
@@ -164,7 +173,7 @@ export function TemplateLibraryScreen() {
                   testID="templates-search-empty"
                   className="py-6 text-center text-subhead text-label-secondary"
                 >
-                  {COPY.searchEmpty(query.trim())}
+                  {t('trainer.templates.library.searchEmpty', { query: query.trim() })}
                 </Text>
               ) : (
                 shown.map((row) => <TemplateRow key={row.id} row={row} />)

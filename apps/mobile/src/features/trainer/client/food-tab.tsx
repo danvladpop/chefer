@@ -1,16 +1,14 @@
 import { ActivityIndicator, View } from 'react-native';
-import { COACHING_DATA_COPY, type ClientFoodDayDto, type ClientSharingDto } from '@chefer/types';
+import type { ClientFoodDayDto, ClientSharingDto } from '@chefer/types';
 import { ErrorState, Text } from '@chefer/ui-mobile';
-import {
-  foodDayParts,
-  formatBodyWeight,
-  formatDayWithWeekday,
-  formatShortDay,
-} from '@chefer/utils';
+import { formatBodyWeight } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { WeightSparkline } from '../../coach/weight-sparkline';
+import { formatDayWithWeekdayT, formatShortDayT } from '../../coaching/copy';
 import { localDate } from '../../gym/offline/ids';
 import { CoachingCard } from '../components/coaching-card';
+import { foodDayPartsT } from '../data-lines';
 
 // ─── Client › Food (lane K2) ──────────────────────────────────────────────────
 // What the client shares: the food log of the last 7 days (meals, kcal and protein against targets
@@ -19,16 +17,20 @@ import { CoachingCard } from '../components/coaching-card';
 // which reads as "doesn't share" here. Raw weight; the trend line waits for lane D1.
 
 function DayRow({ day }: { day: ClientFoodDayDto }) {
+  const tr = useT();
+  const { t } = tr;
   return (
     <View testID={`trainer-food-day-${day.date}`} className="gap-1 border-t border-separator pt-3">
       <Text className="text-subhead font-semibold text-label">
-        {formatDayWithWeekday(day.date)}
+        {formatDayWithWeekdayT(day.date, t)}
       </Text>
-      <Text className="text-footnote text-label-secondary">{foodDayParts(day).join(' · ')}</Text>
+      <Text className="text-footnote text-label-secondary">
+        {foodDayPartsT(day, tr).join(' · ')}
+      </Text>
       {day.entries.map((entry, i) => (
         <Text key={`${entry.name}-${i}`} className="text-footnote text-label">
           {entry.name}
-          {entry.onPlan ? ` · ${COACHING_DATA_COPY.food.onPlan}` : ''}
+          {entry.onPlan ? ` · ${t('coaching.trainer.data.food.onPlan')}` : ''}
         </Text>
       ))}
     </View>
@@ -36,6 +38,7 @@ function DayRow({ day }: { day: ClientFoodDayDto }) {
 }
 
 function FoodSection({ clientId, firstName }: { clientId: string; firstName: string }) {
+  const { t } = useT();
   const food = trpc.trainer.client.food.useQuery({ clientId, today: localDate(), days: 7 });
   if (food.isPending) return <ActivityIndicator testID="trainer-food-loading" />;
   if (food.isError) {
@@ -45,14 +48,16 @@ function FoodSection({ clientId, firstName }: { clientId: string; firstName: str
     <CoachingCard testID="trainer-food" className="gap-3">
       <View className="gap-0.5">
         <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-          {COACHING_DATA_COPY.food.heading}
+          {t('coaching.trainer.data.food.heading')}
         </Text>
         <Text className="text-footnote text-label-secondary">
-          {COACHING_DATA_COPY.food.sharedSince(formatShortDay(food.data.sharedSince))}
+          {t('coaching.trainer.data.food.sharedSince', {
+            date: formatShortDayT(food.data.sharedSince, t),
+          })}
         </Text>
         {food.data.numbers === 'NONE' ? (
           <Text className="text-footnote text-label-secondary">
-            {COACHING_DATA_COPY.week.numbersHidden(firstName)}
+            {t('coaching.trainer.data.week.numbersHidden', { client: firstName })}
           </Text>
         ) : null}
       </View>
@@ -64,6 +69,7 @@ function FoodSection({ clientId, firstName }: { clientId: string; firstName: str
 }
 
 function WeightSection({ clientId }: { clientId: string }) {
+  const { t } = useT();
   const weight = trpc.trainer.client.weight.useQuery({ clientId, today: localDate() });
   if (weight.isPending) return <ActivityIndicator testID="trainer-weight-loading" />;
   if (weight.isError) {
@@ -73,10 +79,12 @@ function WeightSection({ clientId }: { clientId: string }) {
   return (
     <CoachingCard testID="trainer-weight" className="gap-3">
       <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-        {COACHING_DATA_COPY.weight.heading}
+        {t('coaching.trainer.data.weight.heading')}
       </Text>
       {entries.length === 0 ? (
-        <Text className="text-subhead text-label-secondary">{COACHING_DATA_COPY.weight.empty}</Text>
+        <Text className="text-subhead text-label-secondary">
+          {t('coaching.trainer.data.weight.empty')}
+        </Text>
       ) : (
         <>
           <WeightSparkline
@@ -92,7 +100,7 @@ function WeightSection({ clientId }: { clientId: string }) {
             .slice(0, 5)
             .map((e) => (
               <Text key={e.date} className="text-footnote text-label">
-                {formatDayWithWeekday(e.date)} · {formatBodyWeight(e.weightKg, 'METRIC')}
+                {formatDayWithWeekdayT(e.date, t)} · {formatBodyWeight(e.weightKg, 'METRIC')}
               </Text>
             ))}
         </>
@@ -110,20 +118,21 @@ export function FoodTab({
   firstName: string;
   sharing: ClientSharingDto;
 }) {
+  const { t } = useT();
   return (
     <View testID="trainer-food-tab" className="gap-4">
       {sharing.food ? (
         <FoodSection clientId={clientId} firstName={firstName} />
       ) : (
         <Text className="text-subhead text-label-secondary">
-          {COACHING_DATA_COPY.food.notShared(firstName)}
+          {t('coaching.trainer.data.food.notShared', { client: firstName })}
         </Text>
       )}
       {sharing.weight ? (
         <WeightSection clientId={clientId} />
       ) : (
         <Text className="text-subhead text-label-secondary">
-          {COACHING_DATA_COPY.weight.notShared(firstName)}
+          {t('coaching.trainer.data.weight.notShared', { client: firstName })}
         </Text>
       )}
     </View>

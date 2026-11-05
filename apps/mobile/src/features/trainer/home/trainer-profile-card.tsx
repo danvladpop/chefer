@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { CoachingCard } from '../components/coaching-card';
 import {
@@ -12,10 +13,8 @@ import {
 // The trainer's settings on Clients (PRD 2026-10 §4.1): the name clients see and the optional "Gym / city"
 // line, saved with `trainer.updateProfile`. Starts from `trainer.status` (the gate already loaded it).
 
-export const SAVE_LABEL = 'Save';
-export const SAVED_LABEL = 'Saved';
-
 export function TrainerProfileCard() {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const status = trpc.trainer.status.useQuery(undefined, { retry: false });
@@ -30,7 +29,7 @@ export function TrainerProfileCard() {
     onSuccess: (next) => {
       utils.trainer.status.setData(undefined, next);
       setDraft(null);
-      snackbar.show({ message: SAVED_LABEL });
+      snackbar.show({ message: t('common.states.saved') });
     },
   });
   const input = profileInput(value);
@@ -62,7 +61,7 @@ export function TrainerProfileCard() {
         disabled={!changed || input.displayName === ''}
         onPress={save}
       >
-        {SAVE_LABEL}
+        {t('common.actions.save')}
       </Button>
     </CoachingCard>
   );

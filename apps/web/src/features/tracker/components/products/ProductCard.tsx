@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { AlertTriangle } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import {
   PACKAGED_PRODUCT_COPY,
   type PackagedProductView,
@@ -12,8 +14,6 @@ import {
 import {
   formatNumber,
   HIDE_NUMBERS_COPY,
-  productAllergenLine,
-  productAllergenWarningText,
   productAmountGrams,
   productDisplayName,
   productMaxGrams,
@@ -43,6 +43,41 @@ export interface ProductCardProps {
   onCompleteNumbers: () => void;
 }
 
+/** "Contains dairy: you and Maria avoid it." in the UI language (allergen names come from the server). */
+export function allergenWarningText(t: Translator['t'], warning: ProductAllergenWarning): string {
+  const you = t('tracker.productCard.warning.you');
+  const who = warning.who.length > 0 ? warning.who.map((w) => (w === 'you' ? you : w)) : [you];
+  const last = who.at(-1) ?? you;
+  const whoText =
+    who.length === 1
+      ? last
+      : t('tracker.productCard.warning.whoList', { list: who.slice(0, -1).join(', '), last });
+  const one = who.length === 1 && warning.who.length === 1 && warning.who[0] !== 'you';
+  const params = { allergen: warning.label.toLowerCase(), who: whoText };
+  if (warning.kind === 'contains') {
+    return one
+      ? t('tracker.productCard.warning.containsOne', params)
+      : t('tracker.productCard.warning.contains', params);
+  }
+  return one
+    ? t('tracker.productCard.warning.mayContainOne', params)
+    : t('tracker.productCard.warning.mayContain', params);
+}
+
+/** The allergen line under a product: what it contains, or an honest "unknown". */
+export function allergenLine(t: Translator['t'], allergens: PackagedProductView['allergens']) {
+  if (allergens.status === 'unknown') return t('tracker.packaged.allergensUnknown');
+  if (allergens.status === 'none-listed') return t('tracker.packaged.allergensNoneListed');
+  const contains = allergens.contains.map((a) => a.label).join(', ');
+  const traces = allergens.mayContain.map((a) => a.label).join(', ');
+  return [
+    contains && t('tracker.packaged.allergensContains', { list: contains }),
+    traces && t('tracker.packaged.allergensMayContain', { list: traces }),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 function parseAmount(text: string): number {
   const n = Number(text.replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -58,6 +93,7 @@ export function ProductCard({
   onLog,
   onCompleteNumbers,
 }: ProductCardProps) {
+  const { t } = useT();
   const { noNumbers } = useNumbersMode();
   const hasServing = product.servingSizeG !== null;
   const [unit, setUnit] = useState<ProductAmount['unit']>(hasServing ? 'serving' : 'g');
@@ -98,13 +134,15 @@ export function ProductCard({
           <p className="text-xs text-neutral-500">
             {product.isOwn
               ? product.source === 'LABEL'
-                ? 'Your product · from a label photo'
-                : 'Your product'
+                ? t('tracker.productCard.yourProductFromLabel')
+                : t('tracker.productCard.yourProduct')
               : complete
                 ? noNumbers
                   ? HIDE_NUMBERS_COPY.recipeNutritionHidden
-                  : `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
-                : 'No calories yet'}
+                  : t('tracker.productCard.kcalPer100g', {
+                      value: formatNumber(product.per100g.kcal ?? 0),
+                    })
+                : t('tracker.productCard.noKcal')}
           </p>
         </div>
       </div>
@@ -121,20 +159,24 @@ export function ProductCard({
               className="flex items-start gap-2 text-sm font-medium text-amber-900"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span className="min-w-0">{productAllergenWarningText(w)}</span>
+              <span className="min-w-0">{allergenWarningText(t, w)}</span>
             </p>
           ))}
         </div>
       )}
       <p data-testid="product-allergen-line" className="text-xs text-neutral-600">
-        {productAllergenLine(product.allergens)}
+        {allergenLine(t, product.allergens)}
       </p>
-      {stale && <p className="text-xs text-amber-700">{PACKAGED_PRODUCT_COPY.stale}</p>}
+      {stale && <p className="text-xs text-amber-700">{t('tracker.packaged.stale')}</p>}
 
       {complete ? (
         <>
           {hasServing && (
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Amount unit">
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label={t('tracker.productCard.unitLabel')}
+            >
               <button
                 type="button"
                 data-testid="product-unit-serving"
@@ -142,7 +184,9 @@ export function ProductCard({
                 onClick={() => switchUnit('serving')}
                 className={chipClass(unit === 'serving')}
               >
-                Servings ({formatNumber(product.servingSizeG ?? 0, ONE_DP)} g)
+                {t('tracker.productCard.servingsUnit', {
+                  grams: formatNumber(product.servingSizeG ?? 0, ONE_DP),
+                })}
               </button>
               <button
                 type="button"
@@ -151,7 +195,7 @@ export function ProductCard({
                 onClick={() => switchUnit('g')}
                 className={chipClass(unit === 'g')}
               >
-                Grams
+                {t('tracker.productCard.gramsUnit')}
               </button>
             </div>
           )}
@@ -164,7 +208,9 @@ export function ProductCard({
                 onClick={() => setAmountText(String(value))}
                 className={chipClass(amountValue === value)}
               >
-                {unit === 'g' ? `${value} g` : formatNumber(value, ONE_DP)}
+                {unit === 'g'
+                  ? t('tracker.productCard.gramsChip', { value: formatNumber(value) })
+                  : formatNumber(value, ONE_DP)}
               </button>
             ))}
           </div>
@@ -173,12 +219,20 @@ export function ProductCard({
               type="number"
               inputMode="decimal"
               data-testid="product-amount-input"
-              aria-label={unit === 'g' ? 'Grams eaten' : 'Servings eaten'}
+              aria-label={
+                unit === 'g'
+                  ? t('tracker.productCard.gramsEaten')
+                  : t('tracker.productCard.servingsEaten')
+              }
               value={amountText}
               onChange={(e) => setAmountText(e.target.value)}
               className="min-h-11 w-full min-w-0 rounded-lg border border-neutral-200 px-3 text-sm text-neutral-900"
             />
-            <span className="shrink-0">{unit === 'g' ? 'g' : 'servings'}</span>
+            <span className="shrink-0">
+              {unit === 'g'
+                ? t('tracker.productCard.unitG')
+                : t('tracker.productCard.unitServings')}
+            </span>
           </label>
           {noNumbers && !tooMuch ? null : (
             <p
@@ -187,11 +241,16 @@ export function ProductCard({
               className="text-xs text-neutral-600"
             >
               {tooMuch
-                ? `One entry holds up to ${formatNumber(maxGrams)} g.`
+                ? t('tracker.productCard.maxGrams', { max: formatNumber(maxGrams) })
                 : scaled
                   ? proteinOnly
-                    ? `${scaled.protein} g protein`
-                    : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
+                    ? t('tracker.productCard.liveProtein', { protein: scaled.protein })
+                    : t('tracker.productCard.liveKcalMacros', {
+                        kcal: scaled.kcal,
+                        protein: scaled.protein,
+                        carbs: scaled.carbs,
+                        fat: scaled.fat,
+                      })
                   : '—'}
             </p>
           )}
@@ -203,22 +262,22 @@ export function ProductCard({
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
           >
             {logging
-              ? 'Logging…'
+              ? t('tracker.productCard.logging')
               : scaled && !proteinOnly && !noNumbers
-                ? `Log ${scaled.kcal} kcal`
-                : 'Log it'}
+                ? t('tracker.productCard.logKcal', { kcal: scaled.kcal })
+                : t('tracker.productCard.logIt')}
           </button>
         </>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-neutral-700">{PACKAGED_PRODUCT_COPY.incomplete}</p>
+          <p className="text-sm text-neutral-700">{t('tracker.packaged.incomplete')}</p>
           <button
             type="button"
             data-testid="product-complete-numbers"
             onClick={onCompleteNumbers}
             className="min-h-11 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
           >
-            Add the numbers from the pack
+            {t('tracker.productCard.addNumbers')}
           </button>
         </div>
       )}
@@ -240,7 +299,9 @@ export function ProductCard({
             rel="noopener noreferrer"
             className="inline-flex min-h-11 items-center hover:underline"
           >
-            {PACKAGED_PRODUCT_COPY.attribution} · ODbL
+            {t('tracker.packaged.attributionLink', {
+              licence: t('tracker.packaged.licenceShort'),
+            })}
           </a>
         </p>
       )}
