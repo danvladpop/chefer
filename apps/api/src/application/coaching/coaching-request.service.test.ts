@@ -19,6 +19,12 @@ const trainer = (userId: string, displayName: string): TrainerProfile => ({
   gymLine: userId === MIHAI ? 'Iron Gym, Cluj' : null,
   activatedAt: NOW,
   disabledAt: null,
+  checkInEnabled: false,
+  checkInDay: 6,
+  checkInQuestions: [],
+  quietAfterDays: 3,
+  quietDigestEmail: false,
+  quietSeenAt: null,
 });
 
 const link = (trainerId: string): CoachingLink => ({
@@ -34,6 +40,8 @@ const link = (trainerId: string): CoachingLink => ({
   endedAt: null,
   endedBy: null,
   consentCopyVersion: 2,
+  shareFoodAt: null,
+  shareWeightAt: null,
 });
 
 const request = (over: Partial<CoachingRequest> = {}): CoachingRequest => ({
@@ -45,6 +53,8 @@ const request = (over: Partial<CoachingRequest> = {}): CoachingRequest => ({
   expiresAt: new Date(NOW.getTime() + 14 * DAY),
   respondedAt: null,
   startedOn: '2026-10-17',
+  shareFood: false,
+  shareWeight: false,
   ...over,
 });
 

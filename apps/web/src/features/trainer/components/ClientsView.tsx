@@ -8,9 +8,11 @@ import { UserPlus } from 'lucide-react';
 import { COACHING_COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { CheckInSettings } from './CheckInSettings';
 import { ClientList } from './ClientList';
 import { InviteSheet } from './InviteSheet';
 import { InvitesSection } from './InvitesSection';
+import { TrainerAlertsSettings } from './TrainerAlertsSettings';
 import { TrainerRequests } from './TrainerRequests';
 import { TrainerSettings } from './TrainerSettings';
 
@@ -74,6 +76,8 @@ export function ClientsView({
         gymLine={gymLine}
         activeClients={clients.data?.length ?? activeClients}
       />
+      <CheckInSettings />
+      <TrainerAlertsSettings />
 
       <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </div>

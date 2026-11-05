@@ -281,6 +281,14 @@ export interface EventMap {
   /** A public "switching from X" page was opened; `source` is the app it addresses. */
   switch_page_viewed: { source: 'mealime' };
 
+  // ─── Coaching data (lane K, market review 2026-10) — no PII, enums only ───────
+  coaching_sharing_changed: {
+    data: 'food' | 'weight';
+    on: boolean;
+    where: 'join' | 'request' | 'settings';
+  };
+  check_in_config_saved: { enabled: boolean; questions: number };
+  check_in_submitted: { questions: number; withNote: boolean; edit: boolean };
   // ─── Household sharing (ADR 0003) — enums and counts only ────────────────────
   household_invite_created: { via: 'share' | 'copy' };
   household_invite_opened: {
