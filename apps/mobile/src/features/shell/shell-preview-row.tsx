@@ -1,6 +1,7 @@
 import { Switch } from 'react-native';
 import Constants from 'expo-constants';
 import { ListRow, ListSection, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { setShellV2Preview, useShellV2Preview } from './shell-store';
 
@@ -16,23 +17,25 @@ export function useCanPreviewShell(): boolean {
   return devBuild || me?.role === 'ADMIN';
 }
 
-const DEFAULT_FOOTER =
-  'Try the new app design on this phone. Only admins and test builds see this.';
-
 /** `footer` lets the new shell's You tab use the board's shorter line. */
-export function ShellPreviewSection({ footer = DEFAULT_FOOTER }: { footer?: string } = {}) {
+export function ShellPreviewSection({ footer }: { footer?: string } = {}) {
+  const { t } = useT();
   const allowed = useCanPreviewShell();
   const on = useShellV2Preview();
   const colors = useThemeColors();
   if (!allowed) return null;
   return (
-    <ListSection title="Preview" footer={footer} testID="shell-preview-section">
+    <ListSection
+      title={t('today.shell.preview.section')}
+      footer={footer ?? t('today.shell.preview.footer')}
+      testID="shell-preview-section"
+    >
       <ListRow
-        title="New design"
+        title={t('today.shell.preview.row')}
         accessory={
           <Switch
             testID="shell-preview-switch"
-            accessibilityLabel="Preview the new design"
+            accessibilityLabel={t('today.shell.preview.switchLabel')}
             value={on}
             onValueChange={setShellV2Preview}
             // Android draws its own teal thumb unless told otherwise. White in

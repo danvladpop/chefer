@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, TEMPLATE_COPY, type WorkoutTemplateDto } from '@chefer/types';
+import type { WorkoutTemplateDto } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import {
   defaultTemplateUpdateSelection,
@@ -18,8 +19,6 @@ import {
 // trainer) edited since starts unticked and says updating replaces those
 // changes; an up-to-date copy cannot be picked.
 
-const copy = TEMPLATE_COPY.update;
-
 export function UpdateClientsSheet({
   open,
   onClose,
@@ -29,6 +28,7 @@ export function UpdateClientsSheet({
   onClose: () => void;
   template: WorkoutTemplateDto;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(defaultTemplateUpdateSelection(template.assignments)),
@@ -49,7 +49,10 @@ export function UpdateClientsSheet({
       const ok = res.results.filter((r) => r.ok).length;
       if (ok > 0) {
         capture('template_clients_updated', { clients: ok });
-        showAppToast({ message: copy.done(ok), type: 'success' });
+        showAppToast({
+          message: t('trainer.templates.update.done', { count: ok }),
+          type: 'success',
+        });
       }
       void utils.trainer.templates.get.invalidate({ templateId: template.id });
       void utils.trainer.templates.list.invalidate();
@@ -57,7 +60,14 @@ export function UpdateClientsSheet({
         if (r.ok) void utils.trainer.client.routine.invalidate({ clientId: r.clientId });
       }
       const failed = res.results.flatMap((r) =>
-        r.ok ? [] : [{ clientId: r.clientId, text: TEMPLATE_COPY.assign.failureReason[r.reason] }],
+        r.ok
+          ? []
+          : [
+              {
+                clientId: r.clientId,
+                text: t(`trainer.templates.assign.failureReason.${r.reason}`),
+              },
+            ],
       );
       if (failed.length === 0) onClose();
       else setFailures(failed);
@@ -73,13 +83,13 @@ export function UpdateClientsSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={copy.title}
-      description={copy.body}
+      title={t('trainer.templates.update.title')}
+      description={t('trainer.templates.update.body')}
       size="md"
       footer={
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={update.isPending}>
-            {COACHING_COPY.common.cancel}
+            {t('common.actions.cancel')}
           </Button>
           <Button
             type="button"
@@ -89,13 +99,13 @@ export function UpdateClientsSheet({
               update.mutate({ templateId: template.id, clientIds: Array.from(selected) })
             }
           >
-            {copy.confirm(count)}
+            {t('trainer.templates.update.confirm', { count })}
           </Button>
         </div>
       }
     >
       <div className="flex flex-col gap-3 px-5 py-4">
-        <ul className="flex flex-col" aria-label={copy.title}>
+        <ul className="flex flex-col" aria-label={t('trainer.templates.update.title')}>
           {template.assignments.map((a) => {
             const state = templateAssignmentStatus(a);
             const disabled = state === 'upToDate';
@@ -131,10 +141,10 @@ export function UpdateClientsSheet({
                       }
                     >
                       {state === 'upToDate'
-                        ? copy.upToDate
+                        ? t('trainer.templates.update.upToDate')
                         : state === 'editedSince'
-                          ? copy.editedSince
-                          : copy.olderVersion}
+                          ? t('trainer.templates.update.editedSince')
+                          : t('trainer.templates.update.olderVersion')}
                     </span>
                   </span>
                 </label>
@@ -146,7 +156,10 @@ export function UpdateClientsSheet({
           <ul role="alert" className="flex flex-col gap-1" data-testid="update-failures">
             {failures.map((f) => (
               <li key={f.clientId} className="min-w-0 break-words text-sm text-red-700">
-                {nameOf(f.clientId)}: {f.text}
+                {t('trainer.templates.assign.failureLine', {
+                  name: nameOf(f.clientId),
+                  reason: f.text,
+                })}
               </li>
             ))}
           </ul>

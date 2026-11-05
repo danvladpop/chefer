@@ -7,6 +7,7 @@ import {
   QUICK_ADD_MEAL_TYPES,
   type QuickAddMealType,
 } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Edit or remove a logged recipe that is no longer on the day's plan — the
@@ -20,11 +21,6 @@ const PORTION_OPTIONS = PORTIONS.map((p) => ({
   value: String(p),
   label: formatPortion(p),
   testID: `edit-recipe-entry-portion-${p}`,
-}));
-const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((value) => ({
-  value,
-  label: value.charAt(0).toUpperCase() + value.slice(1),
-  testID: `edit-recipe-entry-meal-${value}`,
 }));
 
 export interface EditRecipeEntrySheetProps {
@@ -49,6 +45,7 @@ export function EditRecipeEntrySheet({
   onSave,
   onDelete,
 }: EditRecipeEntrySheetProps) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode(); // WP-08, lane E3
   const [portion, setPortion] = useState('1');
   const [mealType, setMealType] = useState<QuickAddMealType>('dinner');
@@ -82,7 +79,7 @@ export function EditRecipeEntrySheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Edit meal"
+      title={t('tracker.editEntry.title')}
       testID="edit-recipe-entry-sheet"
       footer={
         <View className="gap-2">
@@ -90,10 +87,10 @@ export function EditRecipeEntrySheet({
             testID="edit-recipe-entry-save"
             onPress={() => onSave({ portionMultiplier: Number(portion), mealType })}
           >
-            Save
+            {t('common.actions.save')}
           </Button>
           <Button testID="edit-recipe-entry-delete" variant="destructive" onPress={onDelete}>
-            Delete
+            {t('common.actions.delete')}
           </Button>
         </View>
       }
@@ -104,35 +101,43 @@ export function EditRecipeEntrySheet({
         </Text>
         <Text className="text-xs text-label-tertiary">
           {noNumbers
-            ? 'Logged'
+            ? t('tracker.editEntry.logged')
             : proteinOnly
               ? entry.protein === undefined
-                ? 'Logged'
-                : `Logged as ${proteinLabel(entry.protein)}`
-              : `Logged as ${Math.round(entry.kcal)} kcal`}
+                ? t('tracker.editEntry.logged')
+                : t('tracker.editEntry.loggedAsProtein', { protein: proteinLabel(entry.protein) })
+              : t('tracker.editEntry.loggedAsKcal', { kcal: Math.round(entry.kcal) })}
         </Text>
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-label-secondary">Portion</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.editEntry.portion')}
+        </Text>
         <SegmentedControl
           size="sm"
           options={portionOptions}
           value={portion}
           onChange={setPortion}
-          accessibilityLabel="Portion"
+          accessibilityLabel={t('tracker.editEntry.portion')}
           testID="edit-recipe-entry-portion"
         />
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-label-secondary">Meal</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.editEntry.meal')}
+        </Text>
         <SegmentedControl
           size="sm"
-          options={MEAL_OPTIONS}
+          options={QUICK_ADD_MEAL_TYPES.map((value) => ({
+            value,
+            label: t(`tracker.meals.${value}`),
+            testID: `edit-recipe-entry-meal-${value}`,
+          }))}
           value={mealType}
           onChange={setMealType}
-          accessibilityLabel="Meal"
+          accessibilityLabel={t('tracker.editEntry.meal')}
           testID="edit-recipe-entry-meal"
         />
       </View>

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { COACHING_COPY, type TrainerRequestDto } from '@chefer/types';
+import type { TrainerRequestDto } from '@chefer/types';
 import { Button, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
-import { formatStampDate } from '../../gym/routine/attribution';
+import { formatShortDayT } from '../../coaching/copy';
 import { CoachingCard } from '../components/coaching-card';
 
 // ─── Requests (PRD 2026-10 §4.1) ──────────────────────────────────────────────
@@ -24,21 +25,21 @@ function RequestRow({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const copy = COACHING_COPY.request;
+  const { t } = useT();
   return (
     <CoachingCard testID={`trainer-request-${request.id}`} className="gap-2">
       <Text className="text-headline font-semibold text-label">
-        {copy.fromClient(request.client.name)}
+        {t('coaching.request.fromClient', { client: request.client.name })}
       </Text>
       <Text className="text-subhead text-label-secondary">
-        {copy.expires(formatStampDate(request.expiresAt))}
+        {t('coaching.request.expires', { date: formatShortDayT(request.expiresAt, t) })}
       </Text>
       {request.hasTrainer ? (
         <Text
           testID={`trainer-request-${request.id}-has-trainer`}
           className="text-subhead text-label-secondary"
         >
-          {copy.hasTrainer}
+          {t('coaching.request.hasTrainer')}
         </Text>
       ) : null}
       <View className="flex-row gap-2">
@@ -46,20 +47,20 @@ function RequestRow({
           testID={`trainer-request-${request.id}-accept`}
           className="flex-1"
           disabled={busy}
-          accessibilityLabel={`${copy.accept}: ${request.client.name}`}
+          accessibilityLabel={t('coaching.request.acceptFor', { client: request.client.name })}
           onPress={onAccept}
         >
-          {copy.accept}
+          {t('coaching.request.accept')}
         </Button>
         <Button
           testID={`trainer-request-${request.id}-decline`}
           variant="outline"
           className="flex-1"
           disabled={busy}
-          accessibilityLabel={`${copy.decline}: ${request.client.name}`}
+          accessibilityLabel={t('coaching.request.declineFor', { client: request.client.name })}
           onPress={onDecline}
         >
-          {copy.decline}
+          {t('coaching.request.decline')}
         </Button>
       </View>
     </CoachingCard>
@@ -67,7 +68,7 @@ function RequestRow({
 }
 
 export function RequestsSection() {
-  const copy = COACHING_COPY.request;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function RequestsSection() {
   return (
     <View testID="trainer-requests" className="gap-2">
       <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-        {copy.listTitle}
+        {t('coaching.request.listTitle')}
       </Text>
       {list.map((request) => (
         <RequestRow
@@ -106,14 +107,19 @@ export function RequestsSection() {
             setError(null);
             accept.mutate(
               { requestId: request.id },
-              { onSuccess: () => snackbar.show({ message: copy.accepted(request.client.name) }) },
+              {
+                onSuccess: () =>
+                  snackbar.show({
+                    message: t('coaching.request.accepted', { client: request.client.name }),
+                  }),
+              },
             );
           }}
           onDecline={() => {
             setError(null);
             decline.mutate(
               { requestId: request.id },
-              { onSuccess: () => snackbar.show({ message: copy.declined }) },
+              { onSuccess: () => snackbar.show({ message: t('coaching.request.declined') }) },
             );
           }}
         />

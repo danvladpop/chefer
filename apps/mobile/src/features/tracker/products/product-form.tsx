@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
+import type { MessageKey } from '@chefer/i18n';
 import {
-  PACKAGED_PRODUCT_COPY,
   PACKAGED_PRODUCT_LIMITS,
   type NutritionLabelDraft,
   type PackagedProductDraft,
@@ -14,12 +14,23 @@ import {
   productFormFromDraft,
   type ProductFormInput,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 
 // "Enter it yourself" (free) and the label-scan review (premium) share this
 // form (ADR 0006). Everything is per 100 g, calories are the one required
 // number, a blank field means "not on the pack" (stored as unknown, never 0),
 // and allergens stay "unknown" until the user ticks some or says none are
 // listed. Parsing is shared with web (`parseProductForm`).
+
+// `parseProductForm` (shared) says what to fix in English; the form shows the
+// same sentence in the UI language.
+const FORM_ERRORS = {
+  'Enter the calories per 100 g from the pack.': 'tracker.productForm.errors.caloriesMissing',
+  'Give the product a name.': 'tracker.productForm.errors.name',
+  'Check the numbers: each is per 100 g, and 100 g can’t hold more than 100 g of anything.':
+    'tracker.productForm.errors.numbers',
+  'Check the product details.': 'tracker.productForm.errors.details',
+} as const satisfies Record<string, MessageKey>;
 
 export interface ProductFormProps {
   /** Pre-filled from a label scan, an incomplete product, or just the barcode. */
@@ -33,6 +44,7 @@ export interface ProductFormProps {
 }
 
 export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: ProductFormProps) {
+  const { t } = useT();
   const [form, setForm] = useState<ProductFormInput>(() => productFormFromDraft(initial));
   const [edited, setEdited] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -54,7 +66,10 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
   const submit = () => {
     const result = parseProductForm(form);
     if (!result.ok) {
-      setFormError(result.error);
+      const key = FORM_ERRORS[result.error as keyof typeof FORM_ERRORS] as
+        | (typeof FORM_ERRORS)[keyof typeof FORM_ERRORS]
+        | undefined;
+      setFormError(key ? t(key) : result.error);
       return;
     }
     onSave(result.draft, edited);
@@ -65,7 +80,7 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       {scan && (
         <View className="gap-1 rounded-lg bg-muted p-3">
           <Text className="text-sm font-medium text-label">
-            {PACKAGED_PRODUCT_COPY.labelDraftHint}
+            {t('tracker.packaged.labelDraftHint')}
           </Text>
           {scan.notes.map((note) => (
             <Text key={note} className="text-xs text-label-secondary">
@@ -73,31 +88,37 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
             </Text>
           ))}
           {scan.confidence !== 'high' && (
-            <Text className="text-xs text-attention">
-              Some numbers were hard to read. Check them carefully.
-            </Text>
+            <Text className="text-xs text-attention">{t('tracker.productForm.hardToRead')}</Text>
           )}
         </View>
       )}
-      {form.barcode && <Text className="text-xs text-label-secondary">Barcode {form.barcode}</Text>}
+      {form.barcode && (
+        <Text className="text-xs text-label-secondary">
+          {t('tracker.productForm.barcode', { barcode: form.barcode })}
+        </Text>
+      )}
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-label-secondary">Product name</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.productForm.name')}
+        </Text>
         <Input
           testID="product-form-name"
-          accessibilityLabel="Product name"
+          accessibilityLabel={t('tracker.productForm.name')}
           value={form.name}
           maxLength={PACKAGED_PRODUCT_LIMITS.nameMaxLength}
-          placeholder="e.g. Oat & honey biscuits"
+          placeholder={t('tracker.productForm.namePlaceholder')}
           onChangeText={(name) => update({ name })}
           {...DONE_FIELD_PROPS}
         />
       </View>
       <View className="gap-1">
-        <Text className="text-xs font-medium text-label-secondary">Brand (optional)</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.productForm.brand')}
+        </Text>
         <Input
           testID="product-form-brand"
-          accessibilityLabel="Brand"
+          accessibilityLabel={t('tracker.productForm.brandLabel')}
           value={form.brand}
           maxLength={PACKAGED_PRODUCT_LIMITS.brandMaxLength}
           onChangeText={(brand) => update({ brand })}
@@ -106,31 +127,39 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       </View>
 
       <Text className="text-xs font-semibold uppercase tracking-widest text-label-secondary">
-        Per 100 g (leave blank if not on the pack)
+        {t('tracker.productForm.per100g')}
       </Text>
       <View className="flex-row flex-wrap gap-2">
-        {PRODUCT_FORM_FIELDS.map(({ key, label, unit, required }) => (
-          <View key={key} className="min-w-0 basis-[47%] gap-1">
-            <Text className="text-xs font-medium text-label-secondary">
-              {label} ({unit}){required ? ' *' : ''}
-            </Text>
-            <Input
-              testID={`product-form-${key}`}
-              accessibilityLabel={`${label} per 100 grams`}
-              value={form.numbers[key]}
-              keyboardType="decimal-pad"
-              placeholder="–"
-              onChangeText={(text) => update({ numbers: { ...form.numbers, [key]: text } })}
-              {...DONE_FIELD_PROPS}
-            />
-          </View>
-        ))}
+        {PRODUCT_FORM_FIELDS.map(({ key, unit, required }) => {
+          const label = t(`tracker.productForm.fields.${key}`);
+          return (
+            <View key={key} className="min-w-0 basis-[47%] gap-1">
+              <Text className="text-xs font-medium text-label-secondary">
+                {t(required ? 'tracker.productForm.fieldRequired' : 'tracker.productForm.field', {
+                  label,
+                  unit,
+                })}
+              </Text>
+              <Input
+                testID={`product-form-${key}`}
+                accessibilityLabel={t('tracker.productForm.fieldPer100g', { label })}
+                value={form.numbers[key]}
+                keyboardType="decimal-pad"
+                placeholder="–"
+                onChangeText={(text) => update({ numbers: { ...form.numbers, [key]: text } })}
+                {...DONE_FIELD_PROPS}
+              />
+            </View>
+          );
+        })}
       </View>
       <View className="gap-1">
-        <Text className="text-xs font-medium text-label-secondary">Serving size (g, optional)</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.productForm.serving')}
+        </Text>
         <Input
           testID="product-form-serving"
-          accessibilityLabel="Serving size in grams"
+          accessibilityLabel={t('tracker.productForm.servingLabel')}
           value={form.serving}
           keyboardType="decimal-pad"
           placeholder="–"
@@ -140,7 +169,9 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       </View>
 
       <View className="gap-1.5">
-        <Text className="text-xs font-medium text-label-secondary">Contains (from the pack)</Text>
+        <Text className="text-xs font-medium text-label-secondary">
+          {t('tracker.productForm.contains')}
+        </Text>
         <View className="flex-row flex-wrap gap-1.5">
           {PRODUCT_ALLERGEN_PICKS.map(({ id, label }) => (
             <Chip
@@ -153,14 +184,14 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
           ))}
           <Chip
             testID="product-form-allergen-none"
-            label="None listed"
+            label={t('tracker.productForm.noneListed')}
             selected={form.noneListed}
             onPress={() => update({ noneListed: !form.noneListed, contains: [] })}
           />
         </View>
         {!form.noneListed && form.contains.length === 0 && (
           <Text className="text-xs text-label-secondary">
-            {PACKAGED_PRODUCT_COPY.allergensUnknown}
+            {t('tracker.packaged.allergensUnknown')}
           </Text>
         )}
       </View>
@@ -176,10 +207,10 @@ export function ProductForm({ initial, scan, saving, error, onSave, onCancel }: 
       )}
       <View className="flex-row gap-2">
         <Button variant="outline" className="flex-1" onPress={onCancel}>
-          Cancel
+          {t('tracker.productForm.cancel')}
         </Button>
         <Button testID="product-form-save" className="flex-1" loading={saving} onPress={submit}>
-          Save product
+          {t('tracker.productForm.save')}
         </Button>
       </View>
     </View>

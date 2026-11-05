@@ -5,15 +5,17 @@ import { use, useState } from 'react';
 import { UseWeekAgainSheet } from '@/features/history/components/UseWeekAgainSheet';
 import { DayView } from '@/features/meal-plan/components/day-view';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { format } from 'date-fns';
 import { ArrowLeft, BookmarkPlus, RotateCcw } from 'lucide-react';
 import { defaultSavedWeekName, userFacingErrorMessage } from '@chefer/utils';
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** `common.weekdaysShort` keys, Monday first (dayOfWeek 0 = Monday). */
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 export default function HistoryPlanPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
+  const { t, date } = useT();
   // Local state is enough here: unlike the planner there is no week param to
   // stay in sync with, and this is a read-only view.
   const [selectedDay, setSelectedDay] = useState(0);
@@ -52,12 +54,12 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
   if (!plan) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <p className="text-neutral-500">Plan not found.</p>
+        <p className="text-neutral-500">{t('plan.history.detail.notFoundTitle')}</p>
         <Link
           href="/my-weeks"
           className="mt-4 inline-flex min-h-11 items-center text-sm text-primary hover:underline"
         >
-          ← Back to My weeks
+          ← {t('plan.history.backToMyWeeks')}
         </Link>
       </div>
     );
@@ -73,15 +75,17 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
         className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm text-neutral-600 transition hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to My weeks
+        {t('plan.history.backToMyWeeks')}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          READ-ONLY VIEW
+          {t('plan.history.detail.readOnly')}
         </p>
-        <h1 className="text-xl font-bold">Week of {format(weekStart, 'dd MMM yyyy')}</h1>
+        <h1 className="text-xl font-bold">
+          {t('plan.history.detail.weekOf', { date: date(weekStart, 'medium') })}
+        </h1>
       </div>
 
       {/* UX-PLAN-11: a past week can be cooked again, or kept as a saved week. */}
@@ -93,7 +97,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
           className="flex min-h-11 items-center gap-1.5 rounded-xl border border-orange-300 px-4 text-sm font-medium text-orange-600 transition hover:bg-orange-50"
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Use this week again
+          {t('plan.history.detail.useAgain')}
         </button>
         <button
           type="button"
@@ -105,11 +109,11 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
           className="flex min-h-11 items-center gap-1.5 rounded-xl border border-neutral-200 px-4 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60"
         >
           <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
-          Save as a week
+          {t('plan.history.detail.saveAsWeek')}
         </button>
         {savedName && (
           <p role="status" className="text-xs text-emerald-700">
-            Saved as “{savedName}” in My weeks.
+            {t('plan.history.detail.savedAs', { name: savedName })}
           </p>
         )}
         {saveAsWeek.error && (
@@ -120,7 +124,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
       </div>
       <UseWeekAgainSheet
         planId={plan.planId}
-        weekLabel={format(weekStart, 'dd MMM')}
+        weekLabel={date(weekStart, 'short')}
         open={useAgainOpen}
         onClose={() => setUseAgainOpen(false)}
       />
@@ -140,17 +144,19 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
       {/* Desktop: the full week grid */}
       <div className="hidden overflow-x-auto lg:block">
         <div className="grid min-w-[700px] grid-cols-7 gap-3">
-          {DAY_LABELS.map((label, colIdx) => {
+          {DAY_KEYS.map((key, colIdx) => {
             const dayPlan = plan.days.find((d) => d.dayOfWeek === colIdx);
             const dayDate = new Date(weekStart);
             dayDate.setDate(weekStart.getDate() + colIdx);
 
             return (
-              <div key={label} className="space-y-2">
+              <div key={key} className="space-y-2">
                 {/* Column header */}
                 <div className="py-2 text-center">
-                  <p className="text-xs font-semibold text-neutral-500">{label}</p>
-                  <p className="text-sm font-bold text-neutral-700">{format(dayDate, 'd')}</p>
+                  <p className="text-xs font-semibold text-neutral-500">
+                    {t(`common.weekdaysShort.${key}`)}
+                  </p>
+                  <p className="text-sm font-bold text-neutral-700">{dayDate.getDate()}</p>
                 </div>
 
                 {/* Every slot in plan order, like the planner grid: a curated

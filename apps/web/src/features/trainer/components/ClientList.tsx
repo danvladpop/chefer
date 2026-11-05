@@ -1,7 +1,10 @@
+'use client';
+
 import Link from 'next/link';
-import { formatDayWithWeekday, formatShortDay } from '@/features/coaching/lib/dates';
+import { formatDayWithWeekdayT, formatShortDayT } from '@/features/coaching/lib/dates';
+import { useT } from '@/lib/i18n';
 import { ChevronRight } from 'lucide-react';
-import { COACHING_COPY, type ClientRowDto } from '@chefer/types';
+import type { ClientRowDto } from '@chefer/types';
 import { Badge, pressCard } from '@chefer/ui';
 import {
   clientRowNextBooking,
@@ -21,13 +24,13 @@ const COLUMNS =
   'lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-center lg:gap-4';
 
 export function ClientList({ clients }: { clients: ClientRowDto[] }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const timeZone = deviceTimeZone();
   const today = todayIn(timeZone);
   if (clients.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
-        {copy.clientsEmpty}
+        {t('coaching.trainer.clientsEmpty')}
       </p>
     );
   }
@@ -40,13 +43,13 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
           COLUMNS,
         )}
       >
-        <span>Client</span>
-        <span>Since</span>
-        <span>Last workout</span>
-        <span>This week</span>
+        <span>{t('coaching.trainer.columns.client')}</span>
+        <span>{t('coaching.trainer.columns.since')}</span>
+        <span>{t('coaching.trainer.columns.lastWorkout')}</span>
+        <span>{t('coaching.trainer.columns.thisWeek')}</span>
         <span className="w-5" />
       </div>
-      <ul className="flex flex-col gap-2" aria-label={copy.clients}>
+      <ul className="flex flex-col gap-2" aria-label={t('coaching.trainer.clients')}>
         {clients.map((client) => {
           // Lane K4: the server's verdict by the trainer's own N (food included while shared).
           const quiet = isQuietClient(client);
@@ -68,7 +71,7 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                     </span>
                     {client.keepItSimple && (
                       <Badge variant="info" data-testid="trainer-client-simple">
-                        {COACHING_COPY.trainerProfile.keepItSimple}
+                        {t('coaching.trainer.profile.keepItSimple')}
                       </Badge>
                     )}
                   </span>
@@ -79,20 +82,25 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                   )}
                 </span>
                 <span className="text-sm text-gray-600">
-                  {copy.sinceClient(formatShortDay(client.since))}
+                  {t('coaching.trainer.sinceClient', { date: formatShortDayT(client.since, t) })}
                 </span>
                 <span className="text-sm text-gray-600">
                   {client.lastWorkoutDate
-                    ? copy.lastWorkout(formatDayWithWeekday(client.lastWorkoutDate))
-                    : copy.noWorkoutYet}
+                    ? t('coaching.trainer.lastWorkout', {
+                        date: formatDayWithWeekdayT(client.lastWorkoutDate, t),
+                      })
+                    : t('coaching.trainer.noWorkoutYet')}
                 </span>
                 <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700">
                   <span className="font-medium">
-                    {copy.weekProgress(client.week.sessions, client.week.goal)}
+                    {t('coaching.trainer.weekProgress', {
+                      sessions: client.week.sessions,
+                      goal: client.week.goal,
+                    })}
                   </span>
                   {quiet && (
                     <Badge variant="secondary" data-testid="trainer-client-quiet">
-                      {copy.quiet(quietDaysOf(client))}
+                      {t('coaching.trainer.quiet', { count: quietDaysOf(client) })}
                     </Badge>
                   )}
                 </span>
@@ -113,10 +121,10 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                     className="min-w-0 break-words text-xs font-medium text-amber-800 lg:col-span-5"
                     data-testid="trainer-client-changed"
                   >
-                    {copy.routineChangedByClient(
-                      firstName(client.name),
-                      formatShortDay(client.routineChangedByClientAt),
-                    )}
+                    {t('coaching.trainer.routineChangedByClient', {
+                      name: firstName(client.name),
+                      date: formatShortDayT(client.routineChangedByClientAt, t),
+                    })}
                   </span>
                 )}
               </Link>

@@ -4,29 +4,29 @@ import { useState } from 'react';
 import { HealthDeclinedNotice } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Trash2 } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import type { Translator } from '@chefer/i18n';
 import {
   BODY_MEASURE_FIELDS,
-  BODY_MEASURE_LABELS,
   BODY_MEASURES,
   type BodyMeasure,
   type BodyMeasurementDto,
 } from '@chefer/types';
 import {
   cn,
-  formatDate,
   formatMeasure,
   localDateStr,
-  measureChangeText,
   measuredMeasures,
   measureInUnit,
-  MEASUREMENTS_COPY,
   measureSeries,
   measureUnit,
   parseMeasurementForm,
   userFacingErrorMessage,
+  type MeasureParseResult,
+  type MeasurePoint,
   type UnitSystem,
 } from '@chefer/utils';
 
@@ -38,9 +38,51 @@ import {
 
 const CHART_COLOR = '#944a00';
 
+type MeasureIssue = Extract<MeasureParseResult, { ok: false }>['issue'];
+
 /** "2026-10-20" as a local calendar day ("20 Oct"). */
-function shortDay(day: string): string {
-  return formatDate(new Date(`${day}T00:00:00`), 'short');
+function shortDay(tr: Translator, day: string): string {
+  return tr.date(new Date(`${day}T00:00:00`), 'short');
+}
+
+/** BODY_MEASURE_LABELS in the reader's language. */
+function measureLabel(tr: Translator, measure: BodyMeasure): string {
+  return tr.t(`today.measurements.labels.${measure}`);
+}
+
+/** A rejected field's message (parseMeasure's `issue`). */
+function issueText(tr: Translator, issue: MeasureIssue): string {
+  switch (issue.code) {
+    case 'format':
+      return tr.t('today.measurements.errors.format');
+    case 'bodyFatRange':
+      return tr.t('today.measurements.errors.bodyFatRange', { min: issue.min, max: issue.max });
+    case 'lengthRange':
+      return tr.t('today.measurements.errors.lengthRange', {
+        min: issue.min,
+        max: issue.max,
+        unit: issue.unit,
+      });
+  }
+}
+
+/** measureChangeText(): "−2.0 cm since your first entry", null with fewer than two values. */
+function changeText(
+  tr: Translator,
+  series: readonly MeasurePoint[],
+  measure: BodyMeasure,
+  system: UnitSystem,
+): string | null {
+  const first = series.at(0);
+  const last = series.at(-1);
+  if (!first || !last || series.length < 2) return null;
+  const delta = last.value - first.value;
+  if (Math.abs(measureInUnit(measure, delta, system)) < 0.1) {
+    return tr.t('today.measurements.change.none');
+  }
+  return tr.t('today.measurements.change.since', {
+    change: formatMeasure(measure, delta, system, { signed: true }),
+  });
 }
 
 export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
@@ -52,7 +94,9 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
   const [picked, setPicked] = useState<BodyMeasure | null>(null);
   const active = picked && measured.includes(picked) ? picked : (measured[0] ?? null);
   const series = active ? measureSeries(entries, active) : [];
-  const change = active ? measureChangeText(series, active, system) : null;
+  const tr = useT();
+  const { t } = tr;
+  const change = active ? changeText(tr, series, active, system) : null;
 
   return (
     <section
@@ -61,13 +105,17 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
       className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
     >
       <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-        {MEASUREMENTS_COPY.title}
+        {t('today.measurements.title')}
       </h2>
-      <p className="mb-4 text-sm text-neutral-500">{MEASUREMENTS_COPY.intro}</p>
+      <p className="mb-4 text-sm text-neutral-500">{t('today.measurements.intro')}</p>
 
       {active ? (
         <>
-          <div role="group" aria-label="Measure" className="mb-3 flex flex-wrap gap-2">
+          <div
+            role="group"
+            aria-label={t('today.progress.measure')}
+            className="mb-3 flex flex-wrap gap-2"
+          >
             {measured.map((m) => (
               <button
                 key={m}
@@ -82,7 +130,7 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
                     : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50',
                 )}
               >
-                {BODY_MEASURE_LABELS[m]}
+                {measureLabel(tr, m)}
               </button>
             ))}
           </div>
@@ -95,7 +143,7 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
             <ResponsiveContainer width="100%" height={160}>
               <LineChart
                 data={series.map((p) => ({
-                  date: shortDay(p.measuredOn),
+                  date: shortDay(tr, p.measuredOn),
                   value: measureInUnit(active, p.value, system),
                 }))}
               >
@@ -117,7 +165,7 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
                 <Tooltip
                   formatter={(val) => [
                     `${String(val)} ${measureUnit(active, system)}`,
-                    BODY_MEASURE_LABELS[active],
+                    measureLabel(tr, active),
                   ]}
                 />
                 <Line
@@ -132,13 +180,13 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
             </ResponsiveContainer>
           ) : (
             <p data-testid="measure-one-entry" className="mb-2 text-sm text-neutral-500">
-              {MEASUREMENTS_COPY.oneEntry}
+              {t('today.measurements.oneEntry')}
             </p>
           )}
         </>
       ) : (
         <p data-testid="measurements-empty" className="mb-2 text-sm text-neutral-500">
-          {MEASUREMENTS_COPY.empty}
+          {t('today.measurements.empty')}
         </p>
       )}
 
@@ -151,6 +199,8 @@ export function BodyMeasurementsSection({ system }: { system: UnitSystem }) {
 function MeasurementForm({ system }: { system: UnitSystem }) {
   const utils = trpc.useUtils();
   const [texts, setTexts] = useState<Partial<Record<BodyMeasure, string>>>({});
+  const tr = useT();
+  const { t } = tr;
   const [errors, setErrors] = useState<Partial<Record<BodyMeasure, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -177,8 +227,13 @@ function MeasurementForm({ system }: { system: UnitSystem }) {
     e.preventDefault();
     const parsed = parseMeasurementForm(texts, system);
     if (!parsed.ok) {
-      setErrors(parsed.errors);
-      setFormError(parsed.formError ?? null);
+      const messages: Partial<Record<BodyMeasure, string>> = {};
+      for (const m of BODY_MEASURES) {
+        const issue = parsed.issues[m];
+        if (issue) messages[m] = issueText(tr, issue);
+      }
+      setErrors(messages);
+      setFormError(parsed.formIssue ? t('today.measurements.errors.empty') : null);
       return;
     }
     setErrors({});
@@ -196,7 +251,7 @@ function MeasurementForm({ system }: { system: UnitSystem }) {
       data-testid="measurement-form"
       className="mt-4 border-t pt-4"
     >
-      <h3 className="mb-3 text-sm font-semibold text-neutral-800">{MEASUREMENTS_COPY.add}</h3>
+      <h3 className="mb-3 text-sm font-semibold text-neutral-800">{t('today.measurements.add')}</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {BODY_MEASURES.map((m) => {
           const id = `measure-${m}`;
@@ -204,7 +259,7 @@ function MeasurementForm({ system }: { system: UnitSystem }) {
           return (
             <div key={m} className="flex min-w-0 flex-col gap-1">
               <label htmlFor={id} className="text-xs text-neutral-600">
-                {`${BODY_MEASURE_LABELS[m]} (${measureUnit(m, system)})`}
+                {`${measureLabel(tr, m)} (${measureUnit(m, system)})`}
               </label>
               <input
                 id={id}
@@ -245,16 +300,16 @@ function MeasurementForm({ system }: { system: UnitSystem }) {
         className="mt-3 min-h-11 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
       >
         {log.isPending
-          ? MEASUREMENTS_COPY.saving
+          ? t('today.measurements.saving')
           : saved
-            ? `✓ ${MEASUREMENTS_COPY.saved}`
-            : MEASUREMENTS_COPY.save}
+            ? `✓ ${t('today.measurements.saved')}`
+            : t('today.measurements.save')}
       </button>
       {declined && (
         <div className="mt-2">
           <HealthDeclinedNotice
             testId="measurements-declined"
-            message={MEASUREMENTS_COPY.declined}
+            message={t('today.measurements.declined')}
           />
         </div>
       )}
@@ -270,6 +325,8 @@ function MeasurementEntries({
   entries: readonly BodyMeasurementDto[];
   system: UnitSystem;
 }) {
+  const tr = useT();
+  const { t } = tr;
   const utils = trpc.useUtils();
   const remove = trpc.tracker.deleteBodyMeasurement.useMutation({
     onSuccess: () => void utils.tracker.bodyMeasurements.invalidate(),
@@ -280,19 +337,19 @@ function MeasurementEntries({
   return (
     <div className="mt-4 border-t pt-3">
       <h3 className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-        {MEASUREMENTS_COPY.entries}
+        {t('today.measurements.entries')}
       </h3>
       {remove.isError && (
         <p role="alert" className="text-xs text-red-600">
-          {MEASUREMENTS_COPY.deleteError}
+          {t('today.measurements.deleteError')}
         </p>
       )}
       <ul className="divide-y">
         {newestFirst.slice(0, 10).map((entry) => {
-          const day = shortDay(entry.measuredOn);
+          const day = shortDay(tr, entry.measuredOn);
           const values = BODY_MEASURES.flatMap((m) => {
             const v = entry[BODY_MEASURE_FIELDS[m]];
-            return v === null ? [] : [`${BODY_MEASURE_LABELS[m]} ${formatMeasure(m, v, system)}`];
+            return v === null ? [] : [`${measureLabel(tr, m)} ${formatMeasure(m, v, system)}`];
           });
           return (
             <li
@@ -304,7 +361,7 @@ function MeasurementEntries({
               <span className="min-w-0 flex-1 text-sm text-neutral-800">{values.join(' · ')}</span>
               <button
                 type="button"
-                aria-label={MEASUREMENTS_COPY.deleteLabel(day)}
+                aria-label={t('today.measurements.deleteLabel', { day })}
                 onClick={() => remove.mutate({ id: entry.id })}
                 disabled={remove.isPending}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600"

@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { format } from 'date-fns';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
 import {
   bodyWeightInUnit,
@@ -13,6 +13,7 @@ import {
   userFacingErrorMessage,
   type UnitSystem,
 } from '@chefer/utils';
+import { weightErrorText } from '../coach-copy';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1). Before this, a typo like
 // 1000 kg stayed forever: it flattened the /progress chart, became "Current"
@@ -25,7 +26,8 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   // Edited in the user's unit (lb for IMPERIAL, backlog P2-6); saved as kg.
   const shown = String(bodyWeightInUnit(entry.weightKg, system));
   const weightLabel = formatBodyWeight(entry.weightKg, system);
-  const unitName = system === 'IMPERIAL' ? 'pounds' : 'kilograms';
+  const tr = useT();
+  const { t } = tr;
   const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
@@ -51,13 +53,13 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
-  const dateLabel = format(new Date(entry.recordedAt), 'EEE d MMM');
+  const dateLabel = tr.date(new Date(entry.recordedAt), 'weekday-short');
 
   const save = (e: React.SyntheticEvent) => {
     e.preventDefault();
     const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(weightErrorText(tr, parsed.error));
       return;
     }
     setError(null);
@@ -80,13 +82,17 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
             inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            aria-label={`Weight on ${dateLabel} in ${unitName}`}
+            aria-label={
+              system === 'IMPERIAL'
+                ? t('today.progress.entries.inputLb', { date: dateLabel })
+                : t('today.progress.entries.inputKg', { date: dateLabel })
+            }
             aria-invalid={error != null}
             className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 px-3 text-sm focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00]"
           />
           <button
             type="submit"
-            aria-label="Save weight"
+            aria-label={t('today.progress.entries.save')}
             disabled={update.isPending}
             className={iconButton}
           >
@@ -94,7 +100,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
           </button>
           <button
             type="button"
-            aria-label="Cancel editing"
+            aria-label={t('today.progress.entries.cancel')}
             onClick={() => {
               setMode('view');
               setValue(shown);
@@ -108,7 +114,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
       ) : mode === 'confirm-delete' ? (
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 text-sm text-gray-700">
-            Delete {weightLabel} on {dateLabel}?
+            {t('today.progress.entries.confirm', { weight: weightLabel, date: dateLabel })}
           </span>
           <button
             type="button"
@@ -116,14 +122,14 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
             disabled={remove.isPending}
             className="min-h-11 shrink-0 rounded-xl bg-red-600 px-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
           >
-            Delete
+            {t('common.actions.delete')}
           </button>
           <button
             type="button"
             onClick={() => setMode('view')}
             className="min-h-11 shrink-0 rounded-xl px-3 text-sm text-gray-600 hover:bg-gray-100"
           >
-            Keep
+            {t('today.progress.entries.keep')}
           </button>
         </div>
       ) : (
@@ -132,7 +138,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
           <span className="min-w-0 flex-1 text-sm font-semibold text-gray-900">{weightLabel}</span>
           <button
             type="button"
-            aria-label={`Edit ${weightLabel} on ${dateLabel}`}
+            aria-label={t('today.progress.entries.edit', { weight: weightLabel, date: dateLabel })}
             onClick={() => setMode('edit')}
             className={iconButton}
           >
@@ -140,7 +146,10 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
           </button>
           <button
             type="button"
-            aria-label={`Delete ${weightLabel} on ${dateLabel}`}
+            aria-label={t('today.progress.entries.delete', {
+              weight: weightLabel,
+              date: dateLabel,
+            })}
             onClick={() => setMode('confirm-delete')}
             className={iconButton}
           >
@@ -161,6 +170,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
 /** Newest-first list of weigh-ins with inline edit and confirm-to-delete. */
 export function WeightEntriesList({ entries, limit = 10 }: { entries: Entry[]; limit?: number }) {
   const system = useUnitSystem();
+  const { t } = useT();
   const [showAll, setShowAll] = useState(false);
   const newestFirst = [...entries].reverse();
   const visible = showAll ? newestFirst : newestFirst.slice(0, limit);
@@ -168,7 +178,9 @@ export function WeightEntriesList({ entries, limit = 10 }: { entries: Entry[]; l
 
   return (
     <div id="weight-entries" className="mt-4 border-t pt-3">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Entries</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">
+        {t('today.progress.entries.title')}
+      </p>
       <ul className="divide-y divide-gray-100">
         {visible.map((entry) => (
           <EntryRow key={entry.id} entry={entry} system={system} />
@@ -180,7 +192,9 @@ export function WeightEntriesList({ entries, limit = 10 }: { entries: Entry[]; l
           onClick={() => setShowAll((v) => !v)}
           className="mt-1 min-h-11 text-sm font-medium text-[#944a00] hover:underline"
         >
-          {showAll ? 'Show fewer' : `Show all ${newestFirst.length}`}
+          {showAll
+            ? t('today.progress.entries.showFewer')
+            : t('today.progress.entries.showAll', { count: newestFirst.length })}
         </button>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import { memo, useState } from 'react';
 import { TrainerNoteLine } from '@/features/coaching/components/RoutineAttribution';
+import { useT } from '@/lib/i18n';
 import { ChevronDown, CircleSlash, MoreHorizontal, StickyNote } from 'lucide-react';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
@@ -94,10 +95,11 @@ export const ExerciseCard = memo(function ExerciseCard({
   trainerName = null,
   setByName = null,
 }: ExerciseCardProps) {
+  const { t } = useT();
   const [showWarmups, setShowWarmups] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
   const [editRir, setEditRir] = useState(false);
-  const name = meta?.name ?? 'Exercise';
+  const name = meta?.name ?? t('gym.workout.exerciseCard.fallbackName');
   const warmups = warmupSetsOf(se);
   const working = workingSets(se);
   const done = working.filter((s) => s.completedAt !== null).length;
@@ -149,7 +151,10 @@ export const ExerciseCard = memo(function ExerciseCard({
                 <span
                   className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-800"
                   data-testid="gym-superset-chip"
-                  aria-label={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
+                  aria-label={t('gym.workout.exerciseCard.supersetChip', {
+                    label: supersetLabel,
+                    n: supersetIndex + 1,
+                  })}
                 >
                   {supersetLabel}
                   {supersetIndex + 1}
@@ -163,11 +168,11 @@ export const ExerciseCard = memo(function ExerciseCard({
               {se.skipped ? (
                 <span className="inline-flex items-center gap-1">
                   <CircleSlash className="h-3 w-3" aria-hidden="true" />
-                  Skipped today
+                  {t('gym.workout.exerciseCard.skipped')}
                 </span>
               ) : (
                 <>
-                  {done}/{working.length} sets ·{' '}
+                  {t('gym.workout.exerciseCard.progress', { done, total: working.length })} ·{' '}
                   {prescriptionText(p, unit, meta?.loadType, meta?.isTimed, meta?.perHand)}
                 </>
               )}
@@ -177,7 +182,7 @@ export const ExerciseCard = memo(function ExerciseCard({
                 className="block truncate text-xs text-gray-500"
                 data-testid="gym-exercise-last-note"
               >
-                Last time: {lastNote}
+                {t('gym.workout.setRow.lastTime', { value: lastNote })}
               </span>
             )}
           </span>
@@ -192,7 +197,7 @@ export const ExerciseCard = memo(function ExerciseCard({
         <button
           type="button"
           onClick={() => onOpenActions(se.id)}
-          aria-label={`More actions for ${name}`}
+          aria-label={t('gym.workout.exerciseCard.moreActions', { name })}
           data-testid="gym-exercise-actions"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100"
         >
@@ -215,7 +220,7 @@ export const ExerciseCard = memo(function ExerciseCard({
                 aria-expanded={showWhy}
                 className="-my-2 -mr-2 flex min-h-11 shrink-0 items-center px-2 text-xs font-semibold underline underline-offset-2"
               >
-                Why?
+                {t('gym.workout.exerciseCard.why')}
               </button>
             </div>
             {showWhy && (
@@ -231,7 +236,10 @@ export const ExerciseCard = memo(function ExerciseCard({
           </div>
 
           {trainerNote && (
-            <TrainerNoteLine trainerName={trainerName ?? 'Your trainer'} note={trainerNote} />
+            <TrainerNoteLine
+              trainerName={trainerName ?? t('gym.workout.exerciseCard.trainerFallback')}
+              note={trainerNote}
+            />
           )}
 
           {se.notes && (
@@ -251,7 +259,7 @@ export const ExerciseCard = memo(function ExerciseCard({
                 className="flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 <span>
-                  {warmups.length} warm-up set{warmups.length === 1 ? '' : 's'}
+                  {t('gym.workout.exerciseCard.warmups', { count: warmups.length })}
                   {warmups.every((s) => s.completedAt !== null) && ' ✓'}
                 </span>
                 <ChevronDown
@@ -266,7 +274,7 @@ export const ExerciseCard = memo(function ExerciseCard({
                       key={s.id}
                       seId={se.id}
                       set={s}
-                      label="W"
+                      label={t('gym.workout.setRow.warmupShort')}
                       meta={meta}
                       profile={profile}
                       unit={unit}
@@ -304,7 +312,9 @@ export const ExerciseCard = memo(function ExerciseCard({
               />
             ))}
             {working.length === 0 && (
-              <p className="px-2 py-3 text-sm text-gray-500">No sets. Add one from the ⋯ menu.</p>
+              <p className="px-2 py-3 text-sm text-gray-500">
+                {t('gym.workout.exerciseCard.noSets')}
+              </p>
             )}
           </div>
 
@@ -318,12 +328,19 @@ export const ExerciseCard = memo(function ExerciseCard({
               data-testid="gym-rir-chips"
             >
               <p className="text-xs text-gray-600">
-                How many more could you have done?
+                {t('gym.workout.exerciseCard.rirQuestion')}
                 {calibrating && (
-                  <span className="font-medium text-[#944a00]"> Helps us find your weight.</span>
+                  <span className="font-medium text-[#944a00]">
+                    {' '}
+                    {t('gym.workout.exerciseCard.rirHelp')}
+                  </span>
                 )}
               </p>
-              <div className="mt-2 flex gap-1.5" role="group" aria-label="Reps in reserve">
+              <div
+                className="mt-2 flex gap-1.5"
+                role="group"
+                aria-label={t('gym.workout.exerciseCard.rirGroup')}
+              >
                 {RIR_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -352,7 +369,9 @@ export const ExerciseCard = memo(function ExerciseCard({
               onClick={() => setEditRir(true)}
               className="min-h-11 px-2 text-xs text-gray-500 hover:text-gray-800"
             >
-              Reps left on the last set: {se.lastSetRir >= 3 ? '3+' : se.lastSetRir} · change
+              {t('gym.workout.exerciseCard.rirLeft', {
+                value: se.lastSetRir >= 3 ? '3+' : se.lastSetRir,
+              })}
             </button>
           )}
         </div>

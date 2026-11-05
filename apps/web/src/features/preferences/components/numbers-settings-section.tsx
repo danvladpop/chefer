@@ -5,6 +5,7 @@ import {
   NumbersModeChoice,
   type NumbersModeChoiceValue,
 } from '@/features/numbers-mode/numbers-mode-choice';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { effectiveNumbersMode } from '@chefer/types';
 import { Switch } from '@chefer/ui';
@@ -26,6 +27,7 @@ export function NumbersSettingsSection({
   /** The resolved "show nutrition on Today" (explicit choice, else goal-derived). */
   initialShowNutrition: boolean;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [mode, setMode] = useState<NumbersModeChoiceValue>(effectiveNumbersMode(initialMode));
   const [showNutrition, setShowNutrition] = useState(initialShowNutrition);
@@ -69,10 +71,10 @@ export function NumbersSettingsSection({
         <div data-testid="prefs-home-display" className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p id="home-display-label" className="text-sm font-semibold text-foreground">
-              Show calories and macros on Today
+              {t('today.settings.numbers.showOnToday.kcal')}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Off: Today shows your meals and workouts, without numbers.
+              {t('today.settings.numbers.showOnTodayOff')}
             </p>
           </div>
           <Switch
@@ -90,7 +92,7 @@ export function NumbersSettingsSection({
       {failed && (
         <p role="alert" data-testid="prefs-numbers-error" className="text-xs text-red-600">
           {userFacingErrorMessage(modeMutation.error ?? homeMutation.error) ||
-            "Couldn't save that. Try again."}
+            t('today.settings.numbers.saveError')}
         </p>
       )}
     </div>

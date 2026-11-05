@@ -1,23 +1,28 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BOOKING_COPY, type TrainerBookingDto } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import type { TrainerBookingDto } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import {
-  bookingBlockLabel,
   bookingTimeRange,
   bookingWhat,
-  bookingWho,
-  bookingZoneHint,
   canChangeBooking,
   cn,
   DAY_MINUTES,
-  formatDayWithWeekday,
   initialScheduleScrollMinute,
   layoutBookingDay,
   utcToZoned,
 } from '@chefer/utils';
-import { minuteToTime, slotSelection, snapMinute } from '../lib/schedule-layout';
+import {
+  bookingBlockLabelText,
+  bookingWhoText,
+  bookingZoneHintText,
+  dayLabel,
+  minuteToTime,
+  slotSelection,
+  snapMinute,
+} from '../lib/schedule-layout';
 
 // ─── The calendar grid (trainer-mode.md §6.2) ─────────────────────────────────
 // 24 hours tall, scrolled to now (today) or 06:00, 06:00–22:00 fitting the
@@ -80,14 +85,15 @@ function Block({
   onOpen: () => void;
   onDragStart: (e: React.PointerEvent<HTMLButtonElement>) => void;
 }) {
+  const tr = useT();
   const blocked = booking.kind === 'BLOCK';
   const cancelled = booking.cancelledAt !== null;
   const what = bookingWhat(booking);
-  const zone = bookingZoneHint(booking, timeZone);
+  const zone = bookingZoneHintText(tr, booking, timeZone);
   return (
     <button
       type="button"
-      aria-label={bookingBlockLabel(booking, timeZone)}
+      aria-label={bookingBlockLabelText(tr, booking, timeZone)}
       onClick={onOpen}
       onPointerDown={onDragStart}
       style={style}
@@ -106,13 +112,15 @@ function Block({
       )}
     >
       <span className={cn('truncate font-semibold', cancelled && 'line-through')}>
-        {bookingWho(booking)}
+        {bookingWhoText(tr, booking)}
       </span>
       <span className={cn('truncate', cancelled && 'line-through')}>
         {bookingTimeRange(booking, timeZone)}
       </span>
       {what && <span className="truncate">{what}</span>}
-      {cancelled && <span className="truncate font-medium">{BOOKING_COPY.schedule.cancelled}</span>}
+      {cancelled && (
+        <span className="truncate font-medium">{tr.t('trainer.bookings.schedule.cancelled')}</span>
+      )}
       {zone && <span className="truncate italic">{zone}</span>}
     </button>
   );
@@ -143,6 +151,7 @@ export function ScheduleGrid({
   /** Week view: a day header opens that day. */
   onPickDay?: (date: string) => void;
 }) {
+  const tr = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [selecting, setSelecting] = useState<Selecting | null>(null);
@@ -256,7 +265,7 @@ export function ScheduleGrid({
           {/* Header row (sticky) */}
           <div className="sticky left-0 top-0 z-20 border-b bg-white" aria-hidden="true" />
           {dates.map((date) => {
-            const label = formatDayWithWeekday(date);
+            const label = dayLabel(tr, date);
             const isToday = date === today;
             const cls = cn(
               'flex min-h-11 w-full items-center justify-center border-b border-l px-1 text-xs font-semibold',

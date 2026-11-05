@@ -16,7 +16,6 @@ import {
 import {
   cn,
   defaultMealSlot,
-  HIDDEN_FAT_COPY,
   HIDDEN_FAT_OPTIONS,
   hiddenFatExtra,
   PREMIUM_PITCH_COPY,
@@ -33,6 +32,7 @@ import { track } from '../../lib/analytics';
 import { trackMealLogged } from '../../lib/analytics-events';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
+import { useT } from '../../lib/i18n';
 import {
   scanMealPhoto,
   ScanUpgradeRequiredError,
@@ -52,11 +52,7 @@ import { toLogMealType } from './slot-copy';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
-const CONFIDENCE_LABEL: Record<MealPhotoEstimate['confidence'], string> = {
-  low: 'Rough guess',
-  med: 'Decent estimate',
-  high: 'Confident',
-};
+const HIDDEN_FAT_KEY = { none: 'none', 'a-little': 'aLittle', 'a-lot': 'aLot' } as const;
 
 /**
  * UX-FOOD-26: the calories the user typed over a vision estimate, with the
@@ -166,6 +162,7 @@ function SnapTaste() {
 
 function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const snackbar = useSnackbar();
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
   const { proteinOnly, noNumbers } = useNumbersMode();
@@ -199,7 +196,9 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
       onLogged();
     },
     onError: (error) =>
-      snackbar.show({ message: `Couldn't undo that. ${userFacingErrorMessage(error)}` }),
+      snackbar.show({
+        message: t('tracker.scan.undoFailed', { error: userFacingErrorMessage(error) }),
+      }),
   });
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
@@ -216,10 +215,10 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
       onLogged();
       const entryId = data.entryId;
       snackbar.show({
-        message: `Logged ${variables.name}`,
+        message: t('tracker.logged', { name: variables.name }),
         tone: 'success',
         ...(entryId && {
-          actionLabel: 'Undo',
+          actionLabel: t('tracker.undo'),
           onAction: () => undoMutation.mutate({ date, entryId }),
         }),
       });
@@ -287,7 +286,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
       if (err instanceof ScanUpgradeRequiredError) {
         setUpgradeNeeded(true);
       } else {
-        setError(userFacingErrorMessage(err, 'Scan failed. Try a clearer shot.'));
+        setError(userFacingErrorMessage(err, t('tracker.scan.failedClearer')));
       }
     } finally {
       setScanning(false);
@@ -303,9 +302,9 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
     <Card testID="scan-meal-card" className="gap-3">
       {!estimate ? (
         <>
-          <Text variant="heading">Snap to log</Text>
+          <Text variant="heading">{t('tracker.scan.cardTitle')}</Text>
           <Text variant="muted" className="text-xs">
-            Photograph a meal that isn&apos;t on your plan — the chef estimates its nutrition.
+            {t('tracker.scan.cardBody')}
           </Text>
           <View className="flex-row gap-2">
             <Button
@@ -317,7 +316,9 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             >
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="camera-outline" size={16} color={colors.brand} />
-                <Text className="text-sm font-medium text-primary">Camera</Text>
+                <Text className="text-sm font-medium text-primary">
+                  {t('tracker.packaged.camera')}
+                </Text>
               </View>
             </Button>
             <Button
@@ -329,20 +330,19 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             >
               <View className="flex-row items-center gap-1.5">
                 <Ionicons name="images-outline" size={16} color={colors.brand} />
-                <Text className="text-sm font-medium text-primary">Photos</Text>
+                <Text className="text-sm font-medium text-primary">
+                  {t('tracker.packaged.photos')}
+                </Text>
               </View>
             </Button>
           </View>
           {upgradeNeeded && (
-            <Text className="text-xs text-primary">
-              You&apos;ve used today&apos;s scans. Premium raises the limit.
-            </Text>
+            <Text className="text-xs text-primary">{t('tracker.scan.scansUsed')}</Text>
           )}
           {cameraDenied && (
             <View className="gap-2 rounded-lg bg-muted p-3">
               <Text variant="muted" className="text-xs">
-                Chefer needs camera access to scan a meal. You can turn it on in Settings, or pick a
-                photo instead.
+                {t('tracker.scan.cameraDenied')}
               </Text>
               <View className="flex-row gap-2">
                 <Button
@@ -351,7 +351,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                   className="flex-1"
                   onPress={() => void Linking.openSettings()}
                 >
-                  Open Settings
+                  {t('tracker.packaged.openSettings')}
                 </Button>
                 <Button
                   testID="scan-choose-photo-instead"
@@ -359,7 +359,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                   className="flex-1"
                   onPress={() => pick('library')}
                 >
-                  Choose a photo instead
+                  {t('tracker.scan.choosePhotoInstead')}
                 </Button>
               </View>
             </View>
@@ -374,7 +374,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               <Image
                 testID="scan-photo"
                 source={{ uri: photoUri }}
-                accessibilityLabel="The photo you scanned"
+                accessibilityLabel={t('tracker.scan.photoAlt')}
                 className="h-16 w-16 rounded-lg bg-muted"
                 resizeMode="cover"
               />
@@ -382,7 +382,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             <View className="min-w-0 flex-1 gap-1">
               <View className="self-start rounded-full bg-accent px-2 py-0.5">
                 <Text className="text-xs font-semibold uppercase text-primary">
-                  {CONFIDENCE_LABEL[estimate.confidence]}
+                  {t(`tracker.scan.confidenceShort.${estimate.confidence}`)}
                 </Text>
               </View>
               <Text
@@ -404,39 +404,47 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           ) : (
             <>
               <View className="gap-1">
-                <Text className="text-xs font-medium text-label-secondary">Calories</Text>
+                <Text className="text-xs font-medium text-label-secondary">
+                  {t('tracker.scan.fields.kcal')}
+                </Text>
                 <View className="flex-row items-center gap-2">
                   <Input
                     testID="scan-kcal"
-                    accessibilityLabel="Calories"
+                    accessibilityLabel={t('tracker.scan.fields.kcal')}
                     value={kcalText}
                     keyboardType="number-pad"
                     onChangeText={setKcalText}
                     className="min-w-0 flex-1"
                     {...DONE_FIELD_PROPS}
                   />
-                  <Text className="text-sm text-muted-foreground">kcal</Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {t('tracker.scan.kcalUnit')}
+                  </Text>
                 </View>
               </View>
               <Text testID="scan-macros" className="text-sm text-label-secondary">
-                {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
+                {t('tracker.scan.macros', {
+                  protein: logged.protein,
+                  carbs: logged.carbs,
+                  fat: logged.fat,
+                })}
               </Text>
             </>
           )}
           {/* Lane A3 (MO-01 press feedback via Chip): photos miss hidden fat. */}
           <View testID="scan-hidden-fat" className="gap-1.5">
             <Text className="text-xs font-medium text-label-secondary">
-              {HIDDEN_FAT_COPY.question}
+              {t('tracker.hiddenFat.question')}
             </Text>
             <Text variant="muted" className="text-xs">
-              {HIDDEN_FAT_COPY.hint}
+              {t('tracker.hiddenFat.hint')}
             </Text>
             <View className="flex-row flex-wrap gap-1.5">
               {HIDDEN_FAT_OPTIONS.map((o) => (
                 <Chip
                   key={o.level}
                   testID={`scan-hidden-fat-${o.level}`}
-                  label={o.label}
+                  label={t(`tracker.hiddenFat.options.${HIDDEN_FAT_KEY[o.level]}`)}
                   selected={hiddenFat === o.level}
                   onPress={() => setHiddenFat(o.level)}
                 />
@@ -444,29 +452,29 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
             </View>
             {fatExtra.kcal > 0 && (
               <Text testID="scan-hidden-fat-added" className="text-xs text-label-secondary">
-                {HIDDEN_FAT_COPY.addedLine(fatExtra.kcal, fatExtra.fat)}
+                {t('tracker.hiddenFat.addedLine', { kcal: fatExtra.kcal, fat: fatExtra.fat })}
               </Text>
             )}
           </View>
           {!replacesSlot && (
             <View className="flex-row gap-1.5">
-              {MEAL_TYPES.map((t) => (
+              {MEAL_TYPES.map((m) => (
                 <Pressable
-                  key={t}
+                  key={m}
                   accessibilityRole="button"
-                  onPress={() => setMealType(t)}
+                  onPress={() => setMealType(m)}
                   className={cn(
                     'h-9 flex-1 items-center justify-center rounded-lg border',
-                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-surface',
+                    mealType === m ? 'border-primary bg-primary' : 'border-border bg-surface',
                   )}
                 >
                   <Text
                     className={cn(
-                      'text-xs font-medium capitalize',
-                      mealType === t ? 'text-primary-foreground' : 'text-label-secondary',
+                      'text-xs font-medium',
+                      mealType === m ? 'text-primary-foreground' : 'text-label-secondary',
                     )}
                   >
-                    {t}
+                    {t(`tracker.meals.${m}`)}
                   </Text>
                 </Pressable>
               ))}
@@ -481,7 +489,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                 setPhotoUri(null);
               }}
             >
-              Discard
+              {t('tracker.scan.discard')}
             </Button>
             <Button
               testID="scan-log"
@@ -492,7 +500,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                 logMutation.mutate({
                   date,
                   ...REBALANCE_PREVIEW,
-                  name: estimate.dishName || 'Scanned meal',
+                  name: estimate.dishName || t('tracker.scan.fallbackName'),
                   estimatedBy: 'vision',
                   mealType: replacesSlot ? toLogMealType(replacesSlot.mealType) : mealType,
                   ...(replacesSlot && {
@@ -508,7 +516,9 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                 })
               }
             >
-              {proteinOnly ? 'Log it' : `Log ${logged.kcal} kcal`}
+              {proteinOnly
+                ? t('tracker.scan.logIt')
+                : t('tracker.scan.logKcal', { kcal: logged.kcal })}
             </Button>
           </View>
           {logMutation.isError && (

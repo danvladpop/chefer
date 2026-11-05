@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import type { NumbersMode } from '@chefer/types';
 import { Text } from '@chefer/ui-mobile';
-import { NUMBERS_MODE_COPY } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { OptionRow } from './components/option-row';
 
 // "What do you want to keep an eye on?" (WP-08): the numbers modes a user can
@@ -22,34 +22,35 @@ export function NumbersModeChoice({
   disabled?: boolean;
   testIDPrefix?: string;
 }) {
+  const { t } = useT();
   return (
     <View testID={`${testIDPrefix}-choice`} className="gap-2" accessibilityRole="radiogroup">
       <Text accessibilityRole="header" variant="label">
-        {NUMBERS_MODE_COPY.question}
+        {t('today.numbersMode.question')}
       </Text>
       <OptionRow
         testID={`${testIDPrefix}-full`}
         selected={value === 'FULL'}
         onPress={() => !disabled && onChange('FULL')}
         icon="stats-chart-outline"
-        label={NUMBERS_MODE_COPY.fullTitle}
-        description={NUMBERS_MODE_COPY.fullDetail}
+        label={t('today.numbersMode.fullTitle')}
+        description={t('today.numbersMode.fullDetail')}
       />
       <OptionRow
         testID={`${testIDPrefix}-protein`}
         selected={value === 'PROTEIN_ONLY'}
         onPress={() => !disabled && onChange('PROTEIN_ONLY')}
         icon="barbell-outline"
-        label={NUMBERS_MODE_COPY.proteinTitle}
-        description={NUMBERS_MODE_COPY.proteinDetail}
+        label={t('today.numbersMode.proteinTitle')}
+        description={t('today.numbersMode.proteinDetail')}
       />
       <OptionRow
         testID={`${testIDPrefix}-none`}
         selected={value === 'NONE'}
         onPress={() => !disabled && onChange('NONE')}
         icon="eye-off-outline"
-        label={NUMBERS_MODE_COPY.noneTitle}
-        description={NUMBERS_MODE_COPY.noneDetail}
+        label={t('today.numbersMode.noneTitle')}
+        description={t('today.numbersMode.noneDetail')}
       />
     </View>
   );

@@ -3,9 +3,10 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { CoachExplanation } from '@chefer/types';
 import { Rotate, Text, useThemeColors } from '@chefer/ui-mobile';
-import { COACH_WHY_TITLE, coachExplanationText } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
+import { coachExplanationCopy } from './coach-copy';
 
 // ─── "Why this suggestion" (market review 2026-10, lane D2) ──────────────────
 // The weekly review's deterministic explanation: a few plain sentences and
@@ -25,7 +26,8 @@ export function CoachWhy({
   const colors = useThemeColors();
   const system = useUnitSystem();
   const [open, setOpen] = useState(false);
-  const { lines, data } = coachExplanationText(explanation, system, { proteinOnly });
+  const tr = useT();
+  const { lines, data } = coachExplanationCopy(tr, explanation, system, { proteinOnly });
 
   return (
     <View testID="coach-why" className="mt-2 rounded-inner bg-surface-sunken px-3 py-1">
@@ -39,7 +41,7 @@ export function CoachWhy({
         }}
         className="min-h-11 flex-row items-center justify-between gap-2"
       >
-        <Text className="text-sm font-semibold text-label">{COACH_WHY_TITLE}</Text>
+        <Text className="text-sm font-semibold text-label">{tr.t('today.coachWhy.title')}</Text>
         <Rotate turned={open}>
           <Ionicons name="chevron-down" size={16} color={colors.labelSecondary} />
         </Rotate>

@@ -7,8 +7,9 @@ import { InviteSheet } from '@/features/trainer/components/InviteSheet';
 import { TrainerAlertsSettings } from '@/features/trainer/components/TrainerAlertsSettings';
 import { TrainerSettings } from '@/features/trainer/components/TrainerSettings';
 import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
+import { useT } from '@/lib/i18n';
 import { ChevronRight, QrCode } from 'lucide-react';
-import { COACHING_LIMITS, TRAINER_MODE_COPY } from '@chefer/types';
+import { COACHING_LIMITS } from '@chefer/types';
 import { pressCard } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
@@ -18,9 +19,8 @@ import { cn } from '@chefer/utils';
 // feedback and Turn off trainer tools. Profile, Help and the rest stay where
 // they are for everyone (the nav's Profile and the user menu).
 
-const copy = TRAINER_MODE_COPY.you;
-
 export function TrainerYou() {
+  const { t } = useT();
   const status = useTrainerStatus();
   const { switchMode } = useAppMode();
   const [inviting, setInviting] = useState(false);
@@ -29,9 +29,11 @@ export function TrainerYou() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">Trainer settings</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">
+        {t('nav.items.trainerSettings')}
+      </h1>
       <TrainerSettings
-        title={copy.profile}
+        title={t('trainer.you.profile')}
         displayName={status.displayName ?? ''}
         gymLine={status.gymLine}
         activeClients={status.activeClients}
@@ -51,17 +53,19 @@ export function TrainerYou() {
           >
             <QrCode className="h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-gray-900">{copy.invites}</span>
-              <span className="block text-xs text-gray-500">{copy.invitesHint}</span>
+              <span className="block text-sm font-medium text-gray-900">
+                {t('trainer.you.invites')}
+              </span>
+              <span className="block text-xs text-gray-500">{t('trainer.you.invitesHint')}</span>
             </span>
             <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
           </button>
           <div className="flex flex-col gap-0.5" data-testid="trainer-settings-availability">
-            <h3 className="text-sm font-medium text-gray-700">{copy.availability}</h3>
+            <h3 className="text-sm font-medium text-gray-700">{t('trainer.you.availability')}</h3>
             <p className="text-sm font-medium text-gray-900">
-              {accepting ? copy.accepting : copy.notAccepting(max)}
+              {accepting ? t('trainer.you.accepting') : t('trainer.you.notAccepting', { max })}
             </p>
-            <p className="text-xs text-gray-500">{copy.availabilityHint}</p>
+            <p className="text-xs text-gray-500">{t('trainer.you.availabilityHint')}</p>
           </div>
         </div>
       </TrainerSettings>

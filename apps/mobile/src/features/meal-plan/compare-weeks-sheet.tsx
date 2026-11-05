@@ -1,6 +1,8 @@
 import { ActivityIndicator, View } from 'react-native';
+import type { Translator } from '@chefer/i18n';
 import { Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
-import { formatKcal, sumPlanDay, weekdayLongName } from '@chefer/utils';
+import { formatKcal, sumPlanDay } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
@@ -33,16 +35,21 @@ export function compareRows(before: WeekLike | null | undefined, after: WeekLike
   })).filter((r) => r.before !== null || r.after !== null);
 }
 
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
 const cell = (
-  t: { kcal: number; protein: number } | null,
+  t: Translator['t'],
+  day: { kcal: number; protein: number } | null,
   proteinOnly = false,
   noNumbers = false,
 ): string => {
-  if (!t) return '—';
+  if (!day) return '—';
   // Lane E3 "Hide numbers": a day is just planned.
-  if (noNumbers) return 'Planned';
+  if (noNumbers) return t('plan.premiumChanges.planned');
   // WP-08: protein-only mode compares protein alone.
-  return proteinOnly ? `${t.protein} g protein` : `${formatKcal(t.kcal)} kcal · ${t.protein} g`;
+  return proteinOnly
+    ? t('plan.premiumChanges.cellProtein', { grams: day.protein })
+    : t('plan.premiumChanges.cellKcalProtein', { kcal: formatKcal(day.kcal), grams: day.protein });
 };
 
 export function CompareWeeksSheet({
@@ -57,6 +64,7 @@ export function CompareWeeksSheet({
   current: WeekLike;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode();
   const { data, isLoading, isError } = trpc.mealPlan.getById.useQuery(
     { planId: previousPlanId ?? '' },
@@ -67,13 +75,13 @@ export function CompareWeeksSheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      eyebrow="Compare"
-      title="Your free week and this week"
+      eyebrow={t('plan.compare.eyebrow')}
+      title={t('plan.compare.title')}
       testID="compare-weeks-sheet"
     >
       {!previousPlanId || isError || (!isLoading && !data) ? (
         <Text testID="compare-weeks-missing" variant="muted" className="text-sm">
-          Your free week isn’t available to compare any more.
+          {t('plan.compare.missing')}
         </Text>
       ) : isLoading ? (
         <View className="items-center py-8">
@@ -82,12 +90,14 @@ export function CompareWeeksSheet({
       ) : (
         <View className="gap-2 pb-2">
           <View className="flex-row gap-2">
-            <Text className="w-20 text-xs font-semibold uppercase text-label-tertiary">Day</Text>
-            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-label-tertiary">
-              Free week
+            <Text className="w-20 text-xs font-semibold uppercase text-label-tertiary">
+              {t('plan.premiumChanges.day')}
             </Text>
             <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-label-tertiary">
-              This week
+              {t('plan.premiumChanges.freeWeek')}
+            </Text>
+            <Text className="min-w-0 flex-1 text-xs font-semibold uppercase text-label-tertiary">
+              {t('plan.compare.thisWeek')}
             </Text>
           </View>
           {rows.map((r) => (
@@ -97,13 +107,13 @@ export function CompareWeeksSheet({
               className="min-h-11 flex-row items-center gap-2 border-t border-border py-1.5"
             >
               <Text className="w-20 text-sm font-medium text-label-secondary">
-                {weekdayLongName(r.dayOfWeek).slice(0, 3)}
+                {t(`common.weekdaysShort.${DAY_KEYS[r.dayOfWeek] ?? 'sun'}`)}
               </Text>
               <Text className="min-w-0 flex-1 text-xs text-label-secondary">
-                {cell(r.before, proteinOnly, noNumbers)}
+                {cell(t, r.before, proteinOnly, noNumbers)}
               </Text>
               <Text className="min-w-0 flex-1 text-xs text-label">
-                {cell(r.after, proteinOnly, noNumbers)}
+                {cell(t, r.after, proteinOnly, noNumbers)}
               </Text>
             </View>
           ))}

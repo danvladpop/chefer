@@ -15,6 +15,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useWorkoutReviewPrompt } from '../../review/review-signals';
 import { useShareCard } from '../../share/share-card';
@@ -24,6 +25,7 @@ import { getFinished } from './finished-store';
 import {
   nextTimeRows,
   sessionPrs,
+  streakLineText,
   summaryFromDoc,
   summaryFromRecent,
   type NextTimeRow,
@@ -32,7 +34,7 @@ import { TargetFields, TargetKeypad, type TargetEditing } from './target-fields'
 import { useIsOnline } from './use-is-online';
 import {
   DIRECTION_ICON,
-  DIRECTION_LABEL,
+  directionLabel,
   equipmentOf,
   fallbackMeta,
   formatDuration,
@@ -43,11 +45,9 @@ import {
 // engine decided for next time right away, from the optimistically folded
 // cached bootstrap — so it is correct offline too.
 
-export const PR_KIND_LABEL = {
-  e1rm: 'Estimated 1RM PR',
-  weight: 'Weight PR',
-  reps: 'Rep PR',
-} as const;
+/** The PR kind's label, in the UI language at call time. */
+export const prKindLabel = (kind: 'e1rm' | 'weight' | 'reps'): string =>
+  getTranslator().t(`gym.summary.prKindLong.${kind}`);
 
 export function goToday(): void {
   if (router.canDismiss()) router.dismissTo('/today');
@@ -55,6 +55,7 @@ export function goToday(): void {
 }
 
 export function SummaryScreen({ id }: { id: string }) {
+  const { t } = useT();
   const { data: bootstrap } = useGymBootstrap();
   const online = useIsOnline();
   const unit = unitOf(bootstrap);
@@ -88,9 +89,9 @@ export function SummaryScreen({ id }: { id: string }) {
       <Screen edges={['top', 'bottom', 'left', 'right']}>
         <EmptyState
           testID="summary-missing"
-          title="Workout saved"
-          description="It will sync as soon as you have a connection."
-          action={{ label: 'Done', onPress: goToday, testID: 'summary-done' }}
+          title={t('gym.summary.savedTitle')}
+          description={t('gym.summary.savedBody')}
+          action={{ label: t('common.actions.done'), onPress: goToday, testID: 'summary-done' }}
         />
       </Screen>
     );
@@ -99,17 +100,7 @@ export function SummaryScreen({ id }: { id: string }) {
   const streak = bootstrap?.streak;
   const goal = streak?.thisWeekGoal ?? 0;
   const sessions = streak?.thisWeekSessions ?? 0;
-  const streakLine = !streak
-    ? null
-    : streak.current > 0
-      ? `${streak.current}-week streak${
-          streak.flexTokens > 0
-            ? ` · ${streak.flexTokens} flex ${streak.flexTokens === 1 ? 'week' : 'weeks'} saved`
-            : ''
-        }`
-      : sessions >= goal && goal > 0
-        ? 'Weekly goal met. Your streak starts now.'
-        : `${Math.max(0, goal - sessions)} more this week to meet your goal.`;
+  const streakLine = streak ? streakLineText(streak, t) : null;
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -117,18 +108,26 @@ export function SummaryScreen({ id }: { id: string }) {
         <View>
           <Text variant="muted">{view.name}</Text>
           <Text testID="summary-title" variant="title">
-            Workout done
+            {t('gym.summary.workoutDone')}
           </Text>
         </View>
 
         <View className="flex-row gap-2">
           <Stat
             testID="summary-duration"
-            label="Duration"
+            label={t('gym.summary.duration')}
             value={view.durationSec === null ? '—' : formatDuration(view.durationSec)}
           />
-          <Stat testID="summary-sets" label="Sets" value={String(view.workingSets)} />
-          <Stat testID="summary-prs" label="PRs" value={String(prs.length)} />
+          <Stat
+            testID="summary-sets"
+            label={t('gym.summary.stats.sets')}
+            value={String(view.workingSets)}
+          />
+          <Stat
+            testID="summary-prs"
+            label={t('gym.summary.stats.prs')}
+            value={String(prs.length)}
+          />
         </View>
 
         {streak ? (
@@ -137,7 +136,7 @@ export function SummaryScreen({ id }: { id: string }) {
               testID="summary-week-ring"
               progress={goal > 0 ? sessions / goal : 0}
               size={72}
-              accessibilityLabel={`${sessions} of ${goal} workouts this week`}
+              accessibilityLabel={t('gym.summary.workoutsThisWeek', { done: sessions, goal })}
             >
               <Text className="text-base font-bold">
                 {sessions}/{goal}
@@ -145,7 +144,7 @@ export function SummaryScreen({ id }: { id: string }) {
             </ProgressRing>
             <View className="min-w-0 flex-1">
               <Text testID="summary-week" className="text-base font-semibold">
-                {sessions} of {goal} this week
+                {t('gym.summary.weekProgress', { done: sessions, goal })}
               </Text>
               {streakLine ? (
                 <Text testID="summary-streak" variant="muted">
@@ -160,7 +159,7 @@ export function SummaryScreen({ id }: { id: string }) {
 
         {prs.length > 0 ? (
           <View className="gap-2">
-            <Text variant="heading">Personal records</Text>
+            <Text variant="heading">{t('gym.summary.personalRecords')}</Text>
             {prs.map((pr) => {
               const meta = lookup(pr.exerciseId);
               return (
@@ -178,7 +177,7 @@ export function SummaryScreen({ id }: { id: string }) {
                       textClassName="font-semibold"
                     />
                     <Text variant="muted">
-                      {PR_KIND_LABEL[pr.kind]} ·{' '}
+                      {prKindLabel(pr.kind)} ·{' '}
                       {formatLoad(pr.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
                       {pr.reps}
                     </Text>
@@ -191,14 +190,14 @@ export function SummaryScreen({ id }: { id: string }) {
 
         <View className="gap-2">
           <Text testID="summary-next-time" variant="heading">
-            Next time
+            {t('gym.summary.nextTime')}
           </Text>
           {rows.length === 0 ? (
-            <Text variant="muted">Your next targets appear here once this workout syncs.</Text>
+            <Text variant="muted">{t('gym.summary.targetsPending')}</Text>
           ) : null}
           {!online && rows.length > 0 ? (
             <Text testID="summary-offline" variant="muted" className="text-xs">
-              Adjusting targets needs a connection. Your workout is saved and will sync.
+              {t('gym.summary.offlineAdjust')}
             </Text>
           ) : null}
           {rows.map((row, i) => {
@@ -223,7 +222,7 @@ export function SummaryScreen({ id }: { id: string }) {
                   >
                     <Text
                       testID={`summary-next-${i}-direction`}
-                      accessibilityLabel={DIRECTION_LABEL[row.direction]}
+                      accessibilityLabel={directionLabel(row.direction)}
                       className="text-base font-bold"
                     >
                       {DIRECTION_ICON[row.direction]}
@@ -240,13 +239,13 @@ export function SummaryScreen({ id }: { id: string }) {
                     <Text testID={`summary-next-${i}-target`} variant="muted">
                       {formatLoad(s.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
                       {s.reps.join(' / ')}
-                      {meta.isTimed ? ' s' : ''}
+                      {meta.isTimed ? ` ${t('gym.workout.logger.setRow.secondsUnit')}` : ''}
                     </Text>
                   </View>
                   <Pressable
                     testID={`summary-next-${i}-adjust`}
                     accessibilityRole="button"
-                    accessibilityLabel={`Adjust next target for ${meta.name}`}
+                    accessibilityLabel={t('gym.summary.adjustA11y', { name: meta.name })}
                     accessibilityState={{ disabled: !online }}
                     disabled={!online}
                     onPress={() => {
@@ -258,7 +257,9 @@ export function SummaryScreen({ id }: { id: string }) {
                       online ? 'bg-muted active:opacity-70' : 'opacity-40',
                     )}
                   >
-                    <Text className="text-sm font-semibold text-primary">Adjust</Text>
+                    <Text className="text-sm font-semibold text-primary">
+                      {t('gym.summary.adjust')}
+                    </Text>
                   </Pressable>
                 </View>
                 <Text testID={`summary-next-${i}-reason`} className="text-sm">
@@ -271,7 +272,7 @@ export function SummaryScreen({ id }: { id: string }) {
 
         {bootstrap?.nextWorkout ? (
           <Text testID="summary-next-up" variant="muted">
-            Next up: {bootstrap.nextWorkout.dayName}
+            {t('gym.summary.refuelNext', { name: bootstrap.nextWorkout.dayName })}
           </Text>
         ) : null}
 
@@ -284,15 +285,15 @@ export function SummaryScreen({ id }: { id: string }) {
             onPress={() =>
               void shareCard(
                 { kind: 'workout', sessionId: id, showPrs: true },
-                'Workout done with Chefer.',
+                t('today.share.workoutMessage'),
               )
             }
           >
-            Share your workout
+            {t('today.share.workout')}
           </Button>
         ) : null}
         <Button testID="summary-done" size="lg" onPress={goToday}>
-          Done
+          {t('common.actions.done')}
         </Button>
       </ScrollView>
 
@@ -316,6 +317,7 @@ export function SummaryScreen({ id }: { id: string }) {
  */
 function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const grams = postWorkoutProteinG(bodyweightKg);
   const { data } = trpc.dashboard.summary.useQuery(
     { localDate: localDateStr(), localHour: new Date().getHours() },
@@ -327,11 +329,11 @@ function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
       <View className="flex-row items-center gap-2">
         <Ionicons name="restaurant-outline" size={18} color={colors.brand} />
         <Text testID="summary-refuel-grams" className="min-w-0 flex-1 text-base font-semibold">
-          Aim for ~{grams} g protein in your next meal
+          {t('gym.summary.refuelAim', { grams })}
         </Text>
       </View>
       <Text variant="muted" className="text-sm">
-        It helps your muscles recover from this session.
+        {t('gym.summary.refuelHelp')}
       </Text>
       <Pressable
         testID="summary-refuel-link"
@@ -340,7 +342,9 @@ function RefuelCard({ bodyweightKg }: { bodyweightKg: number | null }) {
         className="min-h-11 justify-center"
       >
         <Text numberOfLines={1} className="text-sm font-semibold text-primary">
-          {next ? `Next up: ${next.recipe.name} →` : 'Log a meal in the tracker →'}
+          {next
+            ? t('gym.summary.refuelNextArrow', { name: next.recipe.name })
+            : t('gym.summary.refuelLogArrow')}
         </Text>
       </Pressable>
     </Card>
@@ -401,6 +405,7 @@ export function AdjustSheet({
    */
   reason?: string;
 }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const online = useIsOnline();
   const unit = unitOf(bootstrap);
@@ -434,7 +439,7 @@ export function AdjustSheet({
           void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey });
           onClose();
         },
-        onError: () => setError('Couldn’t save. Check your connection and try again.'),
+        onError: () => setError(t('gym.summary.adjustSaveError')),
       },
     );
   };
@@ -445,7 +450,7 @@ export function AdjustSheet({
         visible
         onClose={onClose}
         title={meta.name}
-        eyebrow="Next time"
+        eyebrow={t('gym.summary.nextTime')}
         testID="adjust-sheet"
         footer={
           <Button
@@ -455,7 +460,7 @@ export function AdjustSheet({
             disabled={!online}
             onPress={save}
           >
-            Save target
+            {t('gym.summary.saveTarget')}
           </Button>
         }
       >
@@ -464,9 +469,7 @@ export function AdjustSheet({
             {reason}
           </Text>
         ) : null}
-        <Text variant="muted">
-          Your target wins over the suggestion, for the next session only.
-        </Text>
+        <Text variant="muted">{t('gym.summary.adjustWins')}</Text>
         <TargetFields
           testID="adjust"
           meta={meta}
@@ -479,7 +482,7 @@ export function AdjustSheet({
           allReps={reps}
           onEdit={setEditing}
         />
-        {!online ? <Text variant="muted">Adjusting targets needs a connection.</Text> : null}
+        {!online ? <Text variant="muted">{t('gym.summary.adjustOffline')}</Text> : null}
         {error ? (
           <Text testID="adjust-sheet-error" className="text-sm text-destructive">
             {error}

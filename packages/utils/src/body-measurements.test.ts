@@ -49,18 +49,22 @@ describe('parseMeasure', () => {
     expect(parseMeasure('waist', '1e3', 'METRIC')).toEqual({
       ok: false,
       error: 'Use a number like 82.5.',
+      issue: { code: 'format' },
     });
     expect(parseMeasure('waist', '400', 'METRIC')).toEqual({
       ok: false,
       error: 'Must be between 10 and 250 cm.',
+      issue: { code: 'lengthRange', min: 10, max: 250, unit: 'cm' },
     });
     expect(parseMeasure('waist', '120', 'IMPERIAL')).toEqual({
       ok: false,
       error: 'Must be between 4 and 98 in.',
+      issue: { code: 'lengthRange', min: 4, max: 98, unit: 'in' },
     });
     expect(parseMeasure('bodyFat', '90', 'METRIC')).toEqual({
       ok: false,
       error: 'Body fat must be between 2 and 70 %.',
+      issue: { code: 'bodyFatRange', min: 2, max: 70 },
     });
   });
 });
@@ -77,7 +81,9 @@ describe('parseMeasurementForm', () => {
     expect(parseMeasurementForm({}, 'METRIC')).toEqual({
       ok: false,
       errors: {},
+      issues: {},
       formError: 'Enter at least one measurement.',
+      formIssue: 'empty',
     });
   });
 
@@ -85,6 +91,10 @@ describe('parseMeasurementForm', () => {
     const result = parseMeasurementForm({ waist: 'abc', chest: '999' }, 'METRIC');
     expect(result.ok).toBe(false);
     expect(!result.ok && Object.keys(result.errors)).toEqual(['waist', 'chest']);
+    expect(!result.ok && result.issues).toEqual({
+      waist: { code: 'format' },
+      chest: { code: 'lengthRange', min: 10, max: 250, unit: 'cm' },
+    });
   });
 });
 

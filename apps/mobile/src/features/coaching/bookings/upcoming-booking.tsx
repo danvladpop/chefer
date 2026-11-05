@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { BOOKING_COPY, type ClientBookingDto } from '@chefer/types';
+import type { ClientBookingDto } from '@chefer/types';
 import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
-import {
-  bookingDayTimeRange,
-  bookingOthersText,
-  clientCardText,
-  cn,
-  deviceTimeZone,
-  nextClientCardBooking,
-  todayIn,
-} from '@chefer/utils';
+import { cn, deviceTimeZone, nextClientCardBooking, todayIn } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { askBookingReminderPermissionOnce } from '../../notifications/booking-reminders';
+import {
+  bookingDayTimeRangeText,
+  bookingOthersLabel,
+  clientCardLabel,
+} from '../../trainer-mode/bookings/booking-model';
 import { clientBookingHref } from '../../trainer-mode/open-booking';
 import { useCoachingStatus } from '../use-coaching-status';
 
@@ -37,6 +35,7 @@ export function useUpcomingBookings() {
 /** "Session with Ana · Tue 18:00 · Gym Fit Center" → the read-only booking. */
 export function UpcomingBookingCard() {
   const colors = useThemeColors();
+  const tr = useT();
   const { bookings } = useUpcomingBookings();
   const [zone] = useState(deviceTimeZone);
   const next = nextClientCardBooking(bookings, new Date());
@@ -46,7 +45,7 @@ export function UpcomingBookingCard() {
     if (nextId) void askBookingReminderPermissionOnce('client');
   }, [nextId]);
   if (!next) return null;
-  const text = clientCardText(next, zone, todayIn(zone));
+  const text = clientCardLabel(tr, next, zone, todayIn(zone));
   return (
     // MO-01: a card-sized tap target scales on press.
     <PressableScale
@@ -73,13 +72,15 @@ export function UpcomingBookingCard() {
 /** One row of the Your trainer list: "Tue 21 Oct, 18:00–19:00 · Gym Fit Center", greyed when cancelled. */
 export function ClientBookingRow({ booking }: { booking: ClientBookingDto }) {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const [zone] = useState(deviceTimeZone);
   const cancelled = booking.cancelledAt !== null;
-  const when = bookingDayTimeRange(booking, zone, todayIn(zone));
-  const detail = [booking.workoutName, booking.location, bookingOthersText(booking)]
+  const when = bookingDayTimeRangeText(tr, booking, zone, todayIn(zone));
+  const detail = [booking.workoutName, booking.location, bookingOthersLabel(tr, booking)]
     .filter(Boolean)
     .join(' · ');
-  const label = [when, cancelled ? BOOKING_COPY.client.cancelled : null, detail || null]
+  const label = [when, cancelled ? t('trainer.bookings.client.cancelled') : null, detail || null]
     .filter(Boolean)
     .join('. ');
   return (
@@ -103,7 +104,9 @@ export function ClientBookingRow({ booking }: { booking: ClientBookingDto }) {
           {when}
         </Text>
         {cancelled ? (
-          <Text className="text-caption text-label-secondary">{BOOKING_COPY.client.cancelled}</Text>
+          <Text className="text-caption text-label-secondary">
+            {t('trainer.bookings.client.cancelled')}
+          </Text>
         ) : null}
         {detail ? <Text className="text-caption text-label-secondary">{detail}</Text> : null}
       </View>
@@ -114,16 +117,17 @@ export function ClientBookingRow({ booking }: { booking: ClientBookingDto }) {
 
 /** Your trainer → "Upcoming bookings" (read-only). */
 export function UpcomingBookingsList() {
+  const { t } = useT();
   const { hasTrainer, query, bookings } = useUpcomingBookings();
   if (!hasTrainer || query.isPending || query.isError) return null;
   return (
     <View testID="your-trainer-bookings" className="gap-2">
       <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-        {BOOKING_COPY.client.upcoming}
+        {t('trainer.bookings.client.upcoming')}
       </Text>
       {bookings.length === 0 ? (
         <Text testID="your-trainer-bookings-none" className="text-subhead text-label-secondary">
-          {BOOKING_COPY.client.none}
+          {t('trainer.bookings.client.none')}
         </Text>
       ) : (
         bookings.map((b) => <ClientBookingRow key={b.id} booking={b} />)

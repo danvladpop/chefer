@@ -13,6 +13,7 @@ import {
 import { quietDaysOf } from '@chefer/utils';
 import { trainerToolsOffError } from '../../lib/coaching-errors.js';
 import { EmailQuotaError, emailTransport, type IEmailService } from '../../lib/email/index.js';
+import { emailTranslator } from '../../lib/email/language.js';
 import { renderQuietDigestEmail } from '../../lib/email/templates.js';
 import { unsubscribeUrl, type UnsubscribeScope } from '../../lib/email/tokens.js';
 import { env } from '../../lib/env.js';
@@ -135,7 +136,8 @@ export class TrainerAlertsService {
           continue;
         }
         const unsubscribe = this.deps.unsubscribeUrl(r.userId, UNSUBSCRIBE_SCOPE);
-        const rendered = renderQuietDigestEmail({
+        // ADR 0004: in the trainer's language (locale ?? deviceLocale ?? 'en').
+        const rendered = renderQuietDigestEmail(emailTranslator(r), {
           firstName: r.firstName,
           quietAfterDays: r.quietAfterDays,
           clients: quiet,

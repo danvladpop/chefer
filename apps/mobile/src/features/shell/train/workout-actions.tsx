@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 import { Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { TrainButton } from './train-button';
 
 // The live workout's list foot in the new shell (board "Workout"): Add
@@ -28,12 +29,13 @@ export function WorkoutActions({
   onSaveForLater,
   onDiscard,
 }: WorkoutActionsProps) {
+  const { t } = useT();
   return (
     <View className="gap-3 px-2 pt-1">
       <View className="flex-row gap-2">
         <TrainButton
           testID="workout-add-exercise"
-          label="Add exercise"
+          label={t('gym.workout.view.addExercise')}
           icon="add"
           variant="tinted"
           className="flex-1"
@@ -46,8 +48,8 @@ export function WorkoutActions({
           icon="link"
           variant="tinted"
           className="flex-1"
-          accessibilityLabel="Superset"
-          accessibilityHint="Pick exercises to do back to back"
+          accessibilityLabel={t('gym.shared.superset.title')}
+          accessibilityHint={t('gym.workout.logger.screen.supersetA11yHint')}
           disabled={supersetDisabled}
           onPress={onSuperset}
         />
@@ -63,15 +65,15 @@ export function WorkoutActions({
       <View className="flex-row gap-2">
         <TrainButton
           testID="workout-save-for-later"
-          label="Save for later"
+          label={t('gym.workout.logger.screen.saveForLater')}
           variant="ghost"
           className="flex-1"
           onPress={onSaveForLater}
         />
         <TrainButton
           testID="workout-discard"
-          label="Discard"
-          accessibilityLabel="Discard workout"
+          label={t('gym.workout.view.discard')}
+          accessibilityLabel={t('gym.workout.view.discardWorkout')}
           variant="danger"
           className="flex-1"
           onPress={onDiscard}

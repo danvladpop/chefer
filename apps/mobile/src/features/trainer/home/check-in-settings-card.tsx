@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
-import {
-  CHECK_IN_COPY,
-  CHECK_IN_LIMITS,
-  CHECK_IN_QUESTION_KEYS,
-  CHECK_IN_QUESTIONS,
-  COACHING_SHARING_COPY,
-  type CheckInConfigDto,
-} from '@chefer/types';
+import { CHECK_IN_LIMITS, CHECK_IN_QUESTION_KEYS, type CheckInConfigDto } from '@chefer/types';
 import {
   Button,
   haptics,
@@ -18,14 +11,16 @@ import {
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
+import { weekdayLongT, weekdayNameT } from '../../coaching/copy';
 import { CoachingCard } from '../components/coaching-card';
 
 // ─── Trainer settings › Weekly check-in (lane K3) ─────────────────────────────
 // One check-in for every client: on / off, the weekday it opens, and up to 6 questions from the
 // catalogue (clients can always add a note). Mirrors web CheckInSettings.tsx.
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 function Chip({
   label,
@@ -64,7 +59,7 @@ function Chip({
 }
 
 export function CheckInSettingsCard() {
-  const copy = CHECK_IN_COPY.trainer;
+  const { t } = useT();
   const colors = useThemeColors();
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
@@ -78,7 +73,7 @@ export function CheckInSettingsCard() {
     onSuccess: (saved) => {
       track('check_in_config_saved', { enabled: saved.enabled, questions: saved.questions.length });
       void utils.trainer.checkIns.config.invalidate();
-      snackbar.show({ message: copy.saved });
+      snackbar.show({ message: t('coaching.checkIn.trainer.saved') });
     },
   });
   if (!draft) return null;
@@ -93,14 +88,18 @@ export function CheckInSettingsCard() {
   return (
     <CoachingCard testID="trainer-check-in-settings" className="gap-3">
       <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-        {copy.settingsTitle}
+        {t('coaching.checkIn.trainer.settingsTitle')}
       </Text>
-      <Text className="text-subhead text-label-secondary">{copy.settingsBody}</Text>
+      <Text className="text-subhead text-label-secondary">
+        {t('coaching.checkIn.trainer.settingsBody')}
+      </Text>
       <View className="flex-row items-center justify-between gap-3">
-        <Text className="min-w-0 flex-1 text-subhead font-semibold text-label">{copy.enable}</Text>
+        <Text className="min-w-0 flex-1 text-subhead font-semibold text-label">
+          {t('coaching.checkIn.trainer.enable')}
+        </Text>
         <Switch
           testID="trainer-check-in-enabled"
-          accessibilityLabel={copy.enable}
+          accessibilityLabel={t('coaching.checkIn.trainer.enable')}
           value={draft.enabled}
           onValueChange={(enabled) => setDraft({ ...draft, enabled })}
           trackColor={{ true: colors.brand, false: colors.separator }}
@@ -108,39 +107,43 @@ export function CheckInSettingsCard() {
       </View>
       {draft.enabled ? (
         <>
-          <Text className="text-footnote font-semibold text-label-secondary">{copy.dayLabel}</Text>
+          <Text className="text-footnote font-semibold text-label-secondary">
+            {t('coaching.checkIn.trainer.dayLabel')}
+          </Text>
           <View className="flex-row flex-wrap gap-2">
-            {DAYS.map((label, day) => (
+            {DAYS.map((day) => (
               <Chip
-                key={label}
+                key={day}
                 testID={`trainer-check-in-day-${day}`}
-                label={label}
-                a11y={CHECK_IN_COPY.weekday(day)}
+                label={weekdayNameT(day, t)}
+                a11y={weekdayLongT(day, t)}
                 selected={draft.day === day}
                 onPress={() => setDraft({ ...draft, day })}
               />
             ))}
           </View>
           <Text className="text-footnote font-semibold text-label-secondary">
-            {copy.questionsLabel}
+            {t('coaching.checkIn.trainer.questionsLabel')}
           </Text>
           <View className="flex-row flex-wrap gap-2">
             {CHECK_IN_QUESTION_KEYS.map((q) => (
               <Chip
                 key={q}
                 testID={`trainer-check-in-q-${q}`}
-                label={CHECK_IN_QUESTIONS[q].label}
-                a11y={CHECK_IN_QUESTIONS[q].label}
+                label={t(`coaching.checkIn.questions.${q}.label`)}
+                a11y={t(`coaching.checkIn.questions.${q}.label`)}
                 selected={draft.questions.includes(q)}
                 onPress={() => toggleQuestion(q)}
               />
             ))}
           </View>
-          <Text className="text-footnote text-label-secondary">{copy.noteAlways}</Text>
+          <Text className="text-footnote text-label-secondary">
+            {t('coaching.checkIn.trainer.noteAlways')}
+          </Text>
         </>
       ) : null}
       {save.isError ? (
-        <Text className="text-subhead text-danger">{COACHING_SHARING_COPY.saveError}</Text>
+        <Text className="text-subhead text-danger">{t('coaching.sharing.saveError')}</Text>
       ) : null}
       <Button
         testID="trainer-check-in-save"
@@ -150,7 +153,7 @@ export function CheckInSettingsCard() {
           save.mutate({ enabled: draft.enabled, day: draft.day, questions: draft.questions })
         }
       >
-        {copy.save}
+        {t('coaching.checkIn.trainer.save')}
       </Button>
     </CoachingCard>
   );

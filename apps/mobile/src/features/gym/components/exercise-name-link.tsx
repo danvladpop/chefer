@@ -2,6 +2,7 @@ import { Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 
 // T-05.5: an exercise name is a real link everywhere it appears in running
 // copy — setup preview, Gym Today's "Next up", the post-workout summary —
@@ -35,12 +36,13 @@ export function ExerciseNameLink({
   testID,
   underline = false,
 }: ExerciseNameLinkProps) {
+  const { t } = useT();
   return (
     <Pressable
       testID={testID}
       accessibilityRole="link"
-      accessibilityLabel={`${name}, view exercise`}
-      accessibilityHint="Opens the exercise details"
+      accessibilityLabel={t('gym.shared.exerciseLink', { name })}
+      accessibilityHint={t('gym.shared.exerciseLinkHint')}
       // FB7-05: the name is one or two text lines tall (20-24 pt); the slop
       // pads the hit area to >= 44 pt without moving the layout.
       hitSlop={{ top: 12, bottom: 12, left: 4, right: 4 }}

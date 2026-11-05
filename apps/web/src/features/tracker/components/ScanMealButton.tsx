@@ -7,11 +7,12 @@ import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import {
-  HIDDEN_FAT_COPY,
   HIDDEN_FAT_OPTIONS,
   hiddenFatExtra,
   proteinLabel,
@@ -37,11 +38,13 @@ import {
 // demo sheet — a sample scan animating into macros — with the snap-scan
 // upgrade touchpoint.
 
-const CONFIDENCE_STYLE: Record<MealPhotoEstimate['confidence'], { label: string; cls: string }> = {
-  high: { label: 'high confidence', cls: 'bg-emerald-100 text-emerald-700' },
-  med: { label: 'medium confidence', cls: 'bg-amber-100 text-amber-700' },
-  low: { label: 'low confidence', cls: 'bg-red-100 text-red-700' },
+const CONFIDENCE_STYLE: Record<MealPhotoEstimate['confidence'], string> = {
+  high: 'bg-emerald-100 text-emerald-700',
+  med: 'bg-amber-100 text-amber-700',
+  low: 'bg-red-100 text-red-700',
 };
+
+const HIDDEN_FAT_KEY = { none: 'none', 'a-little': 'aLittle', 'a-lot': 'aLot' } as const;
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
@@ -82,6 +85,7 @@ export function ScanMealButton({
   hideButton = false,
   openRef,
 }: ScanMealButtonProps) {
+  const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -96,7 +100,7 @@ export function ScanMealButton({
 
   // Editable confirm-sheet fields, seeded from the estimate.
   const [name, setName] = useState('');
-  const slotMealType = MEAL_TYPES.find((t) => t === replacesSlot?.mealType);
+  const slotMealType = MEAL_TYPES.find((m) => m === replacesSlot?.mealType);
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(slotMealType ?? 'lunch');
   // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
   const { proteinOnly, noNumbers } = useNumbersMode();
@@ -173,7 +177,7 @@ export function ScanMealButton({
         capture('upgrade_prompt_shown', { source: 'snap-scan' });
         setDemoOpen(true);
       } else {
-        setScanError(userFacingErrorMessage(err, 'Scan failed. Please try again.'));
+        setScanError(userFacingErrorMessage(err, t('tracker.scan.failed')));
       }
     } finally {
       setScanning(false);
@@ -221,7 +225,7 @@ export function ScanMealButton({
           className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#944a00]/30 bg-white px-3 text-sm font-semibold text-[#944a00] shadow-sm transition hover:bg-[#fff8f0] disabled:opacity-60"
         >
           {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-          {scanning ? 'Reading your plate…' : 'Scan a meal'}
+          {scanning ? t('tracker.scan.reading') : t('tracker.scan.button')}
           {isPremium === false && <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
         </button>
       )}
@@ -240,8 +244,8 @@ export function ScanMealButton({
       <Sheet
         open={estimate !== null}
         onClose={discardEstimate}
-        title="Log this meal?"
-        description="The chef's estimate — adjust anything before logging."
+        title={t('tracker.scan.confirmTitle')}
+        description={t('tracker.scan.confirmDescription')}
         size="md"
         footer={
           <button
@@ -250,7 +254,7 @@ export function ScanMealButton({
               logMutation.mutate({
                 ...REBALANCE_PREVIEW,
                 date,
-                name: name.trim() || 'Scanned meal',
+                name: name.trim() || t('tracker.scan.fallbackName'),
                 estimatedBy: 'vision',
                 mealType,
                 kcal: logged.kcal,
@@ -264,10 +268,10 @@ export function ScanMealButton({
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
           >
             {logMutation.isPending
-              ? 'Logging…'
+              ? t('tracker.scan.logging')
               : proteinOnly
-                ? 'Log it'
-                : `Log ${logged.kcal} kcal`}
+                ? t('tracker.scan.logIt')
+                : t('tracker.scan.logKcal', { kcal: logged.kcal })}
           </button>
         }
       >
@@ -277,7 +281,7 @@ export function ScanMealButton({
               {photoUrl && (
                 <Image
                   src={photoUrl}
-                  alt="The photo you scanned"
+                  alt={t('tracker.scan.photoAlt')}
                   width={64}
                   height={64}
                   unoptimized
@@ -287,16 +291,16 @@ export function ScanMealButton({
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span
-                  className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence].cls}`}
+                  className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence]}`}
                 >
-                  {CONFIDENCE_STYLE[estimate.confidence].label}
+                  {t(`tracker.scan.confidence.${estimate.confidence}`)}
                 </span>
                 <span className="min-w-0 text-xs text-neutral-500">{estimate.portionNote}</span>
               </div>
             </div>
 
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-              Dish
+              {t('tracker.scan.dish')}
               <input
                 type="text"
                 value={name}
@@ -307,16 +311,16 @@ export function ScanMealButton({
             </label>
 
             {!replacesSlot && (
-              <div role="group" aria-label="Meal type" className="flex gap-1">
-                {MEAL_TYPES.map((t) => (
+              <div role="group" aria-label={t('tracker.scan.mealType')} className="flex gap-1">
+                {MEAL_TYPES.map((m) => (
                   <button
-                    key={t}
+                    key={m}
                     type="button"
-                    onClick={() => setMealType(t)}
-                    aria-pressed={mealType === t}
-                    className={`min-h-11 flex-1 rounded-xl text-xs font-medium capitalize transition ${mealType === t ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                    onClick={() => setMealType(m)}
+                    aria-pressed={mealType === m}
+                    className={`min-h-11 flex-1 rounded-xl text-xs font-medium transition ${mealType === m ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                   >
-                    {t}
+                    {t(`tracker.meals.${m}`)}
                   </button>
                 ))}
               </div>
@@ -328,19 +332,19 @@ export function ScanMealButton({
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {numberField('Calories', kcal, setKcal, 'kcal', 5000)}
-                {numberField('Protein', protein, setProtein, 'g', 500)}
-                {numberField('Carbs', carbs, setCarbs, 'g', 1000)}
-                {numberField('Fat', fat, setFat, 'g', 500)}
+                {numberField(t('tracker.scan.fields.kcal'), kcal, setKcal, 'kcal', 5000)}
+                {numberField(t('tracker.scan.fields.protein'), protein, setProtein, 'g', 500)}
+                {numberField(t('tracker.scan.fields.carbs'), carbs, setCarbs, 'g', 1000)}
+                {numberField(t('tracker.scan.fields.fat'), fat, setFat, 'g', 500)}
               </div>
             )}
 
             {/* Lane A3: photos miss hidden fat — ask, and add it as an estimate. */}
             <fieldset data-testid="scan-hidden-fat" className="space-y-1.5">
               <legend className="text-xs font-medium text-neutral-700">
-                {HIDDEN_FAT_COPY.question}
+                {t('tracker.hiddenFat.question')}
               </legend>
-              <p className="text-xs text-neutral-500">{HIDDEN_FAT_COPY.hint}</p>
+              <p className="text-xs text-neutral-500">{t('tracker.hiddenFat.hint')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {HIDDEN_FAT_OPTIONS.map((o) => (
                   <button
@@ -351,13 +355,13 @@ export function ScanMealButton({
                     onClick={() => setHiddenFat(o.level)}
                     className={`min-h-11 rounded-full border px-3 text-xs font-medium ${hiddenFat === o.level ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                   >
-                    {o.label}
+                    {t(`tracker.hiddenFat.options.${HIDDEN_FAT_KEY[o.level]}`)}
                   </button>
                 ))}
               </div>
               {fatExtra.kcal > 0 && (
                 <p data-testid="scan-hidden-fat-added" className="text-xs text-neutral-600">
-                  {HIDDEN_FAT_COPY.addedLine(fatExtra.kcal, fatExtra.fat)}
+                  {t('tracker.hiddenFat.addedLine', { kcal: fatExtra.kcal, fat: fatExtra.fat })}
                 </p>
               )}
             </fieldset>
@@ -373,17 +377,14 @@ export function ScanMealButton({
       <Sheet
         open={demoOpen}
         onClose={() => setDemoOpen(false)}
-        title="Snap a photo, log the meal"
-        description="Here's what a scan looks like — on your own plate with premium."
+        title={t('tracker.scan.demo.title')}
+        description={t('tracker.scan.demo.description')}
         size="sm"
         footer={<UpgradeButton className="w-full px-4 py-2.5 text-sm" source="snap-scan" />}
       >
         <div className="px-5 pb-4">
           <DemoScan />
-          <p className="mt-4 text-sm text-neutral-600">
-            Photograph any plate — restaurant, leftovers, grandma&apos;s — and the chef estimates
-            the dish and macros, and logs it to your day.
-          </p>
+          <p className="mt-4 text-sm text-neutral-600">{t('tracker.scan.demo.body')}</p>
         </div>
       </Sheet>
     </>
@@ -392,19 +393,20 @@ export function ScanMealButton({
 
 /** Sample scan animating into macros — pure CSS/state, no network. */
 function DemoScan() {
+  const { t } = useT();
   const { proteinOnly } = useNumbersMode();
   const [revealed, setRevealed] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setRevealed(true), 1200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setRevealed(true), 1200);
+    return () => clearTimeout(timer);
   }, []);
 
   const macros = [
-    { label: 'kcal', value: 520 },
-    { label: 'protein', value: '38g' },
-    { label: 'carbs', value: '55g' },
-    { label: 'fat', value: '14g' },
-  ].filter((m) => !proteinOnly || m.label === 'protein');
+    { key: 'kcal', label: t('tracker.scan.demo.kcal'), value: 520 },
+    { key: 'protein', label: t('tracker.scan.demo.protein'), value: '38g' },
+    { key: 'carbs', label: t('tracker.scan.demo.carbs'), value: '55g' },
+    { key: 'fat', label: t('tracker.scan.demo.fat'), value: '14g' },
+  ].filter((m) => !proteinOnly || m.key === 'protein');
 
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200">
@@ -417,7 +419,7 @@ function DemoScan() {
         )}
         {!revealed && (
           <span className="absolute bottom-2 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00]">
-            scanning…
+            {t('tracker.scan.demo.scanning')}
           </span>
         )}
       </div>
@@ -425,15 +427,18 @@ function DemoScan() {
         className={`grid ${proteinOnly ? 'grid-cols-1' : 'grid-cols-4'} divide-x divide-neutral-100 bg-white transition-opacity duration-500 ${revealed ? 'opacity-100' : 'opacity-0'}`}
       >
         {macros.map((m) => (
-          <div key={m.label} className="px-2 py-3 text-center">
+          <div key={m.key} className="px-2 py-3 text-center">
             <p className="text-sm font-bold text-neutral-900">{m.value}</p>
             <p className="text-xs uppercase tracking-wide text-neutral-500">{m.label}</p>
           </div>
         ))}
       </div>
       <div className="border-t border-neutral-100 bg-white px-3 pb-3 pt-1 text-xs text-neutral-500">
-        Grilled chicken with rice &amp; vegetables —{' '}
-        <span className="font-medium text-amber-600">medium confidence</span>
+        {rich(t, 'tracker.scan.demo.dish', {
+          confidence: (
+            <span className="font-medium text-amber-600">{t('tracker.scan.demo.confidence')}</span>
+          ),
+        })}
       </div>
     </div>
   );

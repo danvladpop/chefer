@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
-import { format } from 'date-fns';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { Calendar, ChevronRight, RotateCcw } from 'lucide-react';
 import { UseWeekAgainSheet } from './UseWeekAgainSheet';
 
@@ -34,6 +35,7 @@ const STATUS_STYLES: Record<string, string> = {
 export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
   const [useAgainOpen, setUseAgainOpen] = useState(false);
   const { proteinOnly, noNumbers } = useNumbersMode();
+  const { t, date } = useT();
 
   const weekStart = new Date(plan.weekStartDate);
   const weekEnd = new Date(plan.weekEndDate);
@@ -45,7 +47,10 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-neutral-500" />
           <span className="text-sm font-semibold">
-            Week of {format(weekStart, 'dd MMM')} – {format(weekEnd, 'dd MMM yyyy')}
+            {t('plan.history.weekRange', {
+              start: date(weekStart, 'short'),
+              end: date(weekEnd, 'medium'),
+            })}
           </span>
         </div>
         {/* Only a replaced week needs a badge; the raw "ACTIVE" enum on every
@@ -54,7 +59,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES['ARCHIVED']}`}
           >
-            Replaced
+            {t('plan.history.replaced')}
           </span>
         )}
       </div>
@@ -79,24 +84,43 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
             lane E3 "Hide numbers" shows neither. */}
         {noNumbers ? null : proteinOnly ? (
           <span>
-            <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein} g</span>{' '}
-            protein avg
+            {rich(t, 'plan.history.proteinAvg', {
+              protein: (
+                <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein}</span>
+              ),
+            })}
           </span>
         ) : (
           <>
             <span>
-              <span className="font-medium text-neutral-700">{plan.macroSummary.avgKcal}</span> kcal
-              avg
+              {rich(t, 'plan.history.kcalAvg', {
+                kcal: (
+                  <span className="font-medium text-neutral-700">{plan.macroSummary.avgKcal}</span>
+                ),
+              })}
             </span>
             <span>
-              <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein}g</span>{' '}
-              P
+              {rich(t, 'plan.history.proteinShortP', {
+                protein: (
+                  <span className="font-medium text-neutral-700">
+                    {plan.macroSummary.avgProtein}
+                  </span>
+                ),
+              })}
             </span>
             <span>
-              <span className="font-medium text-neutral-700">{plan.macroSummary.avgCarbs}g</span> C
+              {rich(t, 'plan.history.macrosCarbsShort', {
+                carbs: (
+                  <span className="font-medium text-neutral-700">{plan.macroSummary.avgCarbs}</span>
+                ),
+              })}
             </span>
             <span>
-              <span className="font-medium text-neutral-700">{plan.macroSummary.avgFat}g</span> F
+              {rich(t, 'plan.history.macrosFatShort', {
+                fat: (
+                  <span className="font-medium text-neutral-700">{plan.macroSummary.avgFat}</span>
+                ),
+              })}
             </span>
           </>
         )}
@@ -108,7 +132,7 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
           href={`/history/${plan.id}`}
           className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
         >
-          View <ChevronRight className="h-3 w-3" />
+          {t('plan.history.view')} <ChevronRight className="h-3 w-3" />
         </Link>
         {/* UX-PLAN-11: any past week can be cooked again, into this or next week. */}
         <button
@@ -118,12 +142,12 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
           className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-orange-300 px-3 text-xs font-medium text-orange-600 transition hover:bg-orange-50"
         >
           <RotateCcw className="h-3 w-3" aria-hidden="true" />
-          Use again
+          {t('plan.history.useAgain')}
         </button>
       </div>
       <UseWeekAgainSheet
         planId={plan.id}
-        weekLabel={format(weekStart, 'dd MMM')}
+        weekLabel={date(weekStart, 'short')}
         open={useAgainOpen}
         onClose={() => setUseAgainOpen(false)}
         {...(onRestored && { onDone: onRestored })}

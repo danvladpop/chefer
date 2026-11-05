@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  FOOD_TEXT_COPY,
-  FOOD_TEXT_LIMITS,
-  foodTextSchema,
-  type ParsedFoodItem,
-} from '@chefer/types';
+import { FOOD_TEXT_LIMITS, foodTextSchema, type ParsedFoodItem } from '@chefer/types';
 import { Button, DONE_FIELD_PROPS, Input, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   foodTextTotal,
@@ -15,6 +10,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
@@ -34,6 +30,7 @@ export interface FoodTextFlowProps {
 }
 
 export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodTextFlowProps) {
+  const { t } = useT();
   const { noNumbers } = useNumbersMode();
   const colors = useThemeColors();
   const requestAiConsent = useAiConsent();
@@ -49,7 +46,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
   const read = () => {
     const parsed = foodTextSchema.safeParse(text);
     if (!parsed.success) {
-      setError('Type what you ate, e.g. “2 eggs and toast”.');
+      setError(t('tracker.foodText.tooShort'));
       return;
     }
     Keyboard.dismiss();
@@ -69,7 +66,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
             setAmounts(
               Object.fromEntries(result.items.map((i) => [i.key, String(parsedItemAmount(i))])),
             );
-            if (result.items.length === 0) setError(FOOD_TEXT_COPY.nothingFound);
+            if (result.items.length === 0) setError(t('tracker.foodText.nothingFound'));
           },
           onError: (err) => setError(userFacingErrorMessage(err)),
         },
@@ -99,7 +96,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
   if (items && items.length > 0) {
     return (
       <View testID="food-text-review" className="gap-3">
-        <Text className="text-xs text-label-secondary">{FOOD_TEXT_COPY.reviewHint}</Text>
+        <Text className="text-xs text-label-secondary">{t('tracker.foodText.reviewHint')}</Text>
         {items.map((item) => {
           const logged = parsedItemToLogItem(item, amountOf(item));
           return (
@@ -114,13 +111,16 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
                     {item.name}
                   </Text>
                   <Text className="text-xs text-label-secondary">
-                    {`“${item.text}” · ${FOOD_TEXT_COPY.sourceLabel[item.source]}`}
+                    {t('tracker.foodText.itemSource', {
+                      text: item.text,
+                      source: t(`tracker.foodText.sourceLabel.${item.source}`),
+                    })}
                   </Text>
                 </View>
                 <Pressable
                   testID={`food-text-remove-${item.key}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.name}`}
+                  accessibilityLabel={t('tracker.foodText.remove', { name: item.name })}
                   onPress={() => {
                     setItems((prev) => (prev ?? []).filter((i) => i.key !== item.key));
                     setEdited(true);
@@ -133,7 +133,11 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
               <View className="flex-row items-center gap-2">
                 <Input
                   testID={`food-text-amount-${item.key}`}
-                  accessibilityLabel={`Amount of ${item.name}, in ${item.unit === 'g' ? 'grams' : 'servings'}`}
+                  accessibilityLabel={
+                    item.unit === 'g'
+                      ? t('tracker.foodText.amountGrams', { name: item.name })
+                      : t('tracker.foodText.amountServings', { name: item.name })
+                  }
                   value={amounts[item.key] ?? ''}
                   keyboardType="decimal-pad"
                   onChangeText={(value) => {
@@ -144,15 +148,20 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
                   {...DONE_FIELD_PROPS}
                 />
                 <Text className="text-sm text-label-secondary">
-                  {item.unit === 'g' ? 'g' : 'servings'}
+                  {item.unit === 'g'
+                    ? t('tracker.foodText.unitGrams')
+                    : t('tracker.foodText.unitServings')}
                 </Text>
               </View>
               {noNumbers ? null : (
                 <Text className="text-xs text-label-secondary">
                   {logged
                     ? proteinOnly
-                      ? `${logged.protein} g protein`
-                      : `${logged.kcal} kcal · ${logged.protein} g P`
+                      ? t('tracker.foodText.liveProtein', { protein: logged.protein })
+                      : t('tracker.foodText.liveKcalProtein', {
+                          kcal: logged.kcal,
+                          protein: logged.protein,
+                        })
                     : '—'}
                 </Text>
               )}
@@ -171,8 +180,8 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
           onPress={log}
         >
           {proteinOnly || noNumbers
-            ? `Log ${ready.length} ${ready.length === 1 ? 'item' : 'items'}`
-            : `Log ${ready.length} ${ready.length === 1 ? 'item' : 'items'} · ${total} kcal`}
+            ? t('tracker.foodText.logItems', { count: ready.length })
+            : t('tracker.foodText.logItemsKcal', { count: ready.length, kcal: total })}
         </Button>
         <Pressable
           testID="food-text-again"
@@ -180,7 +189,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
           onPress={() => setItems(null)}
           className="min-h-11 justify-center self-start"
         >
-          <Text className="text-sm font-medium text-brand">Change what I typed</Text>
+          <Text className="text-sm font-medium text-brand">{t('tracker.foodText.changeText')}</Text>
         </Pressable>
       </View>
     );
@@ -190,10 +199,10 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
     <View testID="food-text-start" className="gap-2">
       <Input
         testID="food-text-input"
-        accessibilityLabel={FOOD_TEXT_COPY.entry}
+        accessibilityLabel={t('tracker.foodText.entry')}
         value={text}
         maxLength={FOOD_TEXT_LIMITS.maxChars}
-        placeholder={FOOD_TEXT_COPY.placeholder}
+        placeholder={t('tracker.foodText.placeholder')}
         onChangeText={(value) => {
           setText(value);
           setError(null);
@@ -201,7 +210,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
         returnKeyType="go"
         onSubmitEditing={read}
       />
-      <Text className="text-xs text-label-secondary">{FOOD_TEXT_COPY.hint}</Text>
+      <Text className="text-xs text-label-secondary">{t('tracker.foodText.hint')}</Text>
       {error && (
         <Text
           testID="food-text-error"
@@ -217,7 +226,7 @@ export function FoodTextFlow({ date, mealType, proteinOnly, onLogged }: FoodText
         disabled={text.trim().length < 2}
         onPress={read}
       >
-        {FOOD_TEXT_COPY.read}
+        {t('tracker.foodText.read')}
       </Button>
     </View>
   );

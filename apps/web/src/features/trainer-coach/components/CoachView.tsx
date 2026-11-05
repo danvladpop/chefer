@@ -12,9 +12,10 @@ import {
 } from '@/features/gym/workout/workout-model';
 import { useWakeLock } from '@/features/gym/workout/workout-view';
 import { firstName } from '@/features/trainer/format';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, CloudOff, CloudUpload } from 'lucide-react';
-import { BOOKING_COPY, COACHING_COPY } from '@chefer/types';
+import { BOOKING_COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { userFacingErrorMessage, type SessionSupersetSlot } from '@chefer/utils';
 import { activeWorkouts, finishPlan, pendingWorkouts, type CoachState } from '../coach-state';
@@ -38,6 +39,7 @@ export function CoachView({
   /** No booking: the client to log for. With a booking: the chip to open first. */
   clientId: string | null;
 }) {
+  const { t } = useT();
   const booking = trpc.trainer.bookings.get.useQuery(
     { bookingId: bookingId ?? '' },
     { enabled: bookingId !== null, retry: false },
@@ -108,7 +110,7 @@ export function CoachView({
             className="mt-4 min-h-11"
             onClick={() => void booking.refetch()}
           >
-            {COACHING_COPY.common.retry}
+            {t('coaching.common.retry')}
           </Button>
         )}
       </Frame>
@@ -154,7 +156,9 @@ export function CoachView({
         <div className="flex items-center gap-2">
           <Link
             href={exitHref}
-            aria-label={bookingId ? BOOKING_COPY.detail.title : name || 'Back'}
+            aria-label={
+              bookingId ? BOOKING_COPY.detail.title : name || t('coaching.trainer.coach.back')
+            }
             className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
           >
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -170,8 +174,16 @@ export function CoachView({
               <p className="flex flex-wrap gap-x-2 text-xs text-gray-500">
                 <span className="min-w-0 truncate">{logging.doc.name}</span>
                 <ElapsedClock startedAt={logging.doc.startedAt} />
-                <span aria-label={`${progress.done} of ${progress.planned} sets done`}>
-                  {progress.done}/{progress.planned} sets
+                <span
+                  aria-label={t('gym.workout.view.setsDoneAria', {
+                    done: progress.done,
+                    planned: progress.planned,
+                  })}
+                >
+                  {t('coaching.trainer.coach.setsProgress', {
+                    done: progress.done,
+                    planned: progress.planned,
+                  })}
                 </span>
               </p>
             )}
@@ -252,6 +264,7 @@ function CoachPanel({
     supersets: ReadonlyMap<string, SessionSupersetSlot>,
   ) => void;
 }) {
+  const { t } = useT();
   const entry = activeId ? state.workouts[activeId] : undefined;
   if (entry?.doc && entry.phase === 'active') {
     return (
@@ -306,7 +319,7 @@ function CoachPanel({
           {startStatus.message}
         </p>
         <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={onRetryStart}>
-          {COACHING_COPY.common.retry}
+          {t('coaching.common.retry')}
         </Button>
       </div>
     );
@@ -315,7 +328,7 @@ function CoachPanel({
     <div
       className="h-48 animate-pulse rounded-2xl bg-gray-100"
       aria-busy="true"
-      aria-label="Loading the workout"
+      aria-label={t('coaching.trainer.coach.loading')}
     />
   );
 }
@@ -330,6 +343,7 @@ function CoachSyncLine({
   syncing: boolean;
   onSync: () => void;
 }) {
+  const { t } = useT();
   const pending = pendingWorkouts(state);
   const [online, setOnline] = useState(true);
   useEffect(() => {
@@ -361,8 +375,10 @@ function CoachSyncLine({
           <CloudOff className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
         )}
         {syncing
-          ? 'Uploading…'
-          : `${n} workout${n === 1 ? '' : 's'} waiting to upload${syncFailureHint(lastError)}${online ? ' · Sync now' : ' · offline'}`}
+          ? t('gym.shared.sync.uploading')
+          : `${t('gym.shared.sync.waiting', { count: n })}${syncFailureHint(lastError, t)} · ${
+              online ? t('gym.shared.sync.syncNow') : t('gym.shared.sync.offline')
+            }`}
       </button>
     </div>
   );

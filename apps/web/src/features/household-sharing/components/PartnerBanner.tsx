@@ -1,5 +1,5 @@
+import { useT } from '@/lib/i18n';
 import { Users } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 // "You're sharing Dan's week and shopping list." (ADR 0003), with an optional
@@ -14,6 +14,7 @@ export function PartnerBanner({
   note?: string | null;
   className?: string;
 }) {
+  const { t } = useT();
   return (
     <div
       data-testid="household-partner-banner"
@@ -24,7 +25,9 @@ export function PartnerBanner({
     >
       <Users className="mt-0.5 h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
       <div className="min-w-0">
-        <p className="text-sm font-medium text-[#944a00]">{COPY.partnerBanner(ownerName)}</p>
+        <p className="text-sm font-medium text-[#944a00]">
+          {t('household.sharing.partnerBanner', { ownerName })}
+        </p>
         {note && <p className="mt-0.5 text-xs text-gray-700">{note}</p>}
       </div>
     </div>

@@ -161,7 +161,7 @@ Rules that are easy to get wrong:
 - **Nothing may scroll the document horizontally.** `body` uses `overflow-x: clip` (not `hidden`, which would make `body` a scroll container and break `position: sticky`), but that only masks the symptom — fix the source.
 - Content below `lg` must clear the fixed tab bar; `<main>` already reserves `pb-nav-safe`.
 
-Run `cd tests && pnpm exec playwright test --project=mobile` after layout changes. It sweeps every route at 320/375/390/430px for overflow and checks touch-target sizes.
+Run `cd tests && pnpm exec playwright test --project=mobile` after layout changes. It sweeps every route at 320/375/390/430px for overflow and checks touch-target sizes. Run it again with `PLAYWRIGHT_LOCALE=ro-RO`: Romanian copy is longer, so a layout that fits in English can overflow in Romanian.
 
 ---
 

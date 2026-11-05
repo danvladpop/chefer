@@ -1,15 +1,16 @@
 'use client';
 
 import { useId } from 'react';
+import { useT } from '@/lib/i18n';
 import { BarChart3, Check, Dumbbell, EyeOff } from 'lucide-react';
 import type { NumbersMode } from '@chefer/types';
-import { cn, NUMBERS_MODE_COPY } from '@chefer/utils';
+import { cn } from '@chefer/utils';
 
 // "What do you want to keep an eye on?" (WP-08): the numbers modes a user can
 // pick. Controlled, so it serves both the onboarding goal step (saved with the
 // rest of setup) and the Preferences card (saved at once). Lane E3 adds "Hide
 // numbers" (NONE) as an equal third option. Mirrors apps/mobile
-// .../numbers-mode-choice.tsx; the words are shared (NUMBERS_MODE_COPY).
+// .../numbers-mode-choice.tsx; the words are shared (`today.numbersMode.*`).
 
 export type NumbersModeChoiceValue = NumbersMode;
 
@@ -18,23 +19,23 @@ const TEST_ID = { FULL: 'full', PROTEIN_ONLY: 'protein', NONE: 'none' } as const
 const OPTIONS = [
   {
     value: 'FULL' as const,
-    title: NUMBERS_MODE_COPY.fullTitle,
-    detail: NUMBERS_MODE_COPY.fullDetail,
+    title: 'today.numbersMode.fullTitle',
+    detail: 'today.numbersMode.fullDetail',
     Icon: BarChart3,
   },
   {
     value: 'PROTEIN_ONLY' as const,
-    title: NUMBERS_MODE_COPY.proteinTitle,
-    detail: NUMBERS_MODE_COPY.proteinDetail,
+    title: 'today.numbersMode.proteinTitle',
+    detail: 'today.numbersMode.proteinDetail',
     Icon: Dumbbell,
   },
   {
     value: 'NONE' as const,
-    title: NUMBERS_MODE_COPY.noneTitle,
-    detail: NUMBERS_MODE_COPY.noneDetail,
+    title: 'today.numbersMode.noneTitle',
+    detail: 'today.numbersMode.noneDetail',
     Icon: EyeOff,
   },
-];
+] as const;
 
 export function NumbersModeChoice({
   value,
@@ -50,6 +51,7 @@ export function NumbersModeChoice({
   className?: string;
 }) {
   const labelId = useId();
+  const { t } = useT();
   return (
     <div
       role="radiogroup"
@@ -58,7 +60,7 @@ export function NumbersModeChoice({
       className={cn('space-y-2', className)}
     >
       <p id={labelId} className="text-sm font-semibold text-foreground">
-        {NUMBERS_MODE_COPY.question}
+        {t('today.numbersMode.question')}
       </p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {OPTIONS.map(({ value: v, title, detail, Icon }) => {
@@ -91,9 +93,9 @@ export function NumbersModeChoice({
                     selected ? 'text-primary' : 'text-foreground',
                   )}
                 >
-                  {title}
+                  {t(title)}
                 </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{detail}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{t(detail)}</span>
               </span>
               {selected && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
             </button>

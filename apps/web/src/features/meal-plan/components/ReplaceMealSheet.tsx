@@ -8,6 +8,7 @@ import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
+import { useT } from '@/lib/i18n';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Heart, ShieldCheck, Wand2 } from 'lucide-react';
 import { ErrorState, Sheet } from '@chefer/ui';
@@ -18,7 +19,6 @@ import {
   pickerRowMeta,
   pickerSafetyHeader,
   pickerSafetyHeaderText,
-  PLAN_MEAL_MENU_COPY,
   readAddToWeekFailure,
   userFacingErrorMessage,
   verifiedLabels,
@@ -100,6 +100,7 @@ export function ReplaceMealSheet({
   onConflict?: () => void;
 }) {
   const { proteinOnly } = useNumbersMode(); // WP-08
+  const { t } = useT();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -289,8 +290,10 @@ export function ReplaceMealSheet({
     <Sheet
       open={open}
       onClose={handleClose}
-      title={isSide ? PLAN_MEAL_MENU_COPY.addSide : 'Replace meal'}
-      description={isSide && target ? `Next to ${target.mealName}` : target?.mealName}
+      title={isSide ? t('plan.mealMenu.addSide') : t('plan.replace.title')}
+      description={
+        isSide && target ? t('plan.replace.nextTo', { meal: target.mealName }) : target?.mealName
+      }
       footer={
         isPremium === true && !isSide ? (
           <button
@@ -315,7 +318,7 @@ export function ReplaceMealSheet({
             className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" aria-hidden="true" />
-            {busy ? 'Working…' : 'Regenerate with AI'}
+            {busy ? t('plan.replace.working') : t('plan.replace.regenerateAi')}
           </button>
         ) : undefined
       }
@@ -324,10 +327,10 @@ export function ReplaceMealSheet({
         <input
           data-testid="picker-search"
           type="search"
-          aria-label="Search recipes"
+          aria-label={t('recipes.list.searchLabel')}
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search recipes…"
+          placeholder={t('recipes.list.searchPlaceholder')}
           className="h-11 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
         />
 
@@ -358,7 +361,7 @@ export function ReplaceMealSheet({
                 }}
                 className="mt-1 text-xs font-semibold text-red-700 underline disabled:opacity-50"
               >
-                Use anyway
+                {t('plan.replace.useAnyway')}
               </button>
             )}
           </div>
@@ -383,13 +386,13 @@ export function ReplaceMealSheet({
         )}
 
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-gray-500">Loading recipes…</p>
+          <p className="py-8 text-center text-sm text-gray-500">{t('plan.replace.loading')}</p>
         ) : sections.length === 0 && loadFailed ? (
           <div data-testid="replace-load-error" className="py-4">
-            <ErrorState title="Couldn't load recipes" onRetry={retryLoad} />
+            <ErrorState title={t('plan.replace.loadError')} onRetry={retryLoad} />
           </div>
         ) : sections.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-500">No recipes match your search.</p>
+          <p className="py-8 text-center text-sm text-gray-500">{t('plan.replace.noMatch')}</p>
         ) : (
           sections.map((section) => {
             // T-02.4: "Checked for …" only applies to the broader/curated
@@ -399,7 +402,11 @@ export function ReplaceMealSheet({
             return (
               <div key={section.title}>
                 <h3 className="pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  {section.title}
+                  {section.title === 'Your recipes'
+                    ? t('plan.replace.sectionMine')
+                    : isAllSection
+                      ? t('plan.replace.sectionAll')
+                      : section.title}
                 </h3>
                 <ul className="flex flex-col gap-2">
                   {section.data.map((recipe) => {
@@ -409,7 +416,7 @@ export function ReplaceMealSheet({
                         <button
                           type="button"
                           data-testid={`picker-recipe-${recipe.id}`}
-                          aria-label={`Use ${recipe.name}`}
+                          aria-label={t('plan.replace.use', { name: recipe.name })}
                           disabled={busy}
                           onClick={() => {
                             if (!target) return;

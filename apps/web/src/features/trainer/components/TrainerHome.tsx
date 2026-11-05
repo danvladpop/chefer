@@ -4,22 +4,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY } from '@chefer/types';
 import { useTrainerStatus } from '../use-trainer-status';
 import { ClientsView } from './ClientsView';
 import { TrainerTurnOn } from './TrainerTurnOn';
 
 function Notice({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">{COACHING_COPY.trainer.title}</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">{t('coaching.trainer.title')}</h1>
       <p className="mt-3 text-sm text-gray-700">{children}</p>
       <Link
         href="/profile"
         className="mt-6 inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline underline-offset-4"
       >
-        Back to Profile
+        {t('coaching.trainer.backToProfile')}
       </Link>
     </div>
   );
@@ -31,6 +32,7 @@ function Notice({ children }: { children: React.ReactNode }) {
  * Trainer tools' links and bookmarks keep working.
  */
 export function TrainerHome() {
+  const { t } = useT();
   const router = useRouter();
   const status = useTrainerStatus();
   const { trainerModeAvailable, trainerModeLoading } = useAppMode();
@@ -45,7 +47,7 @@ export function TrainerHome() {
   if (status.isLoading || trainerModeAvailable || (status.active && trainerModeLoading)) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
-        <h1 className="sr-only">{COACHING_COPY.trainer.clients}</h1>
+        <h1 className="sr-only">{t('coaching.trainer.clients')}</h1>
         <div className="h-48 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </div>
     );
@@ -62,5 +64,5 @@ export function TrainerHome() {
   if (status.enabled && status.canActivate) {
     return <TrainerTurnOn defaultName={user?.firstName ?? ''} />;
   }
-  return <Notice>{COACHING_COPY.server.notAllowed}</Notice>;
+  return <Notice>{t('coaching.trainer.notAllowed')}</Notice>;
 }

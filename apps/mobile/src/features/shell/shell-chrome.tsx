@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
+import { useT } from '../../lib/i18n';
 
 // ─── Shell chrome (mobile UX revamp, phase 1) ───────────────────────────────
 // Every tab-root screen of the old shell draws a Food|Gym `ModeSwitch` as its
@@ -41,12 +42,13 @@ export function useShellChrome(): ShellChrome | null {
 export function ShellTopBar({ className }: { className?: string }) {
   const chrome = useShellChrome();
   const colors = useThemeColors();
+  const { t } = useT();
   if (!chrome) return null;
   const back =
     chrome.kind === 'pushed' ? (
       <IconButton
         testID="shell-back"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.actions.back')}
         icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
         onPress={() => (router.canGoBack() ? router.back() : router.replace(chrome.fallback))}
         className="-ml-2"

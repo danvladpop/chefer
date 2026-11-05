@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { useId, useState } from 'react';
+import { dayLabel } from '@/features/trainer-bookings/lib/schedule-layout';
 import { QueryError } from '@/features/trainer-mode/components/QueryError';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ChevronRight, Dumbbell, Plus, Search } from 'lucide-react';
-import { TEMPLATE_COPY, type WorkoutTemplateSummaryDto } from '@chefer/types';
+import type { WorkoutTemplateSummaryDto } from '@chefer/types';
 import { buttonVariants, pressCard } from '@chefer/ui';
 import {
   cn,
   filterTemplates,
-  formatShortDay,
-  templateSummaryLine,
   templateWorkoutTypes,
   workoutTypeLabel,
   type TemplateTypeFilter,
 } from '@chefer/utils';
-import { NEW_TEMPLATE_ID } from '../template-draft';
+import { NEW_TEMPLATE_ID, templateAssignedText, templateSummaryText } from '../template-draft';
 
 // ─── Workouts: the template library (trainer-mode.md §6.6, M2) ────────────────
 // The trainer's templates, most recently edited first: name, workout type,
@@ -24,10 +24,10 @@ import { NEW_TEMPLATE_ID } from '../template-draft';
 // a workout type filter; "New template" opens the editor on /new (the template
 // is created on its first save).
 
-const copy = TEMPLATE_COPY.library;
 const NEW_HREF = `/trainer/workouts/${NEW_TEMPLATE_ID}`;
 
 function TemplateRow({ template }: { template: WorkoutTemplateSummaryDto }) {
+  const tr = useT();
   return (
     <li>
       <Link
@@ -44,11 +44,17 @@ function TemplateRow({ template }: { template: WorkoutTemplateSummaryDto }) {
             {template.name}
           </span>
           <span className="block min-w-0 break-words text-sm text-gray-600">
-            {templateSummaryLine(template)}
+            {templateSummaryText(tr, template)}
           </span>
           <span className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
-            <span data-testid="template-row-assigned">{copy.assigned(template.assignedCount)}</span>
-            <span>{copy.edited(formatShortDay(template.updatedAt))}</span>
+            <span data-testid="template-row-assigned">
+              {templateAssignedText(tr, template.assignedCount)}
+            </span>
+            <span>
+              {tr.t('trainer.templates.library.edited', {
+                date: dayLabel(tr, template.updatedAt, 'short'),
+              })}
+            </span>
           </span>
         </span>
         <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
@@ -58,6 +64,7 @@ function TemplateRow({ template }: { template: WorkoutTemplateSummaryDto }) {
 }
 
 function EmptyLibrary() {
+  const { t } = useT();
   return (
     <section
       aria-labelledby="template-library-empty"
@@ -68,17 +75,18 @@ function EmptyLibrary() {
         <Dumbbell className="h-6 w-6" aria-hidden="true" />
       </span>
       <h2 id="template-library-empty" className="font-semibold text-gray-900">
-        {copy.emptyTitle}
+        {t('trainer.templates.library.emptyTitle')}
       </h2>
-      <p className="max-w-sm text-sm text-gray-600">{copy.emptyBody}</p>
+      <p className="max-w-sm text-sm text-gray-600">{t('trainer.templates.library.emptyBody')}</p>
       <Link href={NEW_HREF} className={cn(buttonVariants(), 'min-h-11')}>
-        <Plus className="h-4 w-4" aria-hidden="true" /> {copy.newTemplate}
+        <Plus className="h-4 w-4" aria-hidden="true" /> {t('trainer.templates.library.newTemplate')}
       </Link>
     </section>
   );
 }
 
 export function TemplateLibrary() {
+  const { t } = useT();
   const searchId = useId();
   const typeId = useId();
   const [query, setQuery] = useState('');
@@ -95,10 +103,13 @@ export function TemplateLibrary() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="min-w-0 font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+        <h1 className="min-w-0 font-serif text-2xl font-bold text-gray-900">
+          {t('trainer.templates.library.title')}
+        </h1>
         {rows.length > 0 && (
           <Link href={NEW_HREF} className={cn(buttonVariants(), 'min-h-11')}>
-            <Plus className="h-4 w-4" aria-hidden="true" /> {copy.newTemplate}
+            <Plus className="h-4 w-4" aria-hidden="true" />{' '}
+            {t('trainer.templates.library.newTemplate')}
           </Link>
         )}
       </div>
@@ -118,7 +129,7 @@ export function TemplateLibrary() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="relative min-w-0 flex-1">
               <label htmlFor={searchId} className="sr-only">
-                {copy.search}
+                {t('trainer.templates.library.search')}
               </label>
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -128,7 +139,7 @@ export function TemplateLibrary() {
                 id={searchId}
                 type="search"
                 value={query}
-                placeholder={copy.search}
+                placeholder={t('trainer.templates.library.search')}
                 autoComplete="off"
                 enterKeyHint="search"
                 onChange={(e) => setQuery(e.target.value)}
@@ -138,7 +149,7 @@ export function TemplateLibrary() {
             {usedTypes.length > 0 && (
               <div className="flex min-w-0 shrink-0 items-center gap-2">
                 <label htmlFor={typeId} className="text-sm font-medium text-gray-700">
-                  {TEMPLATE_COPY.editor.workoutType}
+                  {t('trainer.templates.editor.workoutType')}
                 </label>
                 <select
                   id={typeId}
@@ -146,7 +157,7 @@ export function TemplateLibrary() {
                   onChange={(e) => setType(e.target.value as TemplateTypeFilter)}
                   className="h-11 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-base focus:border-gray-400 focus:outline-none sm:text-sm"
                 >
-                  <option value="ALL">{copy.filterAll}</option>
+                  <option value="ALL">{t('trainer.templates.library.filterAll')}</option>
                   {usedTypes.map((t) => (
                     <option key={t} value={t}>
                       {workoutTypeLabel(t)}
@@ -161,10 +172,12 @@ export function TemplateLibrary() {
               role="status"
               className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600"
             >
-              {query.trim() ? copy.searchEmpty(query.trim()) : copy.emptyTitle}
+              {query.trim()
+                ? t('trainer.templates.library.searchEmpty', { query: query.trim() })
+                : t('trainer.templates.library.emptyTitle')}
             </p>
           ) : (
-            <ul className="flex flex-col gap-2" aria-label={copy.title}>
+            <ul className="flex flex-col gap-2" aria-label={t('trainer.templates.library.title')}>
               {shown.map((template) => (
                 <TemplateRow key={template.id} template={template} />
               ))}

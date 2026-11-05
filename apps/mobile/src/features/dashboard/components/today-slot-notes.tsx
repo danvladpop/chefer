@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 import { Card } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { SlotStatusLine } from '../../tracker/slot-controls';
@@ -24,6 +25,7 @@ export function TodaySlotNotes({
   onRemoveReplacement: (entryId: string) => void;
   onUndoSkip: (slot: { mealType: string; slotIndex: number }) => void;
 }) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
@@ -57,7 +59,7 @@ export function TodaySlotNotes({
                         proteinOnly,
                         noNumbers,
                       )
-                    : 'You had something else'
+                    : t('today.home.slotNotes.youHadElse')
                 }
                 actionLabel={entryId ? SLOT_COPY.remove : undefined}
                 onAction={entryId ? () => onRemoveReplacement(entryId) : undefined}

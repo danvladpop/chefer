@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { BOOKING_REMINDER_DAYS } from '@chefer/types';
-import { deviceTimeZone, planClientReminders, planTrainerReminders } from '@chefer/utils';
+import { deviceTimeZone } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useCoachingStatus } from '../coaching/use-coaching-status';
 import { useShellMode } from '../trainer-mode/mode-store';
 import { useLiveTrainerModeAvailability } from '../trainer-mode/use-trainer-mode';
 import {
+  clientReminderPlan,
   getBookingReminderPrefs,
   getBookingReminderSyncTick,
   subscribeBookingReminderPrefs,
   subscribeBookingReminderSyncTick,
   syncBookingReminders,
+  trainerReminderPlan,
   type BookingReminderPrefs,
 } from './booking-reminders';
 
@@ -45,6 +48,8 @@ export function useBookingReminders(): void {
   const prefs = useBookingReminderPrefs();
   const tick = useSyncExternalStore(subscribeBookingReminderSyncTick, getBookingReminderSyncTick);
   const windowStart = useWindowStart();
+  // The reminder text follows the UI language: a language change re-plans both sides.
+  const tr = useT();
 
   // Client side: only for someone who has a trainer.
   const status = useCoachingStatus();
@@ -78,8 +83,8 @@ export function useBookingReminders(): void {
       return;
     }
     if (!upcoming.data) return;
-    void syncBookingReminders('client', planClientReminders(upcoming.data, new Date()));
-  }, [hasTrainer, clientKnown, prefs.client, upcoming.data, windowStart, tick]);
+    void syncBookingReminders('client', clientReminderPlan(upcoming.data, new Date(), tr));
+  }, [hasTrainer, clientKnown, prefs.client, upcoming.data, windowStart, tick, tr]);
 
   useEffect(() => {
     if (!inTrainerMode || !prefs.trainer) {
@@ -92,9 +97,18 @@ export function useBookingReminders(): void {
     if (!trainerBookings.data) return;
     void syncBookingReminders(
       'trainer',
-      planTrainerReminders(trainerBookings.data.bookings, new Date(), deviceTimeZone()),
+      trainerReminderPlan(trainerBookings.data.bookings, new Date(), deviceTimeZone(), tr),
     );
-  }, [inTrainerMode, mode, trainerLive, prefs.trainer, trainerBookings.data, windowStart, tick]);
+  }, [
+    inTrainerMode,
+    mode,
+    trainerLive,
+    prefs.trainer,
+    trainerBookings.data,
+    windowStart,
+    tick,
+    tr,
+  ]);
 }
 
 function BookingReminderSync(): null {

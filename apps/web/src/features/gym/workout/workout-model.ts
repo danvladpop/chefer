@@ -1,3 +1,4 @@
+import { createTranslator, type Translator } from '@chefer/i18n';
 import type {
   ExerciseBest,
   ExerciseMeta,
@@ -183,12 +184,19 @@ export function currentExerciseId(
   return currentFocus(doc, supersets)?.seId ?? list[list.length - 1]?.id ?? null;
 }
 
-/** "Set 2" / "Warm-up 1" — how a set is named in its card. */
-export function setLabelOf(se: SessionExerciseDoc, setId: string): string | null {
+/**
+ * "Set 2" / "Warm-up 1" — how a set is named in its card. `t` is the UI
+ * translator (English when omitted).
+ */
+export function setLabelOf(
+  se: SessionExerciseDoc,
+  setId: string,
+  t: Translator['t'] = createTranslator('en').t,
+): string | null {
   const warm = warmupSetsOf(se).findIndex((s) => s.id === setId);
-  if (warm >= 0) return `Warm-up ${warm + 1}`;
+  if (warm >= 0) return t('gym.workout.setName.warmup', { n: warm + 1 });
   const work = workingSets(se).findIndex((s) => s.id === setId);
-  return work >= 0 ? `Set ${work + 1}` : null;
+  return work >= 0 ? t('gym.workout.setName.set', { n: work + 1 }) : null;
 }
 
 /** The first set to tick in an exercise (warm-ups first, then working sets). */

@@ -1,8 +1,9 @@
 import { AccessibilityInfo } from 'react-native';
 import { router } from 'expo-router';
-import { TRAINER_MODE_COPY, type AppShellMode } from '@chefer/types';
+import type { AppShellMode } from '@chefer/types';
 import { haptics } from '@chefer/ui-mobile';
 import { track } from '../../lib/analytics';
+import { getTranslator } from '../../lib/i18n';
 import { isShellV2 } from '../shell/shell-store';
 import { setShellMode } from './mode-store';
 
@@ -32,6 +33,8 @@ export function switchShellMode(to: AppShellMode): void {
   crossfadeNext = true;
   setShellMode(to);
   track('trainer_mode_switched', { to });
-  AccessibilityInfo.announceForAccessibility(TRAINER_MODE_COPY.mode.switched(to));
+  AccessibilityInfo.announceForAccessibility(
+    getTranslator().t(to === 'trainer' ? 'trainer.mode.trainer' : 'trainer.mode.personal'),
+  );
   router.replace(to === 'trainer' ? TRAINER_TODAY_HREF : personalHomeHref());
 }

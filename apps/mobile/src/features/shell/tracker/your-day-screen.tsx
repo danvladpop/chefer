@@ -23,6 +23,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { TrainingDayNote } from '../../dashboard/components/training-day-note';
 import { NumbersModeProvider } from '../../numbers-mode/numbers-mode';
@@ -102,7 +103,8 @@ function StatusLine({
 
 export function YourDayScreen() {
   const colors = useThemeColors();
-  const t = useTrackerDay({ weeklyAverage: false });
+  const { t } = useT();
+  const day = useTrackerDay({ weeklyAverage: false });
   const {
     snap,
     utils,
@@ -120,10 +122,12 @@ export function YourDayScreen() {
     slotFlow,
     planned,
     states,
-  } = t;
+  } = day;
 
   const dateLabel = isToday
-    ? `Today, ${formatDate(selectedDate, 'weekday-short').replace(',', '')}`
+    ? t('tracker.page.todayDate', {
+        date: formatDate(selectedDate, 'weekday-short').replace(',', ''),
+      })
     : formatDate(selectedDate, 'weekday-short').replace(',', '');
 
   const [mealActionsOpen, setMealActionsOpen] = useState(false);
@@ -131,31 +135,40 @@ export function YourDayScreen() {
     <View className="flex-row gap-2">
       <IconButton
         testID="tracker-meal-actions"
-        accessibilityLabel="Save or copy a meal"
+        accessibilityLabel={t('tracker.savedMeals.actionsTitle')}
         variant="tinted"
         icon={<Icon name="meals" color={colors.brand} size={20} />}
         onPress={() => setMealActionsOpen(true)}
       />
       <IconButton
         testID="tracker-copy-day"
-        accessibilityLabel={`Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`}
+        accessibilityLabel={
+          isToday
+            ? t('tracker.page.copyToToday', { from: day.copyLabel })
+            : t('tracker.page.copyToThisDay', { from: day.copyLabel })
+        }
         variant="tinted"
         icon={<Icon name="copy" color={colors.brand} size={20} />}
         onPress={() => {
-          t.copyDayMutation.reset();
-          t.setCopyDayOpen(true);
+          day.copyDayMutation.reset();
+          day.setCopyDayOpen(true);
         }}
       />
     </View>
   );
 
   // The also-eaten list, flat: meal type and "estimated" move into each row's meta line.
-  const alsoEatenRows = t.alsoEaten.flatMap((group) => group.rows);
+  const alsoEatenRows = day.alsoEaten.flatMap((group) => group.rows);
 
   return (
     <NumbersModeProvider mode={data?.numbersMode}>
       <ShellChromeProvider
-        value={{ kind: 'pushed', fallback: '/home', title: 'Your day', actions: copyAction }}
+        value={{
+          kind: 'pushed',
+          fallback: '/home',
+          title: t('tracker.page.yourDay'),
+          actions: copyAction,
+        }}
       >
         <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
           <View className="gap-2 px-4 pb-2 pt-3">
@@ -164,21 +177,21 @@ export function YourDayScreen() {
             <View className="flex-row items-center justify-between">
               <IconButton
                 testID="tracker-prev-day"
-                accessibilityLabel="Previous day"
+                accessibilityLabel={t('tracker.page.prevDay')}
                 variant="tinted"
                 icon={<Icon name="chevronBack" color={colors.brand} size={20} />}
-                onPress={() => t.changeDate(-1)}
+                onPress={() => day.changeDate(-1)}
               />
               <Text testID="tracker-date" className="text-headline font-bold text-label">
                 {dateLabel}
               </Text>
               <IconButton
                 testID="tracker-next-day"
-                accessibilityLabel="Next day"
+                accessibilityLabel={t('tracker.page.nextDay')}
                 variant="tinted"
                 disabled={isToday}
                 icon={<Icon name="chevronRight" color={colors.brand} size={20} />}
-                onPress={() => t.changeDate(1)}
+                onPress={() => day.changeDate(1)}
               />
             </View>
           </View>
@@ -189,7 +202,7 @@ export function YourDayScreen() {
             </View>
           ) : isError && !data && !isFuture ? (
             <ErrorState
-              title="Couldn't load this day"
+              title={t('tracker.page.loadError')}
               icon={<Icon name="refresh" color={colors.labelTertiary} size={40} />}
               onRetry={() => void refetch()}
             />
@@ -207,11 +220,11 @@ export function YourDayScreen() {
 
               <NutritionCard
                 testID="tracker-totals"
-                eatenKcal={t.loggedKcal}
+                eatenKcal={day.loggedKcal}
                 targetKcal={dayTargets?.dailyCalorieTarget ?? 2000}
-                protein={{ value: t.loggedProtein, target: dayTargets?.proteinG ?? 125 }}
-                carbs={{ value: t.loggedCarbs, target: dayTargets?.carbsG ?? 225 }}
-                fat={{ value: t.loggedFat, target: dayTargets?.fatG ?? 65 }}
+                protein={{ value: day.loggedProtein, target: dayTargets?.proteinG ?? 125 }}
+                carbs={{ value: day.loggedCarbs, target: dayTargets?.carbsG ?? 225 }}
+                fat={{ value: day.loggedFat, target: dayTargets?.fatG ?? 65 }}
                 proteinOnly={proteinOnly}
                 proteinGuide={data?.proteinGuide?.label}
                 onPlan={{
@@ -228,16 +241,16 @@ export function YourDayScreen() {
                   // UX-11 AC3: "Why this number".
                   <IconButton
                     testID="tracker-why-target"
-                    accessibilityLabel="Why this target"
+                    accessibilityLabel={t('tracker.page.whyTarget')}
                     icon={<Icon name="info" color={colors.labelTertiary} size={20} />}
-                    onPress={() => t.setExplainOpen(true)}
+                    onPress={() => day.setExplainOpen(true)}
                   />
                 }
               />
 
               {/* Planned meals to check off */}
               <View className="gap-3">
-                <SectionTitle>Planned</SectionTitle>
+                <SectionTitle>{t('tracker.page.planned')}</SectionTitle>
                 {(data?.plannedMeals ?? []).length === 0 ? (
                   <BoardCard testID="tracker-empty-plan" className="items-center py-6">
                     <Text
@@ -246,16 +259,16 @@ export function YourDayScreen() {
                     >
                       {data?.hasActivePlan === false
                         ? // T-19.6: a Track-only user may never generate a plan.
-                          'No plan today — log from Recent or search below.'
-                        : 'No planned meals for this day.'}
+                          t('tracker.page.emptyNoPlan')
+                        : t('tracker.page.emptyNoMealsPlain')}
                     </Text>
                   </BoardCard>
                 ) : (
                   <View className="overflow-hidden rounded-card border border-separator bg-surface">
                     {planned.map((meal, i) => {
                       const state = states[i];
-                      const isChecked = t.checked(meal.key);
-                      const portion = t.portionOf(meal);
+                      const isChecked = day.checked(meal.key);
+                      const portion = day.portionOf(meal);
                       const slot = { mealType: meal.mealType, slotIndex: meal.slotIndex ?? i };
                       const divider = i > 0 ? 'border-t border-separator' : '';
                       const type = mealTypeLabel(meal.mealType);
@@ -280,7 +293,7 @@ export function YourDayScreen() {
                                   ? () =>
                                       slotFlow.actions.removeReplacement({
                                         entryId,
-                                        name: entry.custom?.name ?? 'Something else',
+                                        name: entry.custom?.name ?? t('tracker.slot.somethingElse'),
                                         estimatedBy: entry.custom?.estimatedBy ?? 'manual',
                                         kcal: entry.kcal,
                                         protein: entry.protein,
@@ -293,7 +306,7 @@ export function YourDayScreen() {
                               }
                             />
                             <Text numberOfLines={1} className="text-caption text-label-tertiary">
-                              Planned: {meal.recipeName}
+                              {t('tracker.page.plannedName', { name: meal.recipeName })}
                             </Text>
                           </View>
                         );
@@ -332,10 +345,13 @@ export function YourDayScreen() {
                               pressScale="card"
                               accessibilityRole="checkbox"
                               accessibilityState={{ checked: isChecked }}
-                              accessibilityLabel={`${type}: ${meal.recipeName}`}
+                              accessibilityLabel={t('tracker.page.mealName', {
+                                meal: type,
+                                name: meal.recipeName,
+                              })}
                               onPress={() => {
                                 haptics.selection();
-                                t.toggleMeal(meal);
+                                day.toggleMeal(meal);
                               }}
                               className="min-h-12 min-w-0 flex-1 flex-row items-center gap-3"
                             >
@@ -369,7 +385,9 @@ export function YourDayScreen() {
                                     // Lane E3 "Hide numbers": the portion stands in for the figures.
                                     noNumbers && portionLabel(portion),
                                     planPortionOf(meal) !== 1 &&
-                                      `plan ${formatPortion(planPortionOf(meal))}`,
+                                      t('tracker.page.planPortion', {
+                                        portion: formatPortion(planPortionOf(meal)),
+                                      }),
                                   )}
                                 </Text>
                               </View>
@@ -389,10 +407,14 @@ export function YourDayScreen() {
                               testID={`tracker-tick-${meal.mealType}`}
                               accessibilityRole="checkbox"
                               accessibilityState={{ checked: isChecked }}
-                              accessibilityLabel={`${isChecked ? 'Eaten' : 'Mark as eaten'}: ${meal.recipeName}`}
+                              accessibilityLabel={
+                                isChecked
+                                  ? t('tracker.page.eaten', { name: meal.recipeName })
+                                  : t('tracker.page.markEaten', { name: meal.recipeName })
+                              }
                               onPress={() => {
                                 haptics.selection();
-                                t.toggleMeal(meal);
+                                day.toggleMeal(meal);
                               }}
                             >
                               <Tick checked={isChecked} />
@@ -406,9 +428,11 @@ export function YourDayScreen() {
                                   key={p}
                                   testID={`tracker-portion-${meal.key}-${p}`}
                                   accessibilityRole="button"
-                                  accessibilityLabel={`${formatPortion(p)} portion`}
+                                  accessibilityLabel={t('tracker.page.portionChip', {
+                                    portion: formatPortion(p),
+                                  })}
                                   accessibilityState={{ selected: portion === p }}
-                                  onPress={() => t.setPortion(meal, p)}
+                                  onPress={() => day.setPortion(meal, p)}
                                   className={cn(
                                     'min-h-11 flex-1 items-center justify-center rounded-control',
                                     portion === p ? 'bg-brand' : 'bg-brand-tint',
@@ -437,7 +461,7 @@ export function YourDayScreen() {
                 adds). Tap to edit, bin to delete with Undo (UX-FOOD-03, B-34). */}
               {alsoEatenRows.length > 0 ? (
                 <View testID="tracker-also-eaten" className="gap-3">
-                  <SectionTitle>Also eaten</SectionTitle>
+                  <SectionTitle>{t('tracker.page.alsoEaten')}</SectionTitle>
                   <View className="overflow-hidden rounded-card border border-separator bg-surface">
                     {alsoEatenRows.map((item, i) => {
                       const divider = i > 0 ? 'border-t border-separator' : '';
@@ -455,9 +479,9 @@ export function YourDayScreen() {
                             <PressableScale
                               testID={`tracker-off-plan-${m.entryId ?? m.recipeId}`}
                               accessibilityRole="button"
-                              accessibilityLabel={`Edit ${m.recipeName}`}
+                              accessibilityLabel={t('tracker.page.edit', { name: m.recipeName })}
                               disabled={!m.entryId}
-                              onPress={() => t.setEditingRecipeEntryId(m.entryId ?? null)}
+                              onPress={() => day.setEditingRecipeEntryId(m.entryId ?? null)}
                               className="min-h-14 min-w-0 flex-1 justify-center py-2"
                             >
                               <Text
@@ -479,10 +503,12 @@ export function YourDayScreen() {
                             {m.entryId ? (
                               <IconButton
                                 testID={`tracker-off-plan-delete-${m.entryId}`}
-                                accessibilityLabel={`Delete ${m.recipeName}`}
-                                disabled={t.deleteEntriesMutation.isPending}
+                                accessibilityLabel={t('tracker.page.delete', {
+                                  name: m.recipeName,
+                                })}
+                                disabled={day.deleteEntriesMutation.isPending}
                                 icon={<Icon name="trash" color={colors.brand} size={20} />}
-                                onPress={() => t.deleteOffPlanEntry(m)}
+                                onPress={() => day.deleteOffPlanEntry(m)}
                               />
                             ) : null}
                           </View>
@@ -497,8 +523,8 @@ export function YourDayScreen() {
                           <PressableScale
                             testID={`tracker-custom-${row.entryIndex}`}
                             accessibilityRole="button"
-                            accessibilityLabel={`Edit ${row.name}`}
-                            onPress={() => t.setEditingEntry(row)}
+                            accessibilityLabel={t('tracker.page.edit', { name: row.name })}
+                            onPress={() => day.setEditingEntry(row)}
                             className="min-h-14 min-w-0 flex-1 justify-center py-2"
                           >
                             <Text
@@ -517,10 +543,10 @@ export function YourDayScreen() {
                           </PressableScale>
                           <IconButton
                             testID={`tracker-custom-delete-${row.entryIndex}`}
-                            accessibilityLabel={`Delete ${row.name}`}
-                            disabled={t.deleteCustomMutation.isPending}
+                            accessibilityLabel={t('tracker.page.delete', { name: row.name })}
+                            disabled={day.deleteCustomMutation.isPending}
                             icon={<Icon name="trash" color={colors.brand} size={20} />}
-                            onPress={() => t.deleteCustomEntry(row)}
+                            onPress={() => day.deleteCustomEntry(row)}
                           />
                         </View>
                       );
@@ -532,9 +558,9 @@ export function YourDayScreen() {
               {/* Log something (T-19.1) — search-first sheet, any day. */}
               <ActionButton
                 testID="tracker-quick-add"
-                label="Log something"
+                label={t('tracker.quickAdd.trigger')}
                 icon="add"
-                onPress={() => t.setQuickAddOpen(true)}
+                onPress={() => day.setQuickAddOpen(true)}
               />
 
               {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
@@ -555,8 +581,8 @@ export function YourDayScreen() {
           )}
 
           <QuickAddSheet
-            visible={t.quickAddOpen}
-            onClose={() => t.setQuickAddOpen(false)}
+            visible={day.quickAddOpen}
+            onClose={() => day.setQuickAddOpen(false)}
             date={dateStr}
             onLogged={() => invalidateDayQueries(utils, dateStr)}
             plannedMeals={(data?.plannedMeals ?? []).flatMap((m, i) =>
@@ -583,34 +609,36 @@ export function YourDayScreen() {
           {slotFlow.host}
 
           <EditEntrySheet
-            visible={t.editingEntry !== null}
-            onClose={() => t.setEditingEntry(null)}
+            visible={day.editingEntry !== null}
+            onClose={() => day.setEditingEntry(null)}
             date={dateStr}
-            entry={t.editingEntry}
+            entry={day.editingEntry}
             onSaved={() => invalidateDayQueries(utils, dateStr)}
-            onDeleted={() => t.setEditingEntry(null)}
+            onDeleted={() => day.setEditingEntry(null)}
           />
 
           <EditRecipeEntrySheet
-            visible={t.editingRecipeEntry !== null}
-            onClose={() => t.setEditingRecipeEntryId(null)}
-            entry={t.editingRecipeEntry}
+            visible={day.editingRecipeEntry !== null}
+            onClose={() => day.setEditingRecipeEntryId(null)}
+            entry={day.editingRecipeEntry}
             onSave={(edit) => {
-              if (!t.editingRecipeEntry?.entryId) return;
-              t.updateRecipeEntryMutation.mutate({
+              if (!day.editingRecipeEntry?.entryId) return;
+              day.updateRecipeEntryMutation.mutate({
                 date: dateStr,
-                entryId: t.editingRecipeEntry.entryId,
+                entryId: day.editingRecipeEntry.entryId,
                 ...edit,
               });
-              t.setEditingRecipeEntryId(null);
+              day.setEditingRecipeEntryId(null);
             }}
-            onDelete={() => t.editingRecipeEntry && t.deleteOffPlanEntry(t.editingRecipeEntry)}
+            onDelete={() =>
+              day.editingRecipeEntry && day.deleteOffPlanEntry(day.editingRecipeEntry)
+            }
           />
 
           <TargetExplainSheet
-            visible={t.explainOpen}
-            onClose={() => t.setExplainOpen(false)}
-            view={t.targetsView}
+            visible={day.explainOpen}
+            onClose={() => day.setExplainOpen(false)}
+            view={day.targetsView}
           />
 
           <MealActionsSheet
@@ -620,21 +648,29 @@ export function YourDayScreen() {
             loggedMealTypes={(data?.log?.loggedMeals ?? []).map((m) => m.mealType)}
           />
           <ConfirmSheet
-            visible={t.copyDayOpen}
-            onClose={() => t.setCopyDayOpen(false)}
-            title="Copy day"
-            body={`Copy everything logged ${t.copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
-            confirmLabel={
-              t.copyDayMutation.isPending
-                ? 'Copying…'
-                : `Copy ${t.copyLabel} to ${isToday ? 'today' : 'this day'}`
+            visible={day.copyDayOpen}
+            onClose={() => day.setCopyDayOpen(false)}
+            title={t('tracker.page.copyDayTitle')}
+            body={
+              isToday
+                ? t('tracker.page.copyDayBodyToday', { from: day.copyLabel })
+                : t('tracker.page.copyDayBodyThisDay', { from: day.copyLabel })
             }
-            cancelLabel="Cancel"
-            onConfirm={t.confirmCopyDay}
-            busy={t.copyDayMutation.isPending}
+            confirmLabel={
+              day.copyDayMutation.isPending
+                ? t('tracker.page.copying')
+                : isToday
+                  ? t('tracker.page.copyToToday', { from: day.copyLabel })
+                  : t('tracker.page.copyToThisDay', { from: day.copyLabel })
+            }
+            cancelLabel={t('common.actions.cancel')}
+            onConfirm={day.confirmCopyDay}
+            busy={day.copyDayMutation.isPending}
             error={
-              t.copyDayMutation.isError
-                ? `Couldn't copy the day. ${userFacingErrorMessage(t.copyDayMutation.error)}`
+              day.copyDayMutation.isError
+                ? t('tracker.page.copyFailed', {
+                    error: userFacingErrorMessage(day.copyDayMutation.error),
+                  })
                 : null
             }
             testID="tracker-copy-day-confirm"

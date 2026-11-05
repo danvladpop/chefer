@@ -21,4 +21,10 @@ export const roReviewStatus: Readonly<Record<Namespace, ReviewStatus>> = {
   gym: 'machine-draft',
   friends: 'machine-draft',
   nav: 'machine-draft',
+  tracker: 'machine-draft',
+  plan: 'machine-draft',
+  household: 'machine-draft',
+  today: 'machine-draft',
+  coaching: 'machine-draft',
+  trainer: 'machine-draft',
 };

@@ -1,11 +1,13 @@
-import { formatShortDay, weekdayName } from '@/features/coaching/lib/dates';
-import {
-  COACHING_COPY,
-  type ExerciseLoadType,
-  type NextTargetDto,
-  type TrainerRoutineDto,
-  type TrainerRoutineExerciseDto,
-  type WeightUnit,
+'use client';
+
+import { formatShortDayT, weekdayNameT } from '@/features/coaching/lib/dates';
+import { useT } from '@/lib/i18n';
+import type {
+  ExerciseLoadType,
+  NextTargetDto,
+  TrainerRoutineDto,
+  TrainerRoutineExerciseDto,
+  WeightUnit,
 } from '@chefer/types';
 import { Badge, Button } from '@chefer/ui';
 import type { ExerciseLookup } from '@chefer/utils';
@@ -40,15 +42,21 @@ export function NextTargetText({
   load: { loadType: ExerciseLoadType; perHand: boolean };
   timed: boolean;
 }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const state = nextTargetState(next);
   if (next.override && state !== 'suggestion') {
     const value = targetText(next.override.weightKg, next.override.reps, unit, load, timed);
-    const at = formatShortDay(next.override.at);
-    return <>{state === 'trainer' ? copy.setByYou(value, at) : copy.setByClient(value, at)}</>;
+    const date = formatShortDayT(next.override.at, t);
+    return (
+      <>
+        {state === 'trainer'
+          ? t('coaching.trainer.setByYou', { value, date })
+          : t('coaching.trainer.setByClient', { value, date })}
+      </>
+    );
   }
   const value = targetText(next.suggestion.weightKg, next.suggestion.reps, unit, load, timed);
-  return <>{copy.appSuggestion(value)}</>;
+  return <>{t('coaching.trainer.appSuggestion', { value })}</>;
 }
 
 export function NextSessionPanel({
@@ -68,7 +76,7 @@ export function NextSessionPanel({
   onReset: (target: NextRowTarget) => void;
   busy: boolean;
 }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const days = routine.days.slice().sort((a, b) => a.position - b.position);
   const nextDay = days.find((d) => d.id === routine.nextDayId) ?? null;
   // The next day first, then the rest in routine order.
@@ -81,14 +89,16 @@ export function NextSessionPanel({
       data-testid="trainer-next-session"
     >
       <h2 id="next-session-title" className="font-semibold text-gray-900">
-        {copy.nextSession}
+        {t('coaching.trainer.nextSession')}
       </h2>
       {nextDay && (
         <p className="text-sm font-medium text-gray-700" data-testid="trainer-next-day">
-          {copy.nextDay(
-            nextDay.name,
-            nextDay.plannedWeekday !== null ? weekdayName(nextDay.plannedWeekday) : null,
-          )}
+          {nextDay.plannedWeekday !== null
+            ? t('coaching.trainer.nextDayPlanned', {
+                day: nextDay.name,
+                weekday: weekdayNameT(nextDay.plannedWeekday, t),
+              })
+            : t('coaching.trainer.nextDay', { day: nextDay.name })}
         </p>
       )}
       {ordered.map((day) => {
@@ -98,7 +108,9 @@ export function NextSessionPanel({
           <details key={day.id} open={day.id === nextDay?.id || nextDay === null} className="group">
             <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900">
               <span className="min-w-0 break-words">{day.name}</span>
-              {day.id === nextDay?.id && <Badge variant="info">Next up</Badge>}
+              {day.id === nextDay?.id && (
+                <Badge variant="info">{t('coaching.trainer.nextUp')}</Badge>
+              )}
             </summary>
             <ul className="flex flex-col divide-y divide-gray-100">
               {rows.map((row) => {
@@ -130,11 +142,17 @@ export function NextSessionPanel({
                     </p>
                     {next.lastDoneDate && !next.override && (
                       <p className="text-xs text-gray-500">
-                        {copy.lastDone(formatShortDay(next.lastDoneDate))}
+                        {t('coaching.trainer.lastDone', {
+                          date: formatShortDayT(next.lastDoneDate, t),
+                        })}
                       </p>
                     )}
                     <p className="text-xs text-gray-500">
-                      {copy.appliesTo(clientName, name, next.repBucket.replace('-', '–'))}
+                      {t('coaching.trainer.appliesTo', {
+                        client: clientName,
+                        exercise: name,
+                        reps: next.repBucket.replace('-', '–'),
+                      })}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -142,10 +160,10 @@ export function NextSessionPanel({
                         variant="outline"
                         size="sm"
                         className="min-h-11"
-                        aria-label={`${copy.adjust}: ${name}`}
+                        aria-label={t('coaching.trainer.adjustFor', { name })}
                         onClick={() => onAdjust(target)}
                       >
-                        {copy.adjust}
+                        {t('coaching.trainer.adjust')}
                       </Button>
                       {next.override && (
                         <Button
@@ -154,10 +172,10 @@ export function NextSessionPanel({
                           size="sm"
                           className="min-h-11"
                           disabled={busy}
-                          aria-label={`${copy.resetToSuggestion}: ${name}`}
+                          aria-label={t('coaching.trainer.resetToSuggestionFor', { name })}
                           onClick={() => onReset(target)}
                         >
-                          {copy.resetToSuggestion}
+                          {t('coaching.trainer.resetToSuggestion')}
                         </Button>
                       )}
                     </div>

@@ -1,9 +1,10 @@
+import { useT } from '@/lib/i18n';
 import { BadgeCheck } from 'lucide-react';
-import { COACHING_COPY } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 /** The self-declared "Trainer" badge next to a trainer's name (PRD 2026-10 §4.1). */
 export function TrainerBadge({ className }: { className?: string }) {
+  const { t } = useT();
   return (
     <span
       className={cn(
@@ -13,7 +14,7 @@ export function TrainerBadge({ className }: { className?: string }) {
       data-testid="trainer-badge"
     >
       <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
-      {COACHING_COPY.find.badge}
+      {t('coaching.find.badge')}
     </span>
   );
 }

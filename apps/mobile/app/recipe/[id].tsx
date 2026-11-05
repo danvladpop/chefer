@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Share, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   Avatar,
   ConfirmSheet,
@@ -475,7 +474,7 @@ export default function RecipeDetailScreen() {
                 testID="recipe-by"
                 pressScale="control"
                 accessibilityRole="button"
-                accessibilityLabel={FRIENDS_COPY.recipe.byLabel(creator.displayName)}
+                accessibilityLabel={t('friends.recipe.byLabel', { name: creator.displayName })}
                 onPress={() =>
                   router.push({ pathname: '/friends/[userId]', params: { userId: creator.id } })
                 }
@@ -483,7 +482,7 @@ export default function RecipeDetailScreen() {
               >
                 <Avatar name={creator.displayName} seed={creator.id} size="sm" />
                 <Text className="text-subhead font-semibold text-label">
-                  {FRIENDS_COPY.recipe.by(creator.displayName)}
+                  {t('friends.recipe.by', { name: creator.displayName })}
                 </Text>
               </PressableScale>
             ) : null}
@@ -491,8 +490,8 @@ export default function RecipeDetailScreen() {
               <View testID="recipe-from" className="self-start rounded-full bg-surface-sunken px-2">
                 <Text className="text-caption text-label-secondary">
                   {origin.creatorFirstName
-                    ? FRIENDS_COPY.recipe.from(origin.creatorFirstName)
-                    : FRIENDS_COPY.recipe.fromGone}
+                    ? t('friends.recipe.from', { first: origin.creatorFirstName })
+                    : t('friends.recipe.fromGone')}
                 </Text>
               </View>
             ) : null}
@@ -513,12 +512,12 @@ export default function RecipeDetailScreen() {
                 className="gap-1 rounded-card bg-info/10 px-3 py-2"
               >
                 <Text className="text-subhead font-semibold text-info">
-                  {FRIENDS_COPY.recipe.hidden.title}
+                  {t('friends.recipe.hidden.title')}
                 </Text>
                 <Text className="text-subhead text-info">
                   {recipe.hidden.reason === 'FILTER'
-                    ? FRIENDS_COPY.recipe.hidden.filter
-                    : FRIENDS_COPY.recipe.hidden.reports}
+                    ? t('friends.recipe.hidden.filter')
+                    : t('friends.recipe.hidden.reports')}
                 </Text>
                 <AppealLink subject="recipe" tone="text-info" testID="recipe-hidden-appeal" />
               </View>
@@ -554,7 +553,7 @@ export default function RecipeDetailScreen() {
             <TrainButton
               testID="recipe-add-to-week"
               icon="calendar"
-              label={FRIENDS_COPY.recipe.addToWeek}
+              label={t('friends.recipe.addToWeek')}
               onPress={() => setAddToWeekOpen(true)}
             />
           ) : null}
@@ -598,7 +597,7 @@ export default function RecipeDetailScreen() {
               testID="recipe-add-to-week"
               variant="tinted"
               icon="calendar"
-              label={FRIENDS_COPY.recipe.addToWeek}
+              label={t('friends.recipe.addToWeek')}
               onPress={() => setAddToWeekOpen(true)}
             />
           ) : null}
@@ -874,7 +873,7 @@ export default function RecipeDetailScreen() {
             <ListRow
               testID="recipe-overflow-week"
               icon={<MenuIcon name="calendar" />}
-              title={FRIENDS_COPY.recipe.addToWeek}
+              title={t('friends.recipe.addToWeek')}
               accessory="none"
               onPress={() => chooseOverflow('week')}
             />
@@ -896,7 +895,7 @@ export default function RecipeDetailScreen() {
           <ListRow
             testID="recipe-overflow-share-card"
             icon={<MenuIcon name="images" />}
-            title="Share as a card"
+            title={t('today.share.asCard')}
             accessory="none"
             onPress={() => chooseOverflow('share-card')}
           />
@@ -929,7 +928,7 @@ export default function RecipeDetailScreen() {
             <ListRow
               testID="recipe-overflow-report"
               icon={<MenuIcon ionicon="flag-outline" />}
-              title={FRIENDS_COPY.recipe.report}
+              title={t('friends.recipe.report')}
               accessory="none"
               onPress={() => chooseOverflow('report')}
             />

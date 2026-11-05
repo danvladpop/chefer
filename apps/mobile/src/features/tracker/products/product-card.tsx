@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Translator } from '@chefer/i18n';
 import {
   PACKAGED_PRODUCT_COPY,
   type PackagedProductView,
@@ -19,13 +20,13 @@ import {
 import {
   formatNumber,
   HIDE_NUMBERS_COPY,
-  productAllergenLine,
-  productAllergenWarningText,
   productAmountGrams,
   productDisplayName,
   productMaxGrams,
   scaleProduct,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
+import { rich } from '../../../lib/i18n/rich';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { RecipeImage } from '../../recipes/recipe-image';
 
@@ -53,6 +54,41 @@ export interface ProductCardProps {
   onCompleteNumbers: () => void;
 }
 
+/** "Contains dairy: you and Maria avoid it." in the UI language (allergen names come from the server). */
+export function allergenWarningText(t: Translator['t'], warning: ProductAllergenWarning): string {
+  const you = t('tracker.productCard.warning.you');
+  const who = warning.who.length > 0 ? warning.who.map((w) => (w === 'you' ? you : w)) : [you];
+  const last = who.at(-1) ?? you;
+  const whoText =
+    who.length === 1
+      ? last
+      : t('tracker.productCard.warning.whoList', { list: who.slice(0, -1).join(', '), last });
+  const one = who.length === 1 && warning.who.length === 1 && warning.who[0] !== 'you';
+  const params = { allergen: warning.label.toLowerCase(), who: whoText };
+  if (warning.kind === 'contains') {
+    return one
+      ? t('tracker.productCard.warning.containsOne', params)
+      : t('tracker.productCard.warning.contains', params);
+  }
+  return one
+    ? t('tracker.productCard.warning.mayContainOne', params)
+    : t('tracker.productCard.warning.mayContain', params);
+}
+
+/** The allergen line under a product: what it contains, or an honest "unknown". */
+export function allergenLine(t: Translator['t'], allergens: PackagedProductView['allergens']) {
+  if (allergens.status === 'unknown') return t('tracker.packaged.allergensUnknown');
+  if (allergens.status === 'none-listed') return t('tracker.packaged.allergensNoneListed');
+  const contains = allergens.contains.map((a) => a.label).join(', ');
+  const traces = allergens.mayContain.map((a) => a.label).join(', ');
+  return [
+    contains && t('tracker.packaged.allergensContains', { list: contains }),
+    traces && t('tracker.packaged.allergensMayContain', { list: traces }),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 function parseAmount(text: string): number {
   const n = Number(text.replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -69,6 +105,7 @@ export function ProductCard({
   onCompleteNumbers,
 }: ProductCardProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { noNumbers } = useNumbersMode();
   const hasServing = product.servingSizeG !== null;
   const [unit, setUnit] = useState<Unit>(hasServing ? 'serving' : 'g');
@@ -104,13 +141,15 @@ export function ProductCard({
           <Text className="text-xs text-label-secondary">
             {product.isOwn
               ? product.source === 'LABEL'
-                ? 'Your product · from a label photo'
-                : 'Your product'
+                ? t('tracker.productCard.yourProductFromLabel')
+                : t('tracker.productCard.yourProduct')
               : complete
                 ? noNumbers
                   ? HIDE_NUMBERS_COPY.recipeNutritionHidden
-                  : `${formatNumber(product.per100g.kcal ?? 0)} kcal / 100 g`
-                : 'No calories yet'}
+                  : t('tracker.productCard.kcalPer100g', {
+                      value: formatNumber(product.per100g.kcal ?? 0),
+                    })
+                : t('tracker.productCard.noKcal')}
           </Text>
         </View>
       </View>
@@ -125,16 +164,16 @@ export function ProductCard({
             <View key={`${w.kind}:${w.allergenId}`} className="flex-row items-start gap-2">
               <Ionicons name="warning-outline" size={16} color={colors.attention} />
               <Text className="min-w-0 flex-1 text-sm font-medium text-attention">
-                {productAllergenWarningText(w)}
+                {allergenWarningText(t, w)}
               </Text>
             </View>
           ))}
         </View>
       )}
       <Text testID="product-allergen-line" className="text-xs text-label-secondary">
-        {productAllergenLine(product.allergens)}
+        {allergenLine(t, product.allergens)}
       </Text>
-      {stale && <Text className="text-xs text-attention">{PACKAGED_PRODUCT_COPY.stale}</Text>}
+      {stale && <Text className="text-xs text-attention">{t('tracker.packaged.stale')}</Text>}
 
       {complete ? (
         <>
@@ -144,14 +183,16 @@ export function ProductCard({
               options={[
                 {
                   value: 'serving',
-                  label: `Servings (${formatNumber(product.servingSizeG ?? 0, { maximumFractionDigits: 1 })} g)`,
+                  label: t('tracker.productCard.servingsUnit', {
+                    grams: formatNumber(product.servingSizeG ?? 0, { maximumFractionDigits: 1 }),
+                  }),
                   testID: 'product-unit-serving',
                 },
-                { value: 'g', label: 'Grams', testID: 'product-unit-g' },
+                { value: 'g', label: t('tracker.productCard.gramsUnit'), testID: 'product-unit-g' },
               ]}
               value={unit}
               onChange={switchUnit}
-              accessibilityLabel="Amount unit"
+              accessibilityLabel={t('tracker.productCard.unitLabel')}
             />
           )}
           <View className="flex-row flex-wrap gap-1.5">
@@ -160,7 +201,9 @@ export function ProductCard({
                 key={value}
                 testID={`product-amount-${value}`}
                 label={
-                  unit === 'g' ? `${value} g` : formatNumber(value, { maximumFractionDigits: 1 })
+                  unit === 'g'
+                    ? t('tracker.productCard.gramsChip', { value: formatNumber(value) })
+                    : formatNumber(value, { maximumFractionDigits: 1 })
                 }
                 selected={amountValue === value}
                 onPress={() => setAmountText(String(value))}
@@ -170,14 +213,22 @@ export function ProductCard({
           <View className="flex-row items-center gap-2">
             <Input
               testID="product-amount-input"
-              accessibilityLabel={unit === 'g' ? 'Grams eaten' : 'Servings eaten'}
+              accessibilityLabel={
+                unit === 'g'
+                  ? t('tracker.productCard.gramsEaten')
+                  : t('tracker.productCard.servingsEaten')
+              }
               value={amountText}
               onChangeText={setAmountText}
               keyboardType="decimal-pad"
               className="min-w-0 flex-1"
               {...DONE_FIELD_PROPS}
             />
-            <Text className="text-sm text-muted-foreground">{unit === 'g' ? 'g' : 'servings'}</Text>
+            <Text className="text-sm text-muted-foreground">
+              {unit === 'g'
+                ? t('tracker.productCard.unitG')
+                : t('tracker.productCard.unitServings')}
+            </Text>
           </View>
           {noNumbers && !tooMuch ? null : (
             <Text
@@ -186,11 +237,16 @@ export function ProductCard({
               className="text-xs text-label-secondary"
             >
               {tooMuch
-                ? `One entry holds up to ${formatNumber(maxGrams)} g.`
+                ? t('tracker.productCard.maxGrams', { max: formatNumber(maxGrams) })
                 : scaled
                   ? proteinOnly
-                    ? `${scaled.protein} g protein`
-                    : `${scaled.kcal} kcal · ${scaled.protein} g P · ${scaled.carbs} g C · ${scaled.fat} g F`
+                    ? t('tracker.productCard.liveProtein', { protein: scaled.protein })
+                    : t('tracker.productCard.liveKcalMacros', {
+                        kcal: scaled.kcal,
+                        protein: scaled.protein,
+                        carbs: scaled.carbs,
+                        fat: scaled.fat,
+                      })
                   : '—'}
             </Text>
           )}
@@ -200,14 +256,16 @@ export function ProductCard({
             disabled={!scaled}
             onPress={() => onLog(amount)}
           >
-            {scaled && !proteinOnly && !noNumbers ? `Log ${scaled.kcal} kcal` : 'Log it'}
+            {scaled && !proteinOnly && !noNumbers
+              ? t('tracker.productCard.logKcal', { kcal: scaled.kcal })
+              : t('tracker.productCard.logIt')}
           </Button>
         </>
       ) : (
         <View className="gap-2">
-          <Text className="text-sm text-label-secondary">{PACKAGED_PRODUCT_COPY.incomplete}</Text>
+          <Text className="text-sm text-label-secondary">{t('tracker.packaged.incomplete')}</Text>
           <Button testID="product-complete-numbers" variant="outline" onPress={onCompleteNumbers}>
-            Add the numbers from the pack
+            {t('tracker.productCard.addNumbers')}
           </Button>
         </View>
       )}
@@ -225,7 +283,7 @@ export function ProductCard({
         <Pressable
           testID="product-off-attribution"
           accessibilityRole="link"
-          accessibilityLabel={`${PACKAGED_PRODUCT_COPY.attribution}, ${PACKAGED_PRODUCT_COPY.attributionLicence}`}
+          accessibilityLabel={t('tracker.packaged.attributionLabel')}
           onPress={() =>
             void Linking.openURL(
               product.barcode
@@ -236,8 +294,13 @@ export function ProductCard({
           className="min-h-11 justify-center"
         >
           <Text className="text-xs text-label-secondary">
-            {PACKAGED_PRODUCT_COPY.attribution} ·{' '}
-            <Text className="text-xs text-label-secondary underline">ODbL</Text>
+            {rich(t, 'tracker.packaged.attributionLink', {
+              licence: (
+                <Text className="text-xs text-label-secondary underline">
+                  {t('tracker.packaged.licenceShort')}
+                </Text>
+              ),
+            })}
           </Text>
         </Pressable>
       )}

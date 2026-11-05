@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useTrainerClientsHref } from '@/features/nav/mode-context';
+import { useT } from '@/lib/i18n';
 import { ArrowLeft } from 'lucide-react';
-import { BOOKING_COPY, COACHING_COPY, COACHING_DATA_COPY } from '@chefer/types';
+import { BOOKING_COPY } from '@chefer/types';
 import { Badge } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 import { firstName } from '../format';
@@ -43,15 +44,19 @@ export function ClientHeader({
   const guard = (e: React.MouseEvent) => {
     if (confirmLeave && !confirmLeave()) e.preventDefault();
   };
+  const { t } = useT();
   const clientsHref = useTrainerClientsHref();
-  const tabs = COACHING_COPY.trainer.tabs;
   const base = `/trainer/${encodeURIComponent(clientId)}`;
   const items: { key: ClientTab; label: string; href: string }[] = [
-    { key: 'routine', label: tabs.routine, href: `${base}/routine` },
-    { key: 'workouts', label: tabs.workouts, href: base },
-    { key: 'adherence', label: tabs.adherence, href: `${base}?tab=adherence` },
+    { key: 'routine', label: t('coaching.trainer.tabs.routine'), href: `${base}/routine` },
+    { key: 'workouts', label: t('coaching.trainer.tabs.workouts'), href: base },
+    {
+      key: 'adherence',
+      label: t('coaching.trainer.tabs.adherence'),
+      href: `${base}?tab=adherence`,
+    },
     ...(showFood
-      ? [{ key: 'food' as const, label: COACHING_DATA_COPY.tab, href: `${base}?tab=food` }]
+      ? [{ key: 'food' as const, label: t('coaching.trainer.data.tab'), href: `${base}?tab=food` }]
       : []),
     ...(showBookings
       ? [
@@ -69,7 +74,7 @@ export function ClientHeader({
         <Link
           href={clientsHref}
           onClick={guard}
-          aria-label={COACHING_COPY.trainer.clients}
+          aria-label={t('coaching.trainer.clients')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -77,7 +82,7 @@ export function ClientHeader({
         <h1 className="min-w-0 break-words font-serif text-2xl font-bold text-gray-900">{name}</h1>
         {keepItSimple && (
           <Badge variant="info" className="shrink-0" data-testid="trainer-client-simple">
-            {COACHING_COPY.trainerProfile.keepItSimple}
+            {t('coaching.trainer.profile.keepItSimple')}
           </Badge>
         )}
         {actions && <div className="flex min-w-0 flex-wrap gap-2 sm:ml-auto">{actions}</div>}
@@ -87,7 +92,7 @@ export function ClientHeader({
           className="min-w-0 break-words text-sm text-gray-600"
           data-testid="trainer-client-simple-hint"
         >
-          {COACHING_COPY.trainerProfile.keepItSimpleHint(firstName(name))}
+          {t('coaching.trainer.profile.keepItSimpleHint', { client: firstName(name) })}
         </p>
       )}
       <nav aria-label={name} className="-mx-1 flex gap-1 overflow-x-auto px-1">

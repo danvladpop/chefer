@@ -20,6 +20,7 @@ import {
   useReducedMotion,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import {
   adjustRest,
   ensureRestNotificationPermission,
@@ -68,6 +69,7 @@ function RestFill({ progress }: { progress: number }) {
 }
 
 function RestClock({ remainingSec }: { remainingSec: number }) {
+  const { t } = useT();
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   useEffect(() => {
@@ -84,7 +86,7 @@ function RestClock({ remainingSec }: { remainingSec: number }) {
     <Animated.View style={[{ alignSelf: 'flex-start', transformOrigin: 'left' }, style]}>
       <Text
         testID="rest-timer-remaining"
-        accessibilityLabel={`Rest, ${remainingSec} seconds left`}
+        accessibilityLabel={t('gym.workout.logger.rest.remaining', { sec: remainingSec })}
         className="text-title1 font-bold text-label"
         style={{ fontVariant: ['tabular-nums'] }}
       >
@@ -153,6 +155,7 @@ function useRestAnnouncements(active: boolean, remainingSec: number): void {
  * is never left under the bar, whatever the font scale or safe-area inset.
  */
 export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: number) => void }) {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // Large screens: the bar spans the window, its controls the readable column.
   const { gutter } = useReadableLayout();
@@ -194,25 +197,27 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
         style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-caption text-label-secondary">Rest</Text>
+          <Text className="text-caption text-label-secondary">
+            {t('gym.workout.logger.rest.label')}
+          </Text>
           <RestClock remainingSec={remainingSec} />
         </View>
         <TimerButton
           testID="rest-timer-minus"
           label={`−${REST_ADJUST_STEP_SEC}`}
-          a11y="15 seconds less rest"
+          a11y={t('gym.workout.logger.rest.minus')}
           onPress={() => adjustRest(-REST_ADJUST_STEP_SEC)}
         />
         <TimerButton
           testID="rest-timer-plus"
           label={`+${REST_ADJUST_STEP_SEC}`}
-          a11y="15 seconds more rest"
+          a11y={t('gym.workout.logger.rest.plus')}
           onPress={() => adjustRest(REST_ADJUST_STEP_SEC)}
         />
         <TimerButton
           testID="rest-timer-skip"
-          label="Skip"
-          a11y="Skip rest"
+          label={t('common.actions.skip')}
+          a11y={t('gym.workout.restTimer.skip')}
           onPress={skipRest}
           primary
         />

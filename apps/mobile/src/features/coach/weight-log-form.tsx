@@ -3,6 +3,7 @@ import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NumericReturnBar, Text, useScrollFieldIntoView, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useWeightLog } from './use-weight-log';
 
@@ -47,6 +48,7 @@ export function WeightLogForm({
     healthConsentSheet,
   } = useWeightLog(lastEntry);
   const imperial = system === 'IMPERIAL';
+  const { t } = useT();
 
   return (
     <View>
@@ -61,15 +63,20 @@ export function WeightLogForm({
           onSubmitEditing={() => submit()}
           inputAccessoryViewID={barId}
           keyboardType="decimal-pad"
-          placeholder={placeholder ?? `Log today’s weight (${imperial ? 'lb' : 'kg'})`}
+          placeholder={
+            placeholder ?? t('today.progress.form.placeholderApp', { unit: imperial ? 'lb' : 'kg' })
+          }
           placeholderTextColor={colors.labelTertiary}
-          accessibilityLabel={label ?? `Today's weight in ${imperial ? 'pounds' : 'kilograms'}`}
+          accessibilityLabel={
+            label ??
+            (imperial ? t('today.progress.form.labelLb') : t('today.progress.form.labelKg'))
+          }
           className="min-h-11 py-2 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
         />
         <Pressable
           testID="weight-save"
           accessibilityRole="button"
-          accessibilityLabel="Log weight"
+          accessibilityLabel={t('today.progress.form.logA11y')}
           disabled={disabled}
           onPress={() => {
             if (submit()) Keyboard.dismiss();
@@ -85,7 +92,7 @@ export function WeightLogForm({
       <NumericReturnBar
         nativeID={barId}
         testID="weight-numeric-bar"
-        label="Log"
+        label={t('today.progress.form.log')}
         onPress={() => {
           // UX-FOOD-08: the accessory is "Log", not "Done" — it saves, and
           // closes the keyboard so the result is in view.
@@ -101,7 +108,7 @@ export function WeightLogForm({
         <View className="mt-2">
           <HealthDeclinedNotice
             testID="weight-declined"
-            message="Your weight wasn’t saved, because Chefer doesn’t have permission to store health information."
+            message={t('consent.health.declinedWeight')}
           />
         </View>
       )}

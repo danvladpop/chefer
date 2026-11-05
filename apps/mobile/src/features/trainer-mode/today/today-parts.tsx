@@ -1,11 +1,7 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import {
-  COACHING_LIMITS,
-  QUIET_COPY,
-  TRAINER_MODE_COPY,
-  type TrainerQuietClientDto,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { COACHING_LIMITS, type TrainerQuietClientDto } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -18,17 +14,18 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { CoachingCard } from '../../trainer/components/coaching-card';
-import { formatWeekdayDate } from '../../trainer/format';
+import { dayLabel } from '../bookings/booking-model';
 
 // Trainer Today's cards (trainer-mode.md §6.1, M1): the requests card, the
 // "This week" stat row and the quiet-client rows of "Needs attention".
 
-const COPY = TRAINER_MODE_COPY.today;
-
 /** §6.1 (1): only while requests wait — the M1 answer to "requests are buried". */
 export function RequestsCard({ count }: { count: number }) {
   const colors = useThemeColors();
+  const { t } = useT();
+  const text = t('trainer.today.requestsCard', { count });
   return (
     <CoachingCard testID="trainer-today-requests-card" className="gap-3">
       <View className="flex-row items-center gap-3">
@@ -39,15 +36,15 @@ export function RequestsCard({ count }: { count: number }) {
           testID="trainer-today-requests-text"
           className="min-w-0 flex-1 text-headline font-semibold text-label"
         >
-          {COPY.requestsCard(count)}
+          {text}
         </Text>
       </View>
       <Button
         testID="trainer-today-review"
-        accessibilityLabel={`${COPY.review}: ${COPY.requestsCard(count)}`}
+        accessibilityLabel={`${t('trainer.today.review')}: ${text}`}
         onPress={() => router.navigate('/(trainer)/clients')}
       >
-        {COPY.review}
+        {t('trainer.today.review')}
       </Button>
     </CoachingCard>
   );
@@ -60,13 +57,16 @@ export function adherencePercent(adherence: number): number {
 
 function AdherenceTile({ adherence }: { adherence: number | null }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const percent = adherence === null ? null : adherencePercent(adherence);
   return (
     <View
       testID="trainer-today-stat-adherence"
       accessible
-      accessibilityLabel={`${COPY.adherence}: ${percent === null ? COPY.noAdherence : `${percent}%`}`}
-      accessibilityHint={COPY.adherenceHint}
+      accessibilityLabel={`${t('trainer.today.adherence')}: ${
+        percent === null ? t('trainer.today.noAdherence') : `${percent}%`
+      }`}
+      accessibilityHint={t('trainer.today.adherenceHint')}
       className="min-w-0 flex-1 items-center gap-1 rounded-card border border-separator bg-surface px-2 py-3"
     >
       {percent === null ? (
@@ -75,7 +75,7 @@ function AdherenceTile({ adherence }: { adherence: number | null }) {
           numberOfLines={2}
           className="min-h-12 text-center text-subhead font-semibold text-label-secondary"
         >
-          {COPY.noAdherence}
+          {t('trainer.today.noAdherence')}
         </Text>
       ) : (
         // MO-06: the ring fills from 0 and the number counts up with it (both
@@ -96,7 +96,7 @@ function AdherenceTile({ adherence }: { adherence: number | null }) {
         </ProgressRing>
       )}
       <Text numberOfLines={2} className="text-center text-caption text-label-secondary">
-        {COPY.adherence}
+        {t('trainer.today.adherence')}
       </Text>
     </View>
   );
@@ -123,13 +123,14 @@ export function WeekStats({
   quietAfterDays?: number | undefined;
   bookingsThisWeek?: { scheduled: number; done: number } | null;
 }) {
+  const { t } = useT();
   const clients = (
     <StatTile
       testID="trainer-today-stat-clients"
       value={String(activeClients)}
       count={activeClients}
-      unit={COPY.activeOf(maxClients)}
-      label={COPY.activeClients}
+      unit={t('trainer.today.activeOf', { max: maxClients })}
+      label={t('trainer.today.activeClients')}
     />
   );
   const quiet = (
@@ -137,18 +138,18 @@ export function WeekStats({
       testID="trainer-today-stat-quiet"
       value={String(quietClients)}
       count={quietClients}
-      label={COPY.quietClients}
+      label={t('trainer.today.quietClients')}
       accessibilityHint={
         quietAfterDays !== undefined
-          ? QUIET_COPY.statHint(quietAfterDays)
-          : COPY.quietHint(COACHING_LIMITS.inactiveDays)
+          ? t('coaching.quiet.statHint', { count: quietAfterDays })
+          : t('trainer.today.quietHint', { count: COACHING_LIMITS.inactiveDays })
       }
     />
   );
   return (
     <View className="gap-2">
       <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-        {COPY.thisWeek}
+        {t('trainer.today.thisWeek')}
       </Text>
       {bookingsThisWeek ? (
         <View testID="trainer-today-stats" className="gap-2">
@@ -161,11 +162,11 @@ export function WeekStats({
               testID="trainer-today-stat-bookings"
               value={String(bookingsThisWeek.done)}
               count={bookingsThisWeek.done}
-              unit={COPY.activeOf(bookingsThisWeek.scheduled)}
-              label={COPY.bookingsThisWeek}
-              accessibilityLabel={`${COPY.bookingsThisWeek}: ${COPY.bookingsDone(
-                bookingsThisWeek.done,
-                bookingsThisWeek.scheduled,
+              unit={t('trainer.today.activeOf', { max: bookingsThisWeek.scheduled })}
+              label={t('trainer.today.bookingsThisWeek')}
+              accessibilityLabel={`${t('trainer.today.bookingsThisWeek')}: ${t(
+                'trainer.today.bookingsDone',
+                { done: bookingsThisWeek.done, scheduled: bookingsThisWeek.scheduled },
               )}`}
             />
             {quiet}
@@ -183,18 +184,29 @@ export function WeekStats({
 }
 
 /** Lane K4 (`withFood`): "Nothing logged for 4 days" (food counts while shared); else "4 days without a workout". */
-function quietRowText(client: TrainerQuietClientDto, withFood: boolean): string {
-  return withFood ? QUIET_COPY.row(client.inactiveDays) : COPY.quietRow(client.inactiveDays);
+function quietRowText(tr: Translator, client: TrainerQuietClientDto, withFood: boolean): string {
+  const count = client.inactiveDays;
+  return withFood
+    ? tr.t('coaching.quiet.row', { count })
+    : tr.t('trainer.today.quietRow', { count });
 }
 
-export function quietClientLabel(client: TrainerQuietClientDto, withFood = false): string {
-  return [
-    client.name,
-    client.lastWorkoutDate
-      ? COPY.lastWorkout(formatWeekdayDate(client.lastWorkoutDate))
-      : COPY.noWorkoutYet,
-    quietRowText(client, withFood),
-  ].join('. ');
+/** "Last workout Wed 30 Sep" / "No workout yet". */
+function lastWorkoutText(tr: Translator, client: TrainerQuietClientDto): string {
+  return client.lastWorkoutDate
+    ? tr.t('trainer.today.lastWorkout', { date: dayLabel(tr, client.lastWorkoutDate) })
+    : tr.t('trainer.today.noWorkoutYet');
+}
+
+export function quietClientLabel(
+  tr: Translator,
+  client: TrainerQuietClientDto,
+  withFood = false,
+): string {
+  // Romanian dates end in an abbreviation's period ("9 oct."): don't double it.
+  return [client.name, lastWorkoutText(tr, client), quietRowText(tr, client, withFood)]
+    .map((part) => part.replace(/\.$/, ''))
+    .join('. ');
 }
 
 /** §6.1 (5): a quiet client — name, last workout, days without one. Tap → the client. */
@@ -207,12 +219,13 @@ export function QuietClientRow({
   withFood?: boolean;
 }) {
   const colors = useThemeColors();
+  const tr = useT();
   return (
     // MO-01: a card-sized tap target scales on press.
     <PressableScale
       testID={`trainer-today-quiet-${client.clientId}`}
       accessibilityRole="button"
-      accessibilityLabel={quietClientLabel(client, withFood)}
+      accessibilityLabel={quietClientLabel(tr, client, withFood)}
       onPress={() => router.push(`/trainer/${client.clientId}`)}
       className="min-h-14 gap-1 rounded-card border border-separator bg-surface px-4 py-3"
     >
@@ -223,12 +236,10 @@ export function QuietClientRow({
         <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
       </View>
       <Text className="min-w-0 text-subhead text-label-secondary">
-        {client.lastWorkoutDate
-          ? COPY.lastWorkout(formatWeekdayDate(client.lastWorkoutDate))
-          : COPY.noWorkoutYet}
+        {lastWorkoutText(tr, client)}
       </Text>
       <View className="flex-row">
-        <Badge variant="warning">{quietRowText(client, withFood)}</Badge>
+        <Badge variant="warning">{quietRowText(tr, client, withFood)}</Badge>
       </View>
     </PressableScale>
   );

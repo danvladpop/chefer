@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { activeReminderSlots, loggedMealSlots } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { localDate } from '../gym/offline/ids';
 import { syncMealReminders } from './meal-reminders';
@@ -8,10 +9,14 @@ import { syncMealReminders } from './meal-reminders';
 // Keeps the scheduled meal-time reminders true (lane E1): re-plans the window
 // on launch, whenever the app returns to the foreground, when the stored
 // choice changes and when today's log gains or loses a meal (so ticking lunch
-// at 12:10 drops today's 12:30 "Lunch time"). Permission is only checked,
+// at 12:10 drops today's 12:30 "Lunch time") and when the UI language
+// changes. Permission is only checked,
 // never asked. Mounted once in the root layout.
 
 export function useMealReminders(signedIn: boolean): void {
+  // The notification text is written at scheduling time, so a language
+  // change re-plans the window in the new language.
+  const { locale } = useT();
   const settings = trpc.notifications.getMealReminders.useQuery(undefined, {
     enabled: signedIn,
     staleTime: 60_000,
@@ -52,7 +57,7 @@ export function useMealReminders(signedIn: boolean): void {
       else run();
     });
     return () => subscription.remove();
-  }, [signedIn, settings.data, active, dayReady, doneKey, today]);
+  }, [signedIn, settings.data, active, dayReady, doneKey, today, locale]);
 }
 
 /** Renders nothing; exists so the root layout can mount `useMealReminders` inside the tRPC provider. */
