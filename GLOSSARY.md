@@ -91,6 +91,12 @@ Oil or butter a dish was cooked in, which a photo can't see. After a Snap-to-Log
 or a lot, and that fat is added on top as an estimate.
 _Avoid_: Cooking oil adjustment, fat correction
 
+**Typed log**:
+Logging by typing (or dictating) what you ate in one sentence. The chef splits it into items and matches each to your
+recents, a packaged product or the catalog — an AI estimate only as a last resort — and you confirm before anything is
+logged.
+_Avoid_: Natural-language logging, AI log, chat log (that is the AI chef chat)
+
 **Allergens unknown**:
 What a product says when its source neither lists allergens nor vouches that there are none. Never shown as "none".
 _Avoid_: No allergens, allergen-free

@@ -11,6 +11,7 @@ import {
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import { parseStoredNumbersMode, SAVED_MEALS_COPY } from '@chefer/types';
 import type {
+  FoodTextLogItem,
   HealthPlatform,
   NumbersMode,
   NutritionTargets,
@@ -928,6 +929,41 @@ export const trackerService = {
       log,
       copiedEntryIds: copies.map((c) => c.entryId!),
       ...(await this.rebalanceOutcome(user, rebalanceMode, toDateStr)),
+    };
+  },
+
+  /**
+   * Lane A4: log the reviewed items of a typed "I ate…" sentence in one go —
+   * each a custom entry (estimates flagged `vision`, matched foods `manual`,
+   * product refs kept). Returns the new ids for the snackbar's Undo.
+   */
+  async logItems(
+    user: UserProfile,
+    dateStr: string,
+    input: { mealType: string; items: FoodTextLogItem[] },
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryIds: string[] } & RebalanceOutcome> {
+    const entries: LoggedMealEntry[] = input.items.map((item) => ({
+      entryId: newEntryId(),
+      custom: { name: item.name, estimatedBy: item.estimatedBy },
+      mealType: input.mealType,
+      portionMultiplier: 1,
+      kcal: item.kcal,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      ...(item.unknownMacros &&
+        item.unknownMacros.length > 0 && { unknownMacros: item.unknownMacros }),
+      ...(item.product && { product: item.product }),
+    }));
+    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
+      ...stored,
+      ...entries,
+    ]);
+    return {
+      log,
+      entryIds: entries.map((e) => e.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)),
     };
   },
 
