@@ -185,6 +185,34 @@ export const HOUSEHOLD_SHARING_COPY = {
   joinAllow: 'Join household',
   joinDecline: 'Not now',
   joinOwnPlansNote: 'Your own meal plans are kept. They come back if you leave.',
+  /** The join page's tab title and the heading of its one-sentence states. */
+  joinPageTitle: 'Join a household',
+  /** The join screen's three editable safety lists and their add / remove controls. */
+  joinSafetyLists: {
+    allergies: 'Allergies',
+    dietaryRestrictions: 'Diet',
+    dislikedIngredients: 'Dislikes',
+  },
+  joinSafetyNone: 'None',
+  joinSafetyAdd: 'Add',
+  joinSafetyAddLabel: (list: string) => `Add to ${list.toLowerCase()}`,
+  joinSafetyRemove: (term: string) => `Remove ${term}`,
+  /** A signed-out phone opening the invite link (web, before any sign-in). */
+  signedOutTitle: 'Join a household on Chefer',
+  signedOutBody:
+    'Someone you cook with sent you this invite. Open it in the Chefer app to see whose household it is and join.',
+  signedOutNoApp: 'No app yet? Get it free, then open your invite link again.',
+  openInApp: 'Open in the Chefer app',
+  continueOnWeb: 'Continue on the web',
+  copied: 'Link copied',
+  copyFailed: 'Couldn’t copy the link. Select it and copy it yourself.',
+  /** The invite sheet when `household.invites.create` failed. */
+  inviteLoadFailed: 'Couldn’t make the invite link. Try again.',
+  tryAgain: 'Try again',
+  you: 'You',
+  dismissNotice: 'Dismiss',
+  cancel: 'Cancel',
+  goToMeals: 'Go to Meals',
   inviteState: {
     NOT_FOUND: "This invite link doesn't work. Ask for a new one.",
     SELF: "That's your own invite. Send it to the person you cook for.",

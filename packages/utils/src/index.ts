@@ -948,3 +948,7 @@ export {
   exportSizeBucket,
   type ExportSizeBucket,
 } from './data-export';
+
+// ─── Shared shopping list reconcile (ADR 0003, household sharing) ──────────────
+export { mergeSyncedChecks, type CheckedKeysState, type MergedChecks } from './shared-list';
+export { householdPortionPhrase } from './household-sharing';
