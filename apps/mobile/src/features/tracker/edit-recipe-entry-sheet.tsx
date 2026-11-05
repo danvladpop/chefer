@@ -49,7 +49,7 @@ export function EditRecipeEntrySheet({
   onSave,
   onDelete,
 }: EditRecipeEntrySheetProps) {
-  const { proteinOnly } = useNumbersMode(); // WP-08
+  const { proteinOnly, noNumbers } = useNumbersMode(); // WP-08, lane E3
   const [portion, setPortion] = useState('1');
   const [mealType, setMealType] = useState<QuickAddMealType>('dinner');
 
@@ -103,11 +103,13 @@ export function EditRecipeEntrySheet({
           {entry.recipeName}
         </Text>
         <Text className="text-xs text-label-tertiary">
-          {proteinOnly
-            ? entry.protein === undefined
-              ? 'Logged'
-              : `Logged as ${proteinLabel(entry.protein)}`
-            : `Logged as ${Math.round(entry.kcal)} kcal`}
+          {noNumbers
+            ? 'Logged'
+            : proteinOnly
+              ? entry.protein === undefined
+                ? 'Logged'
+                : `Logged as ${proteinLabel(entry.protein)}`
+              : `Logged as ${Math.round(entry.kcal)} kcal`}
         </Text>
       </View>
 

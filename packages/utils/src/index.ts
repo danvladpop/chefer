@@ -387,6 +387,7 @@ export {
   type MeasureParseResult,
   type MeasurePoint,
 } from './body-measurements';
+export { PROGRESS_PHOTOS_COPY } from './progress-photos-copy';
 export {
   KCAL_PER_G,
   INGREDIENT_GRAMS_MAX,
@@ -908,6 +909,8 @@ export {
   describeSwapProteinOnly,
   estimateKcalFromProtein,
   nutritionLabel,
+  metaLine,
+  portionLabel,
   proteinAverageText,
   proteinLabel,
   proteinOnlyHeadline,
@@ -941,6 +944,10 @@ export * from './biscuit';
 export * from './progress';
 export * from './onboarding-v4';
 export * from './day-fit-copy';
+export * from './packaged-product';
+export * from './saved-meals';
+export * from './hidden-fat';
+export * from './food-text';
 export { escapeCsvField, parseCsv, sniffCsvDelimiter, toCsv, type CsvCell } from './csv';
 export {
   DATA_EXPORT_COPY,
@@ -948,3 +955,41 @@ export {
   exportSizeBucket,
   type ExportSizeBucket,
 } from './data-export';
+
+// ─── Meal-time reminders + engagement copy (market review 2026-10, lane E1) ──
+export {
+  MEAL_REMINDER_DAYS,
+  activeReminderSlots,
+  defaultMealReminders,
+  loggedMealSlots,
+  mealReminderMoments,
+  parseStoredMealReminders,
+  type MealReminderMoment,
+} from './meal-reminders';
+export {
+  ENGAGEMENT_COPY,
+  RECAP_COPY,
+  recapFoodLines,
+  recapGymLines,
+  recapShareMessage,
+  HIDE_NUMBERS_COPY,
+  onPlanLine,
+  MEAL_REMINDER_NOTIFICATION,
+  mealReminderLabel,
+  type EngagementCopyKey,
+} from './engagement-copy';
+
+// ─── Weekly recap + share cards (market review 2026-10, lane E2) ─────────────
+export {
+  lastCompletedWeekStart,
+  mondayOf,
+  recapFoodCounts,
+  weekLabel,
+  type RecapFoodCounts,
+  type RecapLogDay,
+  type RecapPlanDay,
+} from './weekly-recap';
+export { shareCardLines, type ShareCardLines } from './share-card-lines';
+// ─── Shared shopping list reconcile (ADR 0003, household sharing) ──────────────
+export { mergeSyncedChecks, type CheckedKeysState, type MergedChecks } from './shared-list';
+export { householdPortionPhrase } from './household-sharing';

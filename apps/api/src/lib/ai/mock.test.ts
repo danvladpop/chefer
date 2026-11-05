@@ -360,3 +360,16 @@ describe('MockAIService.chat — getMyTraining trigger (Ask Chef helps with trai
     expect(t.whatCanIMake).toHaveBeenCalledOnce();
   });
 });
+
+describe('MockAIService.parseFoodText (lane A4)', () => {
+  it('splits on commas, "and" and "with", reading a leading count', async () => {
+    const ai = new MockAIService();
+    const items = await ai.parseFoodText('2 eggs, toast with butter and coffee');
+    expect(items.map((i) => [i.food, i.count, i.grams])).toEqual([
+      ['egg', 2, 100],
+      ['toast', null, 30],
+      ['butter', null, 7],
+      ['coffee', null, 240],
+    ]);
+  });
+});

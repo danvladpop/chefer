@@ -68,7 +68,14 @@ function make(
   bookings: TrainerBookingDto[] = [],
 ) {
   const deps = {
-    links: { listClients: vi.fn(async () => clients) },
+    links: {
+      listClients: vi.fn(async () => clients),
+      clientRowsWithQuiet: vi.fn(async () => ({
+        rows: clients,
+        quietSince: new Map(clients.map((c) => [c.clientId, '2026-10-17'])),
+      })),
+    },
+    trainers: { find: vi.fn(async () => null) },
     requests: { listForTrainer: vi.fn(async () => requests) },
     content: { countSessions: vi.fn(async () => counts) },
     bookings: { listVisible: vi.fn(async () => bookings) },
@@ -85,7 +92,18 @@ describe('TrainerDashboardService', () => {
       unmarkedAttendance: 0,
       bookingChanges: 0,
       total: 2,
+      quietClients: 0,
     });
+  });
+
+  it('badges (lane K4): quiet clients since the trainer last looked, outside the total', async () => {
+    const quiet = (id: string) => client(id, { quiet: true, quietDays: 4 });
+    const { service, deps } = make([quiet('a'), quiet('b'), client('c', { quiet: false })], []);
+    expect((await service.badges('t1', TODAY)).quietClients).toBe(2);
+    vi.mocked(deps.trainers.find).mockResolvedValue({
+      quietSeenAt: new Date('2026-10-17T20:00:00Z'),
+    } as never);
+    expect(await service.badges('t1', TODAY)).toMatchObject({ quietClients: 0, total: 0 });
   });
 
   it('summary: counts the last 7 days ending today for every client', async () => {
@@ -102,6 +120,7 @@ describe('TrainerDashboardService', () => {
     expect(deps.links.listClients).toHaveBeenCalledWith('t1', TODAY);
     expect(deps.content.countSessions).toHaveBeenCalledWith(['a', 'b'], '2026-10-12', TODAY);
     expect(summary).toEqual({
+      quietAfterDays: 3,
       activeClients: 2,
       maxClients: 50,
       requestsWaiting: 1,
@@ -144,6 +163,7 @@ describe('TrainerDashboardService', () => {
       unmarkedAttendance: 1,
       bookingChanges: 0,
       total: 2,
+      quietClients: 0,
     });
     const summary = await service.summary('t1', TODAY);
     expect(summary.bookingsThisWeek).toEqual({ scheduled: 4, done: 1 });

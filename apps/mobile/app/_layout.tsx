@@ -21,6 +21,7 @@ import {
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { BookingReminderHost } from '../src/features/notifications/use-booking-reminders';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
+import { MealReminderHost } from '../src/features/notifications/use-meal-reminders';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
@@ -28,6 +29,7 @@ import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consen
 import { ProgressHost } from '../src/features/progress/progress-host';
 import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
+import { ShopOutboxHost } from '../src/features/shopping-list/use-shop-toggle';
 import { TrainerModeHost } from '../src/features/trainer-mode/trainer-mode-host';
 import { initAnalytics } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
@@ -185,6 +187,7 @@ export default function RootLayout() {
                       <Stack.Screen name="import-recipe" />
                       <Stack.Screen name="household" />
                       <Stack.Screen name="my-weeks" />
+                      <Stack.Screen name="recap" />
                       <Stack.Screen name="recipe-form" />
                       {/* Gym stack routes (placeholders until wave G2 fills them). */}
                       <Stack.Screen name="gym/setup" />
@@ -234,6 +237,8 @@ export default function RootLayout() {
                       <Stack.Screen name="coaching/bookings/[id]" />
                       {/* PRD 2026-10 §4.1: Find a trainer and a trainer's card ("Ask to coach me"). */}
                       <Stack.Screen name="coaching/find" />
+                      {/* Lane K3: the trainer's weekly check-in. */}
+                      <Stack.Screen name="coaching/check-in" />
                       <Stack.Screen name="coaching/trainers/[trainerId]" />
                     </Stack.Protected>
                     <Stack.Protected guard={token === null}>
@@ -245,14 +250,21 @@ export default function RootLayout() {
                     {/* WP-18: the invite link's route is reachable signed out too — it sends the visitor to
                       sign in / register and PendingJoinHost brings them back (spec §2.3). */}
                     <Stack.Screen name="coaching/join/[code]" />
+                    {/* ADR 0003: a household invite link, the same way (signed out → sign in → back). */}
+                    <Stack.Screen name="household/join/[code]" />
                   </Stack>
                 </NumbersModeHost>
               </SnackbarTouchBoundary>
               <AiConsentHost />
-              {/* WP-18: after sign-in, returns to the coaching invite the visitor opened signed out. */}
+              {/* WP-18 / ADR 0003: after sign-in, returns to the coaching or household invite the
+                visitor opened signed out. */}
               <PendingJoinHost signedIn={token !== null} />
+              {/* ADR 0003: Shop ticks made offline (even before a kill) are sent when back online. */}
+              <ShopOutboxHost signedIn={token !== null} />
               {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
               <FoodNudgeHost signedIn={token !== null} />
+              {/* Lane E1: keeps the opt-in meal-time reminders scheduled. */}
+              <MealReminderHost signedIn={token !== null} />
               {/* Kitchen progress: retries unsent cook finishes, shows the inbox (snackbars, level-up) and
                 keeps the gentle reminder set. Gated inside; the cook retry runs for everyone. */}
               <ProgressHost signedIn={token !== null} />

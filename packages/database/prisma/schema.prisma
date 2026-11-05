@@ -140,6 +140,9 @@ enum ConsentKind {
   // Trainer coaching (docs/trainer-platform/spec.md §5.2): written on join
   // (granted) and on leave / remove / trainer tools off (withdrawn), with the
   // CoachingLink id in `contextId`. Filtered out for clients below API level 6.
+  // `providers` names what the event is about: [] = the coaching itself;
+  // ['FOOD'] / ['WEIGHT'] = the client's opt-in to share that data with the
+  // trainer (lane K1), `contextId` = the link (or the request it was asked in).
   COACHING_SHARING
   // Apple Health / Health Connect sync (C2): every change to the data types the
   // user turned on, as `providers` (e.g. ["HEALTH_CONNECT", "weight", "steps"]);
@@ -159,6 +162,8 @@ enum AiCallType {
   // S17, rev 2: curated-plan imports, counted as "used" only when saved
   // (display only — see Q-18 in the technical plan).
   CURATED_PLAN
+  // Lane A4: typed "I ate…" logging outside the chat (free 10/day).
+  FOOD_TEXT
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -186,6 +191,10 @@ model User {
   // tracked by emailDefaultsNoticeAt below.
   weeklyEmailReady         Boolean   @default(false)
   weeklyEmailRecap         Boolean   @default(false)
+  // Lane K3: "your trainer's weekly check-in" emails (confirmed address only).
+  // On by default (the client joined a trainer who turned check-ins on);
+  // the email's one-click unsubscribe turns it off.
+  coachingCheckInEmail     Boolean   @default(true)
   // AI data consent (App Store 5.1.2(i)): when the user allowed Chefer to send
   // their data to the third-party AI provider. Null = not asked yet / revoked;
   // clients show the consent sheet before the first AI action. User-initiated
@@ -217,6 +226,8 @@ model User {
   favouriteRecipes     FavouriteRecipe[]
   mealRatings          MealRating[]
   dailyLogs            DailyLog[]
+  savedMeals           SavedMeal[]
+  shareCards           ShareCard[]
   weightEntries        WeightEntry[]
   bodyMeasurements     BodyMeasurement[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
@@ -224,6 +235,12 @@ model User {
   aiUsageEvents        AiUsageEvent[]
   chefReviews          ChefReview[]
   householdMembers     HouseholdMember[]
+  // Household sharing (ADR 0003): invites this owner made / redeemed, and the
+  // partner links on both sides.
+  householdInvitesMade HouseholdInvite[]     @relation("HouseholdInvitesMade")
+  householdInvitesUsed HouseholdInvite[]     @relation("HouseholdInvitesUsed")
+  householdAsOwner     HouseholdLink[]       @relation("HouseholdAsOwner")
+  householdAsPartner   HouseholdLink[]       @relation("HouseholdAsPartner")
   pantryItems          PantryItem[]
   feedback             Feedback[]
   customExercises      Exercise[]
@@ -273,11 +290,16 @@ model User {
   sessionsLoggedFor      WorkoutSession[]  @relation("SessionsLoggedFor")
   coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
   coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
+  // Lane K3: weekly check-ins (answered by the client, read by the trainer)
+  checkInsAnswered       CoachingCheckIn[] @relation("CheckInsAnswered")
+  checkInsReceived       CoachingCheckIn[] @relation("CheckInsReceived")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
 
   // Phase 1 guardrails: the ledger of photos this user uploaded
   uploadedFiles UploadedFile[]
 
+  // Packaged foods (ADR 0006): products this user read off a label or typed in
+  packagedProducts PackagedProduct[]
   // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2): the ledger, cook log, totals, badges and quest sets
   progressEvents    ProgressEvent[]
   cookLogs          CookLog[]
@@ -375,6 +397,10 @@ model ChefProfile {
   // WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (numbersModeSchema, @chefer/types).
   // Null = FULL. A string + Zod enum, so a new mode is never a migration.
   numbersMode            String?
+  // Lane E1 (market review 2026-10): meal-time reminders, { enabled, times }
+  // (mealRemindersSchema, @chefer/types). Null = never chosen. Only the phone
+  // schedules them (local notifications); web shows and edits the choice.
+  mealReminders          Json?
   // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
   // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
   // others are set by training.setDayKinds (wave 1).
@@ -642,6 +668,25 @@ model MealRating {
   @@map("meal_ratings")
 }
 
+// Lane E2 (market review 2026-10): a share card the user chose to share — a
+// snapshot of ONLY what the card shows (shareCardPayload, @chefer/types:
+// never allergies, weight, logged meals, notes or names). Public by its
+// unguessable id at /s/<id>; deleted with the account.
+model ShareCard {
+  id        String   @id
+  userId    String
+  // 'recipe' | 'cook' | 'workout' | 'recap' (SHARE_CARD_KINDS) — a string, so
+  // a new kind is never a migration.
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("share_cards")
+}
+
 model DailyLog {
   id           String   @id @default(cuid())
   userId       String
@@ -666,6 +711,26 @@ model DailyLog {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("daily_logs")
+}
+
+// Saved meals (lane A2): a named snapshot of one logged meal's entries (their
+// names and numbers), re-logged in one tap from the Log sheet. A snapshot, not
+// a live link: editing or deleting the original entries never changes it.
+model SavedMeal {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  /// SavedMealItem[] (apps/api tracker/saved-meals.ts): recipeId?, name, portionMultiplier, numbers, product?
+  items        Json
+  lastLoggedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("saved_meals")
 }
 
 // The Adaptive Chef (F1): one row per user-week, written idempotently by the
@@ -779,6 +844,9 @@ model HouseholdMember {
   dislikedIngredients String[] @default([])
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  invites HouseholdInvite[]
+  links   HouseholdLink[]
 
   @@index([userId])
   @@map("household_members")
@@ -1113,6 +1181,60 @@ enum NutritionSource {
   ADMIN
 }
 
+// ─── Packaged products (docs/adr/0006-packaged-products.md) ───────────────────
+// Branded, barcoded foods, kept apart from the reviewed ingredient catalog:
+// their numbers come from Open Food Facts or from a label, never from Chefer's
+// review. OFF rows are a shared cache (ownerId null, one per barcode, the
+// partial unique index in ensure-indexes.sql); LABEL and USER rows are private
+// to their owner and win over the cache for that owner's lookups.
+
+enum PackagedProductSource {
+  /// Open Food Facts (ODbL) — shown with "Data from Open Food Facts"
+  OFF
+  /// Read off a nutrition-label photo (premium AI), reviewed by the owner
+  LABEL
+  /// Typed in by the owner
+  USER
+}
+
+model PackagedProduct {
+  id                  String                @id @default(cuid())
+  /// GTIN digits (EAN-13, EAN-8, UPC-A); null for a USER product typed without one
+  barcode             String?
+  name                String
+  brand               String?
+  /// Per 100 g. null = the source does not say (never guessed, never 0)
+  kcalPer100g         Float?
+  proteinPer100g      Float?
+  carbsPer100g        Float?
+  fatPer100g          Float?
+  fiberPer100g        Float?
+  sugarPer100g        Float?
+  saturatedFatPer100g Float?
+  saltPer100g         Float?
+  servingSizeG        Float?
+  /// Chefer allergy taxonomy ids the product contains (safety-taxonomy.ts)
+  allergenTags        String[]              @default([])
+  /// Taxonomy ids it "may contain" (OFF traces)
+  traceTags           String[]              @default([])
+  /// false = "allergens unknown": the source lists none and can't vouch there are none
+  allergensKnown      Boolean               @default(false)
+  imageUrl            String?
+  source              PackagedProductSource
+  fetchedAt           DateTime              @default(now())
+  /// null = the shared OFF cache; set = private to this user (LABEL / USER)
+  ownerId             String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, barcode])
+  @@index([barcode])
+  @@index([ownerId])
+  @@map("packaged_products")
+}
+
 enum NutritionStatus {
   COMPUTED
   PARTIAL
@@ -1276,6 +1398,10 @@ model ShoppingList {
   items       Json // ShoppingListItemForWeek[] minus images/prices (re-resolved)
   aiGenerated Boolean  @default(false)
   checkedKeys String[] @default([]) // synced check-off state (P1-5)
+  /// Household sharing (ADR 0003): per key `{ by: userId, at: ISO, checked }` — the
+  /// last toggle of each item, ticks AND unticks, so offline replays reconcile by time
+  /// and the list can say who ticked it. `checkedKeys` stays the source of truth.
+  checkedMeta Json     @default("{}")
   customItems Json     @default("[]") // user-added items overlaying the derived list (chat tool + manual add)
   updatedAt   DateTime @updatedAt
 
@@ -1727,6 +1853,12 @@ enum NotificationKind {
   COACHING_BOOKING_CHANGED // payload = { bookingId, startsAt, timeZone }
   COACHING_BOOKING_CANCELLED // payload = { bookingId, startsAt, timeZone, reason }
   COACHING_WORKOUT_LOGGED // payload = { workoutSessionId }
+  // Household sharing (ADR 0003). Never listed by friends.activity or coaching.notices;
+  // read through household.notices. payload = { name } (the other person's first name).
+  HOUSEHOLD_PARTNER_JOINED // owner ← a partner joined
+  HOUSEHOLD_PARTNER_LEFT // owner ← a partner left
+  HOUSEHOLD_REMOVED // partner ← the owner removed them
+  HOUSEHOLD_ENDED // partner ← the owner deleted their account (actor = the partner, so it survives)
 }
 
 enum ReportReason {
@@ -1888,11 +2020,23 @@ model Notification {
 
 /// One row = the user turned trainer tools on. No row = cannot invite or coach.
 model TrainerProfile {
-  userId      String    @id
-  displayName String // shown to clients ("Ana"); word-filtered like Following names
-  gymLine     String? // optional "Gym / city" line under the name (PRD §4.1), word-filtered, max 60
-  activatedAt DateTime  @default(now())
-  disabledAt  DateTime? // turned off: every link ENDED, invites revoked
+  userId           String    @id
+  displayName      String // shown to clients ("Ana"); word-filtered like Following names
+  gymLine          String? // optional "Gym / city" line under the name (PRD §4.1), word-filtered, max 60
+  activatedAt      DateTime  @default(now())
+  disabledAt       DateTime? // turned off: every link ENDED, invites revoked
+  /// Lane K3: the weekly check-in every client of this trainer is asked. Off until the trainer
+  /// turns it on. `checkInDay` 0 = Monday … 6 = Sunday (the client's own calendar);
+  /// `checkInQuestions` are CHECK_IN_QUESTIONS keys (@chefer/types), in the trainer's order.
+  checkInEnabled   Boolean   @default(false)
+  checkInDay       Int       @default(6)
+  checkInQuestions String[]  @default([])
+  /// Lane K4: a client "goes quiet" after this many days with nothing logged (no workout, and
+  /// no food log when they share it). `quietDigestEmail`: a daily email listing quiet clients.
+  /// `quietSeenAt`: the trainer last looked at Today; the badge counts clients quiet since.
+  quietAfterDays   Int       @default(3)
+  quietDigestEmail Boolean   @default(false)
+  quietSeenAt      DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1947,6 +2091,12 @@ model CoachingLink {
   /// The coaching consent copy version the client agreed to (COACHING_CONSENT_COPY_VERSION).
   /// Older links read 1 and get a one-time "what's new" notice (trainer-mode.md §10).
   consentCopyVersion Int                @default(1)
+  /// Lane K1 (market review 2026-10): the client shares their food log / body weight with
+  /// this trainer since then; null = not shared (the default). Separate opt-ins, revocable
+  /// at any time. Every change writes a COACHING_SHARING consent event with providers
+  /// ['FOOD'] or ['WEIGHT']. Cleared (with a withdrawn event) when the coaching ends.
+  shareFoodAt        DateTime?
+  shareWeightAt      DateTime?
 
   trainer User @relation("CoachingAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
   client  User @relation("CoachingAsClient", fields: [clientId], references: [id], onDelete: Cascade)
@@ -1977,6 +2127,8 @@ model CoachingRequest {
   expiresAt   DateTime // createdAt + 14 days
   respondedAt DateTime? // accepted / declined / cancelled / expired
   startedOn   String? // the client's device-local YYYY-MM-DD when asking; anchors the coaching's start if accepted
+  shareFood   Boolean               @default(false) // Lane K1: chosen on the consent screen; applied to the link on accept
+  shareWeight Boolean               @default(false)
 
   client  User @relation("CoachingRequestsMade", fields: [clientId], references: [id], onDelete: Cascade)
   trainer User @relation("CoachingRequestsGot", fields: [trainerId], references: [id], onDelete: Cascade)
@@ -2222,6 +2374,32 @@ model CuratedRecipeDraft {
   @@map("curated_recipe_drafts")
 }
 
+// ─── Lane K3: weekly check-ins (market review 2026-10) ────────────────────────
+
+/// One client's answers to their trainer's weekly check-in. One row per
+/// (trainer, client, period): `periodStart` is the client-local date the
+/// check-in opened (the trainer's check-in weekday). `questions` is a snapshot
+/// of what was asked, so a later config change never re-labels old answers.
+/// `answers` = { [questionKey]: 1..5 }. Shown to the trainer only while the
+/// coaching is ACTIVE; deleted with the ended link by coaching-maintenance.
+model CoachingCheckIn {
+  id          String   @id @default(cuid())
+  trainerId   String
+  clientId    String
+  periodStart String // "YYYY-MM-DD"
+  questions   String[]
+  answers     Json
+  note        String? // ≤ 500, never sent to AI or analytics
+  submittedAt DateTime @default(now())
+
+  trainer User @relation("CheckInsReceived", fields: [trainerId], references: [id], onDelete: Cascade)
+  client  User @relation("CheckInsAnswered", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerId, clientId, periodStart])
+  @@index([trainerId, clientId, periodStart])
+  @@map("coaching_check_ins")
+}
+
 // ─── Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, ADR 0002) ───
 
 /// Kitchen progress ledger. Append-only: rows are never updated or deleted
@@ -2330,4 +2508,65 @@ model ProgressQuestDay {
 
   @@id([userId, localDate])
   @@map("progress_quest_days")
+}
+
+// ─── Household sharing (ADR 0003, market review MUST 5) ──────────────────────
+// Additive only. A partner with their own account joins the OWNER's household by
+// claiming one of the owner's member profiles. The owner's plans and lists are the
+// household's; access is decided ONLY from ACTIVE links (householdAccess.scope).
+
+/// Single-use invite for one member profile. The code is the only secret: 10 chars,
+/// Crockford base32, from crypto random (the coaching invite generator).
+model HouseholdInvite {
+  code      String    @id
+  ownerId   String
+  memberId  String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime // createdAt + 14 days
+  usedAt    DateTime?
+  usedById  String?
+  revokedAt DateTime?
+
+  owner  User            @relation("HouseholdInvitesMade", fields: [ownerId], references: [id], onDelete: Cascade)
+  member HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  usedBy User?           @relation("HouseholdInvitesUsed", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt])
+  @@index([memberId])
+  @@map("household_invites")
+}
+
+enum HouseholdLinkStatus {
+  ACTIVE
+  ENDED
+}
+
+/// SYSTEM = the owner deleted their account, or the profile was deleted
+enum HouseholdEndedBy {
+  OWNER
+  PARTNER
+  SYSTEM
+}
+
+/// The owner <-> partner relationship. Raw-SQL partial unique indexes (ensure-indexes.sql):
+///   household_links_one_active_partner (partnerId) WHERE status = 'ACTIVE'
+///   household_links_one_active_member  (memberId)  WHERE status = 'ACTIVE'
+model HouseholdLink {
+  id         String              @id @default(cuid())
+  ownerId    String
+  partnerId  String
+  memberId   String? // the claimed profile; SetNull if the owner deletes it (the link ends first)
+  status     HouseholdLinkStatus @default(ACTIVE)
+  inviteCode String? // provenance, no FK (invites are pruned)
+  startedAt  DateTime            @default(now())
+  endedAt    DateTime?
+  endedBy    HouseholdEndedBy?
+
+  owner   User             @relation("HouseholdAsOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  partner User             @relation("HouseholdAsPartner", fields: [partnerId], references: [id], onDelete: Cascade)
+  member  HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, status])
+  @@index([partnerId, status])
+  @@map("household_links")
 }

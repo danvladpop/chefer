@@ -51,11 +51,12 @@ describe('finaliseDietaryTags', () => {
 
 describe('findHiddenAllergens', () => {
   it('flags a line the matcher cannot read when the recipe as written looks safe', () => {
-    const r = recipe('Weeknight tomato bowl', ['spaghetti', 'tomato']);
+    // "spaghetti" was the original example; the matcher reads it since #221.
+    const r = recipe('Weeknight tomato bowl', ['gyoza skins', 'tomato']);
     expect(curatedSafetyProfile(r).freeFrom).toContain('gluten');
-    const hidden = findHiddenAllergens(r, ['Pasta, dry (wheat)', 'Tomato, raw']);
+    const hidden = findHiddenAllergens(r, ['Dumpling wrappers, wheat', 'Tomato, raw']);
     expect(hidden).toEqual([
-      { line: 'spaghetti', catalogName: 'Pasta, dry (wheat)', term: 'Gluten' },
+      { line: 'gyoza skins', catalogName: 'Dumpling wrappers, wheat', term: 'Gluten' },
     ]);
   });
 

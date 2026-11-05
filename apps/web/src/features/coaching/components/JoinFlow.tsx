@@ -3,8 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { trackSharingChosen } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
+import {
+  COACHING_COPY,
+  NO_COACHING_SHARE,
+  type CoachingShareChoice,
+  type InvitePreviewDto,
+} from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { appJoinUrl, isMobileUserAgent } from '../lib/open-in-app';
@@ -66,6 +72,8 @@ export function JoinFlow({ code }: { code: string }) {
     { retry: false, staleTime: 0, gcTime: 0, refetchOnMount: 'always' },
   );
   const [error, setError] = useState<string | null>(null);
+  // Lane K1: both off until the client turns them on.
+  const [share, setShare] = useState<CoachingShareChoice>(NO_COACHING_SHARE);
   const [joined, setJoined] = useState<string | null>(null);
   const [choice, setChoice] = useState<'ask' | 'web'>('web');
 
@@ -75,7 +83,8 @@ export function JoinFlow({ code }: { code: string }) {
 
   const join = trpc.coaching.join.useMutation({
     meta: { silent: true },
-    onSuccess: (status) => {
+    onSuccess: (status, vars) => {
+      trackSharingChosen(vars.share, 'join');
       clearPendingJoin();
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();
@@ -175,8 +184,10 @@ export function JoinFlow({ code }: { code: string }) {
           onAllow={() => {
             setError(null);
             // The browser's local day anchors the trainer's 4-week window (not the server's UTC day).
-            join.mutate({ code, source: 'web', localDate: localDateStr() });
+            join.mutate({ code, source: 'web', localDate: localDateStr(), share });
           }}
+          share={share}
+          onShareChange={(next) => setShare((cur) => ({ ...cur, ...next }))}
           onDecline={() => router.push('/gym')}
         />
       )}
