@@ -16,6 +16,7 @@ import {
   useTrainerBadges,
   useTrainerModeAvailability,
 } from '../../src/features/trainer-mode/use-trainer-mode';
+import { useT } from '../../src/lib/i18n';
 import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // ─── Trainer mode: the second app shell (docs/prd-2026-10/trainer-mode.md §5.2) ───
@@ -31,6 +32,7 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 export default function TrainerTabsLayout() {
   const colors = useThemeColors();
+  const { t } = useT();
   const available = useTrainerModeAvailability();
   const { requests, quiet } = useTrainerBadges();
   const { badgeCount: personalWaiting } = useFriendsMe();
@@ -75,15 +77,16 @@ export default function TrainerTabsLayout() {
       >
         {TRAINER_TABS.map((tab, index) => {
           const badge = badgeFor(tab.name);
+          const title = t(tab.titleKey);
           return (
             <Tabs.Screen
               key={tab.name}
               name={tab.name}
               options={{
-                title: tab.title,
+                title,
                 tabBarButtonTestID: `trainer-tab-${tab.name}`,
                 tabBarAccessibilityLabel: tabAccessibilityLabel(
-                  tab.title,
+                  title,
                   index,
                   TRAINER_TABS.length,
                   badge,

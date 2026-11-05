@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { HouseholdEditor } from '../../src/features/household/household-editor';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // Backlog P2-3: members (and their allergies + restrictions) are free on
 // every tier; removing one asks first (F-ONB-3-2); scaling is the premium
@@ -394,5 +395,26 @@ describe('HouseholdEditor', () => {
       expect(mockRefetchPrefs).toHaveBeenCalled();
       expect(mockUpdateSafety).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('HouseholdEditor in Romanian (Lane J)', () => {
+  afterEach(() => resetLocaleForTests(['en-US']));
+
+  it('renders the member card, its summary and the confirm in Romanian', async () => {
+    resetLocaleForTests(['ro-RO']);
+    mockMembers = [sam];
+    const user = userEvent.setup();
+    await renderEditor(<HouseholdEditor />);
+
+    expect(screen.getByText('Tu')).toBeOnTheScreen();
+    expect(screen.getByTestId('household-summary-m1')).toHaveTextContent(/^porție de ½/);
+    expect(
+      screen.getByText('Alergiile tuturor se aplică fiecărui plan, gratuit.'),
+    ).toBeOnTheScreen();
+    await user.press(screen.getByTestId('household-remove-m1'));
+    expect(
+      screen.getByText('Elimini persoana Sam? Alergiile ei nu se vor mai aplica planurilor tale.'),
+    ).toBeOnTheScreen();
   });
 });

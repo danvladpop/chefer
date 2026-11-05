@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useT } from '@/lib/i18n';
 import { Check } from 'lucide-react';
 import { BOOKING_COPY } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
@@ -34,6 +35,7 @@ export function ClientSwitcher({
   activeId: string | null;
   onSelect: (clientId: string) => void;
 }) {
+  const { t } = useT();
   const refs = useRef(new Map<string, HTMLButtonElement>());
 
   const move = (from: number, delta: number | 'first' | 'last') => {
@@ -104,7 +106,9 @@ export function ClientSwitcher({
                 {client.progress}
               </span>
             )}
-            {client.status === 'saved' && <span className="sr-only">, done</span>}
+            {client.status === 'saved' && (
+              <span className="sr-only">{t('coaching.trainer.coach.chipDone')}</span>
+            )}
           </button>
         );
       })}

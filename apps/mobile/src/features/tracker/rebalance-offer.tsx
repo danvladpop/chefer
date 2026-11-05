@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Translator } from '@chefer/i18n';
 import { Button, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
@@ -14,6 +15,7 @@ import {
   type RebalancePreviewLike,
   type RebalanceSwapLike,
 } from '@chefer/utils';
+import { getTranslator, useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { clearRebalanceOffer, setRebalanceOffer, useRebalanceOffer } from './rebalance-offer-store';
@@ -29,23 +31,36 @@ import { isMealType, recordRebalance } from './rebalance-store';
 // not animate, so reduced motion has nothing to respect.
 
 const kcalProtein = (
+  t: Translator['t'],
   kcal: number | undefined,
   proteinG: number | undefined,
   proteinOnly: boolean,
 ): string | null => {
-  const parts: string[] = [];
-  if (kcal !== undefined && !proteinOnly) parts.push(`${Math.round(kcal)} kcal`);
-  if (proteinG !== undefined) parts.push(`${Math.round(proteinG)} g protein`);
-  return parts.length > 0 ? parts.join(' · ') : null;
+  const showKcal = kcal !== undefined && !proteinOnly;
+  if (showKcal && proteinG !== undefined) {
+    return t('tracker.rebalance.kcalProtein', {
+      kcal: Math.round(kcal),
+      protein: Math.round(proteinG),
+    });
+  }
+  if (showKcal) return t('tracker.rebalance.kcalOnly', { kcal: Math.round(kcal) });
+  if (proteinG !== undefined) {
+    return t('tracker.rebalance.proteinOnly', { protein: Math.round(proteinG) });
+  }
+  return null;
 };
 
 /** "Replaces Lentil soup (320 kcal · 14 g protein) with Chicken bowl (610 kcal · 42 g protein)". */
-function swapDetail(swap: RebalanceSwapLike, proteinOnly: boolean): string {
-  const was = kcalProtein(swap.previousKcal, swap.previousProteinG, proteinOnly);
-  const now = kcalProtein(swap.newKcal, swap.newProteinG, proteinOnly);
-  const from = `${swap.previousRecipeName ?? 'the planned meal'}${was ? ` (${was})` : ''}`;
-  const to = `${swap.newRecipeName ?? 'a different dish'}${now ? ` (${now})` : ''}`;
-  return `Replaces ${from} with ${to}`;
+function swapDetail(t: Translator['t'], swap: RebalanceSwapLike, proteinOnly: boolean): string {
+  const was = kcalProtein(t, swap.previousKcal, swap.previousProteinG, proteinOnly);
+  const now = kcalProtein(t, swap.newKcal, swap.newProteinG, proteinOnly);
+  const fromName = swap.previousRecipeName ?? t('tracker.rebalance.plannedMeal');
+  const toName = swap.newRecipeName ?? t('tracker.rebalance.differentDish');
+  const from = was
+    ? t('tracker.rebalance.withNumbers', { name: fromName, numbers: was })
+    : fromName;
+  const to = now ? t('tracker.rebalance.withNumbers', { name: toName, numbers: now }) : toName;
+  return t('tracker.rebalance.replaces', { from, to });
 }
 
 export interface RebalanceOfferProps {
@@ -73,6 +88,7 @@ function OfferCard({
   className,
 }: Omit<RebalanceOfferProps, 'planId'> & { offer: RebalancePreviewLike }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // WP-08: protein-only mode shows the protein change only, never a calorie figure.
@@ -113,7 +129,11 @@ function OfferCard({
       void utils.shoppingList.invalidate();
       if (result.rebalanced) onApplied?.();
     } catch (error) {
-      setNotice(`Couldn't change your week. ${userFacingErrorMessage(error)}`.trim());
+      setNotice(
+        getTranslator()
+          .t('tracker.rebalance.applyError', { error: userFacingErrorMessage(error) })
+          .trim(),
+      );
     }
   };
 
@@ -126,7 +146,7 @@ function OfferCard({
       <View className="flex-row items-start gap-2">
         <Ionicons name="color-wand-outline" size={18} color={colors.brand} />
         <View className="min-w-0 flex-1 gap-1">
-          <Text className="text-sm font-semibold text-label">Rebalance your week?</Text>
+          <Text className="text-sm font-semibold text-label">{t('tracker.rebalance.title')}</Text>
           {headline !== '' && (
             <Text testID="rebalance-offer-headline" className="text-sm text-label">
               {headline}
@@ -140,7 +160,7 @@ function OfferCard({
           {offer.snacks.length > 0 && (
             <View testID="rebalance-offer-snacks" className="gap-0.5">
               <Text className="text-sm text-label">
-                {canApply ? 'Or add a protein snack:' : 'A protein snack would help:'}
+                {canApply ? t('tracker.rebalance.orSnack') : t('tracker.rebalance.snackHelps')}
               </Text>
               {offer.snacks.map((snack) => (
                 <Text key={snack.id} className="text-sm text-label-secondary">
@@ -156,7 +176,7 @@ function OfferCard({
                 testID={`rebalance-offer-detail-${i}`}
                 className="text-xs text-label-secondary"
               >
-                {swapDetail(swap, proteinOnly)}
+                {swapDetail(t, swap, proteinOnly)}
               </Text>
             ))}
           {notice !== null && (
@@ -172,21 +192,23 @@ function OfferCard({
             <Button
               testID="rebalance-offer-apply"
               size="sm"
-              accessibilityLabel="Apply the rebalance to my week"
+              accessibilityLabel={t('tracker.rebalance.applyLabel')}
               loading={applyMutation.isPending}
               onPress={() => void apply()}
             >
-              Apply
+              {t('tracker.rebalance.apply')}
             </Button>
             <Button
               testID="rebalance-offer-preview"
               variant="outline"
               size="sm"
-              accessibilityLabel={expanded ? 'Hide the swap details' : 'Preview the swaps'}
+              accessibilityLabel={
+                expanded ? t('tracker.rebalance.hideLabel') : t('tracker.rebalance.previewLabel')
+              }
               accessibilityState={{ expanded }}
               onPress={() => setExpanded((v) => !v)}
             >
-              {expanded ? 'Hide' : 'Preview'}
+              {expanded ? t('tracker.rebalance.hide') : t('tracker.rebalance.preview')}
             </Button>
           </>
         )}
@@ -194,11 +216,11 @@ function OfferCard({
           testID="rebalance-offer-dismiss"
           variant="ghost"
           size="sm"
-          accessibilityLabel="Not now, keep my week as it is"
+          accessibilityLabel={t('tracker.rebalance.notNowLabel')}
           disabled={applyMutation.isPending}
           onPress={clearRebalanceOffer}
         >
-          Not now
+          {t('tracker.rebalance.notNow')}
         </Button>
       </View>
     </View>
@@ -258,6 +280,7 @@ export function RebalanceMyWeek({
   className?: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const own = useRebalanceCheck(planId);
   const { state, check } = controller ?? own;
   const offer = useRebalanceOffer();
@@ -271,22 +294,24 @@ export function RebalanceMyWeek({
           variant="outline"
           size="sm"
           className="self-start"
-          accessibilityLabel="Rebalance my week"
+          accessibilityLabel={t('tracker.rebalance.myWeek')}
           loading={state === 'loading'}
           onPress={() => void check()}
         >
           <Ionicons name="color-wand-outline" size={14} color={colors.brand} />
-          <Text className="text-sm font-medium text-foreground">Rebalance my week</Text>
+          <Text className="text-sm font-medium text-foreground">
+            {t('tracker.rebalance.myWeek')}
+          </Text>
         </Button>
       )}
       {!offerShown && state === 'on-track' && (
         <Text testID="rebalance-on-track" variant="muted" className="px-1 text-xs">
-          Your week is on track
+          {t('tracker.rebalance.onTrack')}
         </Text>
       )}
       {state === 'error' && (
         <Text testID="rebalance-my-week-error" className="px-1 text-xs text-danger">
-          Couldn&apos;t check your week just now. Try again.
+          {t('tracker.rebalance.checkError')}
         </Text>
       )}
     </View>

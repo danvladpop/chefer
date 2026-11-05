@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
-import { TEMPLATE_COPY, type WorkoutTemplateDto } from '@chefer/types';
+import type { MessageKey } from '@chefer/i18n';
+import type { WorkoutTemplateDto } from '@chefer/types';
 import { Button, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   defaultTemplateUpdateSelection,
@@ -9,6 +10,7 @@ import {
   type TemplateAssignmentStatus,
 } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { CheckRow } from './check-row';
 
@@ -18,12 +20,11 @@ import { CheckRow } from './check-row';
 // up-to-date ones cannot be picked. Each picked client's day gets this version's exercises (their
 // loads are kept for exercises still there).
 
-const COPY = TEMPLATE_COPY.update;
-const STATUS_TEXT: Record<TemplateAssignmentStatus, string> = {
-  upToDate: COPY.upToDate,
-  outdated: COPY.olderVersion,
-  editedSince: COPY.editedSince,
-};
+const STATUS_KEY = {
+  upToDate: 'trainer.templates.update.upToDate',
+  outdated: 'trainer.templates.update.olderVersion',
+  editedSince: 'trainer.templates.update.editedSince',
+} as const satisfies Record<TemplateAssignmentStatus, MessageKey>;
 
 export function UpdateClientsSheet({
   visible,
@@ -36,6 +37,7 @@ export function UpdateClientsSheet({
   template: WorkoutTemplateDto | null;
   testID?: string;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const assignments = template?.assignments ?? [];
@@ -66,8 +68,11 @@ export function UpdateClientsSheet({
           snackbar.show({
             message:
               failed > 0
-                ? `${COPY.done(ok)}. ${TEMPLATE_COPY.assign.failed(failed)}.`
-                : COPY.done(ok),
+                ? t('trainer.templates.assign.partial', {
+                    done: t('trainer.templates.update.done', { count: ok }),
+                    failed: t('trainer.templates.assign.failed', { count: failed }),
+                  })
+                : t('trainer.templates.update.done', { count: ok }),
             tone: failed > 0 ? 'info' : 'success',
           });
           void utils.trainer.templates.get.invalidate({ templateId: template.id });
@@ -75,7 +80,8 @@ export function UpdateClientsSheet({
           void utils.trainer.client.routine.invalidate();
           onClose();
         },
-        onError: (error) => Alert.alert('Could not update', userFacingErrorMessage(error)),
+        onError: (error) =>
+          Alert.alert(t('trainer.templates.update.errorTitle'), userFacingErrorMessage(error)),
       },
     );
   };
@@ -84,7 +90,7 @@ export function UpdateClientsSheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={COPY.title}
+      title={t('trainer.templates.update.title')}
       testID={testID}
       footer={
         <Button
@@ -93,18 +99,20 @@ export function UpdateClientsSheet({
           loading={update.isPending}
           onPress={confirm}
         >
-          {COPY.confirm(picked.length)}
+          {t('trainer.templates.update.confirm', { count: picked.length })}
         </Button>
       }
     >
-      <Text className="text-subhead text-label-secondary">{COPY.body}</Text>
+      <Text className="text-subhead text-label-secondary">
+        {t('trainer.templates.update.body')}
+      </Text>
       <View className="gap-2">
         {assignments.map((a) => (
           <CheckRow
             key={a.clientId}
             testID={`${testID}-client-${a.clientId}`}
             title={a.clientName}
-            detail={`${a.dayName} · ${STATUS_TEXT[templateAssignmentStatus(a)]}`}
+            detail={`${a.dayName} · ${t(STATUS_KEY[templateAssignmentStatus(a)])}`}
             checked={a.outdated && picked.includes(a.clientId)}
             disabled={!a.outdated}
             onToggle={() => toggle(a.clientId)}

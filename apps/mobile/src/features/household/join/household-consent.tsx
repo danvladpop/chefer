@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { findSafetyTaxonomyEntry, HOUSEHOLD_SHARING_COPY } from '@chefer/types';
+import { findSafetyTaxonomyEntry } from '@chefer/types';
 import {
   Button,
   IconButton,
@@ -10,11 +10,12 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
-import { HOUSEHOLD_MOBILE_COPY, joinPortionPhrase } from '../sharing/copy';
+import { useT } from '../../../lib/i18n';
+import { joinPortionText } from '../sharing/copy';
 
 // ─── Join a household: the consent screen (ADR 0003, business_flow §17.1) ─────
 // What is shared, what stays private, and the claimed profile's allergies / diet / dislikes to confirm
-// or fix before joining. Every sentence is the shared HOUSEHOLD_SHARING_COPY (the web join page renders
+// or fix before joining. Every sentence is a shared `household.sharing.*` key (the web join page renders
 // the same strings). The confirmed lists are what `household.join` writes.
 
 export type SafetyLists = {
@@ -25,6 +26,7 @@ export type SafetyLists = {
 type ListName = keyof SafetyLists;
 
 const LIST_NAMES: readonly ListName[] = ['allergies', 'dietaryRestrictions', 'dislikedIngredients'];
+const JOIN_SHARES = ['week', 'list', 'safety'] as const;
 /** The join input's caps (joinHouseholdInputSchema). */
 const LIST_MAX: Record<ListName, number> = {
   allergies: 20,
@@ -64,14 +66,16 @@ function SafetyListEditor({
   terms: string[];
   onChange: (terms: string[]) => void;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const [draft, setDraft] = useState('');
-  const title = HOUSEHOLD_SHARING_COPY.joinSafetyLists[name];
+  const title = t(`household.sharing.joinSafetyLists.${name}`);
+  const addLabel = t(`household.sharing.joinSafetyAddLabel.${name}`);
   const add = () => {
     const term = draft.trim().slice(0, 60);
     if (!term) return;
     if (
-      !terms.some((t) => t.toLowerCase() === term.toLowerCase()) &&
+      !terms.some((existing) => existing.toLowerCase() === term.toLowerCase()) &&
       terms.length < LIST_MAX[name]
     ) {
       onChange([...terms, term]);
@@ -85,7 +89,7 @@ function SafetyListEditor({
       </Text>
       {terms.length === 0 ? (
         <Text className="text-subhead text-label-secondary">
-          {HOUSEHOLD_SHARING_COPY.joinSafetyNone}
+          {t('household.sharing.joinSafetyNone')}
         </Text>
       ) : (
         <View className="flex-row flex-wrap gap-2">
@@ -98,9 +102,11 @@ function SafetyListEditor({
               <Text className="text-subhead text-label">{termLabel(term)}</Text>
               <IconButton
                 testID={`household-join-remove-${name}-${term}`}
-                accessibilityLabel={HOUSEHOLD_SHARING_COPY.joinSafetyRemove(termLabel(term))}
+                accessibilityLabel={t('household.sharing.joinSafetyRemove', {
+                  term: termLabel(term),
+                })}
                 icon={<Icon name="close" size={16} color={colors.labelSecondary} />}
-                onPress={() => onChange(terms.filter((t) => t !== term))}
+                onPress={() => onChange(terms.filter((other) => other !== term))}
               />
             </View>
           ))}
@@ -111,8 +117,8 @@ function SafetyListEditor({
           testID={`household-join-input-${name}`}
           value={draft}
           onChangeText={setDraft}
-          accessibilityLabel={HOUSEHOLD_SHARING_COPY.joinSafetyAddLabel(title)}
-          placeholder={HOUSEHOLD_SHARING_COPY.joinSafetyAddLabel(title)}
+          accessibilityLabel={addLabel}
+          placeholder={addLabel}
           returnKeyType="done"
           submitBehavior="submit"
           onSubmitEditing={add}
@@ -125,7 +131,7 @@ function SafetyListEditor({
           disabled={!draft.trim()}
           onPress={add}
         >
-          {HOUSEHOLD_SHARING_COPY.joinSafetyAdd}
+          {t('household.sharing.joinSafetyAdd')}
         </Button>
       </View>
     </View>
@@ -155,7 +161,7 @@ export function HouseholdConsent({
   onJoin: () => void;
   onDecline: () => void;
 }) {
-  const copy = HOUSEHOLD_SHARING_COPY;
+  const { t } = useT();
   return (
     <KeyboardAwareScrollView
       testID="household-join-consent"
@@ -166,23 +172,25 @@ export function HouseholdConsent({
         accessibilityRole="header"
         className="text-title2 font-bold text-label"
       >
-        {copy.joinTitle(ownerName)}
+        {t('household.sharing.joinTitle', { ownerName })}
       </Text>
       <Text testID="household-join-lede" className="text-body text-label">
-        {copy.joinLede(ownerName, profileName)}
+        {t('household.sharing.joinLede', { ownerName, profileName })}
       </Text>
       <View className="gap-3 rounded-card border border-separator bg-surface p-4">
-        <Bullets lines={copy.joinShares} />
+        <Bullets lines={JOIN_SHARES.map((line) => t(`household.sharing.joinShares.${line}`))} />
         <Text testID="household-join-private" className="text-subhead text-label-secondary">
-          {copy.joinPrivate}
+          {t('household.sharing.joinPrivate')}
         </Text>
       </View>
       <View className="gap-3 rounded-card border border-separator bg-surface p-4">
         <View className="gap-1">
           <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-            {copy.joinSafetyTitle}
+            {t('household.sharing.joinSafetyTitle')}
           </Text>
-          <Text className="text-subhead text-label-secondary">{copy.joinSafetyHint}</Text>
+          <Text className="text-subhead text-label-secondary">
+            {t('household.sharing.joinSafetyHint')}
+          </Text>
         </View>
         {LIST_NAMES.map((name) => (
           <SafetyListEditor
@@ -194,10 +202,10 @@ export function HouseholdConsent({
         ))}
       </View>
       <Text testID="household-join-portion" className="text-subhead text-label-secondary">
-        {copy.joinPortion(joinPortionPhrase(portionFactor))}
+        {t('household.sharing.joinPortion', { portion: joinPortionText(t, portionFactor) })}
       </Text>
       <Text testID="household-join-own-plans" className="text-subhead text-label-secondary">
-        {copy.joinOwnPlansNote}
+        {t('household.sharing.joinOwnPlansNote')}
       </Text>
       {error ? (
         <Text
@@ -210,14 +218,14 @@ export function HouseholdConsent({
       ) : null}
       {offline ? (
         <Text testID="household-join-offline" className="text-subhead text-label-secondary">
-          {HOUSEHOLD_MOBILE_COPY.offlineJoin}
+          {t('household.sharing.app.offlineJoin')}
         </Text>
       ) : null}
       <Button testID="household-join-allow" loading={busy} disabled={offline} onPress={onJoin}>
-        {copy.joinAllow}
+        {t('household.sharing.joinAllow')}
       </Button>
       <Button testID="household-join-decline" variant="outline" disabled={busy} onPress={onDecline}>
-        {copy.joinDecline}
+        {t('household.sharing.joinDecline')}
       </Button>
     </KeyboardAwareScrollView>
   );

@@ -14,6 +14,7 @@ import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 import { ShellCrossfade } from '../../src/features/trainer-mode/shell-crossfade';
 import { useMarkShellMode } from '../../src/features/trainer-mode/use-mark-shell-mode';
 import { useTrainerBadges } from '../../src/features/trainer-mode/use-trainer-mode';
+import { useT } from '../../src/lib/i18n';
 import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
@@ -29,18 +30,24 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 // header buttons. Only reachable while `mobileShellV2` (or the device
 // preview) is on; the old (food)/(gym) groups redirect here then.
 
-const TABS: { name: ShellTab; title: string; icon: IconName; activeIcon: IconName }[] = [
-  { name: 'shop', title: 'Shop', icon: 'shop', activeIcon: 'shopActive' },
-  { name: 'plan', title: 'Meals', icon: 'plan', activeIcon: 'planActive' },
-  { name: 'home', title: 'Today', icon: 'today', activeIcon: 'todayActive' },
-  { name: 'train', title: 'Train', icon: 'train', activeIcon: 'trainActive' },
-  { name: 'you', title: 'You', icon: 'you', activeIcon: 'youActive' },
+const TABS: {
+  name: ShellTab;
+  titleKey: `nav.items.${'meals' | 'today' | 'you'}` | `nav.tabs.${'shop' | 'train'}`;
+  icon: IconName;
+  activeIcon: IconName;
+}[] = [
+  { name: 'shop', titleKey: 'nav.tabs.shop', icon: 'shop', activeIcon: 'shopActive' },
+  { name: 'plan', titleKey: 'nav.items.meals', icon: 'plan', activeIcon: 'planActive' },
+  { name: 'home', titleKey: 'nav.items.today', icon: 'today', activeIcon: 'todayActive' },
+  { name: 'train', titleKey: 'nav.tabs.train', icon: 'train', activeIcon: 'trainActive' },
+  { name: 'you', titleKey: 'nav.items.you', icon: 'you', activeIcon: 'youActive' },
 ];
 
 export default function MainTabsLayout() {
   const shellV2 = useShellV2();
   const pathname = usePathname();
   const colors = useThemeColors();
+  const { t } = useT();
   useSyncLandingCache();
   // Same in-app Following badge the old More tabs carried, now on You — plus,
   // for an active trainer, what waits in trainer mode (trainer-mode.md §7.1).
@@ -87,12 +94,12 @@ export default function MainTabsLayout() {
             key={tab.name}
             name={tab.name}
             options={{
-              title: tab.title,
+              title: t(tab.titleKey),
               tabBarButtonTestID: `tab-${tab.name}`,
               // TalkBack read the icon glyph too ("<glyph>, Today") — see
               // tabAccessibilityLabel.
               tabBarAccessibilityLabel: tabAccessibilityLabel(
-                tab.title,
+                t(tab.titleKey),
                 index,
                 TABS.length,
                 tab.name === 'you' ? badgeCount : 0,

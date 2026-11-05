@@ -1,5 +1,6 @@
 import type { ProteinWhy } from '@chefer/types';
 import { ExplainSheet } from '@chefer/ui-mobile';
+import { useT } from '../../lib/i18n';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // ─── ProteinWhySheet (WP-08, D-5) ───────────────────────────────────────────────
@@ -21,14 +22,30 @@ export interface ProteinWhySheetProps {
 export function ProteinWhySheet({ visible, onClose, why, action, testID }: ProteinWhySheetProps) {
   // Lane E3 "Hide numbers": the protein target is never explained in figures.
   const { noNumbers } = useNumbersMode();
+  const { t } = useT();
   const rows = why
     ? [
-        { label: 'Protein a day', value: `${why.effectiveG} g` },
+        {
+          label: t('today.settings.proteinWhy.perDay'),
+          value: t('today.settings.grams.protein', { value: why.effectiveG }),
+        },
         ...(why.gPerKg !== null
-          ? [{ label: 'Per kg of bodyweight', value: `${why.gPerKg} g` }]
+          ? [
+              {
+                label: t('today.settings.proteinWhy.perKg'),
+                value: t('today.settings.grams.protein', { value: why.gPerKg }),
+              },
+            ]
           : []),
         ...(why.differs && why.referenceG !== null
-          ? [{ label: `At ${why.referenceGPerKg} g per kg`, value: `${why.referenceG} g` }]
+          ? [
+              {
+                label: t('today.settings.proteinWhy.atReference', {
+                  value: why.referenceGPerKg,
+                }),
+                value: t('today.settings.grams.protein', { value: why.referenceG }),
+              },
+            ]
           : []),
       ]
     : [];
@@ -37,8 +54,8 @@ export function ProteinWhySheet({ visible, onClose, why, action, testID }: Prote
     <ExplainSheet
       visible={visible}
       onClose={onClose}
-      eyebrow="Your protein"
-      title="Why this protein number?"
+      eyebrow={t('today.settings.proteinWhy.eyebrow')}
+      title={t('today.settings.proteinWhy.title')}
       {...(why ? { sentence: why.sentence } : {})}
       rows={rows}
       testID={testID ?? 'protein-why-sheet'}

@@ -3,12 +3,9 @@
 import { useEffect, useState } from 'react';
 import { trackSharingChanged } from '@/lib/analytics-events';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import {
-  COACHING_SHARING_COPY,
-  type CoachingShareChoice,
-  type CoachingSharingDto,
-} from '@chefer/types';
+import type { CoachingShareChoice, CoachingSharingDto } from '@chefer/types';
 import { SharingSwitches } from './SharingSwitches';
 
 // ─── Your trainer → "What you share with Ana" (lane K1) ────────────────────────
@@ -28,6 +25,8 @@ export function SharingCard({
   trainerName: string;
   sharing: CoachingSharingDto | undefined;
 }) {
+  const { t } = useT();
+  const trainer = trainerName;
   const utils = trpc.useUtils();
   const [value, setValue] = useState<CoachingShareChoice>(() => toChoice(sharing));
   useEffect(() => setValue(toChoice(sharing)), [sharing]);
@@ -36,24 +35,23 @@ export function SharingCard({
     onSuccess: (next, vars) => {
       setValue(toChoice(next));
       trackSharingChanged(vars, 'settings');
-      const copy =
-        vars.food !== undefined ? COACHING_SHARING_COPY.food : COACHING_SHARING_COPY.weight;
+      const what = vars.food !== undefined ? 'food' : 'weight';
       const on = vars.food ?? vars.weight ?? false;
       showAppToast({
-        message: on ? copy.on(trainerName) : copy.off(trainerName),
+        message: t(`coaching.sharing.${what}.${on ? 'on' : 'off'}`, { trainer }),
         type: 'success',
       });
     },
     onError: () => {
       setValue(toChoice(sharing));
-      showAppToast({ message: COACHING_SHARING_COPY.saveError });
+      showAppToast({ message: t('coaching.sharing.saveError') });
     },
     onSettled: () => void utils.coaching.status.invalidate(),
   });
   return (
     <div className="flex flex-col gap-3" data-testid="your-trainer-sharing">
       <h3 className="text-sm font-semibold text-gray-900">
-        {COACHING_SHARING_COPY.settingsHeading(trainerName)}
+        {t('coaching.sharing.settingsHeading', { trainer })}
       </h3>
       <SharingSwitches
         testId="your-trainer-share"

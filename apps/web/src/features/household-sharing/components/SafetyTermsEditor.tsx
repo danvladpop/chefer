@@ -1,8 +1,9 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { X } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY as COPY, findSafetyTaxonomyEntry } from '@chefer/types';
+import { findSafetyTaxonomyEntry } from '@chefer/types';
 import { Button } from '@chefer/ui';
 
 // The join screen's "check your allergies and diet" (ADR 0003): the three
@@ -46,17 +47,19 @@ function SafetyList({
   onChange: (next: string[]) => void;
   disabled: boolean;
 }) {
+  const { t } = useT();
   const inputId = useId();
   const [draft, setDraft] = useState('');
-  const label = COPY.joinSafetyLists[listKey];
+  const label = t(`household.sharing.joinSafetyLists.${listKey}`);
   const full = terms.length >= MAX_TERMS[listKey];
 
   const add = () => {
     const term = draft.trim().replace(/\s+/g, ' ').slice(0, MAX_TERM_LENGTH);
     if (!term || full) return;
     const exists = terms.some(
-      (t) =>
-        t.toLowerCase() === term.toLowerCase() || termLabel(t).toLowerCase() === term.toLowerCase(),
+      (existing) =>
+        existing.toLowerCase() === term.toLowerCase() ||
+        termLabel(existing).toLowerCase() === term.toLowerCase(),
     );
     if (!exists) onChange([...terms, term]);
     setDraft('');
@@ -66,7 +69,7 @@ function SafetyList({
     <fieldset className="min-w-0" data-testid={`join-safety-${listKey}`}>
       <legend className="text-sm font-semibold text-gray-900">{label}</legend>
       {terms.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500">{COPY.joinSafetyNone}</p>
+        <p className="mt-1 text-sm text-gray-500">{t('household.sharing.joinSafetyNone')}</p>
       ) : (
         <ul className="mt-2 flex flex-wrap gap-2">
           {terms.map((term) => (
@@ -74,8 +77,8 @@ function SafetyList({
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onChange(terms.filter((t) => t !== term))}
-                aria-label={COPY.joinSafetyRemove(termLabel(term))}
+                onClick={() => onChange(terms.filter((other) => other !== term))}
+                aria-label={t('household.sharing.joinSafetyRemove', { term: termLabel(term) })}
                 className="flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-[#944a00]/30 bg-[#fff3e8] pl-3 pr-2 text-sm text-[#944a00] hover:bg-[#ffe7d1] disabled:opacity-50"
               >
                 <span className="min-w-0 truncate">{termLabel(term)}</span>
@@ -87,7 +90,7 @@ function SafetyList({
       )}
       <div className="mt-2 flex gap-2">
         <label htmlFor={inputId} className="sr-only">
-          {COPY.joinSafetyAddLabel(label)}
+          {t(`household.sharing.joinSafetyAddLabel.${listKey}`)}
         </label>
         <input
           id={inputId}
@@ -112,7 +115,7 @@ function SafetyList({
           disabled={disabled || full || !draft.trim()}
           onClick={add}
         >
-          {COPY.joinSafetyAdd}
+          {t('household.sharing.joinSafetyAdd')}
         </Button>
       </div>
     </fieldset>

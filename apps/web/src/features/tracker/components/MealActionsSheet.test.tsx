@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { capture } from '@/lib/analytics';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MealActionsSheet } from './MealActionsSheet';
@@ -115,5 +116,27 @@ describe('MealActionsSheet (lane A2)', () => {
     renderSheet([]);
     expect(screen.getByTestId('meal-actions-save')).toHaveProperty('disabled', true);
     expect(screen.getByTestId('meal-actions-copy')).toHaveProperty('disabled', true);
+  });
+});
+
+describe('MealActionsSheet in Romanian (Lane J)', () => {
+  it('counts, labels and confirms the copy in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <MealActionsSheet
+          open
+          onClose={onClose}
+          date="2026-10-22"
+          loggedMealTypes={['lunch', 'lunch']}
+          onToast={onToast}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByTestId('meal-actions-count').textContent).toBe('2 intrări adăugate');
+    expect(screen.getByTestId('meal-actions-meal-lunch').textContent).toBe('Prânz');
+    fireEvent.click(screen.getByTestId('meal-actions-to-meal-dinner'));
+    fireEvent.click(screen.getByTestId('meal-actions-copy'));
+    const [message] = onToast.mock.calls[0] as [string];
+    expect(message).toMatch(/^Ai copiat 1 intrare la cină, /);
   });
 });

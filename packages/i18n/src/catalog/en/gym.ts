@@ -472,4 +472,43 @@ export const gym = {
     },
     // @@SESSION
   },
+  // ─── "Today's workout" card on Food Today (web gym/shared/todays-workout-card,
+  //     mobile gym/today/todays-workout-card) ─────────────────────────────────
+  todaysWorkout: {
+    title: "Today's workout",
+    startStrength: 'Start strength training',
+    setup: 'A 90-second setup picks a program for you.',
+    done: 'Done ✓',
+    donePrs: {
+      one: 'Done ✓ · {count} PR',
+      other: 'Done ✓ · {count} PRs',
+    },
+    freestyle: 'Freestyle workout',
+    next: 'Next: {day}',
+    exercises: {
+      one: '{count} exercise',
+      other: '{count} exercises',
+    },
+    exercisesMin: {
+      one: '{count} exercise · ~{min} min',
+      other: '{count} exercises · ~{min} min',
+    },
+    noRoutine: 'No active routine',
+    // Mobile only.
+    setupLine: 'Start training — set up in 90 seconds',
+    doneNext: 'Done today ✓ · Next: {day} on {weekday}',
+    eyebrow: {
+      upNext: 'UP NEXT',
+      tonight: 'TRAINING TONIGHT',
+      today: 'TRAINING TODAY',
+    },
+    meta: {
+      one: '~{min} min · {count} exercise',
+      other: '~{min} min · {count} exercises',
+    },
+    metaUsually: {
+      one: 'Usually {weekday} · ~{min} min · {count} exercise',
+      other: 'Usually {weekday} · ~{min} min · {count} exercises',
+    },
+  },
 } as const;

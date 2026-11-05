@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { BOOKING_COPY } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
 import {
   DayStrip,
   ErrorState,
@@ -17,19 +17,18 @@ import {
 import {
   addDaysLocal,
   deviceTimeZone,
-  formatDayWithWeekday,
   layoutBookingDay,
   todayIn,
-  weekdayLongName,
-  weekdayName,
   weekStartOf,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { ShellChromeProvider, ShellTopBar } from '../../shell/shell-chrome';
 import { clockTime } from '../today/today-parts';
 import { useBookingEditor } from './booking-editor';
+import { dayLabel } from './booking-model';
 import { ScheduleGrid } from './schedule-grid';
 import { useBookingWeek } from './use-bookings';
 
@@ -41,30 +40,31 @@ import { useBookingWeek } from './use-bookings';
 // with a "Last updated" line. Create with + or a long-press on an empty
 // slot (the editor opens at that time); creating needs a connection.
 
-const COPY = BOOKING_COPY.schedule;
-
-function stripDays(weekStart: string, today: string): DayStripDay[] {
+function stripDays(tr: Translator, weekStart: string, today: string): DayStripDay[] {
   return Array.from({ length: 7 }, (_, i) => {
     const date = addDaysLocal(weekStart, i);
     return {
       key: date,
-      weekday: weekdayName(i),
+      weekday: dayLabel(tr, date, 'weekday'),
       date: Number(date.slice(8, 10)),
-      accessibilityLabel: `${weekdayLongName(i)} ${formatDayWithWeekday(date).slice(4)}`,
+      accessibilityLabel: dayLabel(tr, date, 'weekday-long-short'),
       isToday: date === today,
     };
   });
 }
 
-/** "20 – 26 Oct" for the week header. */
-function weekLabel(weekStart: string): string {
-  const first = formatDayWithWeekday(weekStart).slice(4);
-  const last = formatDayWithWeekday(addDaysLocal(weekStart, 6)).slice(4);
-  return `${first} – ${last}`;
+/** "20 Oct – 26 Oct" for the week header. */
+function weekLabel(tr: Translator, weekStart: string): string {
+  return tr.t('trainer.format.range', {
+    start: dayLabel(tr, weekStart, 'short'),
+    end: dayLabel(tr, addDaysLocal(weekStart, 6), 'short'),
+  });
 }
 
 export function ScheduleScreen() {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const snackbar = useSnackbar();
   const online = useIsOnline();
   const [zone] = useState(deviceTimeZone);
@@ -86,7 +86,7 @@ export function ScheduleScreen() {
 
   const openNew = (date: string, time?: string) => {
     if (!online) {
-      snackbar.show({ message: COPY.offline });
+      snackbar.show({ message: t('trainer.bookings.schedule.offline') });
       return;
     }
     // + without a long-pressed time: the next full hour today, 18:00 on other days (newBookingSlot).
@@ -99,7 +99,7 @@ export function ScheduleScreen() {
   const add = (
     <IconButton
       testID="schedule-add"
-      accessibilityLabel={COPY.add}
+      accessibilityLabel={t('trainer.bookings.schedule.add')}
       variant="tinted"
       icon={<Icon name="add" color={colors.brand} />}
       onPress={() => openNew(selected < today ? today : selected)}
@@ -110,24 +110,34 @@ export function ScheduleScreen() {
   const bookings = week.data?.bookings ?? [];
 
   return (
-    <ShellChromeProvider value={{ kind: 'tab-root', title: COPY.title, actions: add }}>
+    <ShellChromeProvider
+      value={{ kind: 'tab-root', title: t('trainer.bookings.schedule.title'), actions: add }}
+    >
       <Screen className="bg-canvas px-0" testID="trainer-schedule">
         <View className="gap-3 px-4 pt-3">
           <ShellTopBar />
           <SegmentedControl<'day' | 'week'>
             testID="schedule-view"
-            accessibilityLabel={COPY.title}
+            accessibilityLabel={t('trainer.bookings.schedule.title')}
             value={view}
             onChange={setView}
             options={[
-              { value: 'day', label: COPY.day, testID: 'schedule-view-day' },
-              { value: 'week', label: COPY.week, testID: 'schedule-view-week' },
+              {
+                value: 'day',
+                label: t('trainer.bookings.schedule.day'),
+                testID: 'schedule-view-day',
+              },
+              {
+                value: 'week',
+                label: t('trainer.bookings.schedule.week'),
+                testID: 'schedule-view-week',
+              },
             ]}
           />
           <View className="flex-row items-center gap-1">
             <IconButton
               testID="schedule-prev-week"
-              accessibilityLabel="Previous week"
+              accessibilityLabel={t('trainer.bookings.schedule.previousWeek')}
               icon={<Icon name="chevronBack" color={colors.brand} />}
               onPress={() => setSelected(addDaysLocal(selected, -7))}
             />
@@ -137,11 +147,11 @@ export function ScheduleScreen() {
               numberOfLines={1}
               className="min-w-0 flex-1 text-center text-headline font-semibold text-label"
             >
-              {view === 'day' ? formatDayWithWeekday(selected) : weekLabel(weekStart)}
+              {view === 'day' ? dayLabel(tr, selected) : weekLabel(tr, weekStart)}
             </Text>
             <IconButton
               testID="schedule-next-week"
-              accessibilityLabel="Next week"
+              accessibilityLabel={t('trainer.bookings.schedule.nextWeek')}
               icon={<Icon name="chevronRight" color={colors.brand} />}
               onPress={() => setSelected(addDaysLocal(selected, 7))}
             />
@@ -153,28 +163,30 @@ export function ScheduleScreen() {
                 onPress={() => setSelected(today)}
                 className="min-h-11 justify-center px-2"
               >
-                <Text className="text-callout font-semibold text-brand">{COPY.today}</Text>
+                <Text className="text-callout font-semibold text-brand">
+                  {t('trainer.bookings.schedule.today')}
+                </Text>
               </PressableScale>
             ) : null}
           </View>
           {view === 'day' ? (
             <DayStrip
               testID="schedule-days"
-              days={stripDays(weekStart, today)}
+              days={stripDays(tr, weekStart, today)}
               selectedKey={selected}
               onSelect={setSelected}
             />
           ) : null}
           {stale ? (
             <Text testID="schedule-last-updated" className="text-caption text-label-secondary">
-              {COPY.lastUpdated(clockTime(week.dataUpdatedAt))}
+              {t('trainer.bookings.schedule.lastUpdated', { time: clockTime(week.dataUpdatedAt) })}
             </Text>
           ) : null}
           {view === 'day' &&
           week.data &&
           layoutBookingDay(bookings, selected, zone).length === 0 ? (
             <Text testID="schedule-empty" className="text-subhead text-label-secondary">
-              {COPY.empty}
+              {t('trainer.bookings.schedule.empty')}
             </Text>
           ) : null}
         </View>

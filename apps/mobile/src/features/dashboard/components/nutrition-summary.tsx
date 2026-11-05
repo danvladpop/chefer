@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import type { Translator } from '@chefer/i18n';
 import type { ProteinGuide } from '@chefer/types';
 import {
   Card,
@@ -9,14 +10,8 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import {
-  cn,
-  dayNutritionCaption,
-  dayStatus,
-  formatKcal,
-  formatNumber,
-  proteinRingLabel,
-} from '@chefer/utils';
+import { cn, dayStatus, formatKcal, formatNumber, type DayStatusResult } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { TrainingDayNote } from './training-day-note';
@@ -38,17 +33,58 @@ const RING_STROKE = 12;
 export const RING_CAPTION_MAX_FONT_SCALE = 1.3;
 export const RING_INNER_WIDTH = RING_SIZE - 2 * RING_STROKE - 16;
 
+/** The status pill's text ("On track", "Over by 120 kcal"), from `dayStatus`. */
+export function dayStatusText(t: Translator['t'], result: DayStatusResult): string {
+  switch (result.status) {
+    case 'over':
+      return t('today.home.status.over.kcal', { value: formatKcal(result.overByKcal) });
+    case 'heading_over':
+      return t('today.home.status.headingOver');
+    case 'under':
+      return t('today.home.status.under');
+    case 'on':
+      return t('today.home.status.on');
+    case 'none':
+      return t('today.home.status.none');
+  }
+}
+
+/** "1,870 planned · 1,200 left" — left = target − eaten, never negative. */
+export function dayCaptionText(
+  t: Translator['t'],
+  eatenKcal: number,
+  plannedKcal: number,
+  targetKcal: number,
+): string {
+  const left = formatKcal(Math.max(targetKcal - eatenKcal, 0));
+  const overBy = eatenKcal - targetKcal;
+  const over = formatKcal(overBy);
+  if (plannedKcal > 0) {
+    const planned = formatKcal(plannedKcal);
+    return overBy > 0
+      ? t('today.home.caption.plannedOver.kcal', { planned, over })
+      : t('today.home.caption.plannedLeft.kcal', { planned, left });
+  }
+  return overBy > 0
+    ? t('today.home.caption.over.kcal', { over })
+    : t('today.home.caption.left.kcal', { left });
+}
+
 function MacroBar({
+  id,
   label,
   value,
   target,
   planned,
 }: {
+  /** The testID's stable part ("protein"), whatever the UI language. */
+  id: string;
   label: string;
   value: number;
   target: number;
   planned: number;
 }) {
+  const { t } = useT();
   const progress = progressOf(value, target);
   const over = isOverTarget(progress);
   return (
@@ -57,12 +93,17 @@ function MacroBar({
         <Text className="text-xs font-medium text-label-secondary">{label}</Text>
         {/* Lane E3: over target is said, never coloured as a warning. */}
         <Text className={cn('text-xs text-label-tertiary', over && 'font-semibold')}>
-          {value}g / {target}g
+          {t('today.home.macros.value', { value, target })}
         </Text>
       </View>
       <ProgressBar
-        testID={`macro-${label.toLowerCase()}`}
-        accessibilityLabel={`${label}: ${value} of ${target} grams eaten, ${planned} planned`}
+        testID={`macro-${id}`}
+        accessibilityLabel={t('today.home.macros.labelPlanned', {
+          name: label,
+          value,
+          target,
+          planned,
+        })}
         progress={progress}
       />
     </View>
@@ -84,6 +125,7 @@ function ProteinSummary({
   targetMode?: 'SUGGESTED' | 'OWN' | undefined;
   proteinGuide?: ProteinGuide | undefined;
 }) {
+  const { t } = useT();
   const targetG = n.adjustedTargets?.proteinG ?? n.protein.targetG;
   const eatenG = Math.round(n.protein.eaten);
   const progress = progressOf(eatenG, targetG);
@@ -91,16 +133,24 @@ function ProteinSummary({
   // Neutral palette: reaching the goal is green, otherwise just what is left.
   const reached = targetG > 0 && eatenG >= targetG;
   const chip = reached
-    ? { text: 'Protein goal reached', bg: 'bg-positive/15', fg: 'text-positive' }
+    ? { text: t('today.home.protein.reached'), bg: 'bg-positive/15', fg: 'text-positive' }
     : eatenG === 0
-      ? { text: 'Nothing logged yet', bg: 'bg-surface-sunken', fg: 'text-label-tertiary' }
-      : { text: `${leftG} g to go`, bg: 'bg-surface-sunken', fg: 'text-label-secondary' };
+      ? {
+          text: t('today.home.nothingLogged'),
+          bg: 'bg-surface-sunken',
+          fg: 'text-label-tertiary',
+        }
+      : {
+          text: t('today.home.protein.toGo', { value: formatNumber(leftG) }),
+          bg: 'bg-surface-sunken',
+          fg: 'text-label-secondary',
+        };
 
   return (
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
         <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-          Today
+          {t('today.home.title')}
         </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', chip.bg)}>
           <Text testID="nutrition-status" className={cn('text-xs font-bold uppercase', chip.fg)}>
@@ -114,7 +164,10 @@ function ProteinSummary({
       <View className="items-center gap-2">
         <ProgressRing
           testID="protein-ring"
-          accessibilityLabel={`${proteinRingLabel(eatenG, targetG)} eaten today`}
+          accessibilityLabel={t('today.home.protein.ringLabel', {
+            eaten: formatNumber(eatenG),
+            target: formatNumber(Math.round(targetG)),
+          })}
           progress={progress}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
@@ -127,7 +180,7 @@ function ProteinSummary({
             style={{ maxWidth: RING_INNER_WIDTH }}
             className="text-center text-xs text-muted-foreground"
           >
-            of {formatNumber(Math.round(targetG))} g protein
+            {t('today.home.protein.ringCaption', { target: formatNumber(Math.round(targetG)) })}
           </Text>
         </ProgressRing>
         {proteinGuide && (
@@ -137,7 +190,9 @@ function ProteinSummary({
         )}
         {targetMode && (
           <Text testID="target-mode-label" className="text-center text-xs text-muted-foreground">
-            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+            {targetMode === 'OWN'
+              ? t('today.home.targetMode.own')
+              : t('today.home.targetMode.suggested')}
           </Text>
         )}
       </View>
@@ -159,6 +214,7 @@ export function NutritionSummary({
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode();
   // Lane E3 "Hide numbers": no ring, no figures — the day's meals list says it.
   if (noNumbers) return null;
@@ -174,11 +230,13 @@ export function NutritionSummary({
     fatG: n.fat.targetG,
   };
   // UX-FOOD-05: eaten + what is still planned vs the target — not the plan alone.
-  const { status, label: statusLabel } = dayStatus(
+  const statusResult = dayStatus(
     n.eatenKcal,
     remainingPlannedKcal ?? Math.max(n.plannedKcal - n.eatenKcal, 0),
     target.dailyCalorieTarget,
   );
+  const status = statusResult.status;
+  const statusLabel = dayStatusText(t, statusResult);
   const calories = progressOf(n.eatenKcal, target.dailyCalorieTarget);
 
   // Neutral palette (lane E3, eating-disorder-safe): "past the target" is grey
@@ -195,7 +253,7 @@ export function NutritionSummary({
     <Card testID="nutrition-summary">
       <View className="mb-4 flex-row items-center justify-between gap-2">
         <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-          Today
+          {t('today.home.title')}
         </Text>
         <View className={cn('rounded-full px-2.5 py-0.5', statusStyle.bg)}>
           <Text
@@ -220,7 +278,10 @@ export function NutritionSummary({
       <View className="mb-4 items-center gap-2">
         <ProgressRing
           testID="calorie-ring"
-          accessibilityLabel={`${formatKcal(n.eatenKcal)} of ${formatKcal(target.dailyCalorieTarget)} kcal eaten today`}
+          accessibilityLabel={t('today.home.ring.label.kcal', {
+            eaten: formatKcal(n.eatenKcal),
+            target: formatKcal(target.dailyCalorieTarget),
+          })}
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
@@ -241,15 +302,17 @@ export function NutritionSummary({
             style={{ maxWidth: RING_INNER_WIDTH }}
             className="text-center text-xs text-muted-foreground"
           >
-            of {formatKcal(target.dailyCalorieTarget)} kcal
+            {t('today.home.ring.caption.kcal', { target: formatKcal(target.dailyCalorieTarget) })}
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-label-tertiary">
-          {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
+          {dayCaptionText(t, n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
         {targetMode && (
           <Text testID="target-mode-label" className="text-center text-xs text-muted-foreground">
-            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+            {targetMode === 'OWN'
+              ? t('today.home.targetMode.own')
+              : t('today.home.targetMode.suggested')}
           </Text>
         )}
       </View>
@@ -257,18 +320,26 @@ export function NutritionSummary({
       {/* Macro bars */}
       <View className="gap-3">
         <MacroBar
-          label="Protein"
+          id="protein"
+          label={t('today.home.macros.protein')}
           value={n.protein.eaten}
           target={target.proteinG}
           planned={n.protein.planned}
         />
         <MacroBar
-          label="Carbs"
+          id="carbs"
+          label={t('today.home.macros.carbs')}
           value={n.carbs.eaten}
           target={target.carbsG}
           planned={n.carbs.planned}
         />
-        <MacroBar label="Fat" value={n.fat.eaten} target={target.fatG} planned={n.fat.planned} />
+        <MacroBar
+          id="fat"
+          label={t('today.home.macros.fat')}
+          value={n.fat.eaten}
+          target={target.fatG}
+          planned={n.fat.planned}
+        />
       </View>
     </Card>
   );

@@ -8,12 +8,11 @@ import {
   initialScheduleScrollMinute,
   layoutBookingDay,
   utcToZoned,
-  weekdayLongName,
-  weekdayName,
   type DayBlock,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { BookingBlock } from './booking-block';
-import { clockOf, MIN_BLOCK_MINUTES, slotTimeAt } from './booking-model';
+import { clockOf, dayLabel, MIN_BLOCK_MINUTES, slotTimeAt } from './booking-model';
 
 // The hour grid under Schedule (§6.2): all 24 hours, opening an hour before
 // now (06:00 outside 06:00–22:00); the rest of the day by scrolling. Blocks
@@ -158,6 +157,7 @@ export function ScheduleGrid({
   onLongPressSlot,
   onOpenDay,
 }: ScheduleGridProps) {
+  const tr = useT();
   const scrollRef = useRef<ScrollView>(null);
   const scrolled = useRef(false);
   const nowMinute = utcToZoned(new Date(), zone).minuteOfDay;
@@ -171,16 +171,19 @@ export function ScheduleGrid({
           className="flex-row border-b border-separator pb-1"
           style={{ paddingLeft: GUTTER_PT }}
         >
-          {days.map((d, i) => {
+          {days.map((d) => {
             const isToday = d === today;
             const dayOfMonth = Number(d.slice(8, 10));
+            const spoken = dayLabel(tr, d, 'weekday-long-short');
             return (
               // MO-01: press feedback on the header that opens the day.
               <PressableScale
                 key={d}
                 testID={`schedule-week-day-${d}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${weekdayLongName(i)} ${dayOfMonth}${isToday ? ', today' : ''}`}
+                accessibilityLabel={
+                  isToday ? tr.t('trainer.bookings.schedule.isToday', { day: spoken }) : spoken
+                }
                 onPress={() => onOpenDay(d)}
                 className="min-h-11 min-w-0 flex-1 items-center justify-center"
               >
@@ -191,7 +194,7 @@ export function ScheduleGrid({
                     isToday ? 'text-brand' : 'text-label-tertiary',
                   )}
                 >
-                  {weekdayName(i).slice(0, 2)}
+                  {dayLabel(tr, d, 'weekday').slice(0, 2)}
                 </Text>
                 <Text
                   maxFontSizeMultiplier={1.2}

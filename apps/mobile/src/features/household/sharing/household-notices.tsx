@@ -1,7 +1,9 @@
 import { View } from 'react-native';
-import { HOUSEHOLD_SHARING_COPY, type HouseholdNoticeDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { HouseholdNoticeDto } from '@chefer/types';
 import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useHouseholdSharing } from './use-household-sharing';
 
@@ -10,8 +12,12 @@ import { useHouseholdSharing } from './use-household-sharing';
 // join / leave / removal / account deletion (there is no push). Shown as
 // dismissible cards on the Household screen and summed up on the You row.
 
-export function noticeText(notice: HouseholdNoticeDto): string {
-  return HOUSEHOLD_SHARING_COPY.notice[notice.kind](notice.name);
+/** The notice's sentence; screens pass their `t` (the default reads the app's current language). */
+export function noticeText(
+  notice: HouseholdNoticeDto,
+  t: Translator['t'] = getTranslator().t,
+): string {
+  return t(`household.sharing.notice.${notice.kind}`, { name: notice.name });
 }
 
 /** The household notices to show, while sharing is on (empty otherwise). */
@@ -31,6 +37,7 @@ export function HouseholdNotices() {
 }
 
 function NoticeCards({ notices }: { notices: HouseholdNoticeDto[] }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const dismiss = trpc.household.dismissNotice.useMutation({
@@ -51,10 +58,10 @@ function NoticeCards({ notices }: { notices: HouseholdNoticeDto[] }) {
           accessibilityLiveRegion="polite"
           className="flex-row items-center gap-2 rounded-card bg-brand-tint py-2 pl-4 pr-1"
         >
-          <Text className="min-w-0 flex-1 text-subhead text-label">{noticeText(notice)}</Text>
+          <Text className="min-w-0 flex-1 text-subhead text-label">{noticeText(notice, t)}</Text>
           <IconButton
             testID={`household-notice-${notice.id}-dismiss`}
-            accessibilityLabel={HOUSEHOLD_SHARING_COPY.dismissNotice}
+            accessibilityLabel={t('household.sharing.dismissNotice')}
             icon={<Icon name="close" size={18} color={colors.labelSecondary} />}
             onPress={() => dismiss.mutate({ id: notice.id })}
           />

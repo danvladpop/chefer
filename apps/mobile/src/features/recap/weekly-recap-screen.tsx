@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Switch, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import {
   Button,
   ErrorState,
@@ -14,15 +15,12 @@ import {
   addDaysLocal,
   lastCompletedWeekStart,
   localDateStr,
-  RECAP_COPY,
-  recapFoodLines,
-  recapGymLines,
-  recapShareMessage,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { track } from '../../lib/analytics';
-import { trpc } from '../../lib/trpc';
+import { useT } from '../../lib/i18n';
+import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { useShareCard } from '../share/share-card';
 
 // Lane E2 (market review 2026-10): "Your week in review" — factual counts for
@@ -33,6 +31,39 @@ import { useShareCard } from '../share/share-card';
 // goes on it (protein days are opt-in).
 
 const CARD = 'gap-2 rounded-card border border-separator bg-surface p-4';
+
+type Recap = RouterOutputs['recap']['week'];
+
+/** The food lines: only non-zero facts (as recapFoodLines in @chefer/utils). */
+function recapFoodLinesT(food: Recap['food'], t: Translator['t']): string[] {
+  const lines: string[] = [];
+  if (food.cookedFromPlan > 0) {
+    lines.push(t('today.recap.food.cookedFromPlan', { count: food.cookedFromPlan }));
+  }
+  if (food.newRecipesTried > 0) {
+    lines.push(t('today.recap.food.newRecipesTried', { count: food.newRecipesTried }));
+  }
+  if (food.proteinDays && food.proteinDays.hit > 0) {
+    lines.push(
+      t('today.recap.food.proteinDays', {
+        count: food.proteinDays.logged,
+        hit: food.proteinDays.hit,
+      }),
+    );
+  }
+  return lines;
+}
+
+/** The training lines: only non-zero facts (as recapGymLines in @chefer/utils). */
+function recapGymLinesT(gym: NonNullable<Recap['gym']>, t: Translator['t']): string[] {
+  const lines: string[] = [];
+  if (gym.sessions > 0) lines.push(t('today.recap.gym.sessions', { count: gym.sessions }));
+  if (gym.prCount > 0) lines.push(t('today.recap.gym.prCount', { count: gym.prCount }));
+  if (gym.streakWeeks > 0) {
+    lines.push(t('today.recap.gym.streakWeeks', { count: gym.streakWeeks }));
+  }
+  return lines;
+}
 
 function Lines({ lines, testID }: { lines: string[]; testID: string }) {
   return (
@@ -69,6 +100,7 @@ function PickRow(props: {
 
 export function WeeklyRecapScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   const params = useLocalSearchParams<{ week?: string; from?: string }>();
   const [weekStart, setWeekStart] = useState<string | undefined>(params.week);
   const query = trpc.recap.week.useQuery({ weekStart, localDate: localDateStr() });
@@ -88,15 +120,15 @@ export function WeeklyRecapScreen() {
   // The newest week offered is the last COMPLETED one.
   const newest = lastCompletedWeekStart(localDateStr());
 
-  const foodLines = recap ? recapFoodLines(recap.food) : [];
-  const gymLines = recap?.gym ? recapGymLines(recap.gym) : [];
+  const foodLines = recap ? recapFoodLinesT(recap.food, t) : [];
+  const gymLines = recap?.gym ? recapGymLinesT(recap.gym, t) : [];
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
       <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
         <IconButton
           testID="recap-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           className="-ml-2"
@@ -107,7 +139,7 @@ export function WeeklyRecapScreen() {
           numberOfLines={1}
           className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          {RECAP_COPY.title}
+          {t('today.recap.title')}
         </Text>
       </View>
 
@@ -129,7 +161,7 @@ export function WeeklyRecapScreen() {
             <View className="min-h-11 flex-row items-center justify-between">
               <IconButton
                 testID="recap-previous"
-                accessibilityLabel={RECAP_COPY.previousWeek}
+                accessibilityLabel={t('today.recap.previousWeek')}
                 icon={<Icon name="chevronBack" color={colors.brand} size={22} />}
                 onPress={() => setWeekStart(addDaysLocal(recap.weekStart, -7))}
               />
@@ -138,7 +170,7 @@ export function WeeklyRecapScreen() {
               </Text>
               <IconButton
                 testID="recap-next"
-                accessibilityLabel={RECAP_COPY.nextWeek}
+                accessibilityLabel={t('today.recap.nextWeek')}
                 icon={<Icon name="chevronRight" color={colors.brand} size={22} />}
                 disabled={recap.weekStart >= newest}
                 onPress={() => setWeekStart(addDaysLocal(recap.weekStart, 7))}
@@ -148,9 +180,11 @@ export function WeeklyRecapScreen() {
             {empty ? (
               <View testID="recap-quiet" className={CARD}>
                 <Text className="text-headline font-semibold text-label">
-                  {RECAP_COPY.quietTitle}
+                  {t('today.recap.quietTitle')}
                 </Text>
-                <Text className="text-subhead text-label-secondary">{RECAP_COPY.quietBody}</Text>
+                <Text className="text-subhead text-label-secondary">
+                  {t('today.recap.quietBody')}
+                </Text>
               </View>
             ) : (
               <>
@@ -159,19 +193,19 @@ export function WeeklyRecapScreen() {
                     accessibilityRole="header"
                     className="text-headline font-semibold text-label"
                   >
-                    {RECAP_COPY.foodHeading}
+                    {t('today.recap.foodHeading')}
                   </Text>
                   {foodLines.length > 0 ? (
                     <Lines lines={foodLines} testID="recap-food-lines" />
                   ) : (
                     <Text className="text-subhead text-label-secondary">
-                      {RECAP_COPY.foodQuiet}
+                      {t('today.recap.foodQuiet')}
                     </Text>
                   )}
                   {recap.food.newRecipes.length > 0 ? (
                     <View className="mt-1 gap-1">
                       <Text className="text-subhead font-semibold text-label-secondary">
-                        {RECAP_COPY.newRecipesHeading}
+                        {t('today.recap.newRecipesHeading')}
                       </Text>
                       {recap.food.newRecipes.map((r) => (
                         <Text key={r.id} numberOfLines={1} className="text-body text-label">
@@ -188,19 +222,22 @@ export function WeeklyRecapScreen() {
                       accessibilityRole="header"
                       className="text-headline font-semibold text-label"
                     >
-                      {RECAP_COPY.gymHeading}
+                      {t('today.recap.gymHeading')}
                     </Text>
                     <Lines lines={gymLines} testID="recap-gym-lines" />
                     {recap.gym.prs.map((pr) => (
                       <Text key={pr.exerciseName} className="text-subhead text-label-secondary">
-                        {pr.exerciseName}: {pr.label}
+                        {t('today.engagement.recapScreen.pr', {
+                          exercise: pr.exerciseName,
+                          value: pr.label,
+                        })}
                       </Text>
                     ))}
                   </View>
                 ) : null}
 
                 <Button testID="recap-share" variant="outline" onPress={() => setPicking(true)}>
-                  {RECAP_COPY.share}
+                  {t('today.recap.share')}
                 </Button>
               </>
             )}
@@ -211,20 +248,20 @@ export function WeeklyRecapScreen() {
       <Sheet
         visible={picking}
         onClose={() => setPicking(false)}
-        title={RECAP_COPY.shareSheetTitle}
+        title={t('today.recap.shareSheetTitle')}
         testID="recap-share-sheet"
       >
         <View className="gap-2 pb-2">
           <PickRow
             testID="recap-pick-cooking"
-            label={RECAP_COPY.shareCooking}
+            label={t('today.recap.shareCooking')}
             value={include.cooking}
             onChange={(cooking) => setInclude((i) => ({ ...i, cooking }))}
           />
           {recap?.food.proteinDays ? (
             <PickRow
               testID="recap-pick-protein"
-              label={RECAP_COPY.shareProtein}
+              label={t('today.recap.shareProtein')}
               value={include.protein}
               onChange={(protein) => setInclude((i) => ({ ...i, protein }))}
             />
@@ -232,12 +269,12 @@ export function WeeklyRecapScreen() {
           {recap?.gym ? (
             <PickRow
               testID="recap-pick-training"
-              label={RECAP_COPY.shareTraining}
+              label={t('today.recap.shareTraining')}
               value={include.training}
               onChange={(training) => setInclude((i) => ({ ...i, training }))}
             />
           ) : null}
-          <Text className="text-footnote text-label-secondary">{RECAP_COPY.shareNote}</Text>
+          <Text className="text-footnote text-label-secondary">{t('today.recap.shareNote')}</Text>
           <Button
             testID="recap-share-go"
             loading={sharing === 'recap'}
@@ -247,11 +284,11 @@ export function WeeklyRecapScreen() {
               setPicking(false);
               void share(
                 { kind: 'recap', weekStart: recap.weekStart, localDate: localDateStr(), include },
-                recapShareMessage(recap.label),
+                t('today.recap.shareMessage', { label: recap.label }),
               );
             }}
           >
-            {RECAP_COPY.share}
+            {t('today.recap.share')}
           </Button>
         </View>
       </Sheet>

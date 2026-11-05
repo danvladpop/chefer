@@ -10,14 +10,11 @@ import {
   activityFromTrainingDays,
   aiConsentRequiredFor,
   computeCalorieTarget,
-  ONBOARDING_V4_COPY as COPY,
   defaultsForRegion,
   detectRegion,
   eatsEverything,
   EMPTY_SAFETY_VALUE,
-  ENGAGEMENT_COPY,
   heightCmFromText,
-  mealReminderLabel,
   ONBOARDING_V4_GOAL_TILES,
   onboardingV4Progress,
   onboardingV4ResumeStep,
@@ -38,6 +35,7 @@ import { useIsPremium } from '../../hooks/use-is-premium';
 import { track } from '../../lib/analytics';
 import { trackOnboardingCompleted, trackPlanGenerated } from '../../lib/analytics-events';
 import { getToken } from '../../lib/auth-store';
+import { useT } from '../../lib/i18n';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { refreshNotificationPermission } from '../../lib/use-notification-permission';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
@@ -100,6 +98,7 @@ const EMPTY_ABOUT: AboutYouValue = {
 };
 
 export function OnboardingV4() {
+  const { t } = useT();
   const premiumTier = useIsPremium() === true;
   const utils = trpc.useUtils();
   const queryClient = useQueryClient();
@@ -211,7 +210,7 @@ export function OnboardingV4() {
       setPremiumOn(true);
       void utils.invalidate();
     },
-    onError: () => setPremiumError(COPY.premiumFailed),
+    onError: () => setPremiumError(t('today.engagement.onboarding.premium.failed')),
   });
   const recommendInput = {
     days: programDaysFromWeekdays(about.trainingWeekdays),
@@ -505,7 +504,7 @@ export function OnboardingV4() {
       );
       footer = (
         <V4Primary
-          label={COPY.continue}
+          label={t('today.engagement.onboarding.continue')}
           onPress={continueJobs}
           disabled={jobs.length === 0}
           loading={saving}
@@ -517,7 +516,7 @@ export function OnboardingV4() {
       body = <GoalStep choice={goalChoice} onChoose={setGoalChoice} />;
       footer = (
         <V4Primary
-          label={COPY.continue}
+          label={t('today.engagement.onboarding.continue')}
           onPress={next}
           disabled={goalChoice === null}
           testID="onb-v4-continue"
@@ -537,7 +536,7 @@ export function OnboardingV4() {
       );
       footer = (
         <V4Primary
-          label={COPY.continue}
+          label={t('today.engagement.onboarding.continue')}
           onPress={continueAbout}
           loading={saving}
           testID="onb-v4-continue"
@@ -555,7 +554,11 @@ export function OnboardingV4() {
       );
       footer = (
         <V4Primary
-          label={steps.includes('building') ? COPY.safetyBuild : COPY.safetyContinue}
+          label={
+            steps.includes('building')
+              ? t('today.engagement.onboarding.safety.build')
+              : t('today.engagement.onboarding.continue')
+          }
           icon={steps.includes('building') ? 'sparkles' : undefined}
           onPress={continueSafety}
           loading={saving}
@@ -570,12 +573,16 @@ export function OnboardingV4() {
           <>
             {buildError ? (
               <V4Primary
-                label={COPY.buildingRetry}
+                label={t('today.engagement.onboarding.building.retry')}
                 onPress={() => setBuildAttempt((n) => n + 1)}
                 testID="onb-v4-build-retry"
               />
             ) : null}
-            <V4Ghost label={COPY.buildingSkip} onPress={skipBuild} testID="onb-v4-build-skip" />
+            <V4Ghost
+              label={t('today.engagement.onboarding.building.skip')}
+              onPress={skipBuild}
+              testID="onb-v4-build-skip"
+            />
           </>
         ) : null;
       break;
@@ -589,8 +596,12 @@ export function OnboardingV4() {
       );
       footer = (
         <>
-          <V4Primary label={COPY.readyContinue} onPress={next} testID="onb-v4-continue" />
-          <V4Ghost label={COPY.readyLater} onPress={next} />
+          <V4Primary
+            label={t('today.engagement.onboarding.ready.continue')}
+            onPress={next}
+            testID="onb-v4-continue"
+          />
+          <V4Ghost label={t('today.engagement.onboarding.ready.later')} onPress={next} />
         </>
       );
       break;
@@ -602,7 +613,7 @@ export function OnboardingV4() {
             current
               ? activeReminderSlots({ ...current, enabled: true }).map((slot) => ({
                   slot,
-                  label: mealReminderLabel(slot),
+                  label: t(`today.reminders.slots.${slot}`),
                   time: current.times[slot] ?? '',
                 }))
               : []
@@ -611,11 +622,15 @@ export function OnboardingV4() {
         />
       );
       footer = remindersRefused ? (
-        <V4Primary label={COPY.continue} onPress={next} testID="onb-v4-continue" />
+        <V4Primary
+          label={t('today.engagement.onboarding.continue')}
+          onPress={next}
+          testID="onb-v4-continue"
+        />
       ) : (
         <>
           <V4Primary
-            label={ENGAGEMENT_COPY.remindersStepYes}
+            label={t('today.reminders.stepYes')}
             disabled={!current}
             onPress={() => {
               if (!current) return;
@@ -630,7 +645,7 @@ export function OnboardingV4() {
             testID="onb-v4-reminders-yes"
           />
           <V4Ghost
-            label={ENGAGEMENT_COPY.remindersStepNo}
+            label={t('today.reminders.stepNo')}
             onPress={() => {
               track('meal_reminders_offer_answered', { answer: 'no' });
               if (current) saveReminders.mutate({ ...current, enabled: false });
@@ -645,11 +660,15 @@ export function OnboardingV4() {
     case 'premium':
       body = <PremiumStep on={premiumOn} error={premiumError} />;
       footer = premiumOn ? (
-        <V4Primary label={COPY.continue} onPress={next} testID="onb-v4-continue" />
+        <V4Primary
+          label={t('today.engagement.onboarding.continue')}
+          onPress={next}
+          testID="onb-v4-continue"
+        />
       ) : (
         <>
           <V4Primary
-            label={COPY.premiumTurnOn}
+            label={t('today.engagement.onboarding.premium.turnOn')}
             onPress={() => {
               setPremiumError(null);
               track('upgrade_clicked', {
@@ -661,7 +680,11 @@ export function OnboardingV4() {
             loading={upgrade.isPending}
             testID="onb-v4-premium-on"
           />
-          <V4Ghost label={COPY.premiumLater} onPress={next} testID="onb-v4-premium-later" />
+          <V4Ghost
+            label={t('today.engagement.onboarding.premium.later')}
+            onPress={next}
+            testID="onb-v4-premium-later"
+          />
         </>
       );
       break;
@@ -678,7 +701,7 @@ export function OnboardingV4() {
           styleQuestion={
             simpleTraining ? (
               <View className="gap-2">
-                <V4Caption>How do you like to train?</V4Caption>
+                <V4Caption>{t('today.engagement.onboarding.train.style')}</V4Caption>
                 <TrainingStyleCards
                   value={styleAnswer}
                   onChange={setStyleAnswer}
@@ -691,7 +714,7 @@ export function OnboardingV4() {
       );
       footer = (
         <V4Primary
-          label={COPY.trainStart}
+          label={t('today.engagement.onboarding.train.start')}
           onPress={startTraining}
           loading={trainPending}
           disabled={!trainReady}
@@ -725,7 +748,7 @@ export function OnboardingV4() {
       <Sheet
         visible={moreOpen}
         onClose={closeMore}
-        title={COPY.safetyMore}
+        title={t('today.engagement.onboarding.safety.more')}
         testID="onb-v4-more-sheet"
       >
         <View className="gap-3 pb-2">
@@ -735,21 +758,25 @@ export function OnboardingV4() {
             onChange={setSafety}
             testIDPrefix="onb-v4-more"
           />
-          <V4Primary label={COPY.continue} onPress={closeMore} testID="onb-v4-more-done" />
+          <V4Primary
+            label={t('today.engagement.onboarding.continue')}
+            onPress={closeMore}
+            testID="onb-v4-more-done"
+          />
         </View>
       </Sheet>
 
       <Sheet
         visible={activityOpen}
         onClose={() => setActivityOpen(false)}
-        title={COPY.aboutActivityTitle}
+        title={t('today.engagement.onboarding.about.activityTitle')}
         testID="onb-v4-activity-sheet"
       >
         <View className="flex-row flex-wrap gap-2 pb-2">
           {ACTIVITY_OPTIONS.map((o) => (
             <V4Chip
               key={o.value}
-              label={o.label}
+              label={t(`today.engagement.onboarding.about.activity.${o.value}`)}
               selected={o.value === activity}
               onPress={() => {
                 setActivityOverride(o.value);
@@ -765,10 +792,10 @@ export function OnboardingV4() {
         testID="onb-v4-leave"
         visible={leaveOpen}
         onClose={() => setLeaveOpen(false)}
-        title={COPY.leaveTitle}
-        body={COPY.leaveBody}
-        confirmLabel={COPY.leaveConfirm}
-        cancelLabel={COPY.leaveCancel}
+        title={t('today.engagement.onboarding.leave.title')}
+        body={t('today.engagement.onboarding.leave.body')}
+        confirmLabel={t('today.engagement.onboarding.leave.confirm')}
+        cancelLabel={t('today.engagement.onboarding.leave.cancel')}
         onConfirm={() => {
           setLeaveOpen(false);
           markOnboardingGateHandled(getToken());

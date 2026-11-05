@@ -7,7 +7,6 @@ import {
   NoticeCard,
   useCoachingNoticeViews,
 } from '@/features/coaching/components/CoachingNoticeList';
-import { formatDayWithWeekday } from '@/features/coaching/lib/dates';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { useOptionalAppMode } from '@/features/nav/mode-context';
 import {
@@ -20,14 +19,14 @@ import {
   TodaysBookings,
   UnmarkedAttendance,
 } from '@/features/trainer-bookings/components/TodayBookings';
+import { dayLabel } from '@/features/trainer-bookings/lib/schedule-layout';
 import { useNow } from '@/features/trainer-bookings/use-bookings';
 import { InviteSheet } from '@/features/trainer/components/InviteSheet';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { CalendarPlus, ChevronRight, UserPlus, UsersRound } from 'lucide-react';
 import {
   COACHING_LIMITS,
-  QUIET_COPY,
-  TRAINER_MODE_COPY,
   TRAINER_MODE_LIMITS,
   type TrainerDashboardSummaryDto,
 } from '@chefer/types';
@@ -41,24 +40,24 @@ import { QueryError } from './QueryError';
 // past bookings without attendance, client notices) and sessions delivered.
 // Polled like `trainer.badges`, so a new request shows here within a minute.
 
-const copy = TRAINER_MODE_COPY.today;
-
 function RequestsCard({ count }: { count: number }) {
+  const { t } = useT();
+  const text = t('trainer.today.requestsCard', { count });
   return (
     <section
-      aria-label={copy.requestsCard(count)}
+      aria-label={text}
       className="flex min-w-0 flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"
       data-testid="trainer-today-requests"
     >
       <p className="flex min-w-0 items-center gap-2 font-medium text-amber-950">
         <UsersRound className="h-5 w-5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 break-words">{copy.requestsCard(count)}</span>
+        <span className="min-w-0 break-words">{text}</span>
       </p>
       <Link
         href="/trainer/clients#trainer-requests"
         className={cn(buttonVariants(), 'min-h-11 shrink-0 self-start sm:self-auto')}
       >
-        {copy.review}
+        {t('trainer.today.review')}
       </Link>
     </section>
   );
@@ -88,12 +87,13 @@ function Stat({
 }
 
 function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
+  const { t } = useT();
   const adherence = summary.averageAdherence;
   const pct = adherence === null ? null : Math.round(adherence * 100);
   return (
     <section aria-labelledby="trainer-today-week" className="flex flex-col gap-2">
       <h2 id="trainer-today-week" className="font-semibold text-gray-900">
-        {copy.thisWeek}
+        {t('trainer.today.thisWeek')}
       </h2>
       <ul
         className={cn(
@@ -101,34 +101,45 @@ function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
           summary.bookingsThisWeek && 'lg:grid-cols-4',
         )}
       >
-        <Stat label={copy.activeClients} testId="trainer-stat-active">
+        <Stat label={t('trainer.today.activeClients')} testId="trainer-stat-active">
           <span className="flex items-baseline gap-1.5">
             {/* MO-06 count-up. */}
             <CountUp value={summary.activeClients} className="text-2xl font-bold text-gray-900" />
-            <span className="text-sm text-gray-500">{copy.activeOf(summary.maxClients)}</span>
+            <span className="text-sm text-gray-500">
+              {t('trainer.today.activeOf', { max: summary.maxClients })}
+            </span>
           </span>
         </Stat>
         {summary.bookingsThisWeek && (
-          <Stat label={copy.bookingsThisWeek} testId="trainer-stat-bookings">
+          <Stat label={t('trainer.today.bookingsThisWeek')} testId="trainer-stat-bookings">
             {/* MO-06 count-up on the done number; the line reads "3 done · 5 scheduled". */}
             <CountUp
               value={summary.bookingsThisWeek.done}
               format={(n) =>
-                copy.bookingsDone(Math.round(n), summary.bookingsThisWeek?.scheduled ?? 0)
+                t('trainer.today.bookingsDone', {
+                  done: Math.round(n),
+                  scheduled: summary.bookingsThisWeek?.scheduled ?? 0,
+                })
               }
               className="text-sm font-medium text-gray-900"
             />
           </Stat>
         )}
-        <Stat label={copy.adherence} hint={copy.adherenceHint} testId="trainer-stat-adherence">
+        <Stat
+          label={t('trainer.today.adherence')}
+          hint={t('trainer.today.adherenceHint')}
+          testId="trainer-stat-adherence"
+        >
           {pct === null ? (
-            <span className="text-sm font-medium text-gray-700">{copy.noAdherence}</span>
+            <span className="text-sm font-medium text-gray-700">
+              {t('trainer.today.noAdherence')}
+            </span>
           ) : (
             // MO-06: the ring sweeps and the number counts up together.
             <ProgressRing
               progress={adherence ?? 0}
               size={56}
-              label={`${copy.adherence}: ${pct}%`}
+              label={`${t('trainer.today.adherence')}: ${pct}%`}
               className="self-start"
             >
               <CountUp
@@ -141,11 +152,11 @@ function ThisWeek({ summary }: { summary: TrainerDashboardSummaryDto }) {
           )}
         </Stat>
         <Stat
-          label={copy.quietClients}
+          label={t('trainer.today.quietClients')}
           hint={
             summary.quietAfterDays !== undefined
-              ? QUIET_COPY.statHint(summary.quietAfterDays)
-              : copy.quietHint(COACHING_LIMITS.inactiveDays)
+              ? t('coaching.quiet.statHint', { count: summary.quietAfterDays })
+              : t('trainer.today.quietHint', { count: COACHING_LIMITS.inactiveDays })
           }
           testId="trainer-stat-quiet"
         >
@@ -166,20 +177,24 @@ function NeedsAttention({
   summary: TrainerDashboardSummaryDto;
   timeZone: string;
 }) {
+  const tr = useT();
+  const { t } = tr;
   const { views, dismiss } = useCoachingNoticeViews('trainer');
   const quiet = summary.quietClients;
   const unmarked = summary.unmarkedAttendance ?? [];
   return (
     <section aria-labelledby="trainer-today-attention" className="flex flex-col gap-2">
       <h2 id="trainer-today-attention" className="font-semibold text-gray-900">
-        {copy.needsAttention}
+        {t('trainer.today.needsAttention')}
       </h2>
       {quiet.length === 0 && views.length === 0 && unmarked.length === 0 && (
-        <p className="rounded-2xl border bg-white p-4 text-sm text-gray-600">{copy.allCaughtUp}</p>
+        <p className="rounded-2xl border bg-white p-4 text-sm text-gray-600">
+          {t('trainer.today.allCaughtUp')}
+        </p>
       )}
       <UnmarkedAttendance bookings={unmarked} timeZone={timeZone} />
       {quiet.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-label={copy.quietClients}>
+        <ul className="flex flex-col gap-2" aria-label={t('trainer.today.quietClients')}>
           {quiet.map((client) => (
             <li key={client.clientId}>
               <Link
@@ -197,13 +212,15 @@ function NeedsAttention({
                   </span>
                   <span className="block text-sm text-gray-600">
                     {client.lastWorkoutDate
-                      ? copy.lastWorkout(formatDayWithWeekday(client.lastWorkoutDate))
-                      : copy.noWorkoutYet}
+                      ? t('trainer.today.lastWorkout', {
+                          date: dayLabel(tr, client.lastWorkoutDate),
+                        })
+                      : t('trainer.today.noWorkoutYet')}
                   </span>
                   <span className="block text-sm font-medium text-amber-800">
                     {summary.quietAfterDays !== undefined
-                      ? QUIET_COPY.row(client.inactiveDays)
-                      : copy.quietRow(client.inactiveDays)}
+                      ? t('coaching.quiet.row', { count: client.inactiveDays })
+                      : t('trainer.today.quietRow', { count: client.inactiveDays })}
                   </span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
@@ -216,7 +233,7 @@ function NeedsAttention({
       {views.length > 0 && (
         <ul
           className="flex flex-col gap-2"
-          aria-label="Coaching notices"
+          aria-label={t('coaching.notices.label')}
           data-testid="coaching-notices-trainer"
         >
           {views.map((v) => (
@@ -235,6 +252,7 @@ function EmptyState({
   onInvite: () => void;
   onAddBooking: () => void;
 }) {
+  const { t } = useT();
   return (
     <section
       aria-labelledby="trainer-today-empty"
@@ -242,22 +260,22 @@ function EmptyState({
       data-testid="trainer-today-empty"
     >
       <h2 id="trainer-today-empty" className="font-semibold text-gray-900">
-        {copy.emptyTitle}
+        {t('trainer.today.emptyTitle')}
       </h2>
-      <p className="text-sm text-gray-600">{copy.emptyBody}</p>
+      <p className="text-sm text-gray-600">{t('trainer.today.emptyBody')}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button type="button" className="min-h-11" onClick={onInvite}>
-          <UserPlus className="h-4 w-4" aria-hidden="true" /> {copy.inviteClient}
+          <UserPlus className="h-4 w-4" aria-hidden="true" /> {t('trainer.today.inviteClient')}
         </Button>
         {/* Straight into a new template (M2) or the booking editor (M3), as on mobile. */}
         <Link
           href="/trainer/workouts/new"
           className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11')}
         >
-          {copy.buildTemplate}
+          {t('trainer.today.buildTemplate')}
         </Link>
         <Button type="button" variant="outline" className="min-h-11" onClick={onAddBooking}>
-          <CalendarPlus className="h-4 w-4" aria-hidden="true" /> {copy.addBooking}
+          <CalendarPlus className="h-4 w-4" aria-hidden="true" /> {t('trainer.today.addBooking')}
         </Button>
       </div>
     </section>
@@ -265,6 +283,7 @@ function EmptyState({
 }
 
 export function TrainerToday() {
+  const { t } = useT();
   const [inviting, setInviting] = useState(false);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const timeZone = useMemo(deviceTimeZone, []);
@@ -295,7 +314,7 @@ export function TrainerToday() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">{t('trainer.today.title')}</h1>
 
       {summary.isLoading ? (
         <div className="flex flex-col gap-3" aria-hidden="true" data-testid="trainer-today-loading">

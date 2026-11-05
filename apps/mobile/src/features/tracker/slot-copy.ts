@@ -1,22 +1,47 @@
+import type { MessageKey, TArgs } from '@chefer/i18n';
 import {
   formatKcal,
   proteinLabel,
   QUICK_ADD_MEAL_TYPES,
   type QuickAddMealType,
 } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
 
 // Copy and small formatters for the planned-slot actions (WP-06 "Flexible
 // eating"): "Ate something else" and "Skipped it". Neutral on purpose — a
 // swapped or skipped meal is information, never a failure (Food 2).
+//
+// Lane J: every string comes from the `tracker.slot` catalog in the current UI
+// language. Helpers read the translator when called (during a render, which
+// re-runs on a language change), so the screens that import them need no
+// change.
+
+function t<K extends MessageKey>(key: K, ...args: TArgs<K>): string {
+  return getTranslator().t(key, ...args);
+}
 
 export const SLOT_COPY = {
-  ateElse: 'Ate something else',
-  ateElseHint: 'Log what you had instead of the planned meal',
-  skipIt: 'Skipped it',
-  skipItHint: 'Take this meal off today without logging anything',
-  skippedLabel: 'Skipped',
-  undo: 'Undo',
-  remove: 'Remove',
+  get ateElse() {
+    return t('tracker.slot.ateElse');
+  },
+  get ateElseHint() {
+    return t('tracker.slot.ateElseHint');
+  },
+  get skipIt() {
+    return t('tracker.slot.skipIt');
+  },
+  get skipItHint() {
+    return t('tracker.slot.skipItHint');
+  },
+  get skippedLabel() {
+    return t('tracker.slot.skipped');
+  },
+  get undo() {
+    return t('tracker.slot.undo');
+  },
+  get remove() {
+    return t('tracker.slot.remove');
+  },
 } as const;
 
 /** `logCustomMeal` takes one of the four meal types; anything older falls back to `snack`. */
@@ -26,14 +51,18 @@ export function toLogMealType(mealType: string): QuickAddMealType {
     : 'snack';
 }
 
+const isMealType = (mealType: string): mealType is QuickAddMealType =>
+  (QUICK_ADD_MEAL_TYPES as readonly string[]).includes(mealType);
+
 /** "Dinner" — the meal type as a label. */
 export function mealLabel(mealType: string): string {
+  if (isMealType(mealType)) return t(`tracker.meals.${mealType}`);
   return mealType.charAt(0).toUpperCase() + mealType.slice(1);
 }
 
 /** The overflow button's accessible name: "More actions for Dinner". */
 export function moreActionsLabel(mealType: string): string {
-  return `More actions for ${mealLabel(mealType)}`;
+  return t('tracker.slot.moreActions', { meal: mealLabel(mealType) });
 }
 
 /**
@@ -47,22 +76,22 @@ export function youHadText(
   /** Lane E3 "Hide numbers": just the name. */
   noNumbers = false,
 ): string {
-  const name = entry.custom?.name ?? 'Something else';
-  if (noNumbers) return `You had: ${name}`;
+  const name = entry.custom?.name ?? t('tracker.slot.somethingElse');
+  if (noNumbers) return t('tracker.slot.youHad', { name });
   if (proteinOnly) {
     return entry.protein === undefined
-      ? `You had: ${name}`
-      : `You had: ${name} (≈ ${proteinLabel(entry.protein)})`;
+      ? t('tracker.slot.youHad', { name })
+      : t('tracker.slot.youHadProtein', { name, protein: proteinLabel(entry.protein) });
   }
-  return `You had: ${name} (≈ ${formatKcal(entry.kcal)} kcal)`;
+  return t('tracker.slot.youHadKcal', { name, kcal: formatKcal(entry.kcal) });
 }
 
 /** The snackbar after logging a replacement. */
 export function replacedMessage(name: string, mealType: string): string {
-  return `Logged ${name} for ${mealLabel(mealType).toLowerCase()}`;
+  return t(`tracker.slot.replaced.${toLogMealType(mealType)}`, { name });
 }
 
 /** The snackbar after skipping. No judgement — it just states what happened. */
 export function skippedMessage(mealType: string): string {
-  return `${mealLabel(mealType)} skipped`;
+  return t(`tracker.slot.skippedMeal.${toLogMealType(mealType)}`);
 }

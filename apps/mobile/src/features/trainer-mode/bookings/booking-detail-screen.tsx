@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import {
-  BOOKING_COPY,
   BOOKING_START_EARLY_MIN,
   type BookingAttendance,
   type BookingScope,
@@ -26,10 +26,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
-  bookingDayTimeRange,
   bookingHasStart,
-  bookingWho,
-  bookingZoneHint,
   canChangeBooking,
   canMarkAttendance,
   canStartBooking,
@@ -40,6 +37,7 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { useCoachPrefetch } from '../../trainer-coach/coach-prefetch';
@@ -47,6 +45,7 @@ import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TrainerHeader } from '../../trainer/components/trainer-header';
 import { coachHref } from '../open-booking';
 import { useBookingEditor } from './booking-editor';
+import { bookingDayTimeRangeText, bookingWhoText, bookingZoneHintText } from './booking-model';
 import { useInvalidateBookings } from './use-bookings';
 
 // ─── One booking, the trainer's view (trainer-mode.md §6.2–§6.4, §6.7) ────────
@@ -58,13 +57,11 @@ import { useInvalidateBookings } from './use-bookings';
 // scope of a repeat and an optional reason the clients see.
 
 const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
-const COPY = BOOKING_COPY.detail;
-
-function attendanceText(a: BookingAttendance): string {
-  if (a === 'ATTENDED') return COPY.attended;
-  if (a === 'NO_SHOW') return COPY.noShow;
-  if (a === 'CANCELLED') return BOOKING_COPY.schedule.cancelled;
-  return COPY.scheduled;
+function attendanceText({ t }: Translator, a: BookingAttendance): string {
+  if (a === 'ATTENDED') return t('trainer.bookings.detail.attended');
+  if (a === 'NO_SHOW') return t('trainer.bookings.detail.noShow');
+  if (a === 'CANCELLED') return t('trainer.bookings.schedule.cancelled');
+  return t('trainer.bookings.detail.scheduled');
 }
 
 function ClientAttendanceRow({
@@ -77,6 +74,8 @@ function ClientAttendanceRow({
   /** From 15 minutes before the start, as the API allows (`canMarkAttendance`). */
   markable: boolean;
 }) {
+  const tr = useT();
+  const { t } = tr;
   const utils = trpc.useUtils();
   const invalidate = useInvalidateBookings();
   const mark = trpc.trainer.bookings.markAttendance.useMutation({
@@ -106,35 +105,40 @@ function ClientAttendanceRow({
           {client.workout.name ? (
             <Text className="text-subhead text-label-secondary">{client.workout.name}</Text>
           ) : client.workout.kind === 'NEXT_DAY' ? (
-            <Text className="text-subhead text-label-secondary">{BOOKING_COPY.editor.nextDay}</Text>
+            <Text className="text-subhead text-label-secondary">
+              {t('trainer.bookings.editor.nextDay')}
+            </Text>
           ) : null}
           {client.workoutSessionId ? (
             <Text
               testID={`booking-client-${client.clientId}-logged`}
               className="text-caption font-semibold text-positive"
             >
-              {COPY.loggedByYou}
+              {t('trainer.bookings.detail.loggedByYou')}
             </Text>
           ) : null}
         </View>
-        {cancelled ? <Badge variant="secondary">{attendanceText('CANCELLED')}</Badge> : null}
+        {cancelled ? <Badge variant="secondary">{attendanceText(tr, 'CANCELLED')}</Badge> : null}
       </View>
       {cancelled || !markable ? null : (
         <View
           accessibilityRole="radiogroup"
-          accessibilityLabel={`${COPY.attendance}, ${client.name}: ${attendanceText(client.attendance)}`}
+          accessibilityLabel={t('trainer.bookings.detail.attendanceFor', {
+            name: client.name,
+            status: attendanceText(tr, client.attendance),
+          })}
           className="flex-row gap-2"
         >
           <Chip
             testID={`booking-client-${client.clientId}-attended`}
-            label={COPY.attended}
+            label={t('trainer.bookings.detail.attended')}
             selected={client.attendance === 'ATTENDED'}
             disabled={mark.isPending}
             onPress={() => set('ATTENDED')}
           />
           <Chip
             testID={`booking-client-${client.clientId}-no-show`}
-            label={COPY.noShow}
+            label={t('trainer.bookings.detail.noShow')}
             selected={client.attendance === 'NO_SHOW'}
             disabled={mark.isPending}
             onPress={() => set('NO_SHOW')}
@@ -157,6 +161,7 @@ function CancelSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const snackbar = useSnackbar();
   const online = useIsOnline();
   const invalidate = useInvalidateBookings();
@@ -167,7 +172,7 @@ function CancelSheet({
     onSuccess: () => {
       track('booking_cancelled', { scope });
       void invalidate();
-      snackbar.show({ message: BOOKING_COPY.schedule.cancelled });
+      snackbar.show({ message: t('trainer.bookings.schedule.cancelled') });
       onClose();
     },
   });
@@ -176,7 +181,7 @@ function CancelSheet({
       testID="booking-cancel"
       visible={visible}
       onClose={onClose}
-      title={COPY.cancelTitle}
+      title={t('trainer.bookings.detail.cancelTitle')}
       footer={
         <View className="gap-2">
           <Button
@@ -192,10 +197,10 @@ function CancelSheet({
               })
             }
           >
-            {COPY.cancelConfirm}
+            {t('trainer.bookings.detail.cancelConfirm')}
           </Button>
           <Button testID="booking-cancel-keep" variant="outline" onPress={onClose}>
-            {COPY.keep}
+            {t('trainer.bookings.detail.keep')}
           </Button>
         </View>
       }
@@ -204,14 +209,18 @@ function CancelSheet({
         {booking.seriesId ? (
           <SegmentedControl<BookingScope>
             testID="booking-cancel-scope"
-            accessibilityLabel={BOOKING_COPY.editor.scopeTitle}
+            accessibilityLabel={t('trainer.bookings.editor.scopeTitle')}
             value={scope}
             onChange={setScope}
             options={[
-              { value: 'THIS', label: BOOKING_COPY.editor.thisOnly, testID: 'booking-cancel-this' },
+              {
+                value: 'THIS',
+                label: t('trainer.bookings.editor.thisOnly'),
+                testID: 'booking-cancel-this',
+              },
               {
                 value: 'FOLLOWING',
-                label: BOOKING_COPY.editor.following,
+                label: t('trainer.bookings.editor.following'),
                 testID: 'booking-cancel-following',
               },
             ]}
@@ -220,7 +229,7 @@ function CancelSheet({
         {booking.kind === 'BOOKING' ? (
           <Input
             testID="booking-cancel-reason"
-            label={COPY.cancelReason}
+            label={t('trainer.bookings.detail.cancelReason')}
             maxLength={200}
             value={reason}
             onChangeText={setReason}
@@ -228,7 +237,9 @@ function CancelSheet({
           />
         ) : null}
         {!online ? (
-          <Text className="text-subhead text-attention">{BOOKING_COPY.schedule.offline}</Text>
+          <Text className="text-subhead text-attention">
+            {t('trainer.bookings.schedule.offline')}
+          </Text>
         ) : null}
         {cancel.error ? (
           <Text testID="booking-cancel-error" className="text-subhead text-danger">
@@ -242,6 +253,8 @@ function CancelSheet({
 
 export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const snackbar = useSnackbar();
   const online = useIsOnline();
   const [zone] = useState(deviceTimeZone);
@@ -260,7 +273,9 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
     return () => clearInterval(timer);
   }, []);
 
-  const header = <TrainerHeader testID="booking-detail-header" title={COPY.title} />;
+  const header = (
+    <TrainerHeader testID="booking-detail-header" title={t('trainer.bookings.detail.title')} />
+  );
 
   if (query.isPending) {
     return (
@@ -281,7 +296,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
           <EmptyState
             testID="booking-detail-missing"
             icon={<Icon name="calendar" color={colors.labelTertiary} size={40} />}
-            title={BOOKING_COPY.server.notFound}
+            title={t('trainer.bookings.detail.notFound')}
           />
         ) : (
           <ErrorState testID="booking-detail-error" onRetry={() => void query.refetch()} />
@@ -292,10 +307,10 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
 
   const b = query.data;
   const cancelled = b.cancelledAt !== null;
-  const hint = bookingZoneHint(b, zone);
+  const hint = bookingZoneHintText(tr, b, zone);
   const startable = canStartBooking(b, now);
   const needsConnection = () => {
-    snackbar.show({ message: BOOKING_COPY.schedule.offline });
+    snackbar.show({ message: t('trainer.bookings.schedule.offline') });
   };
 
   return (
@@ -315,7 +330,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                 : 'text-title3 font-bold text-label'
             }
           >
-            {bookingDayTimeRange(b, zone, todayIn(zone))}
+            {bookingDayTimeRangeText(tr, b, zone, todayIn(zone))}
           </Text>
           {hint ? (
             <Text testID="booking-detail-zone" className="text-caption text-label-secondary">
@@ -323,13 +338,13 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
             </Text>
           ) : null}
           <Text testID="booking-detail-who" className="text-headline font-semibold text-label">
-            {bookingWho(b)}
+            {bookingWhoText(tr, b)}
           </Text>
           {cancelled ? (
             <View className="gap-1">
               <View className="flex-row">
                 <Badge testID="booking-detail-cancelled" variant="warning">
-                  {BOOKING_COPY.schedule.cancelled}
+                  {t('trainer.bookings.schedule.cancelled')}
                 </Badge>
               </View>
               {b.cancelReason ? (
@@ -351,7 +366,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
           {b.note ? (
             <View className="gap-0.5">
               <Text className="text-caption font-semibold text-label-secondary">
-                {BOOKING_COPY.editor.note}
+                {t('trainer.bookings.editor.note')}
               </Text>
               <Text testID="booking-detail-note" className="text-subhead text-label">
                 {b.note}
@@ -365,14 +380,14 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                 disabled={!startable}
                 onPress={() => router.push(coachHref(b.id))}
               >
-                {COPY.start}
+                {t('trainer.bookings.detail.start')}
               </Button>
               {!startable ? (
                 <Text
                   testID="booking-detail-start-hint"
                   className="text-caption text-label-secondary"
                 >
-                  {COPY.startAvailable(BOOKING_START_EARLY_MIN)}
+                  {t('trainer.bookings.detail.startAvailable', { count: BOOKING_START_EARLY_MIN })}
                 </Text>
               ) : null}
             </View>
@@ -382,7 +397,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
         {b.kind === 'BOOKING' && b.clients.length > 0 ? (
           <CoachingCard testID="booking-detail-clients" className="gap-3">
             <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-              {COPY.attendance}
+              {t('trainer.bookings.detail.attendance')}
             </Text>
             {b.clients.map((client) => (
               <ClientAttendanceRow
@@ -405,14 +420,14 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                 online ? editor.open({ kind: 'edit', booking: b }) : needsConnection()
               }
             >
-              {COPY.edit}
+              {t('trainer.bookings.detail.edit')}
             </Button>
             <Button
               testID="booking-detail-cancel"
               variant="outline"
               onPress={() => (online ? setCancelOpen(true) : needsConnection())}
             >
-              {COPY.cancel}
+              {t('trainer.bookings.detail.cancel')}
             </Button>
           </View>
         ) : null}

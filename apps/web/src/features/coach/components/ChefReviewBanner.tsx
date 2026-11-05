@@ -7,11 +7,13 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
-import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { formatDate, formatWeightTrend, proteinAverageText, withoutKcalLines } from '@chefer/utils';
+import { withoutKcalLines } from '@chefer/utils';
+import { weightTrendText } from '../coach-copy';
 import { CoachWhy } from './CoachWhy';
 
 // ─── Weekly chef review banner (F1, coach) ────────────────────────────────────
@@ -23,9 +25,6 @@ import { CoachWhy } from './CoachWhy';
 //     full text to free accounts. Fires upgrade_prompt_shown {source:
 //     'coach-review'} as the impression and teaser_engaged {feature:'coach'}
 //     on interaction.
-
-const TEASER_PLACEHOLDER =
-  'Your chef wrote a few more lines about your week — the trend, the pattern behind it, and what next week should change.';
 
 /**
  * The weekly review card. In protein-only mode (WP-08) it reads the week's
@@ -47,6 +46,8 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
   const { proteinOnly } = useNumbersMode();
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const system = useUnitSystem();
+  const tr = useT();
+  const { t } = tr;
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Ghost-state impression — once per mount, only when the teaser renders.
@@ -81,7 +82,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
           <ChefHat className="mt-0.5 h-5 w-5 shrink-0 text-[#944a00]" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-gray-900">
-              Your chef noticed something about your week…
+              {t('today.progress.review.noticed')}
             </p>
             {(proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine) !== '' && (
               <p className="mt-1 text-sm text-gray-700">
@@ -90,7 +91,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
             )}
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
             <p aria-hidden="true" className="mt-1 select-none text-sm text-gray-500 blur-[5px]">
-              {TEASER_PLACEHOLDER}
+              {t('today.progress.review.teaser')}
             </p>
             {/* Lane D2: the reasoning is free; the number stays premium. */}
             {data.explanation && (
@@ -100,7 +101,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
               <UpgradeButton source="coach-review" />
               <span className="flex items-center gap-1 text-xs text-gray-500">
                 <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                Full review + auto-adjusting targets are premium
+                {t('today.progress.review.locked')}
               </span>
             </div>
           </div>
@@ -111,7 +112,8 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
 
   // ── Premium: summary + full-review sheet ───────────────────────────────────
   const r = data.review;
-  const trend = formatWeightTrend(r.weightTrendKg, system);
+  const trend = weightTrendText(tr, r.weightTrendKg, system);
+  const signedKcal = (kcal: number) => `${kcal > 0 ? '+' : ''}${tr.number(kcal)}`;
   const TrendIcon = (r.weightTrendKg ?? 0) < -0.05 ? TrendingDown : TrendingUp;
   // WP-08: the review's text is composed server-side with calorie figures; protein-only drops those lines.
   const fullText = proteinOnly ? withoutKcalLines(r.reviewText) : r.reviewText;
@@ -121,28 +123,36 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
       <div className="flex items-start gap-3">
         <ChefHat className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-emerald-900">Your chef&apos;s weekly review</p>
+          <p className="text-sm font-semibold text-emerald-900">
+            {t('today.progress.review.title')}
+          </p>
           {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
           <AiGeneratedChip
             recipe={r}
-            a11yLabel={AI_REVIEW_A11Y_LABEL}
+            a11yLabel={t('today.progress.review.aiA11y')}
             testId="coach-review-ai-chip"
             className="mt-1"
           />
           <p className="mt-0.5 text-xs text-emerald-800">{fullText.split('\n')[0]}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-800">
             <span>
-              <strong>{r.adherencePct}%</strong> logged
+              {rich(t, 'today.progress.review.logged', {
+                value: <strong>{`${r.adherencePct}%`}</strong>,
+              })}
             </span>
             {proteinOnly ? (
               proteinAverage && (
                 <span data-testid="coach-review-protein-average">
-                  {proteinAverageText(proteinAverage)}
+                  {t('today.numbersMode.proteinAverage', {
+                    value: tr.number(Math.round(proteinAverage.protein)),
+                  })}
                 </span>
               )
             ) : (
               <span>
-                <strong>{r.avgDailyKcal}</strong> kcal/day avg
+                {rich(t, 'today.progress.review.avgPerDay.kcal', {
+                  value: <strong>{r.avgDailyKcal}</strong>,
+                })}
               </span>
             )}
             {trend && (
@@ -153,11 +163,9 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
             )}
             {!proteinOnly && r.adjustmentKcal !== 0 && (
               <span>
-                budget{' '}
-                <strong>
-                  {r.adjustmentKcal > 0 ? '+' : ''}
-                  {r.adjustmentKcal} kcal
-                </strong>
+                {rich(t, 'today.progress.review.budget.kcal', {
+                  value: <strong>{signedKcal(r.adjustmentKcal)}</strong>,
+                })}
               </span>
             )}
           </div>
@@ -169,7 +177,7 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
             }}
             className="mt-2 min-h-11 text-sm font-semibold text-emerald-700 underline-offset-2 hover:underline sm:min-h-0"
           >
-            See full review →
+            {t('today.progress.review.seeFull')}
           </button>
         </div>
       </div>
@@ -177,21 +185,30 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
       <Sheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        title="Your chef's weekly review"
-        description={`Week of ${formatDate(new Date(r.weekStart), 'long')}`}
+        title={t('today.progress.review.title')}
+        description={t('today.progress.review.weekOf', {
+          date: tr.date(new Date(r.weekStart), 'long'),
+        })}
         size="md"
       >
         <div className="px-5 pb-5">
           <div className="mb-4 grid grid-cols-3 gap-3">
             {[
-              { label: 'Days logged', value: `${r.adherencePct}%` },
+              { label: t('today.progress.review.statDaysLogged'), value: `${r.adherencePct}%` },
               proteinOnly
                 ? {
-                    label: 'Avg protein',
-                    value: proteinAverage ? `${Math.round(proteinAverage.protein)} g` : '—',
+                    label: t('today.progress.review.statAvgProtein'),
+                    value: proteinAverage
+                      ? t('today.progress.review.statProteinValue', {
+                          value: tr.number(Math.round(proteinAverage.protein)),
+                        })
+                      : '—',
                   }
-                : { label: 'Avg intake', value: `${r.avgDailyKcal} kcal` },
-              { label: 'Weight trend', value: trend ?? '—' },
+                : {
+                    label: t('today.progress.review.statAvgIntake'),
+                    value: t('today.progress.review.statIntake.kcal', { value: r.avgDailyKcal }),
+                  },
+              { label: t('today.progress.review.statWeightTrend'), value: trend ?? '—' },
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-gray-50 p-3 text-center">
                 <p className="text-sm font-bold text-gray-800">{s.value}</p>
@@ -201,12 +218,9 @@ function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } 
           </div>
           {!proteinOnly && r.adjustmentKcal !== 0 && (
             <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-              Your daily calorie budget changed by{' '}
-              <strong>
-                {r.adjustmentKcal > 0 ? '+' : ''}
-                {r.adjustmentKcal} kcal
-              </strong>{' '}
-              — the dashboard, tracker and your next generated week all use the new number.
+              {rich(t, 'today.progress.review.budgetChanged.kcal', {
+                value: <strong>{signedKcal(r.adjustmentKcal)}</strong>,
+              })}
             </p>
           )}
           <div className="space-y-2 text-sm leading-relaxed text-gray-700">

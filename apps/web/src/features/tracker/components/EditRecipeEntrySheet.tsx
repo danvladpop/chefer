@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { Sheet } from '@chefer/ui';
 import {
   formatPortion,
@@ -18,10 +19,7 @@ import {
 // apps/mobile/src/features/tracker/edit-recipe-entry-sheet.tsx.
 
 const PORTIONS = [0.5, 1, 1.5, 2];
-const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
-  value: v,
-  label: v.charAt(0).toUpperCase() + v.slice(1),
-}));
+const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({ value: v }));
 
 export interface EditRecipeEntrySheetProps {
   open: boolean;
@@ -45,6 +43,7 @@ export function EditRecipeEntrySheet({
   onSave,
   onDelete,
 }: EditRecipeEntrySheetProps) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode(); // WP-08, lane E3
   const [portion, setPortion] = useState(1);
   const [mealType, setMealType] = useState<QuickAddMealType>('dinner');
@@ -68,7 +67,7 @@ export function EditRecipeEntrySheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Edit meal"
+      title={t('tracker.editEntry.title')}
       size="sm"
       footer={
         <div className="w-full space-y-2 px-5 pb-2">
@@ -78,7 +77,7 @@ export function EditRecipeEntrySheet({
             onClick={() => onSave({ portionMultiplier: portion, mealType })}
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00]"
           >
-            Save
+            {t('common.actions.save')}
           </button>
           <button
             type="button"
@@ -86,7 +85,7 @@ export function EditRecipeEntrySheet({
             onClick={onDelete}
             className="min-h-11 w-full rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50"
           >
-            Delete
+            {t('common.actions.delete')}
           </button>
         </div>
       }
@@ -96,18 +95,22 @@ export function EditRecipeEntrySheet({
           <p className="text-sm font-medium text-neutral-800">{entry.recipeName}</p>
           <p className="text-xs text-neutral-500">
             {noNumbers
-              ? 'Logged'
+              ? t('tracker.editEntry.logged')
               : proteinOnly
                 ? entry.protein === undefined
-                  ? 'Logged'
-                  : `Logged as ${proteinLabel(entry.protein)}`
-                : `Logged as ${Math.round(entry.kcal)} kcal`}
+                  ? t('tracker.editEntry.logged')
+                  : t('tracker.editEntry.loggedAsProtein', { protein: proteinLabel(entry.protein) })
+                : t('tracker.editEntry.loggedAsKcal', { kcal: Math.round(entry.kcal) })}
           </p>
         </div>
 
         <div className="space-y-1">
-          <p className="text-xs font-medium text-neutral-600">Portion</p>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Portion">
+          <p className="text-xs font-medium text-neutral-600">{t('tracker.editEntry.portion')}</p>
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="group"
+            aria-label={t('tracker.editEntry.portion')}
+          >
             {portions.map((p) => (
               <button
                 key={p}
@@ -124,8 +127,12 @@ export function EditRecipeEntrySheet({
         </div>
 
         <div className="space-y-1">
-          <p className="text-xs font-medium text-neutral-600">Meal</p>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+          <p className="text-xs font-medium text-neutral-600">{t('tracker.editEntry.meal')}</p>
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="group"
+            aria-label={t('tracker.editEntry.meal')}
+          >
             {MEAL_OPTIONS.map((o) => (
               <button
                 key={o.value}
@@ -135,7 +142,7 @@ export function EditRecipeEntrySheet({
                 onClick={() => setMealType(o.value)}
                 className={`min-h-11 rounded-lg px-3 text-xs font-medium ${mealType === o.value ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
               >
-                {o.label}
+                {t(`tracker.meals.${o.value}`)}
               </button>
             ))}
           </div>

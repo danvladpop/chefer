@@ -1,14 +1,15 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { X } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 
 // Join / leave / removal / owner-gone notices (ADR 0003) as dismissible inline
 // cards at the top of the Household section. There is no server push, so this
 // is where the other side learns about it.
 
 export function HouseholdNotices({ enabled }: { enabled: boolean }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { data } = trpc.household.notices.useQuery(undefined, { enabled, staleTime: 30_000 });
   const dismiss = trpc.household.dismissNotice.useMutation({
@@ -23,7 +24,7 @@ export function HouseholdNotices({ enabled }: { enabled: boolean }) {
   if (!enabled || unread.length === 0) return null;
 
   return (
-    <ul className="mb-4 space-y-2" aria-label="Household news">
+    <ul className="mb-4 space-y-2" aria-label={t('household.sharing.noticesLabel')}>
       {unread.map((notice) => (
         <li
           key={notice.id}
@@ -31,12 +32,12 @@ export function HouseholdNotices({ enabled }: { enabled: boolean }) {
           className="flex items-center gap-2 rounded-xl border border-[#944a00]/20 bg-[#fff3e8] py-1 pl-4 pr-1"
         >
           <p className="min-w-0 flex-1 text-sm text-gray-800">
-            {COPY.notice[notice.kind](notice.name)}
+            {t(`household.sharing.notice.${notice.kind}`, { name: notice.name })}
           </p>
           <button
             type="button"
             onClick={() => dismiss.mutate({ id: notice.id })}
-            aria-label={COPY.dismissNotice}
+            aria-label={t('household.sharing.dismissNotice')}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-white/60 hover:text-gray-800"
           >
             <X className="h-4 w-4" aria-hidden="true" />

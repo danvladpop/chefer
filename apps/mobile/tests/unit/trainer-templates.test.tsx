@@ -16,6 +16,7 @@ import { TemplateLibraryScreen } from '../../src/features/trainer-mode/templates
 import { TemplateEditorScreen } from '../../src/features/trainer-mode/templates/template-editor-screen';
 import { UpdateClientsSheet } from '../../src/features/trainer-mode/templates/update-clients-sheet';
 import { TEMPLATE_AUTOSAVE_MS } from '../../src/features/trainer-mode/templates/use-template-editor';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc, trpcError } from './friends-core-harness';
 import { makeExercise } from './gym-fixtures';
 import {
@@ -135,6 +136,8 @@ beforeEach(() => {
   resetShellModeStoreForTests();
   resetSnackbarForTests();
   resetEntrancesForTests();
+  // Dates follow the UI language: day-month English, whatever the machine's locale.
+  resetLocaleForTests(['en-GB']);
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
@@ -170,6 +173,23 @@ describe('the template library', () => {
     );
     await user.press(first);
     expect(router.push).toHaveBeenCalledWith('/trainer/templates/t1');
+  });
+
+  it('reads in Romanian when the app is in Romanian', async () => {
+    resetLocaleForTests(['ro-RO']);
+    await renderWithTrpc(
+      <TemplateLibraryScreen />,
+      handlers({ 'trainer.templates.list': () => rows }),
+    );
+    await settle();
+    expect(screen.getByTestId('template-row-t1-status')).toHaveTextContent(
+      /^Atribuit la 2 clienți · Editat 3 oct/,
+    );
+    expect(screen.getByTestId('template-row-t2-status')).toHaveTextContent(
+      /^Neatribuit încă · Editat 3 oct/,
+    );
+    expect(screen.getAllByText(/5 exerciții/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Caută șabloane')).toBeTruthy();
   });
 
   it('search filters by name; the type chips filter by workout type', async () => {

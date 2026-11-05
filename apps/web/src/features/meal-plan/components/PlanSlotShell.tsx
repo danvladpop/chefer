@@ -2,8 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
-import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
+import { skippedLabel, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
+import { useT } from '@/lib/i18n';
 import type { DayEntry, SlotState } from '@chefer/utils';
 import type { SlotLogActions } from './PlanMealMenu';
 
@@ -49,6 +50,8 @@ export function slotLogActions(
   };
 }
 
+const MEAL_TYPE_KEYS = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+
 interface PlanSlotShellProps {
   mealType: string;
   slotIndex: number;
@@ -59,10 +62,16 @@ interface PlanSlotShellProps {
 
 export function PlanSlotShell({ mealType, slotIndex, state, flow, children }: PlanSlotShellProps) {
   const { proteinOnly, noNumbers } = useNumbersMode(); // WP-08
+  const { t } = useT();
   const slot = slotTargetOf(mealType, slotIndex);
   const status = state?.status ?? 'planned';
   const muted = isSlotMuted(state);
   const entryId = state?.status === 'replaced' ? state.entry.entryId : undefined;
+  const mealTypeWord = (
+    MEAL_TYPE_KEYS.has(mealType)
+      ? t(`plan.mealTypes.${mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack'}`)
+      : mealType
+  ).toLowerCase();
 
   return (
     <div
@@ -84,14 +93,15 @@ export function PlanSlotShell({ mealType, slotIndex, state, flow, children }: Pl
                   state.entry.protein,
                   proteinOnly,
                   noNumbers,
+                  t,
                 )
-              : SKIPPED_LABEL}
+              : skippedLabel(t)}
           </p>
           {(status === 'skipped' || entryId) && (
             <button
               type="button"
               data-testid={`plan-slot-undo-${mealType}-${slotIndex}`}
-              aria-label={`Undo for ${mealType}`}
+              aria-label={t('plan.slot.undoFor', { meal: mealTypeWord })}
               onClick={() =>
                 status === 'skipped'
                   ? flow.unskip(slot)
@@ -99,7 +109,7 @@ export function PlanSlotShell({ mealType, slotIndex, state, flow, children }: Pl
               }
               className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
             >
-              Undo
+              {t('plan.slot.undo')}
             </button>
           )}
         </div>

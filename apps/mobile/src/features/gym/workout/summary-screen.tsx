@@ -285,11 +285,11 @@ export function SummaryScreen({ id }: { id: string }) {
             onPress={() =>
               void shareCard(
                 { kind: 'workout', sessionId: id, showPrs: true },
-                'Workout done with Chefer.',
+                t('today.share.workoutMessage'),
               )
             }
           >
-            Share your workout
+            {t('today.share.workout')}
           </Button>
         ) : null}
         <Button testID="summary-done" size="lg" onPress={goToday}>

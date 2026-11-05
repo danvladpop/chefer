@@ -1,20 +1,23 @@
+import type { Translator } from '@chefer/i18n';
 import type { DayStripDay } from '@chefer/ui-mobile';
 import {
   conflictHeadline,
   conflictText,
+  formatKcal,
+  formatNumber,
   formatPortion,
-  planMealNutritionLabel,
-  portionLabel,
+  planMealMacros,
   slotPortion,
-  weekdayLongName,
-  weekdayShortName,
   type ConflictLike,
 } from '@chefer/utils';
 
 // Pure helpers behind the new shell's Meals tab (10 Oct redesign, board
 // "Plan"): the day strip, a tile's label / meta / badge and the one safety
 // line. The maths is the legacy Plan's (`sumPlanDay`, `planMealMacros`,
-// portions) — only the wording is new.
+// portions) — only the wording is new. Every helper that returns text takes
+// the screen's `t` (ADR 0004), so the words follow the UI language.
+
+type T = Translator['t'];
 
 export type WeekOffset = 0 | 1;
 
@@ -36,46 +39,69 @@ export function todayDayIndex(now: Date = new Date()): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
-const MONTHS_LONG = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+] as const;
+
+/** 0 → "Monday" in the UI language. */
+export function weekdayName(t: T, dayOfWeek: number): string {
+  const key = WEEKDAY_KEYS[dayOfWeek];
+  return key ? t(`common.weekdays.${key}`) : '';
+}
+
+/** 0 → "Mon" in the UI language. */
+export function weekdayShort(t: T, dayOfWeek: number): string {
+  const key = WEEKDAY_KEYS[dayOfWeek];
+  return key ? t(`common.weekdaysShort.${key}`) : '';
+}
 
 /** The seven DayStrip buttons for the week starting `monday`. */
-export function weekStripDays(monday: Date, todayIndex: number | null): DayStripDay[] {
+export function weekStripDays(t: T, monday: Date, todayIndex: number | null): DayStripDay[] {
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
+    const month = MONTH_KEYS[date.getMonth()];
     return {
       key: String(index),
-      weekday: weekdayShortName(index),
+      weekday: weekdayShort(t, index),
       date: date.getDate(),
-      accessibilityLabel: `${weekdayLongName(index)} ${date.getDate()} ${MONTHS_LONG[date.getMonth()] ?? ''}`,
+      accessibilityLabel: t('plan.meals.strip.dayLabel', {
+        weekday: weekdayName(t, index),
+        day: String(date.getDate()),
+        month: month ? t(`plan.meals.strip.months.${month}`) : '',
+      }),
       isToday: todayIndex === index,
     };
   });
 }
 
-const MEAL_LABELS: Readonly<Record<string, string>> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snack',
-};
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+type KnownMealType = (typeof MEAL_TYPES)[number];
+const isKnownMealType = (mealType: string): mealType is KnownMealType =>
+  (MEAL_TYPES as readonly string[]).includes(mealType);
 
 /** "Breakfast" for a meal type (unknown types get their own word, capitalised). */
-export function mealTypeLabel(mealType: string): string {
-  return MEAL_LABELS[mealType] ?? mealType.charAt(0).toUpperCase() + mealType.slice(1);
+export function mealTypeLabel(t: T, mealType: string): string {
+  return isKnownMealType(mealType)
+    ? t(`plan.mealTypes.${mealType}`)
+    : mealType.charAt(0).toUpperCase() + mealType.slice(1);
+}
+
+/** The meal type as it reads mid-sentence: "Change dinner". */
+export function mealTypeWord(t: T, mealType: string): string {
+  return mealTypeLabel(t, mealType).toLowerCase();
 }
 
 type TileMeal = {
@@ -96,8 +122,8 @@ type TileMeal = {
 };
 
 /** The frame label: the meal type, or "Side" for a second dish of the same meal. */
-export function mealTileLabel(mealType: string, isSide: boolean): string {
-  return isSide ? 'Side' : mealTypeLabel(mealType);
+export function mealTileLabel(t: T, mealType: string, isSide: boolean): string {
+  return isSide ? t('plan.meals.tile.side') : mealTypeLabel(t, mealType);
 }
 
 /**
@@ -106,22 +132,37 @@ export function mealTileLabel(mealType: string, isSide: boolean): string {
  * meal it belongs to: "Dinner · 120 kcal". Protein-only mode shows protein.
  */
 export function mealTileMeta(
+  t: T,
   meal: TileMeal,
   isSide: boolean,
   proteinOnly: boolean,
   /** Lane E3 "Hide numbers": no nutrition figure, the portion always shows. */
   noNumbers = false,
 ): string {
+  const macros = planMealMacros(meal.recipe.nutritionInfo, meal.portion);
   const nutrition = noNumbers
     ? null
-    : planMealNutritionLabel(meal.recipe.nutritionInfo, meal.portion, proteinOnly);
-  if (isSide) return [mealTypeLabel(meal.type), nutrition].filter(Boolean).join(' · ');
+    : proteinOnly
+      ? t('plan.meals.tile.protein', { grams: formatNumber(macros.protein) })
+      : t('plan.meals.tile.kcal', { kcal: formatKcal(macros.kcal) });
+  if (isSide) return [mealTypeLabel(t, meal.type), nutrition].filter(Boolean).join(' · ');
   const portion = slotPortion(meal.portion);
   const minutes = Math.max(0, Math.round(meal.recipe.prepTimeMins + meal.recipe.cookTimeMins));
-  const tail = meal.pinned ? 'pinned' : meal.leftoverOf ? 'leftovers' : `${minutes} min`;
+  const tail = meal.pinned
+    ? t('plan.meals.tile.pinned')
+    : meal.leftoverOf
+      ? t('plan.meals.tile.leftovers')
+      : t('plan.meals.tile.minutes', { minutes: String(minutes) });
+  const amount = formatPortion(portion);
   return [
     nutrition,
-    noNumbers ? portionLabel(portion) : portion !== 1 ? `${formatPortion(portion)} portion` : null,
+    noNumbers
+      ? t(portion > 1 ? 'plan.meals.tile.portionsCount' : 'plan.meals.tile.portionCount', {
+          amount: amount.replace(/×$/, ''),
+        })
+      : portion !== 1
+        ? t('plan.meals.tile.portion', { portion: amount })
+        : null,
     tail,
   ]
     .filter(Boolean)
@@ -148,12 +189,15 @@ type TableSafetyLike = {
 };
 
 /** "peanuts", "peanuts and shellfish", "peanuts, shellfish and 2 more". */
-function listLabels(labels: readonly string[]): string {
+function listLabels(t: T, labels: readonly string[]): string {
   const shown = labels.slice(0, 3);
   const rest = labels.length - shown.length;
-  if (rest > 0) return `${shown.join(', ')} and ${rest} more`;
+  if (rest > 0) return t('plan.meals.safety.listMore', { list: shown.join(', '), count: rest });
   if (shown.length <= 1) return shown.join('');
-  return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
+  return t('plan.meals.safety.listAnd', {
+    list: shown.slice(0, -1).join(', '),
+    last: shown[shown.length - 1] ?? '',
+  });
 }
 
 /**
@@ -161,8 +205,8 @@ function listLabels(labels: readonly string[]): string {
  * full text on tap): "Checked for peanuts and shellfish. Always read labels."
  * Allergies and diets count; dislikes are taste, not safety.
  */
-export function mealsSafetyLine(tableSafety: TableSafetyLike | null | undefined): string {
-  if (!tableSafety?.hasRules) return 'Meal ideas, not medical advice. Always read labels.';
+export function mealsSafetyLine(t: T, tableSafety: TableSafetyLike | null | undefined): string {
+  if (!tableSafety?.hasRules) return t('plan.meals.safety.noRules');
   const seen = new Set<string>();
   const labels: string[] = [];
   for (const person of tableSafety.people) {
@@ -175,6 +219,6 @@ export function mealsSafetyLine(tableSafety: TableSafetyLike | null | undefined)
       }
     }
   }
-  if (labels.length === 0) return 'Checked for your table. Always read labels.';
-  return `Checked for ${listLabels(labels)}. Always read labels.`;
+  if (labels.length === 0) return t('plan.meals.safety.table');
+  return t('plan.meals.safety.checkedFor', { list: listLabels(t, labels) });
 }

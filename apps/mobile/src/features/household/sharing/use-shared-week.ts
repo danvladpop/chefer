@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
-import { HOUSEHOLD_SHARING_COPY, HOUSEHOLD_SHARING_LIMITS } from '@chefer/types';
+import { HOUSEHOLD_SHARING_LIMITS } from '@chefer/types';
 import { useSnackbar } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { useHouseholdSharing, type HouseholdSharing } from './use-household-sharing';
 
 // ─── The shared week on Meals (ADR 0003) ──────────────────────────────────────
@@ -30,15 +31,16 @@ export type SharedWeek = HouseholdSharing & {
 export function useSharedWeek(): SharedWeek {
   const sharing = useHouseholdSharing();
   const { show } = useSnackbar();
+  const { t } = useT();
   const handleSlotConflict = useCallback(
     (error: unknown, refetch: () => unknown) => {
       if (!isMealSlotConflict(error)) return false;
       track('shared_plan_conflict', {});
-      show({ message: HOUSEHOLD_SHARING_COPY.conflictSomeone });
+      show({ message: t('household.sharing.conflictSomeone') });
       void refetch();
       return true;
     },
-    [show],
+    [show, t],
   );
   return {
     ...sharing,

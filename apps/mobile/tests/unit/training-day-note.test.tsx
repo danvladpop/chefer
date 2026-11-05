@@ -1,8 +1,10 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import type { TrainingDayNutrition } from '@chefer/types';
+import { NothingTonightCard } from '../../src/features/dashboard/components/tonight-card';
 import { TrainingDayNote } from '../../src/features/dashboard/components/training-day-note';
 import { openPremium } from '../../src/features/premium/open-premium';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // T-06.5 — the Today training-day note: applied for free when the server flag
 // is on, run kinds, the `Why?` Explain sheet, and the locked state.
@@ -100,5 +102,28 @@ describe('TrainingDayNote', () => {
     expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
     expect(screen.queryByText(/Premium/)).toBeNull();
     expect(openPremium).not.toHaveBeenCalled();
+  });
+});
+
+describe('TrainingDayNote — Romanian (lane J)', () => {
+  afterEach(() => resetLocaleForTests(['en-US']));
+
+  it('reads the line, the detail and Why? in Romanian', async () => {
+    resetLocaleForTests(['ro-RO']);
+    await renderNote(lift());
+    expect(screen.getByTestId('training-day-line')).toHaveTextContent(
+      'Zi de antrenament · +250 kcal, +32 g proteine',
+    );
+    expect(
+      screen.getByText('Upper A azi · proteine la 2,2 g/kg, adăugate la ziua de azi'),
+    ).toBeTruthy();
+    expect(screen.getByText('De ce?')).toBeTruthy();
+  });
+
+  it('the empty Tonight card speaks Romanian too', async () => {
+    resetLocaleForTests(['ro-RO']);
+    await render(<NothingTonightCard />);
+    expect(screen.getByText('Nimic planificat pentru diseară')).toBeTruthy();
+    expect(screen.getByText('Găsește o rețetă')).toBeTruthy();
   });
 });

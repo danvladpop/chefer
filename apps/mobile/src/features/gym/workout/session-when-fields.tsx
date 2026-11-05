@@ -3,7 +3,7 @@ import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Translator } from '@chefer/i18n';
 import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text, useThemeColors } from '@chefer/ui-mobile';
-import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
+import { addDaysLocal, cn } from '@chefer/utils';
 import { getTranslator, useT } from '../../../lib/i18n';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long

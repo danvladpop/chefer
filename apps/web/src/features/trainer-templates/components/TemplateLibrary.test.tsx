@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkoutTemplateSummaryDto } from '@chefer/types';
@@ -73,6 +74,27 @@ describe('TemplateLibrary', () => {
     expect(rows[0]).toHaveTextContent('Edited 12 Oct');
     expect(rows[1]).toHaveTextContent('Not assigned yet');
     expect(screen.getByRole('link', { name: 'New template' })).toBeInTheDocument();
+  });
+
+  it('reads in Romanian when the app is in Romanian', () => {
+    m.list = {
+      isLoading: false,
+      isError: false,
+      data: [row({}), row({ id: 't2', name: 'Mobility', workoutType: null, assignedCount: 0 })],
+      error: null,
+    };
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <TemplateLibrary />
+      </I18nProvider>,
+    );
+    const rows = screen.getAllByTestId('template-row');
+    expect(rows[0]).toHaveTextContent('5 exerciții · ~48 min');
+    expect(rows[0]).toHaveTextContent('Atribuit la 2 clienți');
+    expect(rows[0]).toHaveTextContent('Editat 12 oct.');
+    expect(rows[1]).toHaveTextContent('Neatribuit încă');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Antrenamente');
+    expect(screen.getAllByRole('link', { name: 'Șablon nou' }).length).toBeGreaterThan(0);
   });
 
   it('searches by name and filters by workout type, with a no-match line', () => {

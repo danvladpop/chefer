@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { capture } from '@/lib/analytics';
 import { AppToastHost, resetAppToastForTests } from '@/lib/app-toast';
+import { I18nProvider } from '@/lib/i18n';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ShoppingListPage from './page';
@@ -360,5 +361,23 @@ describe('Shop: a shared household’s live list (ADR 0003)', () => {
       checked: true,
       at: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) as unknown,
     });
+  });
+});
+
+// Lane J phase 4: the shopping list in Romanian.
+describe('Shop in Romanian', () => {
+  it('says the title, the provenance, the aisle and the remove label in Romanian', async () => {
+    m.fromDay = 4;
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <ShoppingListPage />
+      </I18nProvider>,
+    );
+    expect(await screen.findByLabelText('Scoate Flour din listă')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Cumpărături');
+    expect(screen.getByTestId('shop-provenance').textContent).toBe(
+      'Din rețetele planului tău · Vin–Dum',
+    );
+    expect(screen.getByText('Sfatul bucătarului')).toBeTruthy();
   });
 });

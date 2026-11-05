@@ -1,10 +1,11 @@
 import { useId } from 'react';
-import { COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import type { CoachingShareChoice } from '@chefer/types';
 import { Switch } from '@chefer/ui';
 
 // ─── "Share my food log" / "Share my weight" (lane K1) ────────────────────────
 // The client's two opt-ins, on the consent screen (join and request) and in
-// Your trainer. Consent copy from the shared COACHING_SHARING_COPY (mobile
+// Your trainer. Consent copy from the shared `coaching.sharing.*` catalog (mobile
 // renders the same strings): do not reword here. The caller owns the value.
 
 export interface SharingSwitchesProps {
@@ -60,26 +61,27 @@ export function SharingSwitches({
   disabled = false,
   testId = 'coaching-sharing',
 }: SharingSwitchesProps) {
-  const copy = COACHING_SHARING_COPY;
+  const { t } = useT();
+  const trainer = trainerName;
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
       <SwitchRow
         testId={`${testId}-food`}
-        label={copy.food.label}
-        body={copy.food.body(trainerName)}
+        label={t('coaching.sharing.food.label')}
+        body={t('coaching.sharing.food.body', { trainer })}
         checked={value.food}
         disabled={disabled}
         onCheckedChange={(food) => onChange({ food })}
       />
       <SwitchRow
         testId={`${testId}-weight`}
-        label={copy.weight.label}
-        body={copy.weight.body(trainerName)}
+        label={t('coaching.sharing.weight.label')}
+        body={t('coaching.sharing.weight.body', { trainer })}
         checked={value.weight}
         disabled={disabled}
         onCheckedChange={(weight) => onChange({ weight })}
       />
-      <p className="text-xs text-gray-600">{copy.footer}</p>
+      <p className="text-xs text-gray-600">{t('coaching.sharing.footer')}</p>
     </div>
   );
 }

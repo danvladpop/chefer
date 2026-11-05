@@ -55,6 +55,8 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useRecipeImageStream, type RecipeImageUpdate } from '@/hooks/useRecipeImageStream';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import {
   CalendarDays,
@@ -72,7 +74,6 @@ import {
   Wand2,
 } from 'lucide-react';
 import {
-  HOUSEHOLD_SHARING_COPY,
   HOUSEHOLD_SHARING_LIMITS,
   PLAN_TAILORING_POLL_MS,
   planSlotMealTypeSchema,
@@ -80,7 +81,6 @@ import {
 import { ErrorState, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
-  DAY_FIT_COPY,
   defaultDay,
   defaultWeekOffset,
   formatDateRange,
@@ -89,14 +89,11 @@ import {
   getWeekStartDate,
   isTailoringRunning,
   localDateStr,
-  PLAN_MEAL_MENU_COPY,
-  PLAN_WEEK_COPY,
   planButtonLabel,
   planShapeSummary,
   regenerateConfirmBody,
   SAFETY_COPY,
   sumPlanDay,
-  tailoringDayLabel,
   tailoringDayState,
   toDisplayCurrency,
   trainingDaysChip,
@@ -108,7 +105,8 @@ import MealPlanLoading from './loading';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+/** 0=Monday … 6=Sunday → the `common.weekdays` key. */
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const MIN_OFFSET = -1;
 const MAX_OFFSET = 1;
 
@@ -130,6 +128,11 @@ function getTodayDayIndex(): number {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MealPlanPage() {
+  const { t } = useT();
+  const dayName = (dayOfWeek: number): string => {
+    const key = DAY_KEYS[dayOfWeek];
+    return key ? t(`common.weekdays.${key}`) : '';
+  };
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -221,7 +224,7 @@ export default function MealPlanPage() {
   const sharing = useHouseholdSharing();
   const isPartner = sharing.isPartner;
   const ownerOnlyNote = isPartner
-    ? HOUSEHOLD_SHARING_COPY.ownerOnly(sharing.ownerName ?? '')
+    ? t('household.sharing.ownerOnly', { ownerName: sharing.ownerName ?? '' })
     : null;
 
   const {
@@ -405,11 +408,13 @@ export default function MealPlanPage() {
           data.droppedPinned !== undefined
             ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
             : 0;
-        const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
         setToast({
-          message: `New week planned.${keptNote}`,
+          message:
+            keptCount > 0
+              ? t('plan.page.toast.newWeekKept', { count: keptCount })
+              : t('plan.page.toast.newWeek'),
           action: {
-            label: 'Undo',
+            label: t('plan.page.undo'),
             onClick: () => restoreMutation.mutate({ planId: previousPlanId }),
           },
         });
@@ -430,7 +435,7 @@ export default function MealPlanPage() {
         setGenerateError(
           err.data?.code === 'TOO_MANY_REQUESTS'
             ? userFacingErrorMessage(err)
-            : "We couldn't generate your plan just now. Please try again in a moment.",
+            : t('plan.page.generateError'),
         );
       }
     },
@@ -543,7 +548,7 @@ export default function MealPlanPage() {
   // ADR 0003: the other person changed this slot first — say so and show the latest week.
   const handleConflict = () => {
     capture('shared_plan_conflict', {});
-    setToast({ message: HOUSEHOLD_SHARING_COPY.conflictSomeone });
+    setToast({ message: t('household.sharing.conflictSomeone') });
     void refetch();
     void utils.shoppingList.invalidate();
   };
@@ -605,7 +610,9 @@ export default function MealPlanPage() {
     onError: (err) =>
       isMealSlotConflict(err)
         ? handleConflict()
-        : setToast({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
+        : setToast({
+            message: t('plan.page.toast.removeFailed', { error: userFacingErrorMessage(err) }),
+          }),
   });
   const openAddSide = (
     dayOfWeek: number,
@@ -645,9 +652,9 @@ export default function MealPlanPage() {
       {
         onSuccess: () =>
           setToast({
-            message: PLAN_MEAL_MENU_COPY.removed(recipe.name),
+            message: t('plan.mealMenu.removed', { name: recipe.name }),
             action: {
-              label: 'Undo',
+              label: t('plan.page.undo'),
               onClick: () =>
                 addToWeekMutation.mutate({
                   recipeId: recipe.id,
@@ -688,7 +695,7 @@ export default function MealPlanPage() {
   const [refitClosedFor, setRefitClosedFor] = useState<string | null>(null);
   const undoRefitMutation = trpc.mealPlan.undoPortionRefit.useMutation({
     meta: { silent: true },
-    onSuccess: () => setToast({ message: DAY_FIT_COPY.refitUndone }),
+    onSuccess: () => setToast({ message: t('plan.dayFit.refitUndone') }),
     onError: (err) => {
       setRefitClosedFor(null);
       setToast({ message: userFacingErrorMessage(err) });
@@ -705,9 +712,9 @@ export default function MealPlanPage() {
 
   const onSideAdded = ({ recipeName, added }: SideAddedResult) =>
     setToast({
-      message: PLAN_MEAL_MENU_COPY.added(recipeName),
+      message: t('plan.mealMenu.added', { name: recipeName }),
       action: {
-        label: 'Undo',
+        label: t('plan.page.undo'),
         onClick: () =>
           undoAddMutation.mutate({
             planId: added.planId,
@@ -727,7 +734,7 @@ export default function MealPlanPage() {
     onSuccess: (_data, input) => {
       capture('plan_day_filled', { dayOfWeek: input.dayOfWeek });
       void refetch();
-      setToast({ message: `${DAY_NAMES[selectedDay]} planned.` });
+      setToast({ message: t('plan.page.toast.dayPlanned', { day: dayName(selectedDay) }) });
     },
     onError: (err) => setToast({ message: userFacingErrorMessage(err) }),
   });
@@ -809,6 +816,22 @@ export default function MealPlanPage() {
     );
   };
 
+  // P1-1: "Built for you from 3 dishes you rated and 1 pinned favourite (…)".
+  const personalisationLine = (p: NonNullable<typeof personalisation>) => {
+    const ratedCount = p.likedCount + p.dislikedCount;
+    const pinnedCount = p.pinnedDishNames.length;
+    const rated = <strong>{t('plan.page.personalisation.rated', { count: ratedCount })}</strong>;
+    const pinned = <strong>{t('plan.page.personalisation.pinned', { count: pinnedCount })}</strong>;
+    const names = p.pinnedDishNames.join(', ');
+    if (ratedCount > 0 && pinnedCount > 0) {
+      return rich(t, 'plan.page.personalisation.both', { rated, pinned }, { names });
+    }
+    if (pinnedCount > 0) {
+      return rich(t, 'plan.page.personalisation.pinnedOnly', { pinned }, { names });
+    }
+    return rich(t, 'plan.page.personalisation.ratedOnly', { rated });
+  };
+
   const navBar = (
     <div className="flex shrink-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
       {/* Week navigator */}
@@ -816,7 +839,7 @@ export default function MealPlanPage() {
         <button
           onClick={() => setWeekOffset(Math.max(MIN_OFFSET, weekOffset - 1))}
           disabled={weekOffset <= MIN_OFFSET}
-          aria-label="Previous week"
+          aria-label={t('plan.page.nav.previousWeek')}
           className={weekArrowCls}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -829,17 +852,17 @@ export default function MealPlanPage() {
           <span className="truncate text-sm font-medium text-gray-700">{weekLabel}</span>
           {isPast && (
             <span className="hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-600 sm:inline">
-              Past
+              {t('plan.page.nav.past')}
             </span>
           )}
           {isCurrent && (
             <span className="hidden shrink-0 rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#944a00] sm:inline">
-              This Week
+              {t('plan.page.nav.thisWeek')}
             </span>
           )}
           {weekOffset > 0 && (
             <span className="hidden shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-blue-600 sm:inline">
-              Next Week
+              {t('plan.page.nav.nextWeekBadge')}
             </span>
           )}
         </div>
@@ -847,7 +870,7 @@ export default function MealPlanPage() {
         <button
           onClick={() => setWeekOffset(Math.min(MAX_OFFSET, weekOffset + 1))}
           disabled={weekOffset >= MAX_OFFSET}
-          aria-label="Next week"
+          aria-label={t('plan.page.nav.nextWeek')}
           className={weekArrowCls}
         >
           <ChevronRight className="h-4 w-4" />
@@ -861,9 +884,9 @@ export default function MealPlanPage() {
         {plan?.carriedOver && (
           <span
             className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-            title="This week started as a copy of your previous plan — edit any meal to tailor it"
+            title={t('plan.page.chips.carriedOverHint')}
           >
-            Continued from your last plan
+            {t('plan.page.chips.carriedOver')}
           </span>
         )}
         {/* PAT-2 week card (UX-02 §3, T-02.2): the table has ≥ 1 safety rule
@@ -891,7 +914,7 @@ export default function MealPlanPage() {
             data-testid="plan-first-scaled-week"
             className="basis-full text-xs text-gray-600 sm:text-right"
           >
-            Sized for your table of {costPortions ?? memberCount} — free for your first week
+            {t('plan.page.chips.firstScaledWeek', { count: costPortions ?? memberCount })}
           </p>
         )}
 
@@ -899,7 +922,7 @@ export default function MealPlanPage() {
         {photosInProgress && (
           <span className="flex items-center gap-1.5 rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
             <ImageIcon className="h-3 w-3 animate-pulse" />
-            {photosReady} of {photosTotal} photos ready
+            {t('plan.page.chips.photosReady', { ready: photosReady, count: photosTotal })}
           </span>
         )}
 
@@ -909,7 +932,7 @@ export default function MealPlanPage() {
             type="button"
             onClick={() => setLeftovers((v) => !v)}
             aria-pressed={leftovers}
-            title="Pair dinners with next-day leftover lunches (doubled servings)"
+            title={t('plan.page.actions.leftoversHint')}
             className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors sm:min-h-0 ${
               leftovers
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
@@ -917,7 +940,7 @@ export default function MealPlanPage() {
             }`}
           >
             <CookingPot className="h-3.5 w-3.5" aria-hidden="true" />
-            Cook once, eat twice
+            {t('plan.page.actions.leftovers')}
           </button>
         )}
 
@@ -927,12 +950,12 @@ export default function MealPlanPage() {
             type="button"
             data-testid="plan-settings-open"
             onClick={() => setSettingsOpen(true)}
-            aria-label="Plan settings"
-            title="Plan settings — how you cook"
+            aria-label={t('plan.page.actions.settings')}
+            title={t('plan.page.actions.settingsHint')}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 sm:h-auto sm:w-auto sm:min-h-0 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs sm:font-medium"
           >
             <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">Plan settings</span>
+            <span className="hidden sm:inline">{t('plan.page.actions.settings')}</span>
           </button>
         )}
 
@@ -950,7 +973,7 @@ export default function MealPlanPage() {
             className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:flex-none ${pressControl}`}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-            {PLAN_WEEK_COPY.optionsLabel}
+            {t('plan.week.optionsLabel')}
           </button>
         )}
         {!isPast && !loadFailed && !plan && !isPartner && (
@@ -961,7 +984,7 @@ export default function MealPlanPage() {
             className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 sm:flex-none ${pressControl}`}
           >
             <Wand2 className={`h-3.5 w-3.5 ${isGenerating ? 'animate-pulse' : ''}`} />
-            {shape ? planButtonLabel(shape) : 'Generate'}
+            {shape ? planButtonLabel(shape) : t('plan.page.actions.generate')}
           </button>
         )}
       </div>
@@ -973,7 +996,7 @@ export default function MealPlanPage() {
     <div className="flex h-full flex-col">
       {/* The shell header shows the page name visually; this is the page's
           one <h1> for screen-reader heading navigation (F-X-5-3). */}
-      <h1 className="sr-only">Meal planner</h1>
+      <h1 className="sr-only">{t('plan.page.title')}</h1>
       {navBar}
 
       {isPartner && (
@@ -1012,7 +1035,7 @@ export default function MealPlanPage() {
         new Date().getDay() === 1 && (
           <UpgradeNudge
             source="monday-nudge"
-            message="Premium members woke up to a fresh week today."
+            message={t('plan.page.mondayNudge')}
             className="mx-4 mb-2 sm:mx-6"
           />
         )}
@@ -1037,35 +1060,7 @@ export default function MealPlanPage() {
           <div className="mx-4 mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 sm:mx-6">
             <p className="flex items-start gap-2 text-xs text-emerald-900">
               <Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-              <span>
-                Built for you
-                {personalisation.likedCount + personalisation.dislikedCount > 0 && (
-                  <>
-                    {' '}
-                    from{' '}
-                    <strong>
-                      {personalisation.likedCount + personalisation.dislikedCount} dish
-                      {personalisation.likedCount + personalisation.dislikedCount === 1
-                        ? ''
-                        : 'es'}{' '}
-                      you rated
-                    </strong>
-                  </>
-                )}
-                {personalisation.pinnedDishNames.length > 0 && (
-                  <>
-                    {personalisation.likedCount + personalisation.dislikedCount > 0
-                      ? ' and '
-                      : ' with '}
-                    <strong>
-                      {personalisation.pinnedDishNames.length} pinned favourite
-                      {personalisation.pinnedDishNames.length === 1 ? '' : 's'}
-                    </strong>{' '}
-                    ({personalisation.pinnedDishNames.join(', ')})
-                  </>
-                )}
-                .
-              </span>
+              <span>{personalisationLine(personalisation)}</span>
             </p>
           </div>
         )}
@@ -1084,7 +1079,7 @@ export default function MealPlanPage() {
           className="mx-4 mb-2 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-900 sm:mx-6"
         >
           <Dumbbell className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-          Your week is built around your training days
+          {t('plan.page.fitTraining')}
         </p>
       )}
 
@@ -1112,8 +1107,11 @@ export default function MealPlanPage() {
         >
           <p className="text-sm text-gray-800">
             {proteinOnly
-              ? 'Your targets have changed since this week was planned. Re-plan to match them?'
-              : `This week was planned for ${formatKcal(plan.calorieTarget ?? 0)} kcal. Re-plan with ${formatKcal(targetsView.effective.dailyCalorieTarget)} kcal?`}
+              ? t('plan.page.replan.body')
+              : t('plan.page.replan.bodyKcal', {
+                  planned: formatKcal(plan.calorieTarget ?? 0),
+                  current: formatKcal(targetsView.effective.dailyCalorieTarget),
+                })}
           </p>
           <div className="flex gap-2">
             <button
@@ -1122,7 +1120,7 @@ export default function MealPlanPage() {
               onClick={openRegenerateConfirm}
               className="min-h-11 flex-1 rounded-lg bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] sm:flex-none"
             >
-              Re-plan
+              {t('plan.page.replan.action')}
             </button>
             <button
               type="button"
@@ -1133,7 +1131,7 @@ export default function MealPlanPage() {
               }}
               className="min-h-11 flex-1 rounded-lg border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 sm:flex-none"
             >
-              Keep
+              {t('plan.page.replan.keep')}
             </button>
           </div>
         </div>
@@ -1144,10 +1142,11 @@ export default function MealPlanPage() {
         <div className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 sm:mx-6">
           <p className="flex items-start gap-2 text-xs text-amber-900">
             <Wallet className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-            This week comes to ≈ {formatMoney(weekCost ?? 0, currency)} — about{' '}
-            {formatMoney(overBudget, currency)} over your{' '}
-            {formatMoney(weeklyBudget ?? 0, currency, { decimals: 0 })} budget. Make a new plan for
-            a cheaper week, or raise the budget in Preferences.
+            {t('plan.page.overBudget', {
+              cost: formatMoney(weekCost ?? 0, currency),
+              over: formatMoney(overBudget, currency),
+              budget: formatMoney(weeklyBudget ?? 0, currency, { decimals: 0 }),
+            })}
           </p>
         </div>
       )}
@@ -1163,7 +1162,7 @@ export default function MealPlanPage() {
             onClick={handleGenerate}
             className="min-h-11 shrink-0 rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-800 hover:bg-red-100"
           >
-            Try again
+            {t('common.actions.retry')}
           </button>
         </div>
       )}
@@ -1178,7 +1177,7 @@ export default function MealPlanPage() {
           <p className="flex items-start gap-2 text-sm text-amber-900">
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
             <span className="min-w-0">
-              Our recipes can’t fill this week around your restrictions.
+              {t('plan.page.pool.title')}
               {poolExhausted.detail && (
                 <span className="mt-1 block text-xs text-amber-800">{poolExhausted.detail}</span>
               )}
@@ -1192,7 +1191,7 @@ export default function MealPlanPage() {
                 onClick={() => setReplaceTarget(pickFirstMeal)}
                 className="flex min-h-11 items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 hover:bg-amber-100"
               >
-                Pick recipes yourself
+                {t('plan.page.pool.pick')}
               </button>
             ) : (
               <Link
@@ -1200,13 +1199,13 @@ export default function MealPlanPage() {
                 data-testid="plan-pool-pick"
                 className="flex min-h-11 items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 hover:bg-amber-100"
               >
-                Pick recipes yourself
+                {t('plan.page.pool.pick')}
               </Link>
             )}
             <UpgradeButton
               className="w-full sm:w-auto"
               source="pool-exhaustion"
-              label="Premium builds a plan around them"
+              label={t('plan.page.pool.premium')}
             />
           </div>
         </div>
@@ -1217,8 +1216,7 @@ export default function MealPlanPage() {
         <div className="mx-4 mb-2 flex flex-col items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="flex items-start gap-2 text-xs text-amber-900">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-            You&apos;re on the free plan: chef-picked recipes that respect your allergies and
-            restrictions. Premium generates your week from your goals and preferences.
+            {t('plan.page.freeBanner')}
           </p>
           <UpgradeButton className="w-full sm:w-auto sm:shrink-0" source="meal-plan-banner" />
         </div>
@@ -1234,7 +1232,7 @@ export default function MealPlanPage() {
       {loadFailed && (
         <div className="px-4 py-6 sm:px-6">
           <ErrorState
-            title="Couldn't load your meal plan"
+            title={t('plan.page.loadError')}
             onRetry={() => void refetch()}
             retrying={isRefetching}
           />
@@ -1249,12 +1247,10 @@ export default function MealPlanPage() {
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              {isPast ? 'No plan for this week' : 'No meal plan yet'}
+              {isPast ? t('plan.page.empty.titlePast') : t('plan.page.empty.title')}
             </h2>
             <p className="mt-1 max-w-xs text-sm text-gray-500">
-              {isPast
-                ? 'No meal plan was created for this week.'
-                : 'Generate a personalised 7-day plan based on your goals and dietary preferences.'}
+              {isPast ? t('plan.page.empty.bodyPast') : t('plan.page.empty.body')}
             </p>
           </div>
           {!isPast && isPartner && ownerOnlyNote && (
@@ -1271,7 +1267,7 @@ export default function MealPlanPage() {
             >
               <Wand2 className="h-4 w-4" />
               {/* T-07.6 (UX-07 AC3): names the job, e.g. "Plan 4 dinners". */}
-              {shape ? planButtonLabel(shape) : 'Generate my meal plan'}
+              {shape ? planButtonLabel(shape) : t('plan.page.actions.generateEmpty')}
             </button>
           )}
         </div>
@@ -1339,7 +1335,8 @@ export default function MealPlanPage() {
             {plan.days.map((day) => {
               const isToday = isCurrent && day.dayOfWeek === todayIndex;
               const tailorState = tailoringDayState(plan.tailoring, day.dayOfWeek);
-              const tailorLabel = tailoringDayLabel(tailorState);
+              const tailorLabel =
+                tailorState === 'none' ? '' : t(`plan.tailoring.dayState.${tailorState}`);
               const justUpdated = updatedDays.has(day.dayOfWeek);
               const training = plan.trainingDays?.find((t) => t.dayOfWeek === day.dayOfWeek);
               const preRun = preRunNoteFor(plan.trainingDays, day.dayOfWeek);
@@ -1358,7 +1355,7 @@ export default function MealPlanPage() {
                     <p
                       className={`text-xs font-semibold ${isToday ? 'text-white' : 'text-gray-700'}`}
                     >
-                      {DAY_NAMES[day.dayOfWeek]}
+                      {dayName(day.dayOfWeek)}
                     </p>
                     {training && (
                       <>
@@ -1373,7 +1370,7 @@ export default function MealPlanPage() {
                     )}
                     {isToday && (
                       <span className="rounded-full bg-white/25 px-1.5 py-px text-xs font-semibold uppercase tracking-wide text-white">
-                        Today
+                        {t('plan.page.grid.today')}
                       </span>
                     )}
                     <TailoringDayMark state={tailorState} onDark={isToday} />
@@ -1409,7 +1406,7 @@ export default function MealPlanPage() {
                           data-testid={`plan-day-unplanned-${day.dayOfWeek}`}
                           className="text-xs leading-tight text-gray-500"
                         >
-                          Not planned
+                          {t('plan.page.grid.notPlanned')}
                         </p>
                         {!isPartner && (
                           <button
@@ -1426,7 +1423,7 @@ export default function MealPlanPage() {
                           >
                             {planDayMutation.isPending && planningDay === day.dayOfWeek
                               ? '…'
-                              : 'Plan this day'}
+                              : t('plan.page.grid.planThisDay')}
                           </button>
                         )}
                       </div>
@@ -1493,10 +1490,8 @@ export default function MealPlanPage() {
             <span className="flex min-w-0 items-center gap-2">
               <Repeat className="h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
               <span className="min-w-0">
-                <span className="font-semibold text-gray-900">My weeks</span>
-                <span className="block text-xs text-gray-500">
-                  Save this week, follow a saved one, or look back at past weeks
-                </span>
+                <span className="font-semibold text-gray-900">{t('plan.page.myWeeks.title')}</span>
+                <span className="block text-xs text-gray-500">{t('plan.page.myWeeks.body')}</span>
               </span>
             </span>
             <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
@@ -1545,9 +1540,9 @@ export default function MealPlanPage() {
                           ?.scrollIntoView({ block: 'center' }),
                       );
                     } else if (result === 'on-track') {
-                      setToast({ message: PLAN_WEEK_COPY.rebalance.onTrack });
+                      setToast({ message: t('plan.week.rebalance.onTrack') });
                     } else if (result === 'error') {
-                      setToast({ message: PLAN_WEEK_COPY.rebalance.error });
+                      setToast({ message: t('plan.week.rebalance.error') });
                     }
                   });
                 },
@@ -1561,7 +1556,11 @@ export default function MealPlanPage() {
       <Sheet
         open={regenerateConfirmOpen}
         onClose={() => setRegenerateConfirmOpen(false)}
-        title={`Regenerate ${weekOffset === 0 ? 'this week' : 'next week'}?`}
+        title={
+          weekOffset === 0
+            ? t('plan.page.regenerate.titleThis')
+            : t('plan.page.regenerate.titleNext')
+        }
         // UX-PLAN-01: this week keeps past days and logged meals — say so.
         description={regenerateConfirmBody(weekOffset, plannedMealsCount)}
         size="sm"
@@ -1572,7 +1571,7 @@ export default function MealPlanPage() {
               onClick={() => setRegenerateConfirmOpen(false)}
               className="flex h-11 flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
-              Cancel
+              {t('common.actions.cancel')}
             </button>
             <button
               type="button"
@@ -1589,10 +1588,10 @@ export default function MealPlanPage() {
               className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#944a00] text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
             >
               {generateMutation.isPending
-                ? 'Regenerating…'
+                ? t('plan.page.regenerate.submitting')
                 : weekOffset === 0
-                  ? 'Regenerate this week'
-                  : 'Regenerate next week'}
+                  ? t('plan.page.regenerate.submitThis')
+                  : t('plan.page.regenerate.submitNext')}
             </button>
           </div>
         }
@@ -1611,7 +1610,7 @@ export default function MealPlanPage() {
           )}
           {pinnedCount > 0 && (
             <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-700">
-              Keep the {pinnedCount} meal{pinnedCount === 1 ? '' : 's'} you chose
+              {t('plan.page.regenerate.keepPicks', { count: pinnedCount })}
               <input
                 type="checkbox"
                 data-testid="regenerate-keep-picks"
@@ -1644,7 +1643,7 @@ export default function MealPlanPage() {
               onClose={() => setMissDay(null)}
               planId={plan.planId}
               dayOfWeek={missDay}
-              dayName={DAY_NAMES[missDay] ?? ''}
+              dayName={dayName(missDay)}
               kcal={miss.kcal}
               target={miss.target}
               proteinGapG={miss.day.proteinGapG}

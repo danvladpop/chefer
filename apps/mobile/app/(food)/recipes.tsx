@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
 import {
   Button,
   Chip,
@@ -72,12 +72,15 @@ interface CardRecipe {
 }
 
 /** `From {first}` for another person's recipe or my copy of one; null otherwise. */
-function fromChipLabel(recipe: Pick<CardRecipe, 'creator' | 'origin'>): string | null {
-  if (recipe.creator) return FRIENDS_COPY.recipe.from(recipe.creator.firstName);
+function fromChipLabel(
+  recipe: Pick<CardRecipe, 'creator' | 'origin'>,
+  t: Translator['t'],
+): string | null {
+  if (recipe.creator) return t('friends.recipe.from', { first: recipe.creator.firstName });
   if (recipe.origin) {
     return recipe.origin.creatorFirstName
-      ? FRIENDS_COPY.recipe.from(recipe.origin.creatorFirstName)
-      : FRIENDS_COPY.recipe.fromGone;
+      ? t('friends.recipe.from', { first: recipe.origin.creatorFirstName })
+      : t('friends.recipe.fromGone');
   }
   return null;
 }
@@ -352,7 +355,7 @@ export default function RecipesScreen() {
             ) : null
           }
           renderItem={({ item: recipe }) => {
-            const fromLabel = fromChipLabel(recipe);
+            const fromLabel = fromChipLabel(recipe, t);
             const meta = recipeCardMeta(recipe);
             const n = recipe.nutritionInfo as {
               calories: number;

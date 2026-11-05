@@ -5,11 +5,11 @@ import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Barcode, Camera, Loader2, Upload } from 'lucide-react';
 import {
   barcodeSchema,
-  PACKAGED_PRODUCT_COPY,
   type BarcodeLookupResult,
   type NutritionLabelDraft,
   type PackagedProductDraft,
@@ -23,7 +23,7 @@ import {
   draftFromProduct,
   userFacingErrorMessage,
 } from '@chefer/utils';
-import { productPhotoFromFile } from './product-photo';
+import { productPhotoFromFile, ProductPhotoReadError } from './product-photo';
 import { ProductCard } from './ProductCard';
 import { ProductForm } from './ProductForm';
 
@@ -70,6 +70,7 @@ export function ProductFlow({
   initial,
   onLogged,
 }: ProductFlowProps) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const requestAiConsent = useAiConsent();
   const { enabled: canScanLabel } = useEntitlement('mealScansPerDay');
@@ -87,6 +88,11 @@ export function ProductFlow({
   const scanLabel = trpc.products.scanLabel.useMutation({ meta: { silent: true } });
   const create = trpc.products.create.useMutation({ meta: { silent: true } });
   const logProduct = trpc.tracker.logProduct.useMutation({ meta: { silent: true } });
+
+  const errorText = (err: unknown) =>
+    err instanceof ProductPhotoReadError
+      ? t('tracker.packaged.photoUnreadable')
+      : userFacingErrorMessage(err);
 
   const show = (result: BarcodeLookupResult, via: Via) => {
     if (result.status === 'found') {
@@ -113,7 +119,8 @@ export function ProductFlow({
   const lookupTyped = async () => {
     const parsed = barcodeSchema.safeParse(typed);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? PACKAGED_PRODUCT_COPY.unreadable);
+      // barcodeSchema's one refinement: the digits don't make a valid barcode.
+      setError(t('tracker.packaged.barcodeInvalid'));
       return;
     }
     setError(null);
@@ -137,7 +144,7 @@ export function ProductFlow({
     try {
       show(await photoLookup.mutateAsync(await productPhotoFromFile(file)), 'photo');
     } catch (err) {
-      setError(userFacingErrorMessage(err));
+      setError(errorText(err));
     } finally {
       setBusy(null);
     }
@@ -163,7 +170,7 @@ export function ProductFlow({
             source: 'LABEL',
           });
         } catch (err) {
-          setError(userFacingErrorMessage(err));
+          setError(errorText(err));
         } finally {
           setBusy(null);
         }
@@ -247,7 +254,7 @@ export function ProductFlow({
           className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
         >
           <Barcode className="h-4 w-4" aria-hidden />
-          Scan another barcode
+          {t('tracker.packaged.scanAnother')}
         </button>
       </div>
     );
@@ -272,11 +279,11 @@ export function ProductFlow({
         <div className="space-y-1 rounded-xl border border-neutral-200 bg-white p-3">
           <p className="text-sm font-semibold text-neutral-900">
             {state.unreadable
-              ? PACKAGED_PRODUCT_COPY.unreadable
-              : PACKAGED_PRODUCT_COPY.notFoundTitle}
+              ? t('tracker.packaged.unreadable')
+              : t('tracker.packaged.notFoundTitle')}
           </p>
           {!state.unreadable && (
-            <p className="text-xs text-neutral-600">{PACKAGED_PRODUCT_COPY.notFoundBody}</p>
+            <p className="text-xs text-neutral-600">{t('tracker.packaged.notFoundBody')}</p>
           )}
         </div>
         {state.unreadable ? (
@@ -286,7 +293,7 @@ export function ProductFlow({
             onClick={() => setState({ step: 'start' })}
             className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
           >
-            Try again
+            {t('tracker.packaged.tryAgain')}
           </button>
         ) : (
           <>
@@ -298,7 +305,7 @@ export function ProductFlow({
                   accept="image/*"
                   capture="environment"
                   className="sr-only"
-                  aria-label={PACKAGED_PRODUCT_COPY.photographLabel}
+                  aria-label={t('tracker.packaged.photographLabel')}
                   data-testid="product-label-file"
                   onChange={(e) => onLabelChosen(e.target.files?.[0])}
                 />
@@ -317,13 +324,13 @@ export function ProductFlow({
                   ) : (
                     <Camera className="h-4 w-4" aria-hidden />
                   )}
-                  {PACKAGED_PRODUCT_COPY.photographLabel}
+                  {t('tracker.packaged.photographLabel')}
                 </button>
               </>
             ) : (
               <div className="space-y-1 rounded-xl bg-neutral-50 p-3">
                 <p className="text-sm text-neutral-700">
-                  {PACKAGED_PRODUCT_COPY.photographLabel} is part of Premium.
+                  {t('tracker.packaged.photographLabelIsPremium')}
                 </p>
                 <UpgradeButton source="snap-scan" className="w-full px-4 py-2.5 text-sm" />
               </div>
@@ -340,7 +347,7 @@ export function ProductFlow({
               }
               className="min-h-11 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
             >
-              {PACKAGED_PRODUCT_COPY.enterProduct}
+              {t('tracker.packaged.enterProduct')}
             </button>
           </>
         )}
@@ -351,14 +358,14 @@ export function ProductFlow({
 
   return (
     <div data-testid="product-start" className="space-y-3">
-      <p className="text-sm text-neutral-500">{PACKAGED_PRODUCT_COPY.scanBarcodeHint}</p>
+      <p className="text-sm text-neutral-500">{t('tracker.packaged.scanBarcodeHint')}</p>
       <input
         ref={barcodeInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="sr-only"
-        aria-label="Photo of the barcode"
+        aria-label={t('tracker.packaged.barcodePhotoLabel')}
         data-testid="product-barcode-file"
         onChange={(e) => void lookupPhoto(e.target.files?.[0])}
       />
@@ -374,7 +381,7 @@ export function ProductFlow({
         ) : (
           <Upload className="h-4 w-4" aria-hidden />
         )}
-        Take or upload a photo
+        {t('tracker.packaged.takeOrUpload')}
       </button>
       <form
         className="space-y-1"
@@ -384,7 +391,7 @@ export function ProductFlow({
         }}
       >
         <label htmlFor="product-barcode-input" className="text-xs font-medium text-neutral-600">
-          {PACKAGED_PRODUCT_COPY.typeBarcode}
+          {t('tracker.packaged.typeBarcode')}
         </label>
         <div className="flex items-center gap-2">
           <input
@@ -397,7 +404,7 @@ export function ProductFlow({
               setTyped(cleanBarcodeInput(e.target.value));
               setError(null);
             }}
-            placeholder="e.g. 5000159484695"
+            placeholder={t('tracker.packaged.barcodePlaceholder')}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? 'product-flow-error' : undefined}
             className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
@@ -408,7 +415,7 @@ export function ProductFlow({
             disabled={typed.length < 8 || busy === 'typed'}
             className="min-h-11 shrink-0 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            {PACKAGED_PRODUCT_COPY.findProduct}
+            {t('tracker.packaged.findProduct')}
           </button>
         </div>
       </form>
@@ -422,7 +429,7 @@ export function ProductFlow({
           {error}
         </p>
       )}
-      <p className="text-xs text-neutral-500">{PACKAGED_PRODUCT_COPY.attribution} (ODbL)</p>
+      <p className="text-xs text-neutral-500">{t('tracker.packaged.attributionShort')}</p>
     </div>
   );
 }

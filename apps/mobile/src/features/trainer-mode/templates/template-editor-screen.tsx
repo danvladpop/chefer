@@ -1,12 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
-import {
-  COACHING_COPY,
-  TEMPLATE_COPY,
-  TRAINER_MODE_LIMITS,
-  type ExerciseMeta,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { TRAINER_MODE_LIMITS, type ExerciseMeta } from '@chefer/types';
 import {
   Button,
   ConfirmSheet,
@@ -24,13 +20,9 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import {
-  templateAssignmentStatusText,
-  templateProblems,
-  userFacingErrorMessage,
-  workoutTypeLabel,
-} from '@chefer/utils';
+import { templateProblems, userFacingErrorMessage, workoutTypeLabel } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { useViewerUnits } from '../../friends/profile/use-viewer-units';
@@ -42,7 +34,12 @@ import { isClientUnavailable } from '../../trainer/client/use-trainer-client';
 import { goBackOrHome, TrainerHeader } from '../../trainer/components/trainer-header';
 import { AssignTemplateSheet } from './assign-sheet';
 import { TemplateConflictSheet } from './template-conflict-sheet';
-import { draftToTemplateDoc, TEMPLATE_DAY_KEY } from './template-draft';
+import {
+  draftToTemplateDoc,
+  TEMPLATE_DAY_KEY,
+  templateAssignedText,
+  templateAssignmentStatusLabel,
+} from './template-draft';
 import { UpdateClientsSheet } from './update-clients-sheet';
 import { useTemplateEditor, type TemplateSaveStatus } from './use-template-editor';
 
@@ -53,20 +50,21 @@ import { useTemplateEditor, type TemplateSaveStatus } from './use-template-edito
 // "Assign to clients" opens the assign sheet; "⋯" → Delete template. Once assigned: who has it, and
 // a banner with "Update for clients" when some have an older version.
 
-const COPY = TEMPLATE_COPY.editor;
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 type PickerState = { mode: 'add' } | { mode: 'swap'; exerciseKey: string };
 
-function statusText(status: TemplateSaveStatus): string | null {
-  if (status === 'saving') return COPY.saving;
-  if (status === 'saved') return COPY.saved;
-  if (status === 'error') return COPY.notSaved;
+function statusText({ t }: Translator, status: TemplateSaveStatus): string | null {
+  if (status === 'saving') return t('trainer.templates.editor.saving');
+  if (status === 'saved') return t('trainer.templates.editor.saved');
+  if (status === 'error') return t('trainer.templates.editor.notSaved');
   return null;
 }
 
 export function TemplateEditorScreen({ templateId: initialId }: { templateId: string | null }) {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   const utils = trpc.useUtils();
   const unit = useViewerUnits().weight;
   const editor = useTemplateEditor(initialId);
@@ -89,10 +87,10 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
   const unnamedWork =
     templateProblems(draftToTemplateDoc(draft)).nameMissing && exercises.length > 0;
   const guard = useUnsavedGuard(unnamedWork || editor.status === 'error', {
-    title: 'Discard this template?',
+    title: t('trainer.templates.editor.discardTitle'),
     message: unnamedWork
-      ? 'It has no name yet, so it hasn’t been saved.'
-      : 'Your last changes haven’t been saved.',
+      ? t('trainer.templates.editor.discardUnnamed')
+      : t('trainer.templates.editor.discardUnsaved'),
   });
 
   const library = libraryQuery.data ?? [];
@@ -113,8 +111,12 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
   const assignments = server?.assignments ?? [];
   const outdated = assignments.filter((a) => a.outdated).length;
   const title =
-    draft.name.trim() !== '' ? draft.name.trim() : templateId ? COPY.title : COPY.newTitle;
-  const status = statusText(editor.status);
+    draft.name.trim() !== ''
+      ? draft.name.trim()
+      : templateId
+        ? t('trainer.templates.editor.title')
+        : t('trainer.templates.editor.newTitle');
+  const status = statusText(tr, editor.status);
 
   const header = (
     <TrainerHeader
@@ -135,7 +137,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
           {templateId ? (
             <IconButton
               testID="template-editor-menu"
-              accessibilityLabel="Template options"
+              accessibilityLabel={t('trainer.templates.editor.options')}
               icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
               onPress={() => setMenuOpen(true)}
               className="-mr-2"
@@ -163,9 +165,9 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         {isClientUnavailable(editor.loadError) ? (
           <EmptyState
             testID="template-editor-unavailable"
-            title={TEMPLATE_COPY.server.notFound}
+            title={t('trainer.templates.editor.notFound')}
             action={{
-              label: 'Back to templates',
+              label: t('trainer.templates.editor.backToTemplates'),
               testID: 'template-editor-unavailable-back',
               onPress: goBackOrHome,
             }}
@@ -196,7 +198,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
               disabled={templateId === null || exercises.length === 0}
               onPress={() => void openAssign()}
             >
-              {TEMPLATE_COPY.assign.action}
+              {t('trainer.templates.assign.action')}
             </Button>
           </View>
         }
@@ -207,7 +209,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
             className="flex-row items-center gap-2 rounded-control bg-surface-sunken px-3 py-2"
           >
             <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
-              {COPY.saveFailed}
+              {t('trainer.templates.editor.saveFailed')}
             </Text>
             <PressableScale
               testID="template-editor-retry"
@@ -216,7 +218,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
               className="min-h-11 justify-center px-2"
             >
               <Text className="text-callout font-semibold text-brand">
-                {COACHING_COPY.common.tryAgain}
+                {t('coaching.common.tryAgain')}
               </Text>
             </PressableScale>
           </View>
@@ -227,13 +229,15 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
             testID="template-editor-outdated"
             className="gap-2 rounded-card border border-separator bg-surface p-4"
           >
-            <Text className="text-subhead text-label">{TEMPLATE_COPY.update.banner(outdated)}</Text>
+            <Text className="text-subhead text-label">
+              {t('trainer.templates.update.banner', { count: outdated })}
+            </Text>
             <Button
               testID="template-editor-update"
               variant="outline"
               onPress={() => setUpdateOpen(true)}
             >
-              {TEMPLATE_COPY.update.action}
+              {t('trainer.templates.update.action')}
             </Button>
           </View>
         ) : null}
@@ -241,10 +245,10 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         <View className="gap-1">
           <Input
             testID="template-editor-name"
-            label={COPY.name}
+            label={t('trainer.templates.editor.name')}
             value={draft.name}
             maxLength={TRAINER_MODE_LIMITS.templateNameMaxChars}
-            placeholder={COPY.namePlaceholder}
+            placeholder={t('trainer.templates.editor.namePlaceholder')}
             onChangeText={(name) => dispatch({ type: 'renameRoutine', name })}
             {...DONE_FIELD_PROPS}
           />
@@ -253,7 +257,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
               testID="template-editor-name-needed"
               className="text-caption text-label-secondary"
             >
-              {COPY.nameRequired}
+              {t('trainer.templates.editor.nameRequired')}
             </Text>
           ) : null}
         </View>
@@ -261,14 +265,18 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         <ListSection>
           <ListRow
             testID="template-editor-type"
-            title={COPY.workoutType}
-            value={day?.workoutType ? workoutTypeLabel(day.workoutType) : COPY.noWorkoutType}
+            title={t('trainer.templates.editor.workoutType')}
+            value={
+              day?.workoutType
+                ? workoutTypeLabel(day.workoutType)
+                : t('trainer.templates.editor.noWorkoutType')
+            }
             onPress={() => setTypeOpen(true)}
           />
         </ListSection>
 
         <Text testID="template-editor-curated" className="text-caption text-label-secondary">
-          {COPY.curatedOnly}
+          {t('trainer.templates.editor.curatedOnly')}
         </Text>
 
         {day ? (
@@ -287,7 +295,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         {assignments.length > 0 ? (
           <View testID="template-editor-assigned" className="gap-2">
             <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-              {TEMPLATE_COPY.library.assigned(assignments.length)}
+              {templateAssignedText(tr, assignments.length)}
             </Text>
             <ListSection>
               {assignments.map((a) => (
@@ -295,7 +303,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
                   key={a.clientId}
                   testID={`template-editor-assigned-${a.clientId}`}
                   title={a.clientName}
-                  subtitle={`${a.dayName} · ${templateAssignmentStatusText(a)}`}
+                  subtitle={`${a.dayName} · ${templateAssignmentStatusLabel(tr, a)}`}
                   onPress={() => router.push(`/trainer/${a.clientId}`)}
                 />
               ))}
@@ -308,11 +316,11 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         testID="template-editor-type-picker"
         visible={typeOpen}
         onClose={() => setTypeOpen(false)}
-        title={COPY.workoutType}
+        title={t('trainer.templates.editor.workoutType')}
         initial={day?.workoutType ?? null}
         includeStrength
         includeRest
-        restLabel={COPY.noWorkoutType}
+        restLabel={t('trainer.templates.editor.noWorkoutType')}
         onPick={(workoutType) => {
           dispatch({ type: 'setWorkoutType', dayKey: TEMPLATE_DAY_KEY, workoutType });
           setTypeOpen(false);
@@ -327,7 +335,11 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         curatedOnly
         excludeIds={exercises.map((e) => e.exerciseId)}
         preferSwapGroup={preferSwapGroup}
-        title={picker?.mode === 'swap' ? 'Swap exercise' : 'Add exercise'}
+        title={
+          picker?.mode === 'swap'
+            ? t('trainer.templates.editor.swapExercise')
+            : t('trainer.templates.editor.addExercise')
+        }
         onPick={(exercise) => {
           if (!picker) return;
           if (picker.mode === 'add') {
@@ -363,7 +375,7 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         <ListSection>
           <ListRow
             testID="template-editor-delete"
-            title={COPY.delete}
+            title={t('trainer.templates.editor.delete')}
             destructive
             accessory="none"
             onPress={() => {
@@ -378,10 +390,10 @@ export function TemplateEditorScreen({ templateId: initialId }: { templateId: st
         testID="template-editor-delete-confirm"
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title={COPY.deleteTitle}
-        body={COPY.deleteBody}
-        confirmLabel={COPY.delete}
-        cancelLabel="Cancel"
+        title={t('trainer.templates.editor.deleteTitle')}
+        body={t('trainer.templates.editor.deleteBody')}
+        confirmLabel={t('trainer.templates.editor.delete')}
+        cancelLabel={t('common.actions.cancel')}
         destructive
         busy={remove.isPending}
         error={remove.error ? userFacingErrorMessage(remove.error) : null}

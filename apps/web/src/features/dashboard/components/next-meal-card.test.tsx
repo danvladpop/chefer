@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { fakeSlotFlow } from '@/features/tracker/lib/slot-flow.fixture';
 import { capture } from '@/lib/analytics';
+import { I18nProvider } from '@/lib/i18n';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HERO_LOGGED_HOLD_MS } from '@chefer/utils';
+import { HERO_LOGGED_HOLD_MS, setFormatLocale } from '@chefer/utils';
 import { NextMealCard } from './next-meal-card';
 
 // P2-2: Today logs the planned meal in one tap through tracker.logRecipe.
@@ -234,5 +235,40 @@ describe('NextMealCard photo (F3)', () => {
       />,
     );
     expect(screen.getByRole('img', { name: 'Lentil Curry' }).getAttribute('src')).toBe(url);
+  });
+});
+
+describe('NextMealCard — Romanian (lane J)', () => {
+  afterEach(() => setFormatLocale(null));
+
+  it('words the chips, size line, actions and logged line in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={['ro-RO']}>
+        <NextMealCard meal={{ ...MEAL, portion: 1.5 }} isTomorrow={false} />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('Următoarea masă')).toBeTruthy();
+    expect(screen.getByText('Cină')).toBeTruthy();
+    expect(screen.getByText('40 min')).toBeTruthy();
+    expect(screen.getByText('700 kcal · 1½×')).toBeTruthy();
+    expect(screen.getByTestId('today-ate-this').textContent).toContain('Am mâncat asta');
+    expect(screen.getByText('Gătește')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Deschide Lentil Curry' })).toBeTruthy();
+    act(() => mocks.onSuccess?.({ rebalance: null }));
+    expect(screen.getByTestId('today-logged-status').textContent).toBe(
+      'Ai înregistrat Lentil Curry.Modifică în ziua completă',
+    );
+    expect(screen.getByTestId('today-ate-this').textContent).toContain('Înregistrat ✓');
+    expect(screen.getByTestId('today-undo-logged').textContent).toBe('Anulează');
+  });
+
+  it('reads "Mâine" and offers the recipe for tomorrow’s meal', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={['ro-RO']}>
+        <NextMealCard meal={MEAL} isTomorrow />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('Mâine')).toBeTruthy();
+    expect(screen.getByText('Vezi rețeta')).toBeTruthy();
   });
 });

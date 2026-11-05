@@ -7,6 +7,7 @@ import type { GymBootstrap } from '@chefer/types';
 import { SegmentedControl, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { ShellTopBar } from '../../shell/shell-chrome';
 import { useShellV2 } from '../../shell/shell-store';
@@ -22,8 +23,8 @@ import {
 import { gymBootstrapQueryKey, gymBootstrapQueryOptions } from '../use-gym-bootstrap';
 
 const OPTIONS = [
-  { value: 'food', label: 'Food', testID: 'mode-switch-food' },
-  { value: 'gym', label: 'Gym', testID: 'mode-switch-gym' },
+  { value: 'food', labelKey: 'nav.modes.food', testID: 'mode-switch-food' },
+  { value: 'gym', labelKey: 'nav.modes.gym', testID: 'mode-switch-gym' },
 ] as const;
 
 /** Wait at most this long for a first bootstrap before giving up on the setup check. */
@@ -70,6 +71,8 @@ function RouteDerivedModeSwitch({ className }: { className?: string }) {
 
 function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode }) {
   const colors = useThemeColors();
+  const { t } = useT();
+  const options = OPTIONS.map(({ labelKey, ...option }) => ({ ...option, label: t(labelKey) }));
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
 
@@ -139,9 +142,9 @@ function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode
     <View className={cn('flex-row items-center justify-between', className)}>
       <SegmentedControl
         testID="mode-switch"
-        accessibilityLabel="App mode"
+        accessibilityLabel={t('nav.appMode')}
         size="xs"
-        options={OPTIONS}
+        options={options}
         value={mode}
         onChange={onChange}
         className="min-w-36"
@@ -150,7 +153,7 @@ function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode
         <Pressable
           testID="mode-switch-settings"
           accessibilityRole="button"
-          accessibilityLabel="Settings"
+          accessibilityLabel={t('nav.settings')}
           onPress={openSettings}
           className="h-11 w-11 items-center justify-center"
         >

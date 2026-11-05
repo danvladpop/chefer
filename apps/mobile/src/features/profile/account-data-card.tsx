@@ -13,11 +13,11 @@ import {
   DATA_EXPORT_COPY as EXPORT_COPY,
   exportErrorMessage,
   exportSizeBucket,
-  PROGRESS_PHOTOS_COPY,
   todayIn,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
+import { useT } from '../../lib/i18n';
 import { canShareBinaryFiles, shareExportFile, ZIP_MIME } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
@@ -40,11 +40,15 @@ import { TrainButton } from '../shell/train/train-button';
 // 11 Oct restyle: the shell's card, named text styles and colour roles (the
 // delete sheet keeps the kit's Sheet buttons).
 
+/** The five "Deleted for good" lines (`today.settings.account.delete.deleted.*`). */
+const DELETED_LINES = ['profile', 'plans', 'recipes', 'workouts', 'household'] as const;
+
 function jsonFilename(): string {
   return `chefer-export-${todayIn(deviceTimeZone())}.json`;
 }
 
 export function AccountDataCard() {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { show } = useSnackbar();
   const [exporting, setExporting] = useState(false);
@@ -79,9 +83,14 @@ export function AccountDataCard() {
         }
       }
       // UX-ACC-22: only when the share sheet was actually used — a cancel is silence.
-      if (shared) show({ message: EXPORT_COPY.ready, tone: 'success' });
+      if (shared) show({ message: t('today.settings.account.export.ready'), tone: 'success' });
     } catch (err) {
-      setExportError(exportErrorMessage(err));
+      // exportErrorMessage() tells the rate limit apart; the words are the catalog's.
+      setExportError(
+        exportErrorMessage(err) === EXPORT_COPY.tooSoon
+          ? t('today.settings.account.export.tooSoon')
+          : t('today.settings.account.export.failed'),
+      );
     } finally {
       setExporting(false);
     }
@@ -97,23 +106,23 @@ export function AccountDataCard() {
           accessibilityRole="header"
           className="w-full min-w-0 text-headline font-semibold text-label"
         >
-          Your data
+          {t('today.settings.account.title')}
         </Text>
         {/* UX-ACC-27: full-width + min-w-0 so iOS wraps instead of clipping mid-word. */}
         <Text
           testID="profile-your-data-copy"
           className="w-full min-w-0 text-subhead text-label-secondary"
         >
-          {EXPORT_COPY.intro}
+          {t('today.settings.account.export.intro')}
         </Text>
         <Text className="w-full min-w-0 text-caption text-label-tertiary">
-          {PROGRESS_PHOTOS_COPY.exportNote}
+          {t('today.photos.exportNote')}
         </Text>
       </View>
       <View className="gap-2">
         <TrainButton
           testID="profile-download-data"
-          label={EXPORT_COPY.button}
+          label={t('today.settings.account.export.button')}
           variant="outline"
           icon="share"
           loading={exporting}
@@ -121,7 +130,7 @@ export function AccountDataCard() {
         />
         <TrainButton
           testID="profile-sign-out"
-          label="Sign out"
+          label={t('today.settings.account.signOut')}
           variant="outline"
           icon="signOut"
           loading={signOutAction.isPending}
@@ -129,7 +138,7 @@ export function AccountDataCard() {
         />
         <TrainButton
           testID="profile-delete-account"
-          label={COPY.button}
+          label={t('today.settings.account.delete.button')}
           variant="danger"
           icon="trash"
           className="border border-separator bg-surface"
@@ -144,6 +153,7 @@ export function AccountDataCard() {
 }
 
 function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { t } = useT();
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const confirmRef = useRef<TextInput>(null);
@@ -225,7 +235,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
     <Sheet
       visible={visible}
       onClose={close}
-      title={COPY.title}
+      title={t('today.settings.account.delete.title')}
       testID="delete-account"
       footer={
         <View className="gap-2">
@@ -246,40 +256,56 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
               loading={deleteMutation.isPending}
               onPress={submitDelete}
             >
-              {COPY.submit}
+              {t('today.settings.account.delete.submit')}
             </Button>
           )}
           <Button testID="delete-account-cancel" variant="outline" size="lg" onPress={close}>
-            {COPY.cancel}
+            {t('today.settings.account.delete.cancel')}
           </Button>
         </View>
       }
     >
       <View className="gap-3">
-        <Text className="text-headline font-semibold text-label">{COPY.permanent}</Text>
+        <Text className="text-headline font-semibold text-label">
+          {t('today.settings.account.delete.permanent')}
+        </Text>
         <View testID="delete-account-summary" className="gap-1">
-          <Text className="text-subhead text-label">{COPY.listHeading}</Text>
-          {COPY.deleted.map((line) => (
+          <Text className="text-subhead text-label">
+            {t('today.settings.account.delete.listHeading')}
+          </Text>
+          {DELETED_LINES.map((line) => (
             <View key={line} className="flex-row gap-2">
               <Text className="text-subhead text-label-secondary">•</Text>
-              <Text className="min-w-0 flex-1 text-subhead text-label-secondary">{line}</Text>
+              <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
+                {t(`today.settings.account.delete.deleted.${line}`)}
+              </Text>
             </View>
           ))}
-          <Text className="text-caption text-label-tertiary">{COPY.backups}</Text>
-          <Text className="text-caption text-label-tertiary">{COPY.progressPhotos}</Text>
+          <Text className="text-caption text-label-tertiary">
+            {t('today.settings.account.delete.backups')}
+          </Text>
+          <Text className="text-caption text-label-tertiary">
+            {t('today.settings.account.delete.progressPhotos')}
+          </Text>
         </View>
         {oauthOnly ? (
           <View testID="delete-account-reauth" className="gap-1">
-            <Text className="text-subhead font-semibold text-label">{COPY.reauthTitle}</Text>
-            <Text className="text-subhead text-label-secondary">{COPY.reauthHint}</Text>
+            <Text className="text-subhead font-semibold text-label">
+              {t('today.settings.account.delete.reauthTitle')}
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              {t('today.settings.account.delete.reauthHint')}
+            </Text>
           </View>
         ) : (
           <>
-            <Text className="text-subhead font-semibold text-label">{COPY.passwordLabel}</Text>
+            <Text className="text-subhead font-semibold text-label">
+              {t('today.settings.account.delete.passwordLabel')}
+            </Text>
             <PasswordInput
               ref={passwordRef}
               testID="delete-account-password"
-              accessibilityLabel={COPY.passwordLabel}
+              accessibilityLabel={t('today.settings.account.delete.passwordLabel')}
               // R-17: this is a confirmation field for an account that is about to
               // disappear — keep iOS from offering to save its password.
               autoComplete="off"
@@ -308,7 +334,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
         {email ? (
           resetMutation.isSuccess ? (
             <Text testID="delete-account-reset-sent" className="text-subhead text-label-secondary">
-              {COPY.resetSentTo} {email}. {COPY.resetSentHint}
+              {t('today.settings.account.delete.resetSent', { email })}
             </Text>
           ) : (
             <Pressable
@@ -319,7 +345,9 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
               className="min-h-11 justify-center self-start"
             >
               <Text className="text-subhead font-semibold text-brand">
-                {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
+                {resetMutation.isPending
+                  ? t('today.settings.account.delete.resetSending')
+                  : t('today.settings.account.delete.forgotPassword')}
               </Text>
             </Pressable>
           )
@@ -329,14 +357,18 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
             {userFacingErrorMessage(resetMutation.error)}
           </Text>
         )}
-        <Text className="text-subhead font-semibold text-label">{COPY.confirmLabel}</Text>
+        <Text className="text-subhead font-semibold text-label">
+          {t('today.settings.account.delete.confirmLabel', { word: COPY.confirmWord })}
+        </Text>
         {/* UX-ACC-26: `Input` scrolls itself clear of the keyboard inside the
             Sheet; the footer buttons sit in the sheet's persist-taps footer, so
             the first tap on Cancel / Delete lands even with the keyboard up. */}
         <Input
           ref={confirmRef}
           testID="delete-account-confirm-text"
-          accessibilityLabel={COPY.confirmLabel}
+          accessibilityLabel={t('today.settings.account.delete.confirmLabel', {
+            word: COPY.confirmWord,
+          })}
           autoCapitalize="characters"
           autoCorrect={false}
           // R-03: "Done" closes the keyboard so the footer button is one tap away.
@@ -351,10 +383,10 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   );
 }
 
-const REAUTH_LABEL: Record<SocialProvider, string> = {
-  APPLE: COPY.reauthApple,
-  GOOGLE: COPY.reauthGoogle,
-};
+const REAUTH_LABEL = {
+  APPLE: 'today.settings.account.delete.reauthApple',
+  GOOGLE: 'today.settings.account.delete.reauthGoogle',
+} as const satisfies Record<SocialProvider, string>;
 
 const REAUTH_KEY: Record<SocialProvider, 'apple' | 'google'> = {
   APPLE: 'apple',
@@ -378,6 +410,7 @@ function ReauthButtons({
   onCredential: (reauth: { provider: SocialProvider; idToken: string; nonce?: string }) => void;
   onError: (message: string | null) => void;
 }) {
+  const { t } = useT();
   const providers = useSocialProviders();
   const [requesting, setRequesting] = useState<SocialProvider | null>(null);
   const usable = identities.filter((i) => providers[REAUTH_KEY[i.provider]] !== null);
@@ -402,7 +435,7 @@ function ReauthButtons({
         testID="delete-account-reauth-unavailable"
         className="text-subhead text-label-secondary"
       >
-        {REAUTH_UNAVAILABLE}
+        {t('today.settings.account.delete.reauthUnavailableApp')}
       </Text>
     );
   }
@@ -413,7 +446,7 @@ function ReauthButtons({
           testID="delete-account-reauth-type-first"
           className="text-subhead text-label-secondary"
         >
-          {COPY.reauthTypeFirst}
+          {t('today.settings.account.delete.reauthTypeFirst', { word: COPY.confirmWord })}
         </Text>
       )}
       {usable.map((identity) => (
@@ -422,17 +455,17 @@ function ReauthButtons({
           testID={`delete-account-reauth-${identity.provider.toLowerCase()}`}
           variant="destructive"
           size="lg"
-          accessibilityLabel={`${REAUTH_LABEL[identity.provider]} (${SOCIAL_PROVIDER_LABELS[identity.provider]})`}
+          accessibilityLabel={t('today.settings.account.delete.reauthA11y', {
+            action: t(REAUTH_LABEL[identity.provider]),
+            provider: SOCIAL_PROVIDER_LABELS[identity.provider],
+          })}
           disabled={!confirmed || pending || requesting !== null}
           loading={requesting === identity.provider || (pending && requesting === null)}
           onPress={() => void start(identity.provider)}
         >
-          {REAUTH_LABEL[identity.provider]}
+          {t(REAUTH_LABEL[identity.provider])}
         </Button>
       ))}
     </>
   );
 }
-
-const REAUTH_UNAVAILABLE =
-  'We can’t open your connected sign-in on this device. Set a password with the reset email above, then come back to delete.';

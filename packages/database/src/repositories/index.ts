@@ -484,6 +484,14 @@ export {
 } from './recipe-image.repository';
 
 export {
+  RecipeTranslationRepository,
+  recipeTranslationRepository,
+  type IRecipeTranslationRepository,
+  type TranslatableRecipe,
+  type UpsertRecipeTranslationData,
+} from './recipe-translation.repository';
+
+export {
   AiUsageRepository,
   aiUsageRepository,
   type IAiUsageRepository,

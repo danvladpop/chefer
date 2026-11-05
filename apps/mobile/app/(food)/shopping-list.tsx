@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useIsFocused } from 'expo-router';
-import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
+import type { ListPersonDto } from '@chefer/types';
 import {
   Button,
   Card,
@@ -15,7 +15,6 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
-  checkedForListHeaderText,
   cn,
   defaultWeekOffset,
   deviceLocale,
@@ -25,11 +24,8 @@ import {
   formatPriceRange,
   getWeekStartDate,
   isConvertedCurrency,
-  labelCaveatCompactText,
   parseCustomItemInput,
   perPortionCost,
-  shoppingProvenanceText,
-  shoppingWindowLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -37,7 +33,7 @@ import { PartnerBanner } from '../../src/features/household/sharing/partner-bann
 import { useHouseholdSharing } from '../../src/features/household/sharing/use-household-sharing';
 import { LockedFeatureCard } from '../../src/features/premium/locked-feature-card';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
+import { CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
 import { CategoryHeader } from '../../src/features/shopping-list/category-header';
 import {
   isAisleExpanded,
@@ -48,6 +44,13 @@ import {
 import { ItemThumb } from '../../src/features/shopping-list/item-thumb';
 import { isPendingItem, withPendingItems } from '../../src/features/shopping-list/pending-item';
 import { ShareListSheet } from '../../src/features/shopping-list/share-list-sheet';
+import {
+  addedByText,
+  checkedByText,
+  shopCategoryLabel,
+  shopProvenanceText,
+  shopWindowText,
+} from '../../src/features/shopping-list/shop-copy';
 import { useSharedListSync } from '../../src/features/shopping-list/use-shared-list-sync';
 import {
   useCheckedWithPending,
@@ -59,6 +62,7 @@ import { useIsOnline } from '../../src/hooks/use-is-online';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnits } from '../../src/hooks/use-units';
 import { track } from '../../src/lib/analytics';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
@@ -69,6 +73,7 @@ import { trpc } from '../../src/lib/trpc';
 
 export default function ShoppingListScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   // T-08.1 (UX-08 AC1): same default as Plan — next week Fri 15:00–Sun,
   // else this week — so Plan and Shop always agree on which week opens.
   const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
@@ -166,7 +171,9 @@ export default function ShoppingListScreen() {
     meta: { silent: true },
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
     onError: (err) =>
-      snackbar.show({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+      snackbar.show({
+        message: t('plan.shopping.undoFailed', { reason: userFacingErrorMessage(err) }),
+      }),
   });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
@@ -181,8 +188,8 @@ export default function ShoppingListScreen() {
       {
         onSuccess: () =>
           snackbar.show({
-            message: `Removed ${item.ingredientName}`,
-            actionLabel: 'Undo',
+            message: t('plan.shopping.removed', { name: item.ingredientName }),
+            actionLabel: t('plan.shopping.undo'),
             onAction: () =>
               undoRemoveMutation.mutate({
                 planId,
@@ -208,15 +215,26 @@ export default function ShoppingListScreen() {
     if (!sharing.shared) return null;
     if (checked) {
       const by = checkedBy[item.key] ?? item.checkedBy;
-      if (by) return HOUSEHOLD_SHARING_COPY.checkedBy(by);
+      if (by) return checkedByText(t, by);
     }
-    return item.addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(item.addedBy) : null;
+    return item.addedBy ? addedByText(t, item.addedBy) : null;
   };
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
+  // UX-PLAN-07: the total covers the same days as the list ("… · Fri–Sun").
+  const windowText = shopWindowText(t, weekList?.fromDayOfWeek);
+  const withWindow = (text: string) =>
+    windowText ? t('plan.shopping.withWindow', { text, window: windowText }) : text;
+  // UX-SHOP-02: a row added a moment ago says it is not saved yet.
+  const pendingText = (text: string, pending: boolean) =>
+    !pending
+      ? text
+      : online
+        ? t('plan.shopping.withSaving', { text })
+        : t('plan.shopping.withNotSaved', { text });
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
     category: cat,
-    label: CATEGORY_LABELS[cat] ?? cat,
+    label: shopCategoryLabel(t, cat),
     items: items.filter((i) => i.category === cat),
   })).filter((g) => g.items.length > 0);
 
@@ -266,7 +284,7 @@ export default function ShoppingListScreen() {
       <Screen>
         <ModeSwitch className="mt-3" />
         <ErrorState
-          title="Couldn't load your shopping list"
+          title={t('plan.shopping.loadError')}
           icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetchList()}
         />
@@ -286,21 +304,30 @@ export default function ShoppingListScreen() {
           <View className="flex-row items-center justify-between gap-2">
             <View className="min-w-0 flex-1">
               <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-                {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
+                {weekOffset === 0
+                  ? t('plan.shopping.weeks.thisWeek')
+                  : weekOffset === 1
+                    ? t('plan.shopping.weeks.nextWeek')
+                    : t('plan.shopping.weeks.pastWeek')}
               </Text>
               <Text testID="shopping-title" variant="title">
-                Shop
+                {t('plan.shopping.title')}
               </Text>
               <Text variant="muted" className="text-xs">
-                Week of {formatDate(weekStart, 'long')}
-                {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
+                {items.length > 0
+                  ? t('plan.shopping.weekOfWithProgress', {
+                      date: formatDate(weekStart, 'long'),
+                      checked: String(checkedCount),
+                      total: String(items.length),
+                    })
+                  : t('plan.shopping.weekOf', { date: formatDate(weekStart, 'long') })}
               </Text>
             </View>
             <View className="flex-row gap-1">
               <Pressable
                 testID="share-list"
                 accessibilityRole="button"
-                accessibilityLabel="Share the list"
+                accessibilityLabel={t('plan.shopping.shareList')}
                 accessibilityState={{ disabled: items.length === 0 }}
                 disabled={items.length === 0}
                 onPress={() => setShareOpen(true)}
@@ -318,7 +345,7 @@ export default function ShoppingListScreen() {
               <Pressable
                 testID="week-prev"
                 accessibilityRole="button"
-                accessibilityLabel="Previous week"
+                accessibilityLabel={t('plan.shopping.previousWeek')}
                 disabled={weekOffset <= -52}
                 onPress={() => setWeekOffset((o) => o - 1)}
                 className="h-11 w-11 items-center justify-center rounded-full border border-border"
@@ -328,7 +355,7 @@ export default function ShoppingListScreen() {
               <Pressable
                 testID="week-next"
                 accessibilityRole="button"
-                accessibilityLabel="Next week"
+                accessibilityLabel={t('plan.shopping.nextWeek')}
                 disabled={weekOffset >= 1}
                 onPress={() => setWeekOffset((o) => o + 1)}
                 className={cn(
@@ -344,7 +371,7 @@ export default function ShoppingListScreen() {
             plan made mid-week lists only the remaining days, F-PM-3). Full
             width, under the navigator, so "Mon–Sun" never wraps mid-range. */}
           <Text testID="shopping-provenance" variant="muted" className="text-xs">
-            {shoppingProvenanceText(weekList?.fromDayOfWeek)}
+            {shopProvenanceText(t, weekList?.fromDayOfWeek)}
           </Text>
         </View>
 
@@ -360,9 +387,7 @@ export default function ShoppingListScreen() {
             className="flex-row items-center gap-1.5 self-start rounded-full border border-attention/30 bg-attention/10 px-3 py-1"
           >
             <Ionicons name="cloud-offline-outline" size={13} color={colors.attention} />
-            <Text className="text-xs font-medium text-attention">
-              Offline · changes sync when you&apos;re back
-            </Text>
+            <Text className="text-xs font-medium text-attention">{t('plan.shopping.offline')}</Text>
           </View>
         )}
 
@@ -372,7 +397,7 @@ export default function ShoppingListScreen() {
           <View testID="shopping-safety-line" className="flex-row items-center gap-1.5">
             <Ionicons name="shield-checkmark-outline" size={13} color={colors.brand} />
             <Text className="text-xs font-medium text-primary">
-              {checkedForListHeaderText(items.length)}
+              {t('plan.shopping.checkedForTable', { count: items.length })}
             </Text>
           </View>
         )}
@@ -386,18 +411,21 @@ export default function ShoppingListScreen() {
               className="rounded-full border border-border bg-surface-sunken px-3 py-1"
               accessibilityLabel={
                 isConvertedCurrency(currency)
-                  ? `Estimated total about ${formatMoney(weekList.estimatedTotalEur, currency)}, converted from euros at an approximate rate`
+                  ? t('plan.shopping.estTotalLabelConverted', {
+                      price: formatMoney(weekList.estimatedTotalEur, currency),
+                    })
                   : undefined
               }
             >
               <Text testID="shopping-total" className="text-xs font-medium text-label-secondary">
-                Est. total{' '}
-                {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
-                  formatApproxPriceHint(weekList.estimatedTotalEur, currency)}
                 {/* UX-PLAN-07: the total covers the same days as the list. */}
-                {shoppingWindowLabel(weekList.fromDayOfWeek)
-                  ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
-                  : ''}
+                {withWindow(
+                  t('plan.shopping.estTotal', {
+                    price:
+                      formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
+                      formatApproxPriceHint(weekList.estimatedTotalEur, currency),
+                  }),
+                )}
               </Text>
             </View>
             {/* Who the quantities are for (P2-3, F-PM-5): a premium
@@ -405,11 +433,13 @@ export default function ShoppingListScreen() {
             {weekList.portions != null && (
               <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
                 <Text testID="shopping-portions" className="text-xs font-medium text-primary">
-                  For {weekList.portions} portions
-                  {` · ${formatApproxPriceHint(
-                    perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
-                    currency,
-                  )} each`}
+                  {t('plan.shopping.forPortionsEach', {
+                    count: weekList.portions,
+                    price: formatApproxPriceHint(
+                      perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
+                      currency,
+                    ),
+                  })}
                 </Text>
               </View>
             )}
@@ -419,7 +449,7 @@ export default function ShoppingListScreen() {
                   testID="shopping-one-portion"
                   className="text-xs font-medium text-label-secondary"
                 >
-                  Sized for 1 portion
+                  {t('plan.shopping.sizedForOne')}
                 </Text>
               </View>
             )}
@@ -430,7 +460,7 @@ export default function ShoppingListScreen() {
             list is sized for 1 and a lock card offers the table's portions. */}
         {firstScaledWeek && weekList?.portions != null && (
           <Text testID="shopping-first-week" className="text-xs font-medium text-primary">
-            Sized for your table of {weekList.portions} — free for your first week
+            {t('plan.shopping.firstScaledWeek', { count: weekList.portions })}
           </Text>
         )}
         {isPremium === false &&
@@ -444,8 +474,8 @@ export default function ShoppingListScreen() {
               compact
               job={
                 tablePortions != null && tablePortions > 1
-                  ? `Keep portions for your table of ${tablePortions}`
-                  : 'Keep portions right for your table'
+                  ? t('plan.shopping.lockedJobTable', { count: tablePortions })
+                  : t('plan.shopping.lockedJob')
               }
             />
           )}
@@ -455,13 +485,13 @@ export default function ShoppingListScreen() {
           <Card testID="shopping-empty" className="items-center border-dashed py-12">
             <Ionicons name="cart-outline" size={40} color={colors.labelTertiary} />
             <Text className="mb-1 mt-3 font-semibold text-label-secondary">
-              No meal plan for this week
+              {t('plan.shopping.empty.title')}
             </Text>
             <Text variant="muted" className="mb-4 text-center text-sm">
-              Generate a meal plan to get a personalised shopping list.
+              {t('plan.shopping.empty.body')}
             </Text>
             <Link href="/meal-plan" asChild>
-              <Button>Go to Meal Planner</Button>
+              <Button>{t('plan.shopping.empty.cta')}</Button>
             </Link>
           </Card>
         ) : (
@@ -476,7 +506,7 @@ export default function ShoppingListScreen() {
                 onFocus={() => scrollFieldIntoView(addItemInputRef.current)}
                 onSubmitEditing={handleAddItem}
                 placeholder={units.addItemPlaceholder}
-                accessibilityLabel="Add an item to your shopping list"
+                accessibilityLabel={t('plan.shopping.add.inputLabelMobile')}
                 placeholderTextColor={colors.labelTertiary}
                 returnKeyType="done"
                 submitBehavior="blurAndSubmit"
@@ -485,7 +515,7 @@ export default function ShoppingListScreen() {
               <Pressable
                 testID="add-item-submit"
                 accessibilityRole="button"
-                accessibilityLabel="Add item"
+                accessibilityLabel={t('plan.shopping.add.buttonLabelShort')}
                 onPress={handleAddItem}
                 className="h-11 w-11 items-center justify-center rounded-md bg-primary"
               >
@@ -558,16 +588,18 @@ export default function ShoppingListScreen() {
                                   {item.labelCheck && item.labelCheck.length > 0 && (
                                     <LabelCaveat
                                       testID={`shop-item-${item.key}-label`}
-                                      text={labelCaveatCompactText()}
+                                      text={t('plan.shopping.labelCaveat')}
                                       compact
                                     />
                                   )}
                                 </View>
                                 <Text numberOfLines={1} className="text-xs text-label-tertiary">
-                                  {quantityLabel}
-                                  {item.estimatedPriceEur != null &&
-                                    ` · ${formatApproxPriceHint(item.estimatedPriceEur, currency)}`}
-                                  {pending && (online ? ' · Saving…' : ' · Not saved yet')}
+                                  {pendingText(
+                                    item.estimatedPriceEur != null
+                                      ? `${quantityLabel} · ${formatApproxPriceHint(item.estimatedPriceEur, currency)}`
+                                      : quantityLabel,
+                                    pending,
+                                  )}
                                 </Text>
                                 {who ? (
                                   <Text
@@ -595,7 +627,9 @@ export default function ShoppingListScreen() {
                             {item.isCustom && !pending ? (
                               <Pressable
                                 accessibilityRole="button"
-                                accessibilityLabel={`Remove ${item.ingredientName}`}
+                                accessibilityLabel={t('plan.shopping.removeItem', {
+                                  name: item.ingredientName,
+                                })}
                                 disabled={removeItemMutation.isPending}
                                 onPress={() => {
                                   if (weekList.planId) {

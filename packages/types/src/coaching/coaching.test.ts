@@ -8,6 +8,7 @@ import {
   COACHING_LIMITS,
   COACHING_RETENTION,
   coachingConsentLabel,
+  coachingConsentLabelKey,
   createClientRoutineInputSchema,
   createInviteInputSchema,
   FALLBACK_TRAINER_NAME,
@@ -291,6 +292,19 @@ describe('coaching data sharing (lane K1)', () => {
     expect(coachingConsentLabel(row(['FOOD'], true))).toBe('Food log shared with your trainer');
     expect(coachingConsentLabel(row(['WEIGHT'], false))).toBe('Weight no longer shared');
     expect(coachingConsentLabel({ kind: 'AI', granted: true, providers: [] })).toBeNull();
+  });
+
+  it('gives the same rows as catalog keys', () => {
+    const row = (providers: string[], granted: boolean) => ({
+      kind: 'COACHING_SHARING',
+      granted,
+      providers,
+    });
+    expect(coachingConsentLabelKey(row([], false))).toBe('coaching.consentHistory.withdrawn');
+    expect(coachingConsentLabelKey(row(['FOOD'], true))).toBe(
+      'coaching.consentHistory.FOOD.granted',
+    );
+    expect(coachingConsentLabelKey({ kind: 'AI', granted: true, providers: [] })).toBeNull();
   });
 
   it('setSharing needs at least one switch', () => {

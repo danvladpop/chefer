@@ -6,15 +6,10 @@ import { ClientList } from '@/features/trainer/components/ClientList';
 import { InviteSheet } from '@/features/trainer/components/InviteSheet';
 import { InvitesSection } from '@/features/trainer/components/InvitesSection';
 import { TrainerRequests } from '@/features/trainer/components/TrainerRequests';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Search, UserPlus } from 'lucide-react';
-import {
-  BOOKING_COPY,
-  COACHING_COPY,
-  COACHING_LIMITS,
-  TRAINER_MODE_COPY,
-  TRAINER_MODE_LIMITS,
-} from '@chefer/types';
+import { COACHING_LIMITS, TRAINER_MODE_LIMITS } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { filterClients, sortClients, type ClientSort } from '@chefer/utils';
 import { QueryError } from './QueryError';
@@ -25,9 +20,8 @@ import { QueryError } from './QueryError';
 // 8 clients) and sort, and the invites. Notices moved to Today and the
 // profile / turn-off to Trainer settings.
 
-const copy = TRAINER_MODE_COPY.clients;
-
 export function TrainerClients() {
+  const { t } = useT();
   const searchId = useId();
   const sortId = useId();
   const [inviting, setInviting] = useState(false);
@@ -43,15 +37,20 @@ export function TrainerClients() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+          <h1 className="font-serif text-2xl font-bold text-gray-900">
+            {t('trainer.clients.title')}
+          </h1>
           {clients.data && (
             <p className="text-sm text-gray-600" data-testid="trainer-clients-capacity">
-              {copy.capacity(rows.length, COACHING_LIMITS.maxActiveClients)}
+              {t('trainer.clients.capacity', {
+                n: rows.length,
+                count: COACHING_LIMITS.maxActiveClients,
+              })}
             </p>
           )}
         </div>
         <Button type="button" className="min-h-11" onClick={() => setInviting(true)}>
-          <UserPlus className="h-4 w-4" aria-hidden="true" /> {COACHING_COPY.trainer.invite}
+          <UserPlus className="h-4 w-4" aria-hidden="true" /> {t('coaching.trainer.invite')}
         </Button>
       </div>
 
@@ -68,7 +67,7 @@ export function TrainerClients() {
               {searchable && (
                 <div className="relative min-w-0 flex-1">
                   <label htmlFor={searchId} className="sr-only">
-                    {copy.search}
+                    {t('trainer.clients.search')}
                   </label>
                   <Search
                     className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -78,7 +77,7 @@ export function TrainerClients() {
                     id={searchId}
                     type="search"
                     value={query}
-                    placeholder={copy.search}
+                    placeholder={t('trainer.clients.search')}
                     autoComplete="off"
                     enterKeyHint="search"
                     onChange={(e) => setQuery(e.target.value)}
@@ -88,7 +87,7 @@ export function TrainerClients() {
               )}
               <div className="flex shrink-0 items-center gap-2">
                 <label htmlFor={sortId} className="text-sm font-medium text-gray-700">
-                  {copy.sortLabel}
+                  {t('trainer.clients.sortLabel')}
                 </label>
                 <select
                   id={sortId}
@@ -96,9 +95,9 @@ export function TrainerClients() {
                   onChange={(e) => setSort(e.target.value as ClientSort)}
                   className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-base focus:border-gray-400 focus:outline-none sm:text-sm"
                 >
-                  <option value="name">{copy.sortName}</option>
-                  <option value="lastWorkout">{copy.sortLastWorkout}</option>
-                  <option value="nextBooking">{BOOKING_COPY.today.nextBooking}</option>
+                  <option value="name">{t('trainer.clients.sortName')}</option>
+                  <option value="lastWorkout">{t('trainer.clients.sortLastWorkout')}</option>
+                  <option value="nextBooking">{t('trainer.bookings.today.nextBooking')}</option>
                 </select>
               </div>
             </div>
@@ -108,7 +107,7 @@ export function TrainerClients() {
               role="status"
               className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600"
             >
-              {copy.searchEmpty(query.trim())}
+              {t('trainer.clients.searchEmpty', { query: query.trim() })}
             </p>
           ) : (
             <ClientList clients={shown} />

@@ -16,7 +16,7 @@ import {
   type WeeklyEmailKind,
   type WeeklyEmailRecipient,
 } from '@chefer/database';
-import type { Translator } from '@chefer/i18n';
+import { monthsShort, type Translator } from '@chefer/i18n';
 import type { UserProfile } from '@chefer/types';
 import {
   bodyWeightInUnit,
@@ -94,26 +94,6 @@ export function mondayLocal(now: Date, offsetWeeks = 0): Date {
   monday.setHours(0, 0, 0, 0);
   return monday;
 }
-
-// common.monthsShort, in calendar order.
-const MONTH_KEYS = [
-  'jan',
-  'feb',
-  'mar',
-  'apr',
-  'may',
-  'jun',
-  'jul',
-  'aug',
-  'sep',
-  'oct',
-  'nov',
-  'dec',
-] as const;
-
-/** The twelve short month names in the reader's language. */
-export const monthsShort = (tr: Translator): string[] =>
-  MONTH_KEYS.map((key) => tr.t(`common.monthsShort.${key}`));
 
 /**
  * "22–28 Sep" ("22–28 sept."), or "29 Sep – 5 Oct" across a month boundary.

@@ -4,17 +4,17 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { QueryError } from '@/features/trainer-mode/components/QueryError';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { BOOKING_COPY, type BookingScope, type TrainerBookingDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { BookingScope, TrainerBookingDto } from '@chefer/types';
 import { Button, pressControl } from '@chefer/ui';
 import {
   addDaysLocal,
   bookingWeekRange,
   cn,
   deviceTimeZone,
-  formatDayWithWeekday,
-  formatShortDay,
   moveBookingPatch,
   newBookingSlot,
   scheduleWeekDates,
@@ -22,6 +22,7 @@ import {
   utcToZoned,
   weekStartOf,
 } from '@chefer/utils';
+import { dayLabel } from '../lib/schedule-layout';
 import { useInvalidateBookings, useNow, useOnline } from '../use-bookings';
 import { BookingEditor, type EditorTarget } from './BookingEditor';
 import { ScheduleGrid } from './ScheduleGrid';
@@ -33,7 +34,6 @@ import { ScopeSheet } from './ScopeChoice';
 // switching views is free. Cached data stays on screen offline with "Last
 // updated"; creating and moving need a connection.
 
-const copy = BOOKING_COPY.schedule;
 /** Not in the shared deck yet (reported to the parent). */
 type View = 'week' | 'day';
 
@@ -43,9 +43,12 @@ interface PendingMove {
   time: string;
 }
 
-function weekTitle(weekStart: string): string {
+function weekTitle(tr: Translator, weekStart: string): string {
   const end = addDaysLocal(weekStart, 6);
-  return `${formatShortDay(weekStart)} – ${formatShortDay(end)}`;
+  return tr.t('trainer.format.range', {
+    start: dayLabel(tr, weekStart, 'short'),
+    end: dayLabel(tr, end, 'short'),
+  });
 }
 
 function segmentCls(active: boolean) {
@@ -59,6 +62,8 @@ function segmentCls(active: boolean) {
 
 export function ScheduleView() {
   const router = useRouter();
+  const tr = useT();
+  const { t } = tr;
   const timeZone = useMemo(deviceTimeZone, []);
   const now = useNow();
   const zonedNow = utcToZoned(now, timeZone);
@@ -92,7 +97,7 @@ export function ScheduleView() {
 
   const move = (booking: TrainerBookingDto, date: string, time: string) => {
     if (!online) {
-      showAppToast({ message: copy.offline });
+      showAppToast({ message: t('trainer.bookings.schedule.offline') });
       return;
     }
     if (booking.seriesId) setPendingMove({ booking, date, time });
@@ -114,7 +119,9 @@ export function ScheduleView() {
   const dates = view === 'day' ? [anchor] : scheduleWeekDates(weekStart);
   const lastUpdated =
     !online && range.data && range.dataUpdatedAt > 0
-      ? copy.lastUpdated(utcToZoned(new Date(range.dataUpdatedAt), timeZone).time)
+      ? t('trainer.bookings.schedule.lastUpdated', {
+          time: utcToZoned(new Date(range.dataUpdatedAt), timeZone).time,
+        })
       : null;
   const live = bookings.filter((b) => !b.cancelledAt);
 
@@ -126,16 +133,18 @@ export function ScheduleView() {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+        <h1 className="font-serif text-2xl font-bold text-gray-900">
+          {t('trainer.bookings.schedule.title')}
+        </h1>
         <Button type="button" className="min-h-11" onClick={addBooking}>
-          <Plus className="h-4 w-4" aria-hidden="true" /> {copy.add}
+          <Plus className="h-4 w-4" aria-hidden="true" /> {t('trainer.bookings.schedule.add')}
         </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div
           role="group"
-          aria-label={copy.view}
+          aria-label={t('trainer.bookings.schedule.view')}
           className="flex rounded-full border bg-white p-0.5"
           data-testid="schedule-view-toggle"
         >
@@ -147,14 +156,20 @@ export function ScheduleView() {
               onClick={() => setView(v)}
               className={segmentCls(view === v)}
             >
-              {v === 'week' ? copy.week : copy.day}
+              {v === 'week'
+                ? t('trainer.bookings.schedule.week')
+                : t('trainer.bookings.schedule.day')}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label={view === 'day' ? copy.previousDay : copy.previousWeek}
+            aria-label={
+              view === 'day'
+                ? t('trainer.bookings.schedule.previousDay')
+                : t('trainer.bookings.schedule.previousWeek')
+            }
             onClick={() => setAnchor(addDaysLocal(anchor, -step))}
             className={cn(
               'flex h-11 w-11 items-center justify-center rounded-full text-gray-700 hover:bg-gray-100',
@@ -170,11 +185,15 @@ export function ScheduleView() {
             onClick={() => setAnchor(today)}
             disabled={view === 'day' ? anchor === today : weekStart === weekStartOf(today)}
           >
-            {copy.today}
+            {t('trainer.bookings.schedule.today')}
           </Button>
           <button
             type="button"
-            aria-label={view === 'day' ? copy.nextDay : copy.nextWeek}
+            aria-label={
+              view === 'day'
+                ? t('trainer.bookings.schedule.nextDay')
+                : t('trainer.bookings.schedule.nextWeek')
+            }
             onClick={() => setAnchor(addDaysLocal(anchor, step))}
             className={cn(
               'flex h-11 w-11 items-center justify-center rounded-full text-gray-700 hover:bg-gray-100',
@@ -189,19 +208,20 @@ export function ScheduleView() {
           aria-live="polite"
           data-testid="schedule-range-title"
         >
-          {view === 'day' ? formatDayWithWeekday(anchor) : weekTitle(weekStart)}
+          {view === 'day' ? dayLabel(tr, anchor) : weekTitle(tr, weekStart)}
         </h2>
       </div>
 
       {view === 'day' && (
         <div
           role="group"
-          aria-label={copy.days}
+          aria-label={t('trainer.bookings.schedule.days')}
           className="-mx-1 flex gap-1 overflow-x-auto px-1"
           data-testid="schedule-day-strip"
         >
           {scheduleWeekDates(weekStart).map((date) => {
-            const [weekday, day] = formatDayWithWeekday(date).split(' ');
+            const weekday = dayLabel(tr, date, 'weekday');
+            const day = Number(date.slice(8, 10));
             const count = live.filter((b) => utcToZoned(b.startsAt, timeZone).date === date).length;
             return (
               <button
@@ -209,7 +229,7 @@ export function ScheduleView() {
                 type="button"
                 aria-pressed={date === anchor}
                 aria-current={date === today ? 'date' : undefined}
-                aria-label={formatDayWithWeekday(date)}
+                aria-label={dayLabel(tr, date)}
                 onClick={() => setAnchor(date)}
                 className={cn(
                   'flex min-h-14 min-w-11 flex-1 flex-col items-center justify-center rounded-xl border px-2 text-xs',
@@ -237,7 +257,7 @@ export function ScheduleView() {
 
       {!online && (
         <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {copy.offline}
+          {t('trainer.bookings.schedule.offline')}
           {lastUpdated && <span className="block text-xs">{lastUpdated}</span>}
         </p>
       )}
@@ -251,7 +271,7 @@ export function ScheduleView() {
           {live.filter((b) => dates.includes(utcToZoned(b.startsAt, timeZone).date)).length ===
             0 && (
             <p className="text-sm text-gray-600" data-testid="schedule-empty">
-              {copy.empty}
+              {t('trainer.bookings.schedule.empty')}
             </p>
           )}
           <ScheduleGrid

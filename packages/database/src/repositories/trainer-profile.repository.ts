@@ -76,11 +76,16 @@ export interface ITrainerProfileRepository {
   /** Lane K4: the digest email's one-click unsubscribe. */
   setQuietDigestEmail(userId: string, on: boolean): Promise<boolean>;
   /** Lane K4: active trainers with the digest on, a confirmed address and no `email_sends` claim for (kind, date). */
-  listDigestRecipients(data: {
-    kind: string;
-    claimDate: Date;
-  }): Promise<
-    { userId: string; email: string; firstName: string | null; quietAfterDays: number }[]
+  listDigestRecipients(data: { kind: string; claimDate: Date }): Promise<
+    {
+      userId: string;
+      email: string;
+      firstName: string | null;
+      quietAfterDays: number;
+      /** ADR 0004: the email goes out in locale ?? deviceLocale ?? 'en'. */
+      locale: string | null;
+      deviceLocale: string | null;
+    }[]
   >;
 }
 
@@ -151,7 +156,7 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
       select: {
         userId: true,
         quietAfterDays: true,
-        user: { select: { email: true, firstName: true } },
+        user: { select: { email: true, firstName: true, locale: true, deviceLocale: true } },
       },
     });
     return rows.map((r) => ({
@@ -159,6 +164,8 @@ export class TrainerProfileRepository implements ITrainerProfileRepository {
       email: r.user.email,
       firstName: r.user.firstName,
       quietAfterDays: r.quietAfterDays,
+      locale: r.user.locale,
+      deviceLocale: r.user.deviceLocale,
     }));
   }
 

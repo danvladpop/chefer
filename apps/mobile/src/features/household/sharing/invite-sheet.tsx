@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Share, View } from 'react-native';
-import { HOUSEHOLD_SHARING_COPY, type HouseholdOpenInviteDto } from '@chefer/types';
+import type { HouseholdOpenInviteDto } from '@chefer/types';
 import { Button, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 
 // ─── Invite to Chefer (ADR 0003) ──────────────────────────────────────────────
@@ -27,6 +28,7 @@ export function InviteSheet({
   openInvite: HouseholdOpenInviteDto | undefined;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   // The share message names the owner ("Dan invited you…").
@@ -72,7 +74,7 @@ export function InviteSheet({
     if (!invite) return;
     try {
       const result = await Share.share({
-        message: `${HOUSEHOLD_SHARING_COPY.shareMessage(ownerName)}${invite.url}`,
+        message: `${t('household.sharing.shareMessage', { ownerName })}${invite.url}`,
       });
       if (result.action !== Share.dismissedAction) {
         track('household_invite_created', { via: 'share' });
@@ -86,12 +88,12 @@ export function InviteSheet({
     <Sheet
       visible={member !== null}
       onClose={onClose}
-      title={HOUSEHOLD_SHARING_COPY.inviteSheetTitle(shown?.name ?? '')}
+      title={t('household.sharing.inviteSheetTitle', { name: shown?.name ?? '' })}
       testID="household-invite-sheet"
       footer={
         <View className="gap-2">
           <Button testID="household-invite-share" disabled={!invite} onPress={() => void share()}>
-            {HOUSEHOLD_SHARING_COPY.shareLink}
+            {t('household.sharing.shareLink')}
           </Button>
           {invite ? (
             <Button
@@ -100,14 +102,14 @@ export function InviteSheet({
               loading={revoke.isPending}
               onPress={() => revoke.mutate({ code: invite.code })}
             >
-              {HOUSEHOLD_SHARING_COPY.revoke}
+              {t('household.sharing.revoke')}
             </Button>
           ) : null}
         </View>
       }
     >
       <Text className="text-body text-label">
-        {HOUSEHOLD_SHARING_COPY.inviteSheetBody(shown?.name ?? '')}
+        {t('household.sharing.inviteSheetBody', { name: shown?.name ?? '' })}
       </Text>
       {invite ? (
         <View className="gap-1 rounded-control border border-separator bg-surface px-3 py-2">
@@ -115,7 +117,7 @@ export function InviteSheet({
             {invite.url}
           </Text>
           <Text className="text-caption text-label-secondary">
-            {HOUSEHOLD_SHARING_COPY.inviteExpires}
+            {t('household.sharing.inviteExpires')}
           </Text>
         </View>
       ) : create.isError ? (
@@ -125,14 +127,14 @@ export function InviteSheet({
             accessibilityRole="alert"
             className="text-subhead text-danger"
           >
-            {HOUSEHOLD_SHARING_COPY.inviteLoadFailed}
+            {t('household.sharing.inviteLoadFailed')}
           </Text>
           <Button
             testID="household-invite-retry"
             variant="outline"
             onPress={() => shown && create.mutate({ memberId: shown.id })}
           >
-            {HOUSEHOLD_SHARING_COPY.tryAgain}
+            {t('household.sharing.tryAgain')}
           </Button>
         </View>
       ) : (

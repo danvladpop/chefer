@@ -2,21 +2,60 @@
 
 import Link from 'next/link';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import type { ProteinGuide } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import {
-  cn,
-  dayNutritionCaption,
-  dayStatus,
-  formatKcal,
-  formatNumber,
-  HIDE_NUMBERS_COPY,
-  onPlanLine,
-  proteinRingLabel,
-} from '@chefer/utils';
+import { cn, dayStatus, formatKcal, formatNumber, type DayStatusResult } from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
+
+/** The status pill's text ("On track", "Over by 120 kcal"), from `dayStatus`. */
+export function dayStatusText(t: Translator['t'], result: DayStatusResult): string {
+  switch (result.status) {
+    case 'over':
+      return t('today.home.status.over.kcal', { value: formatKcal(result.overByKcal) });
+    case 'heading_over':
+      return t('today.home.status.headingOver');
+    case 'under':
+      return t('today.home.status.under');
+    case 'on':
+      return t('today.home.status.on');
+    case 'none':
+      return t('today.home.status.none');
+  }
+}
+
+/** "1,870 planned · 1,200 left" — left = target − eaten, never negative. */
+export function dayCaptionText(
+  t: Translator['t'],
+  eatenKcal: number,
+  plannedKcal: number,
+  targetKcal: number,
+): string {
+  const left = formatKcal(Math.max(targetKcal - eatenKcal, 0));
+  const overBy = eatenKcal - targetKcal;
+  const over = formatKcal(overBy);
+  if (plannedKcal > 0) {
+    const planned = formatKcal(plannedKcal);
+    return overBy > 0
+      ? t('today.home.caption.plannedOver.kcal', { planned, over })
+      : t('today.home.caption.plannedLeft.kcal', { planned, left });
+  }
+  return overBy > 0
+    ? t('today.home.caption.over.kcal', { over })
+    : t('today.home.caption.left.kcal', { left });
+}
+
+/** "2 of 3 planned meals eaten" — the qualitative line in "Hide numbers". */
+export function onPlanText(t: Translator['t'], eaten: number, planned: number): string {
+  if (planned <= 0) return t('today.hideNumbers.noPlan');
+  if (eaten <= 0) return t('today.hideNumbers.onPlanEmpty');
+  if (eaten >= planned) return t('today.hideNumbers.onPlanDone');
+  return t('today.hideNumbers.onPlanLine', { eaten, count: planned });
+}
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
 // Calorie ring + macro bars for today. Lives in the dashboard's right rail at
@@ -55,16 +94,20 @@ function ProteinSummary({
 }: Pick<NutritionSummaryProps, 'nutrition' | 'nextMealName' | 'className' | 'targetMode'> & {
   proteinGuide?: ProteinGuide | undefined;
 }) {
+  const { t } = useT();
   const targetG = n.adjustedTargets?.proteinG ?? n.protein.targetG;
   const eatenG = Math.round(n.protein.eaten);
   const leftG = Math.max(Math.round(targetG) - eatenG, 0);
   // Neutral palette: reaching the goal is green, otherwise just what is left.
   const reached = targetG > 0 && eatenG >= targetG;
   const chip = reached
-    ? { text: 'Protein goal reached', style: 'bg-emerald-100 text-emerald-700' }
+    ? { text: t('today.home.protein.reached'), style: 'bg-emerald-100 text-emerald-700' }
     : eatenG === 0
-      ? { text: 'Nothing logged yet', style: 'bg-gray-100 text-gray-600' }
-      : { text: `${leftG} g to go`, style: 'bg-gray-100 text-gray-600' };
+      ? { text: t('today.home.nothingLogged'), style: 'bg-gray-100 text-gray-600' }
+      : {
+          text: t('today.home.protein.toGo', { value: formatNumber(leftG) }),
+          style: 'bg-gray-100 text-gray-600',
+        };
 
   return (
     <div
@@ -72,7 +115,9 @@ function ProteinSummary({
       className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          {t('today.home.title')}
+        </p>
         <span
           data-testid="nutrition-status"
           className={cn(
@@ -89,14 +134,17 @@ function ProteinSummary({
       <div className="flex flex-col items-center gap-2 py-2">
         <ProgressRing
           data-testid="protein-ring"
-          label={`${proteinRingLabel(eatenG, targetG)} eaten today`}
+          label={t('today.home.protein.ringLabel', {
+            eaten: formatNumber(eatenG),
+            target: formatNumber(Math.round(targetG)),
+          })}
           progress={progressOf(eatenG, targetG)}
           size={128}
           strokeWidth={12}
         >
           <CountUp value={eatenG} className="text-xl font-bold text-gray-900" />
           <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-            of {formatNumber(Math.round(targetG))} g protein
+            {t('today.home.protein.ringCaption', { target: formatNumber(Math.round(targetG)) })}
           </span>
         </ProgressRing>
         {proteinGuide && (
@@ -106,7 +154,9 @@ function ProteinSummary({
         )}
         {targetMode && (
           <p data-testid="target-mode-label" className="text-center text-xs text-muted-foreground">
-            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+            {targetMode === 'OWN'
+              ? t('today.home.targetMode.own')
+              : t('today.home.targetMode.suggested')}
           </p>
         )}
       </div>
@@ -118,6 +168,7 @@ function ProteinSummary({
 
 /** "Up next" and the rail-only quick links, shared by both modes. */
 function NutritionSummaryLinks({ nextMealName }: { nextMealName?: string | undefined }) {
+  const { t } = useT();
   return (
     <>
       {/* Next meal + a way to log it — the old line claimed every meal
@@ -125,13 +176,13 @@ function NutritionSummaryLinks({ nextMealName }: { nextMealName?: string | undef
       {nextMealName && (
         <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#fff3e8] px-3 py-2.5">
           <p className="min-w-0 text-xs text-[#944a00]">
-            Up next: <strong>{nextMealName}</strong>
+            {rich(t, 'today.home.upNext', { name: <strong>{nextMealName}</strong> })}
           </p>
           <Link
             href="/tracker"
             className="flex min-h-11 shrink-0 items-center text-xs font-semibold text-[#944a00] hover:underline"
           >
-            Log what you ate
+            {t('today.home.logWhatYouAte')}
           </Link>
         </div>
       )}
@@ -142,13 +193,13 @@ function NutritionSummaryLinks({ nextMealName }: { nextMealName?: string | undef
           href="/meal-plan"
           className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
         >
-          Meal Planner <ChevronRight className="h-3.5 w-3.5" />
+          {t('today.home.links.mealPlanner')} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
         <Link
           href="/shopping-list"
           className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
         >
-          Shopping List <ChevronRight className="h-3.5 w-3.5" />
+          {t('today.home.links.shoppingList')} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
     </>
@@ -164,17 +215,20 @@ export function NutritionSummary({
   proteinGuide,
   onPlan,
 }: NutritionSummaryProps) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode();
   // Lane E3 "Hide numbers": no ring, no figures — "Today so far" instead.
   if (noNumbers) {
     if (!onPlan) return null;
-    const line = onPlanLine(onPlan.eaten, onPlan.planned);
+    const line = onPlanText(t, onPlan.eaten, onPlan.planned);
     return (
       <div
         data-testid="nutrition-on-plan"
         className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
       >
-        <h2 className="text-sm font-semibold text-gray-900">{HIDE_NUMBERS_COPY.onPlanTitle}</h2>
+        <h2 className="text-sm font-semibold text-gray-900">
+          {t('today.hideNumbers.onPlanTitle')}
+        </h2>
         <p className="mt-1 text-sm text-gray-600">{line}</p>
         {onPlan.planned > 0 && (
           <ProgressBar
@@ -210,11 +264,13 @@ export function NutritionSummary({
   // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
   // UX-FOOD-05: the pill looks at eaten + what is still planned vs the target,
   // not the plan alone — it used to stay green 871 kcal over.
-  const { status: targetStatus, label: statusLabel } = dayStatus(
+  const statusResult = dayStatus(
     n.eatenKcal,
     remainingPlannedKcal ?? Math.max(n.plannedKcal - n.eatenKcal, 0),
     target.dailyCalorieTarget,
   );
+  const targetStatus = statusResult.status;
+  const statusLabel = dayStatusText(t, statusResult);
 
   return (
     <div
@@ -223,7 +279,9 @@ export function NutritionSummary({
     >
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          {t('today.home.title')}
+        </p>
         <span
           data-testid="nutrition-status"
           className={cn(
@@ -251,25 +309,32 @@ export function NutritionSummary({
               100% it turns amber with an overflow lap (mobile parity). */}
           <ProgressRing
             data-testid="calorie-ring"
-            label={`${n.eatenKcal} of ${target.dailyCalorieTarget} kcal eaten today`}
+            label={t('today.home.ring.label.kcal', {
+              eaten: String(n.eatenKcal),
+              target: String(target.dailyCalorieTarget),
+            })}
             progress={progressOf(n.eatenKcal, target.dailyCalorieTarget)}
             size={128}
             strokeWidth={12}
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
             <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-              of {formatKcal(target.dailyCalorieTarget)} kcal eaten
+              {t('today.home.ring.captionEaten.kcal', {
+                target: formatKcal(target.dailyCalorieTarget),
+              })}
             </span>
           </ProgressRing>
           <p className="text-center text-xs text-gray-500">
-            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
+            {dayCaptionText(t, n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
           </p>
           {targetMode && (
             <p
               data-testid="target-mode-label"
               className="text-center text-xs text-muted-foreground"
             >
-              {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+              {targetMode === 'OWN'
+                ? t('today.home.targetMode.own')
+                : t('today.home.targetMode.suggested')}
             </p>
           )}
         </div>
@@ -277,22 +342,32 @@ export function NutritionSummary({
         {/* Macro bars */}
         <div className="flex flex-1 flex-col gap-3 sm:min-w-0">
           {[
-            { label: 'Protein', v: n.protein.eaten, t: target.proteinG },
-            { label: 'Carbs', v: n.carbs.eaten, t: target.carbsG },
-            { label: 'Fat', v: n.fat.eaten, t: target.fatG },
-          ].map(({ label, v, t }) => (
-            <div key={label}>
+            {
+              id: 'protein',
+              label: t('today.home.macros.protein'),
+              v: n.protein.eaten,
+              goal: target.proteinG,
+            },
+            {
+              id: 'carbs',
+              label: t('today.home.macros.carbs'),
+              v: n.carbs.eaten,
+              goal: target.carbsG,
+            },
+            { id: 'fat', label: t('today.home.macros.fat'), v: n.fat.eaten, goal: target.fatG },
+          ].map(({ id, label, v, goal }) => (
+            <div key={id}>
               {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
                   pair ("135g / 140g") butted straight up against the label. */}
               <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
                 <span className="font-medium text-gray-700">{label}</span>
                 <span className="whitespace-nowrap text-gray-500">
-                  {v}g / {t}g
+                  {t('today.home.macros.value', { value: v, target: goal })}
                 </span>
               </div>
               <ProgressBar
-                label={`${label}: ${v} of ${t} grams eaten`}
-                progress={progressOf(v, t)}
+                label={t('today.home.macros.label', { name: label, value: v, target: goal })}
+                progress={progressOf(v, goal)}
               />
             </div>
           ))}
