@@ -19,6 +19,7 @@ import {
   unitLabel,
   unitToKg,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 
 // Weight / reps entry without the system keyboard (research §5.1 #2): a big
 // numeric keypad, and for barbell/smith lifts a live plate calculator
@@ -36,6 +37,7 @@ function Keypad({
   allowDecimal: boolean;
   testID: string;
 }) {
+  const { t } = useT();
   return (
     <View className="flex-row flex-wrap justify-between gap-y-2">
       {KEYS.map((key) => {
@@ -45,7 +47,13 @@ function Keypad({
             key={key}
             testID={`${testID}-key-${key === '.' ? 'dot' : key}`}
             accessibilityRole="button"
-            accessibilityLabel={key === 'back' ? 'Delete' : key === '.' ? 'Decimal point' : key}
+            accessibilityLabel={
+              key === 'back'
+                ? t('gym.workout.logger.number.keyDelete')
+                : key === '.'
+                  ? t('gym.workout.logger.number.keyDecimal')
+                  : key
+            }
             disabled={hidden}
             onPress={() => onKey(key)}
             className={cn(
@@ -139,6 +147,7 @@ export interface NumberSheetProps {
 
 /** Controlled by its parent; re-keyed per open so the keypad starts fresh. */
 export function NumberSheet(props: NumberSheetProps) {
+  const { t } = useT();
   const { visible, onClose, onSubmit, kind, value, title, unit, meta, profile, showPlates, timed } =
     props;
   const initial = kind === 'weight' ? formatLoadNumber(value, unit) : String(value);
@@ -179,7 +188,7 @@ export function NumberSheet(props: NumberSheetProps) {
       ? `${unitLabel(unit)}${meta?.perHand ? ` ${PER_HAND_SUFFIX}` : ''}`
       : timed
         ? 's'
-        : 'reps';
+        : t('gym.workout.setRow.reps');
 
   return (
     <Sheet
@@ -191,7 +200,7 @@ export function NumberSheet(props: NumberSheetProps) {
         confirmingJump ? (
           <View className="gap-2">
             <Button testID="number-sheet-jump-confirm" size="lg" onPress={commit}>
-              {`Yes, save ${text} ${suffix}`}
+              {t('gym.workout.logger.number.yesSave', { value: text, suffix })}
             </Button>
             <Button
               testID="number-sheet-jump-change"
@@ -199,12 +208,12 @@ export function NumberSheet(props: NumberSheetProps) {
               variant="outline"
               onPress={() => setConfirmingJump(false)}
             >
-              Change it
+              {t('gym.workout.logger.number.changeIt')}
             </Button>
           </View>
         ) : (
           <Button testID="number-sheet-save" size="lg" disabled={!valid} onPress={submit}>
-            Save
+            {t('common.actions.save')}
           </Button>
         )
       }
@@ -225,17 +234,24 @@ export function NumberSheet(props: NumberSheetProps) {
           testID="number-sheet-jump-warning"
           className="text-center text-callout font-medium text-attention"
         >
-          {`That is more than ${JUMP_CONFIRM_FACTOR}× the last ${formatPrevious(kind, value, unit, meta?.perHand === true)}. Is it right?`}
+          {t('gym.workout.logger.number.jumpWarning', {
+            factor: JUMP_CONFIRM_FACTOR,
+            previous: formatPrevious(kind, value, unit, meta?.perHand === true),
+          })}
         </Text>
       ) : null}
 
       {plates && !belowBar ? (
         <View testID="plate-calculator" className="gap-2 rounded-control bg-surface-sunken p-3">
           <Text className="text-callout font-medium text-label">
-            Per side, on a {formatLoadNumber(profile.barWeightKg, unit)} {unitLabel(unit)} bar
+            {t('gym.workout.plates.description', {
+              bar: `${formatLoadNumber(profile.barWeightKg, unit)} ${unitLabel(unit)}`,
+            })}
           </Text>
           {plates.plates.length === 0 ? (
-            <Text className="text-subhead text-label-secondary">Just the bar.</Text>
+            <Text className="text-subhead text-label-secondary">
+              {t('gym.workout.logger.number.justBar')}
+            </Text>
           ) : (
             <View className="flex-row flex-wrap gap-2">
               {plates.plates.map((p, i) => (
@@ -256,7 +272,9 @@ export function NumberSheet(props: NumberSheetProps) {
           )}
           {plates.remainderKg > 0.005 ? (
             <Text testID="plate-calculator-remainder" className="text-subhead text-attention">
-              {`${formatLoadNumber(plates.remainderKg, unit)} ${unitLabel(unit)} per side can't be made with your plates.`}
+              {t('gym.workout.logger.number.remainder', {
+                load: `${formatLoadNumber(plates.remainderKg, unit)} ${unitLabel(unit)}`,
+              })}
             </Text>
           ) : null}
           {nearest !== null && kg !== null && !sameKg(nearest, kg) ? (
@@ -270,8 +288,9 @@ export function NumberSheet(props: NumberSheetProps) {
               className="min-h-11 justify-center"
             >
               <Text className="text-subhead font-semibold text-attention">
-                Your plates can&apos;t make this exactly. Tap to use{' '}
-                {formatLoadNumber(nearest, unit)} {unitLabel(unit)}.
+                {t('gym.workout.logger.number.nearest', {
+                  value: `${formatLoadNumber(nearest, unit)} ${unitLabel(unit)}`,
+                })}
               </Text>
             </Pressable>
           ) : null}
@@ -279,7 +298,7 @@ export function NumberSheet(props: NumberSheetProps) {
       ) : null}
       {belowBar ? (
         <Text className="text-center text-subhead text-label-secondary">
-          Lighter than the empty bar.
+          {t('gym.workout.logger.number.belowBar')}
         </Text>
       ) : null}
 
@@ -287,7 +306,7 @@ export function NumberSheet(props: NumberSheetProps) {
         testID="number-sheet"
         allowDecimal={allowDecimal}
         onKey={(key) => {
-          setText((t) => applyKey(t, key, fresh, allowDecimal, max));
+          setText((prev) => applyKey(prev, key, fresh, allowDecimal, max));
           setFresh(false);
           setConfirmingJump(false);
         }}

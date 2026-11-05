@@ -7,6 +7,7 @@ import {
   isLossGoal,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
@@ -94,6 +95,7 @@ export function PlanMissSheet({
   // WP-08: protein-only mode only ever judges a day by its protein (a calorie
   // miss is not offered), and states no calorie figure.
   const { proteinOnly, noNumbers } = useNumbersMode();
+  const { t } = useT();
   const judgedTarget = proteinOnly ? undefined : calorieTarget;
   const factor = useMemo(
     () => missScaleFactor({ kcal, protein, calorieTarget: judgedTarget, proteinGapG, goal }),
@@ -133,7 +135,7 @@ export function PlanMissSheet({
 
   // A snack only ever adds food: never on a weight-loss goal, never when unsure.
   const canAddSnack = under && goal !== undefined && goal !== 'LOSE_WEIGHT';
-  const biggerLabel = under ? 'Bigger portions' : 'Smaller portions';
+  const biggerLabel = t(under ? 'plan.miss.bigger' : 'plan.miss.smaller');
 
   // Lane E3 "Hide numbers": a fit-to-target sheet has nothing to say without figures.
   if (noNumbers) return null;
@@ -142,24 +144,28 @@ export function PlanMissSheet({
       visible={visible}
       onClose={onClose}
       eyebrow={dayName}
-      title="Adjust this day"
+      title={t('plan.miss.titleAdjust')}
       testID="plan-miss-sheet"
     >
       <Text variant="muted" className="text-sm">
         {proteinOnly
           ? proteinGapG && proteinGapG > 0
-            ? `${dayName} is about ${proteinGapG} g short on protein. You can leave it as it is.`
-            : `${dayName} is planned at ${protein} g protein. You can leave it as it is.`
+            ? t('plan.miss.bodyProteinGap', { day: dayName, grams: proteinGapG })
+            : t('plan.miss.bodyProtein', { day: dayName, grams: protein })
           : calorieTarget
-            ? `${dayName} is planned at ${formatKcal(kcal)} kcal against a target of ${formatKcal(calorieTarget)}. You can leave it as it is.`
-            : `${dayName} is planned at ${formatKcal(kcal)} kcal. You can leave it as it is.`}
+            ? t('plan.miss.bodyKcalTarget', {
+                day: dayName,
+                kcal: formatKcal(kcal),
+                target: formatKcal(calorieTarget),
+              })
+            : t('plan.miss.bodyKcal', { day: dayName, kcal: formatKcal(kcal) })}
       </Text>
 
       <View className="gap-3 pb-2">
         {lossProteinGap && (
           <View className="gap-1">
             <Text testID="plan-miss-protein-hint" variant="muted" className="text-sm">
-              A higher-protein swap or a protein snack closes this gap without many extra calories.
+              {t('plan.miss.proteinHint')}
             </Text>
             {onRebalance && (
               <Button
@@ -170,7 +176,7 @@ export function PlanMissSheet({
                   onRebalance();
                 }}
               >
-                Find a higher-protein swap
+                {t('plan.miss.findProteinSwap')}
               </Button>
             )}
           </View>
@@ -191,18 +197,20 @@ export function PlanMissSheet({
             ) : preview ? (
               <Text testID="plan-miss-preview" variant="muted" className="text-xs">
                 {proteinOnly
-                  ? `Would be ${preview.protein} g protein`
-                  : `Would be ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}
+                  ? t('plan.miss.wouldBeProtein', { grams: preview.protein })
+                  : t('plan.miss.wouldBeKcalProtein', {
+                      kcal: formatKcal(preview.kcal),
+                      grams: preview.protein,
+                    })}
               </Text>
             ) : previewMutation.isError ? (
               <Text variant="muted" className="text-xs">
-                Couldn’t work out the new numbers just now.
+                {t('plan.miss.previewError')}
               </Text>
             ) : null}
             {applyMutation.isError && (
               <Text className="text-xs text-danger">
-                {userFacingErrorMessage(applyMutation.error) ||
-                  'Could not change the portions — try again.'}
+                {userFacingErrorMessage(applyMutation.error) || t('plan.miss.applyErrorDash')}
               </Text>
             )}
           </View>
@@ -216,11 +224,11 @@ export function PlanMissSheet({
               onAddSnack();
             }}
           >
-            Add a snack
+            {t('plan.miss.snack')}
           </Button>
         )}
         <Button testID="plan-miss-keep" variant="ghost" onPress={onClose}>
-          Keep it
+          {t('plan.miss.keep')}
         </Button>
       </View>
     </Sheet>

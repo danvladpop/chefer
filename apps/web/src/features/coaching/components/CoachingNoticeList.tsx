@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { UserRound, X } from 'lucide-react';
-import { COACHING_COPY } from '@chefer/types';
 import { cn } from '@chefer/utils';
 import { noticeViews, type NoticeSide, type NoticeView } from '../lib/notice-view';
 import { useCoachingAvailability } from '../use-coaching-availability';
@@ -16,6 +16,7 @@ import { useCoachingAvailability } from '../use-coaching-availability';
 // once (the server call follows), so a slow network never shows them twice.
 
 export function useCoachingNoticeViews(side: NoticeSide) {
+  const { t } = useT();
   const { enabled } = useCoachingAvailability();
   const utils = trpc.useUtils();
   const notices = trpc.coaching.notices.useQuery(undefined, {
@@ -33,7 +34,7 @@ export function useCoachingNoticeViews(side: NoticeSide) {
     dismissMutation.mutate({ id });
   };
   const views = enabled
-    ? noticeViews(notices.data ?? [], side).filter((v) => !hidden.has(v.id))
+    ? noticeViews(notices.data ?? [], side, t).filter((v) => !hidden.has(v.id))
     : [];
   return { views, dismiss };
 }
@@ -45,7 +46,7 @@ export function NoticeCard({
   notice: NoticeView;
   onDismiss: (id: string) => void;
 }) {
-  const c = COACHING_COPY.notices;
+  const { t } = useT();
   return (
     <li
       className="flex min-w-0 items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 py-1 pl-3 pr-1 text-sm text-amber-950"
@@ -64,12 +65,12 @@ export function NoticeCard({
           onClick={() => onDismiss(notice.id)}
           className="flex min-h-11 shrink-0 items-center rounded-lg px-2 font-semibold underline underline-offset-2 hover:bg-amber-100"
         >
-          {c.view}
+          {t('coaching.notices.view')}
         </Link>
       )}
       <button
         type="button"
-        aria-label={c.dismiss}
+        aria-label={t('coaching.notices.dismiss')}
         onClick={() => onDismiss(notice.id)}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100"
       >
@@ -81,12 +82,13 @@ export function NoticeCard({
 
 /** The unread coaching notices for one side, or nothing. */
 export function CoachingNoticeList({ side, className }: { side: NoticeSide; className?: string }) {
+  const { t } = useT();
   const { views, dismiss } = useCoachingNoticeViews(side);
   if (views.length === 0) return null;
   return (
     <ul
       className={cn('flex flex-col gap-2', className)}
-      aria-label="Coaching notices"
+      aria-label={t('coaching.notices.label')}
       data-testid={`coaching-notices-${side}`}
     >
       {views.map((v) => (

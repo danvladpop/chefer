@@ -9,7 +9,7 @@ import {
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
-import { FRIENDS_COPY, type FriendProfileDto } from '@chefer/types';
+import type { FriendProfileDto } from '@chefer/types';
 import {
   duration,
   EmptyState,
@@ -21,6 +21,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { getMode, type AppMode } from '../../gym/mode-store';
 import {
@@ -71,6 +72,7 @@ function goBack() {
 }
 
 function ProfileBody({ userId }: { userId: string }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const query = trpc.friends.profile.useQuery({ userId }, { retry: false });
   const { me } = useFriendsMe();
@@ -108,7 +110,7 @@ function ProfileBody({ userId }: { userId: string }) {
         <FriendsScreenHeader title="" testID="friends-profile-nav" />
         <ErrorState
           testID="friends-profile-error"
-          title={FRIENDS_COPY.profile.error}
+          title={t('friends.profile.error')}
           onRetry={() => void query.refetch()}
         />
       </Screen>
@@ -148,7 +150,7 @@ function ProfileBody({ userId }: { userId: string }) {
               variant="muted"
               className="px-4 pb-2 text-center"
             >
-              {FRIENDS_COPY.offline.line(formatClock(query.dataUpdatedAt))}
+              {t('friends.offline.line', { time: formatClock(query.dataUpdatedAt) })}
             </Text>
           ) : null}
           <ProfileHeader profile={profile} me={me} />
@@ -162,14 +164,14 @@ function ProfileBody({ userId }: { userId: string }) {
         >
           <SegmentedControl<ProfileTab>
             testID="profile-mode-switch"
-            accessibilityLabel={`${FRIENDS_COPY.profile.food} or ${FRIENDS_COPY.profile.gym}`}
+            accessibilityLabel={t('friends.profile.foodOrGym')}
             size="xs"
             className="w-36"
             value={tab}
             onChange={setTab}
             options={[
-              { value: 'food', label: FRIENDS_COPY.profile.food, testID: 'profile-mode-food' },
-              { value: 'gym', label: FRIENDS_COPY.profile.gym, testID: 'profile-mode-gym' },
+              { value: 'food', label: t('friends.profile.food'), testID: 'profile-mode-food' },
+              { value: 'gym', label: t('friends.profile.gym'), testID: 'profile-mode-gym' },
             ]}
           />
         </View>
@@ -190,6 +192,7 @@ function ProfileContent({
   tab: ProfileTab;
   registerLoadMore: (fn: (() => void) | null) => void;
 }) {
+  const { t } = useT();
   const reduced = useReducedMotion();
   const locked = isLocked(profile);
   // Unfollow → the locked panel fades in; follow on a public profile → the
@@ -203,7 +206,7 @@ function ProfileContent({
       className="px-4 pt-2"
     >
       {locked ? (
-        <LockedPanel testID="friends-profile-locked" {...lockedPanel(profile)} />
+        <LockedPanel testID="friends-profile-locked" {...lockedPanel(profile, t)} />
       ) : tab === 'food' ? (
         <FoodTab profile={profile} me={me} registerLoadMore={registerLoadMore} />
       ) : (
@@ -215,6 +218,7 @@ function ProfileContent({
 
 function ProfileNotAvailable() {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <Screen testID="friends-profile" className="px-0">
       <FriendsScreenHeader title="" testID="friends-profile-nav" />
@@ -222,10 +226,10 @@ function ProfileNotAvailable() {
         <EmptyState
           testID="friends-profile-not-available"
           icon={<Ionicons name="person-outline" size={40} color={colors.labelTertiary} />}
-          title={FRIENDS_COPY.notAvailable.title}
-          description={FRIENDS_COPY.notAvailable.body}
+          title={t('friends.notAvailable.title')}
+          description={t('friends.notAvailable.body')}
           action={{
-            label: FRIENDS_COPY.notAvailable.cta,
+            label: t('friends.notAvailable.cta'),
             testID: 'friends-profile-not-available-back',
             onPress: goBack,
           }}

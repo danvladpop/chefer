@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { formatDayWithWeekday } from '@/features/coaching/lib/dates';
+import { formatDayWithWeekdayT } from '@/features/coaching/lib/dates';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
+import type { Translator } from '@chefer/i18n';
 import {
   BOOKING_COPY,
-  COACHING_COPY,
   EXERCISE_BY_ID,
   type CoachedWorkoutDto,
   type WeightUnit,
@@ -25,17 +26,25 @@ import { useTrainerUnit } from '../use-trainer-unit';
 /** "Yoga · 45 min" (no minutes when the duration is unknown). */
 export function workoutTypeLine(
   workout: Pick<CoachedWorkoutDto, 'workoutType' | 'durationMin'>,
+  t: Translator['t'],
 ): string | null {
   if (!workout.workoutType) return null;
+  // `workoutTypeLabel` (@chefer/utils) is still English: the workout types are not in a catalog yet.
   const label = workoutTypeLabel(workout.workoutType);
-  return workout.durationMin !== null ? `${label} · ${workout.durationMin} min` : label;
+  return workout.durationMin !== null
+    ? `${label} · ${t('common.counts.minutes', { count: workout.durationMin })}`
+    : label;
 }
 
 /** "Done as planned · 3 sets": working sets ticked, never their weights or reps. */
-function doneAsPlannedText(exercise: CoachedWorkoutDto['exercises'][number]): string {
+function doneAsPlannedText(
+  exercise: CoachedWorkoutDto['exercises'][number],
+  t: Translator['t'],
+): string {
   const sets = exercise.sets.filter((s) => s.completed && !s.isWarmup).length;
-  const label = COACHING_COPY.trainerProfile.doneAsPlanned;
-  return sets > 0 ? `${label} · ${sets} set${sets === 1 ? '' : 's'}` : label;
+  return sets > 0
+    ? t('coaching.trainer.profile.doneAsPlannedSets', { count: sets })
+    : t('coaching.trainer.profile.doneAsPlanned');
 }
 
 export function WorkoutList({
@@ -47,18 +56,19 @@ export function WorkoutList({
   unit: WeightUnit;
   onOpenExercise?: (exerciseId: string, name: string) => void;
 }) {
+  const { t } = useT();
   if (workouts.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
-        No completed workouts yet.
+        {t('coaching.trainer.workouts.empty')}
       </p>
     );
   }
   return (
-    <ul className="flex flex-col gap-3" aria-label={COACHING_COPY.trainer.tabs.workouts}>
+    <ul className="flex flex-col gap-3" aria-label={t('coaching.trainer.tabs.workouts')}>
       {workouts.map((workout) => {
         // A logged workout ("Log a workout") or a typed one with nothing to list.
-        const typeLine = workout.exercises.length === 0 ? workoutTypeLine(workout) : null;
+        const typeLine = workout.exercises.length === 0 ? workoutTypeLine(workout, t) : null;
         return (
           <li
             key={workout.id}
@@ -68,8 +78,10 @@ export function WorkoutList({
             <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3">
               <h3 className="min-w-0 break-words font-semibold text-gray-900">{workout.name}</h3>
               <p className="text-xs text-gray-500">
-                {formatDayWithWeekday(workout.localDate)}
-                {!typeLine && workout.durationMin !== null && ` · ${workout.durationMin} min`}
+                {formatDayWithWeekdayT(workout.localDate, t)}
+                {!typeLine &&
+                  workout.durationMin !== null &&
+                  ` · ${t('common.counts.minutes', { count: workout.durationMin })}`}
               </p>
             </div>
             {workout.loggedByTrainer && (
@@ -84,7 +96,7 @@ export function WorkoutList({
             )}
             {workout.isDeload && (
               <Badge variant="info" className="mt-1">
-                Deload
+                {t('coaching.trainer.workouts.deload')}
               </Badge>
             )}
             {workout.exercises.length > 0 && (
@@ -114,21 +126,23 @@ export function WorkoutList({
                           !exercise.skipped &&
                           !exercise.doneAsPlanned && (
                             <span className="shrink-0 pt-3 text-xs text-gray-500">
-                              {rirText(exercise.lastSetRir)}
+                              {rirText(exercise.lastSetRir, t)}
                             </span>
                           )}
                       </div>
                       {exercise.skipped ? (
-                        <p className="text-xs text-gray-500">Skipped</p>
+                        <p className="text-xs text-gray-500">
+                          {t('coaching.trainer.workouts.skipped')}
+                        </p>
                       ) : exercise.doneAsPlanned ? (
                         <p className="text-sm text-gray-600" data-testid="trainer-done-as-planned">
-                          {doneAsPlannedText(exercise)}
+                          {doneAsPlannedText(exercise, t)}
                         </p>
                       ) : (
                         <p className="min-w-0 break-words text-sm text-gray-600">
                           {exercise.sets
                             .filter((s) => s.completed)
-                            .map((s) => coachedSetText(s, unit, load))
+                            .map((s) => coachedSetText(s, unit, load, t))
                             .join(' · ') || '—'}
                         </p>
                       )}
@@ -155,6 +169,7 @@ function ExerciseHistorySheet({
   unit: WeightUnit;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const history = trpc.trainer.client.exerciseHistory.useQuery(
     { clientId, exerciseId: exercise?.id ?? '' },
     { enabled: exercise !== null, retry: false },
@@ -165,8 +180,8 @@ function ExerciseHistorySheet({
     <Sheet
       open={exercise !== null}
       onClose={onClose}
-      title={exercise?.name ?? 'Exercise'}
-      description="Last 8 times"
+      title={exercise?.name ?? t('coaching.trainer.workouts.exercise')}
+      description={t('coaching.trainer.workouts.lastTimes')}
       size="md"
     >
       <div className="px-5 py-4">
@@ -181,11 +196,11 @@ function ExerciseHistorySheet({
             {(history.data?.entries ?? []).map((entry) => (
               <li key={entry.localDate} className="py-2">
                 <p className="text-xs text-gray-500">
-                  {formatDayWithWeekday(entry.localDate)}
-                  {entry.lastSetRir !== null && ` · ${rirText(entry.lastSetRir)}`}
+                  {formatDayWithWeekdayT(entry.localDate, t)}
+                  {entry.lastSetRir !== null && ` · ${rirText(entry.lastSetRir, t)}`}
                 </p>
                 <p className="min-w-0 break-words text-sm text-gray-800">
-                  {entry.sets.map((s) => coachedSetText(s, unit, load)).join(' · ')}
+                  {entry.sets.map((s) => coachedSetText(s, unit, load, t)).join(' · ')}
                 </p>
               </li>
             ))}
@@ -197,6 +212,7 @@ function ExerciseHistorySheet({
 }
 
 export function WorkoutsTab({ clientId }: { clientId: string }) {
+  const { t } = useT();
   const unit = useTrainerUnit();
   const [open, setOpen] = useState<{ id: string; name: string } | null>(null);
   const workouts = trpc.trainer.client.workouts.useInfiniteQuery(
@@ -230,7 +246,7 @@ export function WorkoutsTab({ clientId }: { clientId: string }) {
           loading={workouts.isFetchingNextPage}
           onClick={() => void workouts.fetchNextPage()}
         >
-          Load more
+          {t('coaching.trainer.workouts.loadMore')}
         </Button>
       )}
       <ExerciseHistorySheet

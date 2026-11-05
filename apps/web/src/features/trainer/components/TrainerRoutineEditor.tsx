@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChangedByLine } from '@/features/coaching/components/RoutineAttribution';
+import { editorLabelT } from '@/features/coaching/lib/copy';
 import { ConflictDialog } from '@/features/gym/routine/components/ConflictDialog';
 import { DesktopEditorBoard } from '@/features/gym/routine/components/DesktopEditorBoard';
 import { ExercisePickerSheet } from '@/features/gym/routine/components/ExercisePickerSheet';
@@ -29,14 +30,9 @@ import {
 import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
 import { WorkoutTypeSheet } from '@/features/gym/shared/workout-type-sheet';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import {
-  COACHING_COPY,
-  COACHING_LIMITS,
-  editorLabel,
-  TEMPLATE_COPY,
-  type RoutineDto,
-} from '@chefer/types';
+import { COACHING_LIMITS, TEMPLATE_COPY, type RoutineDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { supersetSlot, userFacingErrorMessage, type ExerciseLookup } from '@chefer/utils';
 import { draftFromOwnRoutine } from '../fill-from-mine';
@@ -59,7 +55,7 @@ import { TrainerNoteField } from './TrainerNoteField';
 // Next-session targets sit beside the editor.
 
 export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const unit = useTrainerUnit();
   const overview = useClientOverview(clientId);
@@ -209,7 +205,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
   const header = (
     <ClientHeader
       clientId={clientId}
-      name={clientName || copy.clients}
+      name={clientName || t('coaching.trainer.clients')}
       active="routine"
       keepItSimple={overview.data?.client.keepItSimple}
       confirmLeave={() => confirmDiscardChanges(isDirty)}
@@ -236,14 +232,16 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
   if (routine === null) {
     return frame(
       <div className="flex max-w-lg flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
-        <p className="text-sm text-gray-700">{COACHING_COPY.server.noActiveRoutine}</p>
+        <p className="text-sm text-gray-700">
+          {t('coaching.trainer.routineEditor.noActiveRoutine')}
+        </p>
         <Button
           type="button"
           className="min-h-11 self-start"
           loading={createRoutine.isPending}
           onClick={() => createRoutine.mutate({ clientId, days: 3 })}
         >
-          Create a 3-day routine
+          {t('coaching.trainer.routineEditor.createThreeDay')}
         </Button>
         {saveError && (
           <p role="alert" className="text-sm text-red-700">
@@ -333,7 +331,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
           <input
             value={draft.name}
             onChange={(e) => dispatch({ type: 'rename_routine', name: e.target.value })}
-            aria-label="Routine name"
+            aria-label={t('coaching.trainer.routineEditor.routineName')}
             className="w-full min-w-0 rounded-lg border border-transparent bg-transparent px-1 font-serif text-xl font-semibold text-gray-900 focus:border-gray-300 focus:bg-white focus:outline-none"
           />
           {routine.lastEditedByOther && (
@@ -343,14 +341,18 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isDirty && <span className="text-xs text-amber-700">Unsaved changes</span>}
+          {isDirty && (
+            <span className="text-xs text-amber-700">
+              {t('coaching.trainer.routineEditor.unsaved')}
+            </span>
+          )}
           <Button
             type="button"
             variant="outline"
             className="min-h-11"
             onClick={() => setFillOpen(true)}
           >
-            {copy.fillFromMine}
+            {t('coaching.trainer.fillFromMine')}
           </Button>
           <Button
             type="button"
@@ -359,7 +361,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
             disabled={!isDirty || noteTooLong}
             loading={saveMutation.isPending}
           >
-            Save changes
+            {t('coaching.trainer.routineEditor.saveChanges')}
           </Button>
         </div>
       </div>
@@ -427,7 +429,11 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
         }}
         library={library.data ?? []}
         curatedOnly
-        title={swapTarget ? 'Swap exercise' : 'Add exercise'}
+        title={
+          swapTarget
+            ? t('coaching.trainer.routineEditor.swapExercise')
+            : t('coaching.trainer.routineEditor.addExercise')
+        }
         preferSwapGroup={swapTarget ? lookup(swapExerciseId ?? '')?.swapGroup : null}
         excludeIds={swapExerciseId ? [swapExerciseId] : []}
         onPick={(exercise) => {
@@ -461,8 +467,12 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
       <WorkoutTypeSheet
         open={typeDay !== null}
         onClose={() => setTypeDayKey(null)}
-        title={typeDay ? `Workout type · ${typeDay.name}` : 'Workout type'}
-        description="Pick a workout type for this day."
+        title={
+          typeDay
+            ? t('coaching.trainer.routineEditor.workoutTypeFor', { day: typeDay.name })
+            : t('coaching.trainer.profile.workoutType.label')
+        }
+        description={t('coaching.trainer.routineEditor.pickWorkoutType')}
         initial={typeDay?.workoutType ?? null}
         testIdPrefix="trainer-day-type"
         onPick={(workoutType) => {
@@ -512,7 +522,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
         saving={saveMutation.isPending}
         changedBy={
           conflictCurrent?.lastEditedByOther
-            ? editorLabel(conflictCurrent.lastEditedByOther)
+            ? editorLabelT(conflictCurrent.lastEditedByOther, t)
             : firstName
         }
         onUseTheirs={() => {

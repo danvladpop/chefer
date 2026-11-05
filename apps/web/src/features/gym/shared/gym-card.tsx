@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { cn } from '@chefer/utils';
 
 /** The app's card surface (matches /tracker and the dashboard). */
@@ -33,8 +34,9 @@ export function CardLabel({
 
 /** Loading placeholder blocks. */
 export function GymSkeleton({ rows = 3 }: { rows?: number }) {
+  const { t } = useT();
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Loading">
+    <div className="space-y-3" aria-busy="true" aria-label={t('gym.shared.loading')}>
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-100" />
       ))}

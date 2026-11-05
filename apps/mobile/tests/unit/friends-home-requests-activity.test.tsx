@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import FriendsActivityRoute from '../../app/friends/activity';
 import FriendsRequestsRoute from '../../app/friends/requests';
@@ -10,8 +9,11 @@ import {
   activitySentenceRest,
 } from '../../src/features/friends/home/activity-screen';
 import { formatActivityAge } from '../../src/features/friends/home/activity-time';
+import { getTranslator } from '../../src/lib/i18n';
 import { meDto, renderWithTrpc, type Handlers } from './friends-core-harness';
 import { activityItem, homeHandlers, page, personId, settle, who } from './friends-home-fixtures';
+
+const { t } = getTranslator();
 
 // F2.1 · requests and Activity (UX §7, PRD FR-06, FR-11, E10): the requests list
 // with accept/decline and its empty state, Activity's New/Earlier sections, the
@@ -88,8 +90,8 @@ describe('Follow requests', () => {
 
     await user.press(screen.getByTestId(`friends-request-${personId(2)}-decline`));
     await waitFor(() => expect(decline).toHaveBeenCalledWith({ userId: personId(2) }));
-    expect(await screen.findByText(FRIENDS_COPY.requests.empty.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.requests.empty.body)).toBeTruthy();
+    expect(await screen.findByText(t('friends.requests.empty.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.requests.empty.body'))).toBeTruthy();
   });
 
   it('shows the empty state when there are none', async () => {
@@ -120,7 +122,7 @@ describe('Follow requests', () => {
       },
     });
     expect(screen.getByText('Couldn’t load your requests.')).toBeTruthy();
-    expect(screen.queryByText(FRIENDS_COPY.requests.empty.title)).toBeNull();
+    expect(screen.queryByText(t('friends.requests.empty.title'))).toBeNull();
   });
 
   it('sends a person who has not turned Following on back to the intro', async () => {
@@ -268,21 +270,30 @@ describe('Activity', () => {
 
 describe('activity helpers', () => {
   it('splits the sentence after the name', () => {
-    expect(activitySentenceRest(activityItem(1, 'FOLLOW_REQUEST'))).toBe('wants to follow you');
-    expect(activitySentenceRest(activityItem(1, 'NEW_FOLLOWER'))).toBe('started following you');
-    expect(activitySentenceRest(activityItem(1, 'REQUEST_ACCEPTED'))).toBe('accepted your request');
+    expect(activitySentenceRest(activityItem(1, 'FOLLOW_REQUEST'), getTranslator().t)).toBe(
+      'wants to follow you',
+    );
+    expect(activitySentenceRest(activityItem(1, 'NEW_FOLLOWER'), getTranslator().t)).toBe(
+      'started following you',
+    );
+    expect(activitySentenceRest(activityItem(1, 'REQUEST_ACCEPTED'), getTranslator().t)).toBe(
+      'accepted your request',
+    );
   });
 
   it('groups items into New and Earlier, omitting an empty section', () => {
     const a = activityItem(1, 'NEW_FOLLOWER');
     const b = activityItem(2, 'NEW_FOLLOWER');
-    expect(activityRows([a, b], new Set([a.id])).map((r) => r.key)).toEqual([
+    expect(activityRows([a, b], new Set([a.id]), getTranslator().t).map((r) => r.key)).toEqual([
       'h-new',
       a.id,
       'h-earlier',
       b.id,
     ]);
-    expect(activityRows([a], new Set()).map((r) => r.key)).toEqual(['h-earlier', a.id]);
+    expect(activityRows([a], new Set(), getTranslator().t).map((r) => r.key)).toEqual([
+      'h-earlier',
+      a.id,
+    ]);
   });
 
   it('formats relative times: minutes, hours, Yesterday, days, then the date', () => {
@@ -290,11 +301,11 @@ describe('activity helpers', () => {
     const ago = (ms: number) => new Date(now.getTime() - ms);
     const MIN = 60_000;
     const HOUR = 60 * MIN;
-    expect(formatActivityAge(ago(10 * 1000), now)).toBe('1m');
-    expect(formatActivityAge(ago(5 * MIN), now)).toBe('5m');
-    expect(formatActivityAge(ago(2 * HOUR), now)).toBe('2h');
-    expect(formatActivityAge(ago(30 * HOUR), now)).toBe('Yesterday');
-    expect(formatActivityAge(ago(3 * 24 * HOUR), now)).toBe('3 days');
-    expect(formatActivityAge(new Date(2026, 8, 21), now)).toBe('21 Sep');
+    expect(formatActivityAge(ago(10 * 1000), getTranslator().t, now)).toBe('1m');
+    expect(formatActivityAge(ago(5 * MIN), getTranslator().t, now)).toBe('5m');
+    expect(formatActivityAge(ago(2 * HOUR), getTranslator().t, now)).toBe('2h');
+    expect(formatActivityAge(ago(30 * HOUR), getTranslator().t, now)).toBe('Yesterday');
+    expect(formatActivityAge(ago(3 * 24 * HOUR), getTranslator().t, now)).toBe('3 days');
+    expect(formatActivityAge(new Date(2026, 8, 21), getTranslator().t, now)).toBe('21 Sep');
   });
 });

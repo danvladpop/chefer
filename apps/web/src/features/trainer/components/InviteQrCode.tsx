@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useT } from '@/lib/i18n';
 import qrcode from 'qrcode-generator';
-import { COACHING_COPY } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
 // ─── The invite as a QR code (PRD 2026-10 §4.1, S5) ───────────────────────────
@@ -30,11 +30,12 @@ export function qrPath(text: string): { d: string; size: number } {
 }
 
 export function InviteQrCode({ url, className }: { url: string; className?: string }) {
+  const { t } = useT();
   const { d, size } = useMemo(() => qrPath(url), [url]);
   return (
     <svg
       role="img"
-      aria-label={COACHING_COPY.trainer.qr.label}
+      aria-label={t('coaching.trainer.qr.label')}
       viewBox={`0 0 ${size} ${size}`}
       shapeRendering="crispEdges"
       className={cn('h-auto w-full max-w-56 rounded-lg', className)}

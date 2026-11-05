@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
+import { useT } from '@/lib/i18n';
 import { ChevronRight, Dumbbell } from 'lucide-react';
 import { collectPrs, selectTodaysSession } from '@chefer/utils';
 import { localDate } from '../use-gym-bootstrap';
@@ -14,6 +15,7 @@ import { WeekRing } from './week-ring';
  * Gym mode on Today.
  */
 export function TodaysWorkoutCard() {
+  const { t } = useT();
   const { data, today, ready } = useGymData();
   const { switchMode } = useAppMode();
 
@@ -47,19 +49,24 @@ export function TodaysWorkoutCard() {
       ? data.activeRoutine?.days.find((d) => d.id === session.dayId)
       : undefined;
   const title = !hasProfile
-    ? 'Start strength training'
+    ? t('gym.todaysWorkout.startStrength')
     : todays.done
-      ? `Done ✓${todays.prs > 0 ? ` · ${todays.prs} PR${todays.prs === 1 ? '' : 's'}` : ''}`
-      : (pinnedDay?.name ?? data.nextWorkout?.dayName ?? 'Freestyle workout');
+      ? todays.prs > 0
+        ? t('gym.todaysWorkout.donePrs', { count: todays.prs })
+        : t('gym.todaysWorkout.done')
+      : (pinnedDay?.name ?? data.nextWorkout?.dayName ?? t('gym.todaysWorkout.freestyle'));
   const subtitle = !hasProfile
-    ? 'A 90-second setup picks a program for you.'
+    ? t('gym.todaysWorkout.setup')
     : todays.done
-      ? `Next: ${data.nextWorkout?.dayName ?? '—'}`
+      ? t('gym.todaysWorkout.next', { day: data.nextWorkout?.dayName ?? '—' })
       : pinnedDay
-        ? `${pinnedDay.exercises.length} exercises`
+        ? t('gym.todaysWorkout.exercises', { count: pinnedDay.exercises.length })
         : data.nextWorkout
-          ? `${data.nextWorkout.exercises.length} exercises · ~${data.nextWorkout.estimatedMin} min`
-          : 'No active routine';
+          ? t('gym.todaysWorkout.exercisesMin', {
+              count: data.nextWorkout.exercises.length,
+              min: data.nextWorkout.estimatedMin,
+            })
+          : t('gym.todaysWorkout.noRoutine');
 
   return (
     <button
@@ -77,7 +84,7 @@ export function TodaysWorkoutCard() {
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
-          Today&apos;s workout
+          {t('gym.todaysWorkout.title')}
         </span>
         <span className="mt-0.5 block truncate text-base font-semibold text-gray-900">{title}</span>
         <span className="block truncate text-xs text-gray-500">{subtitle}</span>

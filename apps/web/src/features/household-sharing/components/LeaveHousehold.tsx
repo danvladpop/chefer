@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { HOUSEHOLD_SHARING_COPY as COPY } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
@@ -11,6 +11,7 @@ import { userFacingErrorMessage } from '@chefer/utils';
 // owner; the partner's own plans come back — so every plan and list cache goes.
 
 export function LeaveHousehold({ ownerName }: { ownerName: string }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [confirming, setConfirming] = useState(false);
   const leave = trpc.household.leave.useMutation({
@@ -32,7 +33,7 @@ export function LeaveHousehold({ ownerName }: { ownerName: string }) {
         className="mt-4 min-h-11 text-red-700 hover:bg-red-50 hover:text-red-800"
         onClick={() => setConfirming(true)}
       >
-        {COPY.leave}
+        {t('household.sharing.leave')}
       </Button>
     );
   }
@@ -40,10 +41,10 @@ export function LeaveHousehold({ ownerName }: { ownerName: string }) {
   return (
     <div
       role="group"
-      aria-label={COPY.leave}
+      aria-label={t('household.sharing.leave')}
       className="mt-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-3"
     >
-      <p className="text-sm text-red-900">{COPY.leaveConfirm(ownerName)}</p>
+      <p className="text-sm text-red-900">{t('household.sharing.leaveConfirm', { ownerName })}</p>
       {leave.error && (
         <p role="alert" className="text-sm text-red-700">
           {userFacingErrorMessage(leave.error)}
@@ -57,7 +58,7 @@ export function LeaveHousehold({ ownerName }: { ownerName: string }) {
           onClick={() => setConfirming(false)}
           disabled={leave.isPending}
         >
-          {COPY.cancel}
+          {t('household.sharing.cancel')}
         </Button>
         <Button
           type="button"
@@ -66,7 +67,7 @@ export function LeaveHousehold({ ownerName }: { ownerName: string }) {
           loading={leave.isPending}
           onClick={() => leave.mutate()}
         >
-          {COPY.leave}
+          {t('household.sharing.leave')}
         </Button>
       </div>
     </div>

@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist",
     "ai:eval": "tsx src/lib/ai/eval/run-eval.ts",
+    "recipes:translate": "tsx --env-file=.env src/scripts/translate-recipes.ts",
     "ingredients:migrate": "tsx src/scripts/ingredients-migrate.ts",
     "ingredients:verify": "tsx src/scripts/ingredients-verify.ts",
     "ingredients:regenerate": "tsx src/scripts/ingredients-regenerate.ts",

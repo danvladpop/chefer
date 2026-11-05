@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
 import { ChevronRight, Search } from 'lucide-react';
-import { COACHING_COPY, FRIENDS_LIMITS, type TrainerSummaryDto } from '@chefer/types';
+import { FRIENDS_LIMITS, type TrainerSummaryDto } from '@chefer/types';
 import { Button, pressCard } from '@chefer/ui';
 import { cn, userFacingErrorMessage } from '@chefer/utils';
 import { TrainerNameBlock } from './TrainerBadge';
@@ -19,6 +20,7 @@ const MIN_CHARS = FRIENDS_LIMITS.searchMinChars;
 const DEBOUNCE_MS = 300;
 
 function TrainerResult({ trainer }: { trainer: TrainerSummaryDto }) {
+  const { t } = useT();
   return (
     <li>
       <Link
@@ -33,7 +35,7 @@ function TrainerResult({ trainer }: { trainer: TrainerSummaryDto }) {
           <TrainerNameBlock name={trainer.name} gymLine={trainer.gymLine} />
           {!trainer.acceptingClients && (
             <span className="mt-1 block text-sm font-medium text-gray-700">
-              {COACHING_COPY.find.notTaking}
+              {t('coaching.find.notTaking')}
             </span>
           )}
         </span>
@@ -44,7 +46,7 @@ function TrainerResult({ trainer }: { trainer: TrainerSummaryDto }) {
 }
 
 export function FindTrainer() {
-  const copy = COACHING_COPY.find;
+  const { t } = useT();
   const inputId = useId();
   const hintId = useId();
   const [query, setQuery] = useState('');
@@ -68,13 +70,13 @@ export function FindTrainer() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
       <div>
-        <h1 className="font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
-        <p className="mt-1 text-sm text-gray-600">{copy.entryHint}</p>
+        <h1 className="font-serif text-2xl font-bold text-gray-900">{t('coaching.find.title')}</h1>
+        <p className="mt-1 text-sm text-gray-600">{t('coaching.find.entryHint')}</p>
       </div>
 
       <form role="search" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-1.5">
         <label htmlFor={inputId} className="text-sm font-medium text-gray-700">
-          {copy.searchLabel}
+          {t('coaching.find.searchLabel')}
         </label>
         <div className="relative">
           <Search
@@ -86,7 +88,7 @@ export function FindTrainer() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={copy.searchPlaceholder}
+            placeholder={t('coaching.find.searchPlaceholder')}
             autoComplete="off"
             maxLength={FRIENDS_LIMITS.searchMaxChars}
             aria-describedby={tooShort ? hintId : undefined}
@@ -95,7 +97,7 @@ export function FindTrainer() {
         </div>
         {tooShort && (
           <p id={hintId} className="text-xs text-gray-500">
-            {copy.tooShort}
+            {t('coaching.find.tooShort')}
           </p>
         )}
       </form>
@@ -109,12 +111,12 @@ export function FindTrainer() {
           <div className="h-20 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
         ) : searching && trainers.length === 0 && results.isSuccess ? (
           <p className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
-            {copy.empty}
+            {t('coaching.find.empty')}
           </p>
         ) : trainers.length > 0 ? (
-          <ul className="flex flex-col gap-2" aria-label={copy.title}>
-            {trainers.map((t) => (
-              <TrainerResult key={t.trainerId} trainer={t} />
+          <ul className="flex flex-col gap-2" aria-label={t('coaching.find.title')}>
+            {trainers.map((trainer) => (
+              <TrainerResult key={trainer.trainerId} trainer={trainer} />
             ))}
           </ul>
         ) : null}
@@ -126,7 +128,7 @@ export function FindTrainer() {
             loading={results.isFetchingNextPage}
             onClick={() => void results.fetchNextPage()}
           >
-            Show more
+            {t('coaching.common.showMore')}
           </Button>
         )}
       </div>

@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import {
-  CHECK_IN_COPY,
-  CHECK_IN_LIMITS,
-  CHECK_IN_QUESTIONS,
-  type CheckInAnswers,
-  type CheckInQuestion,
-} from '@chefer/types';
+import { CHECK_IN_LIMITS, type CheckInAnswers, type CheckInQuestion } from '@chefer/types';
 import {
   Button,
   EmptyState,
@@ -22,11 +16,13 @@ import {
 } from '@chefer/ui-mobile';
 import { cn, isCompleteCheckIn, userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../../trainer/components/trainer-header';
+import { trainerNameOrFallbackT } from '../copy';
 
 // ─── The weekly check-in (lane K3) ────────────────────────────────────────────
 // The trainer's questions as 1–5 scales and an optional note. Sending again changes the answers until
@@ -46,11 +42,12 @@ function ScaleRow({
   onChange: (value: number) => void;
   disabled: boolean;
 }) {
-  const q = CHECK_IN_QUESTIONS[question];
+  const { t } = useT();
+  const label = t(`coaching.checkIn.questions.${question}.label`);
   return (
     <View testID={`check-in-${question}`} className="gap-1.5">
       <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-        {q.label}
+        {label}
       </Text>
       <View accessibilityRole="radiogroup" className="flex-row gap-2">
         {[1, 2, 3, 4, 5].map((n) => {
@@ -62,7 +59,10 @@ function ScaleRow({
               testID={`check-in-${question}-${n}`}
               accessibilityRole="radio"
               accessibilityState={{ selected, disabled }}
-              accessibilityLabel={CHECK_IN_COPY.client.scaleLabel(q.label, n)}
+              accessibilityLabel={t('coaching.checkIn.client.scaleLabel', {
+                question: label,
+                value: n,
+              })}
               disabled={disabled}
               onPress={() => {
                 haptics.selection();
@@ -86,15 +86,19 @@ function ScaleRow({
         })}
       </View>
       <View className="flex-row justify-between">
-        <Text className="text-footnote text-label-secondary">{q.low}</Text>
-        <Text className="text-footnote text-label-secondary">{q.high}</Text>
+        <Text className="text-footnote text-label-secondary">
+          {t(`coaching.checkIn.questions.${question}.low`)}
+        </Text>
+        <Text className="text-footnote text-label-secondary">
+          {t(`coaching.checkIn.questions.${question}.high`)}
+        </Text>
       </View>
     </View>
   );
 }
 
 export function CheckInScreen() {
-  const copy = CHECK_IN_COPY.client;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const online = useIsOnline();
@@ -118,13 +122,19 @@ export function CheckInScreen() {
         edit: current.data?.answered != null,
       });
       void utils.coaching.checkIn.current.invalidate();
-      snackbar.show({ message: copy.sent(sent.trainerName) });
+      snackbar.show({
+        message: t('coaching.checkIn.client.sent', {
+          trainer: trainerNameOrFallbackT(sent.trainerName, t),
+        }),
+      });
       goBackOrHome();
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
-  const header = <TrainerHeader testID="check-in-header" title={copy.title} />;
+  const header = (
+    <TrainerHeader testID="check-in-header" title={t('coaching.checkIn.client.title')} />
+  );
   if (current.isPending) {
     return (
       <Screen edges={EDGES} className="bg-canvas px-0" testID="check-in-loading">
@@ -146,7 +156,7 @@ export function CheckInScreen() {
     return (
       <Screen edges={EDGES} className="bg-canvas px-0" testID="check-in-closed">
         {header}
-        <EmptyState title={copy.closed} />
+        <EmptyState title={t('coaching.checkIn.client.closed')} />
       </Screen>
     );
   }
@@ -158,7 +168,11 @@ export function CheckInScreen() {
         keyboardDismissMode="on-drag"
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
       >
-        <Text className="text-subhead text-label-secondary">{copy.intro(open.trainerName)}</Text>
+        <Text className="text-subhead text-label-secondary">
+          {t('coaching.checkIn.client.intro', {
+            trainer: trainerNameOrFallbackT(open.trainerName, t),
+          })}
+        </Text>
         <CoachingCard className="gap-5">
           {open.questions.map((q) => (
             <ScaleRow
@@ -170,11 +184,11 @@ export function CheckInScreen() {
             />
           ))}
         </CoachingCard>
-        <FormField testID="check-in-note-field" label={copy.noteLabel}>
+        <FormField testID="check-in-note-field" label={t('coaching.checkIn.client.noteLabel')}>
           <Input
             testID="check-in-note"
-            label={copy.noteLabel}
-            placeholder={copy.notePlaceholder}
+            label={t('coaching.checkIn.client.noteLabel')}
+            placeholder={t('coaching.checkIn.client.notePlaceholder')}
             value={note}
             multiline
             maxLength={CHECK_IN_LIMITS.noteMaxChars}
@@ -192,7 +206,9 @@ export function CheckInScreen() {
             {error}
           </Text>
         ) : !complete ? (
-          <Text className="text-footnote text-label-secondary">{copy.needsAll}</Text>
+          <Text className="text-footnote text-label-secondary">
+            {t('coaching.checkIn.client.needsAll')}
+          </Text>
         ) : null}
         <Button
           testID="check-in-send"
@@ -208,7 +224,7 @@ export function CheckInScreen() {
             });
           }}
         >
-          {open.answered ? copy.edit : copy.send}
+          {open.answered ? t('coaching.checkIn.client.edit') : t('coaching.checkIn.client.send')}
         </Button>
       </KeyboardAwareScrollView>
     </Screen>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import type { WorkoutType } from '@chefer/types';
 import {
   MediaFrame,
@@ -14,18 +15,19 @@ import {
   isSimpleTraining,
   resumeSummary,
   selectTodaysSession,
-  sessionKcalCopy,
   simpleToday,
   todayStatus,
   weekdayOf,
+  type SessionKcal,
+  type SessionKcalCopy,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
+import { useT } from '../../../lib/i18n';
 import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { useActiveSessionPausedAt } from '../../gym/offline/active-session-store';
 import { localDate } from '../../gym/offline/ids';
-import { weekdayLabel } from '../../gym/routine/weekday';
 import { isSimpleSkipped } from '../../gym/simple/simple-skip';
 import { useSimpleStart } from '../../gym/simple/use-simple-start';
 import { setupLocalDate, workoutForDay } from '../../gym/today/today-helpers';
@@ -55,7 +57,36 @@ import { useStartGuard } from './use-start-guard';
 // you", "Carry on joining your trainer") sit under the section title, as on
 // Train; with no card to show they stand alone. Self-gated on coaching.availability.
 
+// Weekday convention: 0 = Monday … 6 = Sunday (gym/routine/weekday.ts).
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+/** weekdayLabel() in the UI language: "Monday", or "No fixed day". */
+function weekdayName(t: Translator['t'], weekday: number | null): string {
+  const key = weekday === null ? undefined : WEEKDAY_KEYS[weekday];
+  return key ? t(`common.weekdays.${key}`) : t('today.shell.training.noFixedDay');
+}
+
+/** sessionKcalCopy() in the UI language: the burn tile's value, caption and spoken label. */
+function burnCopy(t: Translator['t'], burn: SessionKcal): SessionKcalCopy {
+  const value = burn.kcal;
+  if (burn.isEstimate) {
+    return {
+      value: t('today.shell.training.burn.estimate.value', { value }),
+      label: t('today.shell.training.burn.estimate.label.kcal'),
+      spoken: t('today.shell.training.burn.estimate.spoken.kcal', { value }),
+      hint: t('today.shell.training.burn.estimate.hint'),
+    };
+  }
+  return {
+    value: String(value),
+    label: t('today.shell.training.burn.logged.label.kcal'),
+    spoken: t('today.shell.training.burn.logged.spoken.kcal', { value }),
+    hint: t('today.shell.training.burn.logged.hint'),
+  };
+}
+
 export function TrainingSection() {
+  const { t } = useT();
   const colors = useThemeColors();
   const { data: bootstrap } = useGymBootstrap();
   const activeWorkout = useActiveWorkout();
@@ -82,7 +113,7 @@ export function TrainingSection() {
   };
   const section = (card: React.ReactNode) => (
     <View testID="today-training" className="gap-3">
-      <SectionTitle>Training</SectionTitle>
+      <SectionTitle>{t('today.shell.training.title')}</SectionTitle>
       {notices}
       {card}
       {logSheet}
@@ -101,7 +132,10 @@ export function TrainingSection() {
       supersets: supersetsOf(session, bootstrap),
       lookup: libraryLookup(bootstrap),
     });
-    const stateLabel = summary.state === 'paused' ? 'Workout paused' : 'Workout in progress';
+    const stateLabel =
+      summary.state === 'paused'
+        ? t('today.shell.training.paused')
+        : t('today.shell.training.inProgress');
     return section(
       <BoardCard testID="today-training-resume">
         <View className="flex-row items-center gap-3">
@@ -111,12 +145,15 @@ export function TrainingSection() {
               {summary.name}
             </Text>
             <Text className="text-subhead text-label-secondary">
-              {`${summary.exercisesDone} of ${summary.exercisesTotal} exercises`}
+              {t('today.shell.training.exercisesDone', {
+                done: summary.exercisesDone,
+                count: summary.exercisesTotal,
+              })}
             </Text>
           </View>
           <ActionButton
             testID="today-training-resume-button"
-            label="Resume"
+            label={t('today.shell.training.resume')}
             icon="play"
             variant="filled"
             onPress={() => {
@@ -140,7 +177,7 @@ export function TrainingSection() {
                 testID="today-training-done-at"
                 className="text-subhead font-semibold text-positive"
               >
-                {`Done at ${clockTime(done.finishedAt)}`}
+                {t('today.shell.training.doneAt', { time: clockTime(done.finishedAt) })}
               </Text>
             </View>
             <Text numberOfLines={2} className="text-headline font-bold text-label">
@@ -150,13 +187,15 @@ export function TrainingSection() {
           <PressableScale
             testID="today-training-summary"
             accessibilityRole="link"
-            accessibilityLabel={`Summary of ${done.session.name}`}
+            accessibilityLabel={t('today.shell.training.summaryOf', { name: done.session.name })}
             onPress={() =>
               router.push({ pathname: '/gym/summary/[id]', params: { id: done.session.id } })
             }
             className="min-h-11 justify-center pl-2"
           >
-            <Text className="text-callout font-semibold text-brand">Summary</Text>
+            <Text className="text-callout font-semibold text-brand">
+              {t('today.shell.training.summary')}
+            </Text>
           </PressableScale>
         </View>
         <StatTiles testID="today-training-stats">
@@ -164,29 +203,29 @@ export function TrainingSection() {
             testID="today-training-duration"
             icon={<Icon name="time" color={colors.brand} size={18} />}
             value={String(done.durationMin)}
-            unit="min"
-            label="Duration"
+            unit={t('today.shell.training.minutesUnit')}
+            label={t('today.shell.training.duration')}
           />
           {done.burn && !proteinOnly ? (
-            <BurnTile testID="today-training-kcal" copy={sessionKcalCopy(done.burn)} />
+            <BurnTile testID="today-training-kcal" copy={burnCopy(t, done.burn)} />
           ) : (
             <StatTile
               testID="today-training-sets"
               icon={<Icon name="barbell" color={colors.brand} size={18} />}
               value={String(done.workingSets)}
-              label="Sets"
+              label={t('today.shell.training.sets')}
             />
           )}
           <StatTile
             testID="today-training-exercises"
             icon={<Icon name="list" color={colors.brand} size={18} />}
             value={String(done.exercises)}
-            label="Exercises"
+            label={t('today.shell.training.exercises')}
           />
         </StatTiles>
         <ActionButton
           testID="today-training-log-another"
-          label="Log another workout"
+          label={t('today.shell.training.logAnother')}
           icon="add"
           onPress={() => openLog()}
         />
@@ -204,7 +243,9 @@ export function TrainingSection() {
     return section(
       <BoardCard testID="today-training-simple">
         <View className="min-w-0 gap-0.5">
-          <Text className="text-subhead font-semibold text-brand">Planned today</Text>
+          <Text className="text-subhead font-semibold text-brand">
+            {t('today.shell.training.plannedToday')}
+          </Text>
           <Text
             testID="today-training-day"
             numberOfLines={1}
@@ -216,7 +257,7 @@ export function TrainingSection() {
         <View className="flex-row gap-2">
           <ActionButton
             testID="today-training-start"
-            label="Start"
+            label={t('today.shell.training.start')}
             icon="play"
             variant="filled"
             className="flex-1 px-2"
@@ -224,7 +265,7 @@ export function TrainingSection() {
           />
           <ActionButton
             testID="today-training-log"
-            label="Log a workout"
+            label={t('today.shell.training.logWorkout')}
             icon="add"
             className="flex-1 px-2"
             onPress={() => openLog(plan.workoutType ?? undefined)}
@@ -244,21 +285,27 @@ export function TrainingSection() {
       : bootstrap.nextWorkout;
 
   if (status.kind === 'done' || (status.kind === 'rest' && todays.kind !== 'planned')) {
-    const lead = status.kind === 'done' ? 'Done today' : 'Rest day';
     return section(
       <BoardCard testID="today-training-rest" className="flex-row items-center gap-3">
         <Text testID="today-training-rest-label" className="min-w-0 flex-1 text-callout text-label">
-          {`${lead} · Next: ${status.dayName} on ${weekdayLabel(status.weekday)}`}
+          {t(
+            status.kind === 'done'
+              ? 'today.shell.training.doneNext'
+              : 'today.shell.training.restNext',
+            { day: status.dayName, weekday: weekdayName(t, status.weekday) },
+          )}
         </Text>
         <PressableScale
           testID="today-training-open-train"
           accessibilityRole="link"
-          accessibilityLabel="Open Train"
+          accessibilityLabel={t('today.shell.training.openTrain')}
           onPress={() => router.navigate('/train')}
           className="min-h-11 justify-center"
         >
           <Text className="text-callout font-semibold text-brand">
-            {status.kind === 'done' ? 'Train' : 'Train anyway'}
+            {status.kind === 'done'
+              ? t('today.shell.training.train')
+              : t('today.shell.training.trainAnyway')}
           </Text>
         </PressableScale>
       </BoardCard>,
@@ -292,7 +339,9 @@ export function TrainingSection() {
         />
         <View className="min-w-0 flex-1 gap-0.5">
           <Text className="text-subhead font-semibold text-brand">
-            {offSchedule ? `Up next · usually ${weekdayLabel(pinnedWeekday)}` : 'Planned today'}
+            {offSchedule
+              ? t('today.shell.training.upNext', { weekday: weekdayName(t, pinnedWeekday) })
+              : t('today.shell.training.plannedToday')}
           </Text>
           <Text
             testID="today-training-day"
@@ -302,14 +351,17 @@ export function TrainingSection() {
             {nextWorkout.dayName}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {`${nextWorkout.exercises.length} exercises · ~${nextWorkout.estimatedMin} min`}
+            {t('today.shell.training.workoutMeta', {
+              count: nextWorkout.exercises.length,
+              min: nextWorkout.estimatedMin,
+            })}
           </Text>
         </View>
       </View>
       <View className="flex-row gap-2">
         <ActionButton
           testID="today-training-start"
-          label="Start workout"
+          label={t('today.shell.training.startWorkout')}
           icon="play"
           variant="filled"
           className="flex-1 px-2"
@@ -317,7 +369,7 @@ export function TrainingSection() {
         />
         <ActionButton
           testID="today-training-log"
-          label="Log a workout"
+          label={t('today.shell.training.logWorkout')}
           icon="add"
           className="flex-1 px-2"
           onPress={() => openLog()}

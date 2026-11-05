@@ -1,8 +1,8 @@
 import { Alert, View } from 'react-native';
-import { HOUSEHOLD_SHARING_COPY } from '@chefer/types';
 import { Text } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
 import { useInvalidateHousehold, type HouseholdSharing } from './use-household-sharing';
@@ -31,6 +31,7 @@ export function MemberSharingLine({
   sharing: HouseholdSharing;
   onInvite: (member: SharingMember) => void;
 }) {
+  const { t } = useT();
   const invalidate = useInvalidateHousehold();
   const remove = trpc.household.removePartner.useMutation({
     meta: { silent: true },
@@ -38,7 +39,7 @@ export function MemberSharingLine({
       track('household_left', { by: 'owner' });
       invalidate();
     },
-    onError: (err) => Alert.alert(HOUSEHOLD_SHARING_COPY.remove, userFacingErrorMessage(err)),
+    onError: (err) => Alert.alert(t('household.sharing.remove'), userFacingErrorMessage(err)),
   });
   const status = sharing.status;
   if (!sharing.enabled || !status) return null;
@@ -48,12 +49,12 @@ export function MemberSharingLine({
     const confirmRemove = () => {
       if (!link) return;
       Alert.alert(
-        HOUSEHOLD_SHARING_COPY.remove,
-        HOUSEHOLD_SHARING_COPY.removeConfirm(member.name),
+        t('household.sharing.remove'),
+        t('household.sharing.removeConfirm', { name: member.name }),
         [
-          { text: HOUSEHOLD_SHARING_COPY.cancel, style: 'cancel' },
+          { text: t('household.sharing.cancel'), style: 'cancel' },
           {
-            text: HOUSEHOLD_SHARING_COPY.remove,
+            text: t('household.sharing.remove'),
             style: 'destructive',
             onPress: () => remove.mutate({ linkId: link.linkId }),
           },
@@ -67,18 +68,18 @@ export function MemberSharingLine({
             testID={`household-joined-${member.id}`}
             className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
           >
-            {member.isYou ? HOUSEHOLD_SHARING_COPY.you : HOUSEHOLD_SHARING_COPY.joinedBadge}
+            {member.isYou ? t('household.sharing.you') : t('household.sharing.joinedBadge')}
           </Text>
           {!member.isYou ? (
             <Text className="min-w-0 flex-1 text-caption text-label-secondary">
-              {HOUSEHOLD_SHARING_COPY.claimedProfileNote(member.name)}
+              {t('household.sharing.claimedProfileNote', { name: member.name })}
             </Text>
           ) : null}
         </View>
         {sharing.isOwner && link ? (
           <TrainButton
             testID={`household-remove-partner-${member.id}`}
-            label={HOUSEHOLD_SHARING_COPY.remove}
+            label={t('household.sharing.remove')}
             variant="danger"
             loading={remove.isPending}
             onPress={confirmRemove}
@@ -96,7 +97,7 @@ export function MemberSharingLine({
     <View testID={`household-sharing-${member.id}`} className="px-1">
       <TrainButton
         testID={`household-invite-${member.id}`}
-        label={pending ? HOUSEHOLD_SHARING_COPY.invitePending : HOUSEHOLD_SHARING_COPY.inviteButton}
+        label={pending ? t('household.sharing.invitePending') : t('household.sharing.inviteButton')}
         variant={pending ? 'ghost' : 'tinted'}
         onPress={() => onInvite(member)}
       />

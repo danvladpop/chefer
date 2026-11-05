@@ -20,7 +20,7 @@ import { onAiUsage, type AiUsage } from './usage.js';
 export function workloadForOp(op: string): string | null {
   if (op.startsWith('generateMealPlan')) return 'mealPlan';
   if (op === 'generateRecipeSwap' || op === 'repairRecipeLines') return 'swap';
-  if (op === 'cheferizeRecipe') return 'cheferize';
+  if (op === 'cheferizeRecipe' || op === 'translateRecipe') return 'cheferize';
   if (op.startsWith('extractRecipe')) return 'importText';
   if (op === 'analyzeMealPhoto') return 'vision';
   if (op.startsWith('chat')) return 'chat';

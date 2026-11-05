@@ -23,6 +23,9 @@ export interface CheckInEmailRecipient {
   clientId: string;
   email: string;
   firstName: string | null;
+  /** ADR 0004: the email goes out in locale ?? deviceLocale ?? 'en'. */
+  locale: string | null;
+  deviceLocale: string | null;
 }
 
 export interface ICoachingCheckInRepository {
@@ -108,7 +111,7 @@ export class CoachingCheckInRepository implements ICoachingCheckInRepository {
         trainerId: true,
         clientId: true,
         trainer: { select: { trainerProfile: { select: { displayName: true } } } },
-        client: { select: { email: true, firstName: true } },
+        client: { select: { email: true, firstName: true, locale: true, deviceLocale: true } },
       },
     });
     return links.map((l) => ({
@@ -117,6 +120,8 @@ export class CoachingCheckInRepository implements ICoachingCheckInRepository {
       clientId: l.clientId,
       email: l.client.email,
       firstName: l.client.firstName,
+      locale: l.client.locale,
+      deviceLocale: l.client.deviceLocale,
     }));
   }
 

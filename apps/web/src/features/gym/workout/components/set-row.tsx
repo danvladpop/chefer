@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import { useT } from '@/lib/i18n';
 import { Check, MoreHorizontal, Trophy } from 'lucide-react';
 import type {
   EquipmentProfile,
@@ -13,8 +14,6 @@ import { pressControl } from '@chefer/ui';
 import { cn, formatLoad, formatLoadNumber, loggingProfile, stepDown, stepUp } from '@chefer/utils';
 import { Stepper } from '../../shared/stepper';
 import { loadSlotOf } from '../workout-model';
-
-const PR_LABEL: Record<PrKind, string> = { e1rm: 'e1RM PR', weight: 'Weight PR', reps: 'Rep PR' };
 
 export interface SetRowProps {
   seId: string;
@@ -55,6 +54,7 @@ export const SetRow = memo(function SetRow({
   onOpenPlates,
   onOpenMenu,
 }: SetRowProps) {
+  const { t } = useT();
   const done = set.completedAt !== null;
   const loadType = meta?.loadType ?? 'WEIGHTED';
   const timed = meta?.isTimed ?? false;
@@ -87,7 +87,11 @@ export const SetRow = memo(function SetRow({
       <button
         type="button"
         onClick={() => onOpenMenu(seId, set.id)}
-        aria-label={`Options for ${set.isWarmup ? 'warm-up set' : `set ${label}`}`}
+        aria-label={
+          set.isWarmup
+            ? t('gym.workout.setRow.menuWarmup')
+            : t('gym.workout.setRow.menuSet', { label })
+        }
         aria-haspopup="dialog"
         data-testid="gym-set-menu"
         className={cn(
@@ -105,9 +109,17 @@ export const SetRow = memo(function SetRow({
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
         {hasLoad && slot ? (
           <Stepper
-            label="weight"
+            label={t('gym.workout.setRow.weight')}
+            decreaseLabel={t('gym.workout.setRow.decreaseWeight')}
+            increaseLabel={t('gym.workout.setRow.increaseWeight')}
             value={formatLoadNumber(set.weightKg, unit)}
-            valueLabel={`${formatLoad(set.weightKg, unit, loadType, { each: meta?.perHand })}${barbell ? ', open plate calculator' : ''}`}
+            valueLabel={
+              barbell
+                ? t('gym.workout.setRow.weightWithPlates', {
+                    load: formatLoad(set.weightKg, unit, loadType, { each: meta?.perHand }),
+                  })
+                : formatLoad(set.weightKg, unit, loadType, { each: meta?.perHand })
+            }
             // Owner dogfood 2026-09-30 (mobile parity): pull-ups, chin-ups
             // and dips step through belt loads even with the dip-belt
             // setting off, so added weight can always be logged.
@@ -127,13 +139,23 @@ export const SetRow = memo(function SetRow({
           />
         ) : (
           <span className="flex min-h-11 items-center justify-center rounded-xl border bg-gray-50 text-sm font-semibold text-gray-600 sm:flex-1">
-            BW
+            {t('gym.workout.setRow.bodyweight')}
           </span>
         )}
         <Stepper
-          label={timed ? 'seconds' : 'reps'}
+          label={timed ? t('gym.workout.setRow.seconds') : t('gym.workout.setRow.reps')}
+          decreaseLabel={
+            timed ? t('gym.workout.setRow.decreaseSeconds') : t('gym.workout.setRow.decreaseReps')
+          }
+          increaseLabel={
+            timed ? t('gym.workout.setRow.increaseSeconds') : t('gym.workout.setRow.increaseReps')
+          }
           value={`${set.reps}${timed ? 's' : ''}`}
-          valueLabel={`${set.reps} ${timed ? 'seconds' : 'reps'}`}
+          valueLabel={
+            timed
+              ? t('gym.workout.setRow.valueSeconds', { value: String(set.reps) })
+              : t('gym.workout.setRow.valueReps', { value: String(set.reps) })
+          }
           onDecrement={() => onEdit(seId, set.id, { reps: Math.max(0, set.reps - repStep) })}
           onIncrement={() => onEdit(seId, set.id, { reps: Math.min(3600, set.reps + repStep) })}
           canDecrement={set.reps > 0}
@@ -146,7 +168,9 @@ export const SetRow = memo(function SetRow({
         type="button"
         onClick={() => onToggle(seId, set)}
         aria-pressed={done}
-        aria-label={done ? `Undo set ${label}` : `Log set ${label}`}
+        aria-label={
+          done ? t('gym.workout.setRow.undo', { label }) : t('gym.workout.setRow.log', { label })
+        }
         data-testid="gym-set-check"
         className={cn(
           // UX-05 A1 (T-05.A1.2 web parity): the ✓ is a circle, matching the
@@ -162,14 +186,14 @@ export const SetRow = memo(function SetRow({
       </button>
 
       <p className="col-start-2 col-end-4 flex min-w-0 items-center gap-2 text-xs text-gray-500">
-        <span className="truncate">Last time: {lastText}</span>
+        <span className="truncate">{t('gym.workout.setRow.lastTime', { value: lastText })}</span>
         {pr && (
           <span
             className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800"
             data-testid="gym-pr-badge"
           >
             <Trophy className="h-3 w-3" aria-hidden="true" />
-            {PR_LABEL[pr]}
+            {t(`gym.workout.setRow.pr.${pr}`)}
           </span>
         )}
       </p>

@@ -1,13 +1,15 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import FriendsHomeRoute from '../../app/friends/index';
 import { resetRememberedSegment } from '../../src/features/friends/home/home-screen';
 import { searchBucket } from '../../src/features/friends/home/search-results';
+import { getTranslator } from '../../src/lib/i18n';
 import { meDto, renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { homeHandlers, page, personId, settle, who } from './friends-home-fixtures';
+
+const { t } = getTranslator();
 
 // F2.1 · search by NAME (UX §6, PRD FR-07, E3): nothing is requested below 2
 // characters, results carry `Follows you` / `Followed by {name}`, no results
@@ -55,7 +57,7 @@ describe('search by name', () => {
     const search = jest.fn(() => page([]));
     const r = await renderHome({ 'friends.search': search });
     await typeQuery('a');
-    expect(await screen.findByText(FRIENDS_COPY.search.keepTyping)).toBeTruthy();
+    expect(await screen.findByText(t('friends.search.keepTyping'))).toBeTruthy();
     await settle();
     expect(search).not.toHaveBeenCalled();
     expect(r.paths()).not.toContain('friends.search');
@@ -107,7 +109,7 @@ describe('search by name', () => {
     await renderHome({ 'friends.search': () => page([]) });
     await typeQuery('zzz');
     expect(await screen.findByText('No one found for “zzz”')).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.search.noResults.body)).toBeTruthy();
+    expect(screen.getByText(t('friends.search.noResults.body'))).toBeTruthy();
     expect(screen.getByTestId('friends-search-invite')).toHaveTextContent('Invite someone');
     await waitFor(() =>
       expect(track).toHaveBeenCalledWith('friends_search', { resultBucket: '0' }),
@@ -117,11 +119,11 @@ describe('search by name', () => {
   it('shows the rate-limit message inline', async () => {
     await renderHome({
       'friends.search': () => {
-        throw trpcError('TOO_MANY_REQUESTS', 429, {}, FRIENDS_COPY.search.rateLimited);
+        throw trpcError('TOO_MANY_REQUESTS', 429, {}, t('friends.search.rateLimited'));
       },
     });
     await typeQuery('Ma');
-    expect(await screen.findByText(FRIENDS_COPY.search.rateLimited)).toBeTruthy();
+    expect(await screen.findByText(t('friends.search.rateLimited'))).toBeTruthy();
   });
 
   it('shows a compact error with Try again for any other failure', async () => {
@@ -134,7 +136,7 @@ describe('search by name', () => {
       },
     });
     await typeQuery('Ma');
-    expect(await screen.findByText(FRIENDS_COPY.search.error)).toBeTruthy();
+    expect(await screen.findByText(t('friends.search.error'))).toBeTruthy();
     await userEvent.setup().press(screen.getByTestId('friends-search-error-retry'));
     expect(await screen.findByTestId(`friends-search-result-${personId(4)}`)).toBeTruthy();
   });
@@ -151,7 +153,7 @@ describe('search by name', () => {
       expect(screen.queryByTestId(`friends-search-result-${personId(4)}`)).toBeNull(),
     );
     expect(screen.getByTestId(`friends-following-${personId(5)}`)).toBeTruthy();
-    expect(screen.queryByText(FRIENDS_COPY.search.keepTyping)).toBeNull();
+    expect(screen.queryByText(t('friends.search.keepTyping'))).toBeNull();
   });
 
   it('Follow in a result flips it in place', async () => {

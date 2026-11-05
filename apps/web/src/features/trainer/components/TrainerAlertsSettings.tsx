@@ -2,13 +2,9 @@
 
 import { useEffect, useId, useState } from 'react';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import {
-  COACHING_SHARING_COPY,
-  QUIET_COPY,
-  QUIET_LIMITS,
-  type TrainerAlertsConfigDto,
-} from '@chefer/types';
+import { QUIET_LIMITS, type TrainerAlertsConfigDto } from '@chefer/types';
 import { Button, Switch } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
@@ -17,6 +13,7 @@ import { cn } from '@chefer/utils';
 // 3), and the optional daily email. Mirrors mobile trainer-alerts-card.tsx.
 
 export function TrainerAlertsSettings() {
+  const { t } = useT();
   const id = useId();
   const utils = trpc.useUtils();
   const config = trpc.trainer.alerts.config.useQuery(undefined, { retry: false });
@@ -31,9 +28,9 @@ export function TrainerAlertsSettings() {
       void utils.trainer.dashboard.summary.invalidate();
       void utils.trainer.clients.list.invalidate();
       void utils.trainer.badges.invalidate();
-      showAppToast({ message: QUIET_COPY.saved, type: 'success' });
+      showAppToast({ message: t('coaching.quiet.saved'), type: 'success' });
     },
-    onError: () => showAppToast({ message: COACHING_SHARING_COPY.saveError }),
+    onError: () => showAppToast({ message: t('coaching.sharing.saveError') }),
   });
   if (!draft) return null;
   return (
@@ -43,9 +40,9 @@ export function TrainerAlertsSettings() {
       className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
     >
       <h2 id={`${id}-title`} className="font-semibold text-gray-900">
-        {QUIET_COPY.settingsTitle}
+        {t('coaching.quiet.settingsTitle')}
       </h2>
-      <p className="text-sm font-semibold text-gray-900">{QUIET_COPY.quietLabel}</p>
+      <p className="text-sm font-semibold text-gray-900">{t('coaching.quiet.quietLabel')}</p>
       <div className="flex flex-wrap gap-2">
         {QUIET_LIMITS.dayChoices.map((n) => (
           <button
@@ -60,18 +57,18 @@ export function TrainerAlertsSettings() {
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
             )}
           >
-            {QUIET_COPY.days(n)}
+            {t('coaching.quiet.days', { count: n })}
           </button>
         ))}
       </div>
-      <p className="text-xs text-gray-600">{QUIET_COPY.quietHint}</p>
+      <p className="text-xs text-gray-600">{t('coaching.quiet.quietHint')}</p>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p id={`${id}-digest`} className="text-sm font-semibold text-gray-900">
-            {QUIET_COPY.digest}
+            {t('coaching.quiet.digest')}
           </p>
           <p id={`${id}-digest-hint`} className="text-xs text-gray-600">
-            {QUIET_COPY.digestHint}
+            {t('coaching.quiet.digestHint')}
           </p>
         </div>
         <Switch
@@ -89,7 +86,7 @@ export function TrainerAlertsSettings() {
           loading={save.isPending}
           onClick={() => save.mutate(draft)}
         >
-          {QUIET_COPY.save}
+          {t('coaching.quiet.save')}
         </Button>
       </div>
     </section>

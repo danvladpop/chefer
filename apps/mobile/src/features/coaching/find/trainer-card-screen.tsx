@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  COACHING_COPY,
   NO_COACHING_SHARE as NO_SHARE,
   type CoachingShareChoice,
   type TrainerCardDto,
@@ -21,11 +20,12 @@ import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } f
 import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
 import { trackSharingChosen } from '../../../lib/analytics-events';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TRAINER_SCREEN_CLASS, TrainerHeader } from '../../trainer/components/trainer-header';
-import { COACHING_MOBILE_COPY } from '../copy';
+import { trainerNameOrFallbackT } from '../copy';
 import { ConsentScreen } from '../join/consent-screen';
 import { COACHING_EDGES, CoachingGate } from './coaching-gate';
 
@@ -41,12 +41,13 @@ import { COACHING_EDGES, CoachingGate } from './coaching-gate';
 // off) answers NOT_FOUND: "This trainer isn’t available".
 
 function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => void }) {
-  const request = COACHING_COPY.request;
+  const { t } = useT();
+  const trainer = trainerNameOrFallbackT(card.name, t);
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const cancel = trpc.coaching.cancelRequest.useMutation({
     meta: { silent: true },
-    onSuccess: () => snackbar.show({ message: request.cancelled }),
+    onSuccess: () => snackbar.show({ message: t('coaching.request.cancelled') }),
     onSettled: () => {
       void utils.coaching.trainerCard.invalidate();
       void utils.coaching.status.invalidate();
@@ -56,7 +57,7 @@ function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => vo
   if (card.relation === 'YOUR_TRAINER') {
     return (
       <Text testID="coaching-trainer-yours" className="text-subhead font-semibold text-label">
-        {request.yourTrainer(card.name)}
+        {t('coaching.request.yourTrainer', { trainer })}
       </Text>
     );
   }
@@ -64,7 +65,7 @@ function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => vo
     return (
       <View className="gap-2">
         <Text testID="coaching-trainer-pending" className="text-subhead font-semibold text-label">
-          {request.pending(card.name)}
+          {t('coaching.request.pending', { trainer })}
         </Text>
         {cancel.error ? (
           <Text className="text-subhead text-danger">{userFacingErrorMessage(cancel.error)}</Text>
@@ -75,7 +76,7 @@ function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => vo
           loading={cancel.isPending}
           onPress={() => cancel.mutate(undefined)}
         >
-          {request.cancel}
+          {t('coaching.request.cancel')}
         </Button>
       </View>
     );
@@ -83,14 +84,16 @@ function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => vo
   if (!card.acceptingClients) {
     return (
       <Text testID="coaching-trainer-not-taking" className="text-subhead text-label-secondary">
-        {COACHING_COPY.find.notTaking}
+        {t('coaching.find.notTaking')}
       </Text>
     );
   }
   if (card.pendingRequestTo) {
     return (
       <Text testID="coaching-trainer-other-pending" className="text-subhead text-label-secondary">
-        {request.otherPending(card.pendingRequestTo)}
+        {t('coaching.request.otherPending', {
+          trainer: trainerNameOrFallbackT(card.pendingRequestTo, t),
+        })}
       </Text>
     );
   }
@@ -99,22 +102,23 @@ function TrainerActions({ card, onAsk }: { card: TrainerCardDto; onAsk: () => vo
     return (
       <View className="gap-2">
         <Text testID="coaching-trainer-needs-setup" className="text-subhead text-label-secondary">
-          {COACHING_COPY.consent.needsSetup}
+          {t('coaching.consent.needsSetup')}
         </Text>
         <Button testID="coaching-trainer-setup" onPress={() => router.push('/gym/setup')}>
-          {COACHING_MOBILE_COPY.setUpTraining}
+          {t('coaching.join.setUpTraining')}
         </Button>
       </View>
     );
   }
   return (
     <Button testID="coaching-trainer-ask" onPress={onAsk}>
-      {request.ask}
+      {t('coaching.request.ask')}
     </Button>
   );
 }
 
 function TrainerCardBody({ trainerId }: { trainerId: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
@@ -130,7 +134,11 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
       track('coaching_requested', {});
       trackSharingChosen(vars.share, 'request');
       setAsking(false);
-      snackbar.show({ message: COACHING_COPY.request.sent(card.data?.name ?? '') });
+      snackbar.show({
+        message: t('coaching.request.sent', {
+          trainer: card.data?.name ? trainerNameOrFallbackT(card.data.name, t) : '',
+        }),
+      });
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
     onSettled: () => {
@@ -139,7 +147,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
     },
   });
 
-  const title = card.data?.name ?? COACHING_COPY.find.title;
+  const title = card.data?.name ?? t('coaching.find.title');
   const header = (
     <TrainerHeader
       testID="coaching-trainer-header"
@@ -177,7 +185,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
         ) : (
           <EmptyState
             icon={<Icon name="yourTrainer" color={colors.labelTertiary} size={40} />}
-            title={COACHING_COPY.server.trainerUnavailable}
+            title={t('coaching.find.unavailable')}
           />
         )}
       </Screen>
@@ -195,7 +203,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
         {header}
         <ConsentScreen
           mode="request"
-          trainerName={data.name}
+          trainerName={trainerNameOrFallbackT(data.name, t)}
           currentTrainerName={data.currentTrainerName}
           busy={send.isPending}
           offline={!online}
@@ -223,7 +231,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
         <CoachingCard className="gap-3">
           <View className="flex-row flex-wrap items-center gap-2">
             <Badge testID="coaching-trainer-badge" variant="secondary">
-              {COACHING_COPY.find.badge}
+              {t('coaching.find.badge')}
             </Badge>
             {data.gymLine ? (
               <Text testID="coaching-trainer-gym" className="text-subhead text-label-secondary">
@@ -239,7 +247,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
             }}
           />
           <Text testID="coaching-trainer-unverified" className="text-caption text-label-tertiary">
-            {COACHING_COPY.find.unverified}
+            {t('coaching.find.unverified')}
           </Text>
         </CoachingCard>
       </ScrollView>
@@ -248,8 +256,9 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
 }
 
 export function TrainerCardScreen({ trainerId }: { trainerId: string }) {
+  const { t } = useT();
   return (
-    <CoachingGate testID="coaching-trainer" title={COACHING_COPY.find.title}>
+    <CoachingGate testID="coaching-trainer" title={t('coaching.find.title')}>
       <TrainerCardBody trainerId={trainerId} />
     </CoachingGate>
   );

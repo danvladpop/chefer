@@ -1,5 +1,6 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import { Dumbbell, UsersRound, UtensilsCrossed } from 'lucide-react';
 import { TRAINER_MODE_COPY } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
@@ -8,14 +9,19 @@ import { useAppMode } from '../mode-context';
 import type { AppMode } from '../nav-items';
 import { NavCountBadge } from './nav-count-badge';
 
-const OPTIONS: { value: AppMode; label: string; icon: typeof Dumbbell }[] = [
-  { value: 'food', label: 'Food', icon: UtensilsCrossed },
-  { value: 'gym', label: 'Gym', icon: Dumbbell },
+const OPTIONS: {
+  value: AppMode;
+  labelKey: `nav.modes.${'food' | 'gym'}`;
+  icon: typeof Dumbbell;
+}[] = [
+  { value: 'food', labelKey: 'nav.modes.food', icon: UtensilsCrossed },
+  { value: 'gym', labelKey: 'nav.modes.gym', icon: Dumbbell },
 ];
 
 /** The third segment (trainer-mode.md §5.1), for an active trainer with the flag on. */
 const TRAINER_OPTION = {
   value: 'trainer' as const,
+  // Trainer mode's copy is translated in phase 4; shown as is until then.
   label: TRAINER_MODE_COPY.mode.trainerSegment,
   icon: UsersRound,
 };
@@ -33,8 +39,12 @@ export function ModeSwitch({
   /** Hide the icons (tight headers). */
   compact?: boolean;
 }) {
+  const { t } = useT();
   const { mode, switchMode, trainerModeAvailable, trainerBadges } = useAppMode();
-  const options = trainerModeAvailable ? [...OPTIONS, TRAINER_OPTION] : OPTIONS;
+  const options: { value: AppMode; label: string; icon: typeof Dumbbell }[] = [
+    ...OPTIONS.map(({ value, labelKey, icon }) => ({ value, label: t(labelKey), icon })),
+    ...(trainerModeAvailable ? [TRAINER_OPTION] : []),
+  ];
   // Three segments fit the sidebar's 224px and a 320px header only as labels.
   const showIcons = !compact && !trainerModeAvailable;
   // While in Food or Gym, the Trainer segment counts what waits there (§7.1).
@@ -43,7 +53,7 @@ export function ModeSwitch({
   return (
     <div
       role="group"
-      aria-label="App mode"
+      aria-label={t('nav.appMode')}
       data-testid="mode-switch"
       className={cn('flex shrink-0 rounded-xl bg-gray-100 p-0.5', className)}
     >

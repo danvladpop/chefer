@@ -3,7 +3,35 @@
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { mealLabel, slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
+import { useT } from '@/lib/i18n';
 import type { RouterOutputs } from '@/lib/trpc';
+import type { Translator } from '@chefer/i18n';
+
+/** "dinner" inside a sentence ("Undo for dinner"); an unknown type reads as itself. */
+export function mealInSentence(t: Translator['t'], mealType: string): string {
+  switch (mealType) {
+    case 'breakfast':
+    case 'lunch':
+    case 'dinner':
+    case 'snack':
+      return t(`today.home.mealInSentence.${mealType}`);
+    default:
+      return mealType;
+  }
+}
+
+/** "Dinner" — a meal type's label; an unknown type keeps the old capitalised form. */
+export function mealTypeLabel(t: Translator['t'], mealType: string): string {
+  switch (mealType) {
+    case 'breakfast':
+    case 'lunch':
+    case 'dinner':
+    case 'snack':
+      return t(`today.home.mealTypes.${mealType}`);
+    default:
+      return mealLabel(mealType);
+  }
+}
 
 // ─── Today's replaced / skipped slots (WP-06) ─────────────────────────────────
 // A slot you swapped for something else ("You had: Shawarma (≈ 775 kcal)") or
@@ -13,6 +41,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 type Slot = NonNullable<RouterOutputs['dashboard']['summary']['today']['slots']>[number];
 
 export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow }) {
+  const { t } = useT();
   const { proteinOnly, noNumbers } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
@@ -28,7 +57,7 @@ export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow 
             className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-1"
           >
             <p className="min-w-0 flex-1 py-2 text-sm text-neutral-700">
-              <span className="font-semibold">{mealLabel(s.mealType)}</span>
+              <span className="font-semibold">{mealTypeLabel(t, s.mealType)}</span>
               {' · '}
               {s.status === 'replaced' && s.replacedBy
                 ? youHadLine(
@@ -44,7 +73,9 @@ export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow 
               <button
                 type="button"
                 data-testid={`today-slot-undo-${s.slotIndex}`}
-                aria-label={`Undo for ${s.mealType}`}
+                aria-label={t('today.home.slotNotes.undoFor', {
+                  meal: mealInSentence(t, s.mealType),
+                })}
                 onClick={() =>
                   s.status === 'skipped'
                     ? flow.unskip(target)
@@ -52,7 +83,7 @@ export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow 
                 }
                 className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
               >
-                Undo
+                {t('today.home.slotNotes.undo')}
               </button>
             )}
           </li>

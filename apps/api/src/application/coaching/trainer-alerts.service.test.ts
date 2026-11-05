@@ -30,7 +30,14 @@ function setup(rows: ClientRowDto[]) {
       ),
       markQuietSeen: vi.fn(async () => undefined),
       listDigestRecipients: vi.fn(async () => [
-        { userId: 'ana', email: 'ana@x.dev', firstName: 'Ana', quietAfterDays: 3 },
+        {
+          userId: 'ana',
+          email: 'ana@x.dev',
+          firstName: 'Ana',
+          quietAfterDays: 3,
+          locale: null,
+          deviceLocale: null,
+        },
       ]),
     },
     links: { listClients: vi.fn(async () => rows) },
@@ -80,6 +87,29 @@ describe('TrainerAlertsService', () => {
     );
     expect(message?.text).not.toMatch(/Dana|kcal|kg/);
     expect(message?.headers?.['List-Unsubscribe']).toContain('COACHING_QUIET_DIGEST');
+  });
+
+  it('the digest goes out in the trainer’s language (ADR 0004)', async () => {
+    const { service, deps } = setup([
+      row('Maria', { quiet: true, quietDays: 4 }),
+      row('Ion', { quiet: true, quietDays: 21 }),
+    ]);
+    vi.mocked(deps.trainers.listDigestRecipients).mockResolvedValueOnce([
+      {
+        userId: 'ana',
+        email: 'ana@x.dev',
+        firstName: 'Ana',
+        quietAfterDays: 3,
+        locale: 'ro',
+        deviceLocale: null,
+      },
+    ]);
+    await service.sendQuietDigests(new Date('2026-10-23T08:00:00Z'));
+    const message = vi.mocked(deps.email.send).mock.calls[0]?.[0];
+    expect(message?.subject).toBe('2 clienți nu mai înregistrează nimic');
+    expect(message?.text).toMatch(
+      /Ion: nimic înregistrat de 21 de zile[\s\S]*Maria: nimic înregistrat de 4 zile/,
+    );
   });
 
   it('nobody quiet: no email, no claim', async () => {

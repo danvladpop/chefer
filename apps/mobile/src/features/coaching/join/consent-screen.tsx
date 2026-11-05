@@ -1,13 +1,14 @@
 import { View } from 'react-native';
-import { COACHING_COPY, COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
+import type { CoachingShareChoice } from '@chefer/types';
 import { Button, KeyboardAwareScrollView, Text } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { CoachingCard } from '../../trainer/components/coaching-card';
-import { COACHING_MOBILE_COPY } from '../copy';
+import { consentCanLines, consentWillSeeLines } from '../copy';
 import { SharingSwitches } from '../sharing/sharing-switches';
 
 // ─── Consent screen (spec §2.3) ───────────────────────────────────────────────
-// The legal text of the COACHING_SHARING consent: every line comes from the shared COACHING_COPY (the
-// web page renders the same strings). Do not reword here.
+// The legal text of the COACHING_SHARING consent: every line comes from the `coaching.consent.*`
+// catalog (the web page renders the same strings). Do not reword here.
 
 export type ConsentScreenProps = {
   /**
@@ -58,14 +59,14 @@ export function ConsentScreen({
   share,
   onShareChange,
 }: ConsentScreenProps) {
-  const copy = COACHING_COPY.consent;
-  const request = COACHING_COPY.request;
+  const { t } = useT();
+  const trainer = trainerName;
   const asking = mode === 'request';
   const allowLabel = asking
-    ? request.sendConsent
+    ? t('coaching.request.sendConsent')
     : currentTrainerName
-      ? copy.switchTo(trainerName)
-      : copy.allow;
+      ? t('coaching.consent.switchTo', { trainer })
+      : t('coaching.consent.allow');
   return (
     <KeyboardAwareScrollView
       testID="coaching-consent"
@@ -76,54 +77,56 @@ export function ConsentScreen({
         accessibilityRole="header"
         className="text-title2 font-bold text-label"
       >
-        {asking ? request.askTitle(trainerName) : copy.title(trainerName)}
+        {asking
+          ? t('coaching.request.askTitle', { trainer })
+          : t('coaching.consent.title', { trainer })}
       </Text>
       <CoachingCard className="gap-4">
         <View className="gap-1.5">
           <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-            {copy.willSeeHeading(trainerName)}
+            {t('coaching.consent.willSeeHeading', { trainer })}
           </Text>
-          <Bullets lines={copy.willSee} testID="coaching-consent-sees" />
+          <Bullets lines={consentWillSeeLines(t)} testID="coaching-consent-sees" />
         </View>
         <View className="gap-1.5">
           <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-            {copy.canHeading(trainerName)}
+            {t('coaching.consent.canHeading', { trainer })}
           </Text>
-          <Bullets lines={copy.can(trainerName)} testID="coaching-consent-can" />
+          <Bullets lines={consentCanLines(trainer, t)} testID="coaching-consent-can" />
         </View>
         <Text testID="coaching-consent-private" className="text-subhead text-label-secondary">
-          {copy.privateNotes(trainerName)}
+          {t('coaching.consent.privateNotes', { trainer })}
         </Text>
         <View className="gap-1.5">
           <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-            {copy.neverHeading(trainerName)}
+            {t('coaching.consent.neverHeading', { trainer })}
           </Text>
           <Text testID="coaching-consent-never" className="text-subhead text-label-secondary">
-            {copy.never}
+            {t('coaching.consent.never')}
           </Text>
         </View>
         <Text testID="coaching-consent-one" className="text-subhead text-label-secondary">
-          {copy.oneTrainer(trainerName)}
+          {t('coaching.consent.oneTrainer', { trainer })}
         </Text>
         {currentTrainerName ? (
           <View className="rounded-control bg-brand-tint px-3 py-2">
             <Text testID="coaching-switch-line" className="text-subhead font-semibold text-label">
               {asking
-                ? request.switchNote(currentTrainerName, trainerName)
-                : copy.switchLine(currentTrainerName)}
+                ? t('coaching.request.switchNote', { current: currentTrainerName, trainer })
+                : t('coaching.consent.switchLine', { current: currentTrainerName })}
             </Text>
           </View>
         ) : null}
         {asking ? (
           <Text testID="coaching-consent-no-follow" className="text-subhead text-label-secondary">
-            {request.noFollow}
+            {t('coaching.request.noFollow')}
           </Text>
         ) : null}
       </CoachingCard>
       {share && onShareChange ? (
         <CoachingCard className="gap-3">
           <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-            {COACHING_SHARING_COPY.heading}
+            {t('coaching.sharing.heading')}
           </Text>
           <SharingSwitches
             testID="coaching-consent-share"
@@ -145,7 +148,7 @@ export function ConsentScreen({
       ) : null}
       {offline ? (
         <Text testID="coaching-consent-offline" className="text-subhead text-label-secondary">
-          {COACHING_MOBILE_COPY.offlineJoin}
+          {t('coaching.join.offlineJoin')}
         </Text>
       ) : null}
       <Button testID="coaching-consent-allow" loading={busy} disabled={offline} onPress={onAllow}>
@@ -157,7 +160,7 @@ export function ConsentScreen({
         disabled={busy}
         onPress={onDecline}
       >
-        {copy.notNow}
+        {t('coaching.consent.notNow')}
       </Button>
     </KeyboardAwareScrollView>
   );

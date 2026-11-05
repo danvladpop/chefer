@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { mealInSentence } from '@/features/dashboard/components/today-slot-notes';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
@@ -45,7 +46,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import { FRIENDS_COPY } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
@@ -67,7 +68,6 @@ import {
   sourceDomainOf,
   tableBreakdown,
   userFacingErrorMessage,
-  weekdayShortName,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -162,6 +162,14 @@ const SLOT = '\u0000';
 
 interface RecipePageProps {
   params: Promise<{ id: string }>;
+}
+
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+/** 0 → "Mon" / "lun.", in the UI language. */
+function weekdayShort(t: Translator['t'], dayOfWeek: number): string {
+  const key = WEEKDAY_KEYS[dayOfWeek];
+  return key ? t(`common.weekdaysShort.${key}`) : String(dayOfWeek);
 }
 
 export default function RecipeDetailPage({ params }: RecipePageProps) {
@@ -474,7 +482,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   /** "Added to Tue lunch" with Undo, which restores a replaced slot too. */
   const onAddedToWeek = (result: AddToWeekResult) => {
     setWeekToast({
-      message: FRIENDS_COPY.addToWeek.done(weekdayShortName(result.dayOfWeek), result.mealType),
+      message: t('friends.addToWeek.done', {
+        day: weekdayShort(t, result.dayOfWeek),
+        meal: mealInSentence(t, result.mealType),
+      }),
       type: 'success',
       undo: () => {
         setWeekToast(null);
@@ -495,7 +506,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               void utils.mealPlan.getForWeek.invalidate();
               void utils.dashboard.summary.invalidate();
             },
-            onError: () => setWeekToast({ message: FRIENDS_COPY.relation.error, type: 'error' }),
+            onError: () => setWeekToast({ message: t('friends.relation.error'), type: 'error' }),
           },
         );
       },

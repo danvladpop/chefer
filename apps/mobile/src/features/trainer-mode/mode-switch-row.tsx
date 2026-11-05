@@ -1,7 +1,9 @@
 import { Pressable, View } from 'react-native';
-import { TRAINER_MODE_COPY, type AppShellMode } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { AppShellMode } from '@chefer/types';
 import { CountPill, ListSection, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
+import { useT } from '../../lib/i18n';
 import { switchShellMode } from './switch-mode';
 
 // The first row of You in both modes (trainer-mode.md §5.1): "Switch to
@@ -10,12 +12,13 @@ import { switchShellMode } from './switch-mode';
 // ("Switch to trainer mode, 2 things waiting") — ListRow's label is its title.
 
 /** The row's spoken name: the action, then what is waiting there. */
-export function modeSwitchLabel(to: AppShellMode, waiting: number): string {
-  const title =
-    to === 'trainer'
-      ? TRAINER_MODE_COPY.mode.switchToTrainer
-      : TRAINER_MODE_COPY.mode.switchToPersonal;
-  return waiting > 0 ? `${title}, ${TRAINER_MODE_COPY.mode.waiting(waiting)}` : title;
+export function modeSwitchLabel(tr: Translator, to: AppShellMode, waiting: number): string {
+  const title = modeSwitchTitle(tr, to);
+  return waiting > 0 ? `${title}, ${tr.t('trainer.mode.waiting', { count: waiting })}` : title;
+}
+
+function modeSwitchTitle(tr: Translator, to: AppShellMode): string {
+  return tr.t(to === 'trainer' ? 'trainer.mode.switchToTrainer' : 'trainer.mode.switchToPersonal');
 }
 
 export function ModeSwitchSection({
@@ -28,16 +31,14 @@ export function ModeSwitchSection({
   testID: string;
 }) {
   const colors = useThemeColors();
-  const title =
-    to === 'trainer'
-      ? TRAINER_MODE_COPY.mode.switchToTrainer
-      : TRAINER_MODE_COPY.mode.switchToPersonal;
+  const tr = useT();
+  const title = modeSwitchTitle(tr, to);
   return (
     <ListSection>
       <Pressable
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={modeSwitchLabel(to, waiting)}
+        accessibilityLabel={modeSwitchLabel(tr, to, waiting)}
         // The selection tick is the switch's own light haptic (switchShellMode).
         onPress={() => switchShellMode(to)}
         style={({ pressed }) => (pressed ? { backgroundColor: colors.surfaceSunken } : undefined)}

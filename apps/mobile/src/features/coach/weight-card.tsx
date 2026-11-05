@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Card, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, formatBodyWeight } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { WeightEntriesList } from './weight-entries-list';
 import { WeightLogForm } from './weight-log-form';
@@ -19,6 +20,7 @@ export function WeightCard() {
   const [showEntries, setShowEntries] = useState(false);
   // Stored in kg; shown in the user's unit (backlog P2-6).
   const system = useUnitSystem();
+  const { t } = useT();
 
   const { data: history } = trpc.tracker.weightHistory.useQuery(
     { days: 30 },
@@ -37,7 +39,7 @@ export function WeightCard() {
         <View className="flex-row items-center gap-1.5">
           <Ionicons name="scale-outline" size={14} color={colors.positive} />
           <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-            Weight
+            {t('today.progress.card.title')}
           </Text>
         </View>
         {latest && (
@@ -48,7 +50,9 @@ export function WeightCard() {
             {delta != null && Math.abs(delta) >= 0.05 && (
               <Text className={cn('text-xs', delta < 0 ? 'text-positive' : 'text-label-tertiary')}>
                 {' '}
-                ({formatBodyWeight(delta, system, { signed: true })} / 30d)
+                {t('today.progress.card.delta30', {
+                  change: formatBodyWeight(delta, system, { signed: true }),
+                })}
               </Text>
             )}
           </Text>
@@ -61,7 +65,11 @@ export function WeightCard() {
       {/* Shared parser (audit F-DASH-3-1) lives in the form. */}
       <WeightLogForm
         lastEntry={latest ?? null}
-        {...(latest && { placeholder: `Today: ${formatBodyWeight(latest.weightKg, system)}?` })}
+        {...(latest && {
+          placeholder: t('today.progress.card.todayPlaceholder', {
+            weight: formatBodyWeight(latest.weightKg, system),
+          }),
+        })}
       />
       <View className="mt-1 flex-row items-center justify-between">
         {entries.length > 0 ? (
@@ -72,7 +80,9 @@ export function WeightCard() {
             className="min-h-11 justify-center"
           >
             <Text className="text-xs font-medium text-primary">
-              {showEntries ? 'Hide entries' : 'Edit or delete entries'}
+              {showEntries
+                ? t('today.progress.card.hideEntries')
+                : t('today.progress.card.editEntries')}
             </Text>
           </Pressable>
         ) : (
@@ -84,7 +94,9 @@ export function WeightCard() {
           onPress={() => router.push('/progress')}
           className="min-h-11 flex-row items-center gap-0.5 pl-3"
         >
-          <Text className="text-xs font-medium text-primary">See progress</Text>
+          <Text className="text-xs font-medium text-primary">
+            {t('today.progress.card.seeProgress')}
+          </Text>
           <Ionicons name="chevron-forward" size={12} color={colors.brand} />
         </Pressable>
       </View>

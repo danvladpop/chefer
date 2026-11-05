@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import { useSnackbar } from '@chefer/ui-mobile';
 import {
-  copyDayMessage,
   customEntryRows,
   formatDate,
   groupByMeal,
@@ -15,10 +15,12 @@ import {
   weeklyAverage,
   type CustomEntryRow,
 } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
+import { toLogMealType } from './slot-copy';
 import { useSlotFlow } from './slot-flow';
 import { useTrackerWrites } from './use-tracker-writes';
 
@@ -59,10 +61,16 @@ function addDays(d: Date, delta: number): Date {
 }
 
 /** "yesterday" when `from` is the calendar day before `to`, else a short date. */
-function relativeDayLabel(from: Date, to: Date): string {
+function relativeDayLabel(t: Translator['t'], from: Date, to: Date): string {
   const diffDays = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-  if (diffDays === 1) return 'yesterday';
+  if (diffDays === 1) return t('tracker.savedMeals.yesterdayInSentence');
   return formatDate(from, 'weekday-short');
+}
+
+/** "Copied 3 entries" — the snackbar after copying a day. */
+function copyDayText(t: Translator['t'], count: number, fromLabel: string): string {
+  if (count <= 0) return t('tracker.day.copyNothing', { day: fromLabel });
+  return t('tracker.day.copied', { count });
 }
 
 export function useTrackerDay({
@@ -73,6 +81,7 @@ export function useTrackerDay({
   // Revamp Add sheet: `?copy=1` ("Copy yesterday") opens the copy-day confirm.
   const { snap, copy } = useLocalSearchParams<{ snap?: string; copy?: string }>();
   const snackbar = useSnackbar();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = toDateStr(selectedDate);
@@ -190,8 +199,8 @@ export function useTrackerDay({
     if (!wasChecked) {
       logSlot(meal, portion, () =>
         snackbar.show({
-          message: `Logged ${meal.mealType}`,
-          actionLabel: 'Undo',
+          message: t(`tracker.mealLogged.${toLogMealType(meal.mealType)}`),
+          actionLabel: t('tracker.undo'),
           onAction: () => unlogSlot(meal),
           tone: 'success',
         }),
@@ -199,8 +208,8 @@ export function useTrackerDay({
     } else {
       unlogSlot(meal, () =>
         snackbar.show({
-          message: `Removed ${meal.mealType}`,
-          actionLabel: 'Undo',
+          message: t(`tracker.day.mealRemoved.${toLogMealType(meal.mealType)}`),
+          actionLabel: t('tracker.undo'),
           onAction: () => logSlot(meal, portion),
         }),
       );
@@ -225,8 +234,8 @@ export function useTrackerDay({
       {
         onSuccess: () => {
           snackbar.show({
-            message: `Deleted ${row.name}`,
-            actionLabel: entryId ? 'Undo' : undefined,
+            message: t('tracker.day.deleted', { name: row.name }),
+            actionLabel: entryId ? t('tracker.undo') : undefined,
             onAction: entryId
               ? () =>
                   restoreCustomMutation.mutate({
@@ -253,7 +262,7 @@ export function useTrackerDay({
 
   const copyFromDate = addDays(selectedDate, -1);
   const copyFromDateStr = toDateStr(copyFromDate);
-  const copyLabel = relativeDayLabel(copyFromDate, selectedDate);
+  const copyLabel = relativeDayLabel(t, copyFromDate, selectedDate);
 
   const confirmCopyDay = () => {
     copyDayMutation.mutate(
@@ -264,8 +273,8 @@ export function useTrackerDay({
           invalidateDayQueries(utils); // both the source and target dates
           setCopyDayOpen(false);
           snackbar.show({
-            message: copyDayMessage(result.copiedEntryIds.length, copyLabel),
-            actionLabel: result.copiedEntryIds.length > 0 ? 'Undo' : undefined,
+            message: copyDayText(t, result.copiedEntryIds.length, copyLabel),
+            actionLabel: result.copiedEntryIds.length > 0 ? t('tracker.undo') : undefined,
             onAction:
               result.copiedEntryIds.length > 0
                 ? () =>
@@ -291,8 +300,8 @@ export function useTrackerDay({
         onSuccess: () => {
           setEditingRecipeEntryId(null);
           snackbar.show({
-            message: `Deleted ${row.recipeName}`,
-            actionLabel: 'Undo',
+            message: t('tracker.day.deleted', { name: row.recipeName }),
+            actionLabel: t('tracker.undo'),
             // The entry is re-logged exactly as it was (recipe, meal, portion).
             onAction: () =>
               logRecipeMutation.mutate({

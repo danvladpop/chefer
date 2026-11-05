@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
-import { HOUSEHOLD_SHARING_COPY, type HouseholdInvitePreview } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { HouseholdInvitePreview } from '@chefer/types';
 import { Button, ErrorState, IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useIsOnline } from '../../../hooks/use-is-online';
 import { track } from '../../../lib/analytics';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { setReturnAfterSignIn } from '../../coaching/pending-join';
 import { useHealthConsent } from '../../privacy/use-health-consent';
 import { goBackOrHome } from '../../trainer/components/trainer-header';
-import { HOUSEHOLD_MOBILE_COPY } from '../sharing/copy';
 import {
   clearPendingHouseholdJoin,
   rememberPendingHouseholdJoin,
@@ -23,7 +24,7 @@ import { HouseholdConsent, safetyEdited, type SafetyLists } from './household-co
 // ─── household/join/<code> (ADR 0003, business_flow §17.1) ────────────────────
 // The coaching invite pattern for households: previewInvite → the consent screen (what is shared, what
 // stays private, the claimed profile's allergies / diet / dislikes to confirm or fix) → join. Every
-// invite state has one shared sentence (`HOUSEHOLD_SHARING_COPY.inviteState`). A signed-out visitor
+// invite state has one shared sentence (`household.sharing.inviteState.*`). A signed-out visitor
 // signs in or registers first and PendingJoinHost brings them back (the code is kept on the device).
 // Reached through `chefer://household/join/<code>` (the invite page's "Open in the Chefer app").
 
@@ -33,13 +34,14 @@ const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left',
 const openedSignedOut = new Set<string>();
 
 function Page({ children, testID }: { children: ReactNode; testID: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <Screen edges={EDGES} className="bg-canvas px-0" testID={testID}>
       <View className="min-h-11 flex-row items-center px-4 py-2">
         <IconButton
           testID={`${testID}-back`}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={goBackOrHome}
           className="-ml-2"
@@ -51,11 +53,12 @@ function Page({ children, testID }: { children: ReactNode; testID: string }) {
 }
 
 function Message({ body, testID }: { body: string; testID: string }) {
+  const { t } = useT();
   return (
     <Page testID={testID}>
       <View className="gap-3 px-4 pt-2">
         <Text accessibilityRole="header" className="text-title2 font-bold text-label">
-          {HOUSEHOLD_SHARING_COPY.joinPageTitle}
+          {t('household.sharing.joinPageTitle')}
         </Text>
         <Text testID="household-invite-message" className="text-subhead text-label-secondary">
           {body}
@@ -65,7 +68,7 @@ function Message({ body, testID }: { body: string; testID: string }) {
           className="mt-3"
           onPress={() => router.replace('/meal-plan')}
         >
-          {HOUSEHOLD_MOBILE_COPY.goToMeals}
+          {t('household.sharing.goToMeals')}
         </Button>
       </View>
     </Page>
@@ -73,13 +76,17 @@ function Message({ body, testID }: { body: string; testID: string }) {
 }
 
 /** The one sentence for an invite that cannot be joined (null for OK). */
-export function householdInviteMessage(preview: HouseholdInvitePreview): string | null {
-  const copy = HOUSEHOLD_SHARING_COPY.inviteState;
+export function householdInviteMessage(
+  preview: HouseholdInvitePreview,
+  t: Translator['t'] = getTranslator().t,
+): string | null {
   switch (preview.state) {
     case 'OK':
       return null;
     case 'IN_OTHER_HOUSEHOLD':
-      return copy.IN_OTHER_HOUSEHOLD(preview.currentOwnerName ?? preview.ownerName ?? '');
+      return t('household.sharing.inviteState.IN_OTHER_HOUSEHOLD', {
+        owner: preview.currentOwnerName ?? preview.ownerName ?? '',
+      });
     case 'NOT_FOUND':
     case 'SELF':
     case 'ALREADY_JOINED':
@@ -88,12 +95,13 @@ export function householdInviteMessage(preview: HouseholdInvitePreview): string 
     case 'USED':
     case 'REVOKED':
     case 'EXPIRED':
-      return copy[preview.state];
+      return t(`household.sharing.inviteState.${preview.state}`);
   }
 }
 
 /** Signed out: the preview needs an account, so sign in or create one first (the code is kept). */
 function SignedOutJoin({ code }: { code: string }) {
+  const { t } = useT();
   useEffect(() => {
     openedSignedOut.add(code);
     rememberPendingHouseholdJoin(code);
@@ -103,24 +111,24 @@ function SignedOutJoin({ code }: { code: string }) {
     <Page testID="household-join-signed-out">
       <View className="gap-3 px-4 pt-2">
         <Text accessibilityRole="header" className="text-title2 font-bold text-label">
-          {HOUSEHOLD_SHARING_COPY.joinPageTitle}
+          {t('household.sharing.joinPageTitle')}
         </Text>
         <Text className="text-subhead text-label-secondary">
-          {HOUSEHOLD_MOBILE_COPY.signedOutBody}
+          {t('household.sharing.app.signedOutBody')}
         </Text>
         <Button
           testID="household-join-sign-in"
           className="mt-3"
           onPress={() => router.push('/login')}
         >
-          {HOUSEHOLD_MOBILE_COPY.signIn}
+          {t('household.sharing.app.signIn')}
         </Button>
         <Button
           testID="household-join-register"
           variant="outline"
           onPress={() => router.push('/register')}
         >
-          {HOUSEHOLD_MOBILE_COPY.createAccount}
+          {t('household.sharing.app.createAccount')}
         </Button>
       </View>
     </Page>
@@ -134,6 +142,7 @@ const EMPTY_SAFETY: SafetyLists = {
 };
 
 function JoinFlow({ code }: { code: string }) {
+  const { t } = useT();
   const online = useIsOnline();
   const utils = trpc.useUtils();
   const invalidateHousehold = useInvalidateHousehold();
@@ -223,17 +232,17 @@ function JoinFlow({ code }: { code: string }) {
     return (
       <Message
         testID="household-join-invalid"
-        body={HOUSEHOLD_SHARING_COPY.inviteState.NOT_FOUND}
+        body={t('household.sharing.inviteState.NOT_FOUND')}
       />
     );
   }
 
-  const message = householdInviteMessage(data);
+  const message = householdInviteMessage(data, t);
   if (message !== null || !data.profile) {
     return (
       <Message
         testID={`household-join-${data.state.toLowerCase()}`}
-        body={message ?? HOUSEHOLD_SHARING_COPY.inviteState.NOT_FOUND}
+        body={message ?? t('household.sharing.inviteState.NOT_FOUND')}
       />
     );
   }

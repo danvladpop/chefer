@@ -119,4 +119,28 @@ describe('ShareService.create', () => {
       training: { sessions: 3, prCount: 1, streakWeeks: 2 },
     });
   });
+
+  it('a recap card keeps the sharer’s week label, asked in their language', async () => {
+    const recap = { week: vi.fn(async () => RECAP) };
+    const service = new ShareService({
+      repo: { create: vi.fn(async () => ({})), findById: vi.fn() } as never,
+      recap,
+      newId: () => 'abc123def456ghi789jk',
+      appUrl: 'https://chefer.test',
+    });
+    await service.create(
+      USER,
+      {
+        kind: 'recap',
+        weekStart: '2026-10-12',
+        include: { cooking: true, protein: false, training: true },
+      },
+      'ro',
+    );
+    expect(recap.week).toHaveBeenCalledWith(
+      USER,
+      { weekStart: '2026-10-12', localDate: undefined },
+      'ro',
+    );
+  });
 });

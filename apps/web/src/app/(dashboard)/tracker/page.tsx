@@ -21,7 +21,7 @@ import {
   REBALANCE_PREVIEW,
   withDayFitLine,
 } from '@/features/tracker/lib/rebalance-storage';
-import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
+import { skippedLabel, youHadLine } from '@/features/tracker/lib/slot-copy';
 import {
   customEntryChipLabel,
   customEntryRows,
@@ -30,12 +30,14 @@ import {
 import { slotTargetOf, useSlotActions } from '@/features/tracker/lib/use-slot-actions';
 import { useTrackerWrites } from '@/features/tracker/lib/use-tracker-writes';
 import { useIsPremium } from '@/hooks/useIsPremium';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
-import { addDays, format } from 'date-fns';
+import { addDays } from 'date-fns';
 import { Bookmark, ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
-  copyDayMessage,
   formatPortion,
   groupByMeal,
   HIDE_NUMBERS_COPY,
@@ -45,6 +47,7 @@ import {
   plannedRowKey,
   portionLabel,
   proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
   slotPortion,
   slotStates,
   sumLogged,
@@ -75,11 +78,25 @@ const keyOf = plannedRowKey;
 const toDateStr = (d: Date): string => localDateStr(d);
 
 /** "yesterday" when `from` is the calendar day before `to`, else a short date. */
-function relativeDayLabel(from: Date, to: Date): string {
+function relativeDayLabel(tr: Translator, from: Date, to: Date): string {
   const diffDays = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-  if (diffDays === 1) return 'yesterday';
-  return format(from, 'EEE d MMM');
+  if (diffDays === 1) return tr.t('tracker.savedMeals.yesterdayInSentence');
+  return tr.date(from, 'weekday-short');
 }
+
+/** "Copied 3 entries" — the toast after copying a day. */
+function copyDayText(t: Translator['t'], count: number, fromLabel: string): string {
+  if (count <= 0) return t('tracker.day.copyNothing', { day: fromLabel });
+  return t('tracker.day.copied', { count });
+}
+
+const asMealType = (mealType: string) => QUICK_ADD_MEAL_TYPES.find((m) => m === mealType);
+
+/** The meal chip on a row: the four meals translated, anything older as stored. */
+const mealChip = (t: Translator['t'], mealType: string): string => {
+  const known = asMealType(mealType);
+  return known ? t(`tracker.meals.${known}`) : mealType;
+};
 
 const MEAL_COLOURS: Record<string, string> = {
   breakfast: 'bg-emerald-100 text-emerald-700',
@@ -89,6 +106,8 @@ const MEAL_COLOURS: Record<string, string> = {
 };
 
 export default function TrackerPage() {
+  const translator = useT();
+  const { t } = translator;
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = toDateStr(selectedDate);
   const todayStr = toDateStr(new Date());
@@ -190,15 +209,15 @@ export default function TrackerPage() {
     const portion = ticks[meal.key]?.portion ?? planPortionOf(meal);
     if (!wasChecked) {
       logSlot(meal, portion, () =>
-        showToast(`Logged ${meal.mealType}`, {
-          label: 'Undo',
+        showToast(t(`tracker.mealLogged.${asMealType(meal.mealType) ?? 'snack'}`), {
+          label: t('tracker.undo'),
           onClick: () => unlogSlot(meal),
         }),
       );
     } else {
       unlogSlot(meal, () =>
-        showToast(`Removed ${meal.mealType}`, {
-          label: 'Undo',
+        showToast(t(`tracker.day.mealRemoved.${asMealType(meal.mealType) ?? 'snack'}`), {
+          label: t('tracker.undo'),
           onClick: () => logSlot(meal, portion),
         }),
       );
@@ -242,10 +261,10 @@ export default function TrackerPage() {
       {
         onSuccess: () => {
           showToast(
-            `Deleted ${row.name}`,
+            t('tracker.day.deleted', { name: row.name }),
             entryId
               ? {
-                  label: 'Undo',
+                  label: t('tracker.undo'),
                   onClick: () =>
                     restoreCustomMutation.mutate({
                       date: dateStr,
@@ -282,8 +301,8 @@ export default function TrackerPage() {
       {
         onSuccess: () => {
           setEditingRecipeEntryId(null);
-          showToast(`Deleted ${row.recipeName}`, {
-            label: 'Undo',
+          showToast(t('tracker.day.deleted', { name: row.recipeName }), {
+            label: t('tracker.undo'),
             // The entry is re-logged exactly as it was (recipe, meal, portion).
             onClick: () =>
               logRecipeMutation.mutate({
@@ -301,7 +320,7 @@ export default function TrackerPage() {
 
   const copyFromDate = addDays(selectedDate, -1);
   const copyFromDateStr = toDateStr(copyFromDate);
-  const copyLabel = relativeDayLabel(copyFromDate, selectedDate);
+  const copyLabel = relativeDayLabel(translator, copyFromDate, selectedDate);
 
   const confirmCopyDay = () => {
     copyDayMutation.mutate(
@@ -313,10 +332,10 @@ export default function TrackerPage() {
           setCopyDayOpen(false);
           invalidateDayQueries(utils); // both the source and target dates
           showToast(
-            withDayFitLine(copyDayMessage(result.copiedEntryIds.length, copyLabel), result),
+            withDayFitLine(copyDayText(t, result.copiedEntryIds.length, copyLabel), result),
             result.copiedEntryIds.length > 0
               ? {
-                  label: 'Undo',
+                  label: t('tracker.undo'),
                   onClick: () =>
                     deleteEntriesMutation.mutate({
                       date: dateStr,
@@ -328,7 +347,7 @@ export default function TrackerPage() {
         },
         onError: (error) => {
           setCopyDayOpen(false);
-          showToast(`Couldn't copy the day. ${userFacingErrorMessage(error)}`);
+          showToast(t('tracker.page.copyFailed', { error: userFacingErrorMessage(error) }));
         },
       },
     );
@@ -357,7 +376,7 @@ export default function TrackerPage() {
   const proteinTarget = dayTargets?.proteinG ?? 125;
   const carbsTarget = dayTargets?.carbsG ?? 225;
   const fatTarget = dayTargets?.fatG ?? 67;
-  const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
+  const pct = (v: number, goal: number) => Math.min(Math.round((v / (goal || 1)) * 100), 100);
 
   return (
     <NumbersModeProvider mode={data?.numbersMode}>
@@ -366,15 +385,17 @@ export default function TrackerPage() {
         <div className="mb-6 flex items-start justify-between gap-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              DAILY LOG
+              {t('tracker.page.eyebrow')}
             </p>
-            <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
+            <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">
+              {t('tracker.page.title')}
+            </h1>
           </div>
           <div className="flex shrink-0 gap-1">
             <button
               type="button"
               data-testid="tracker-meal-actions"
-              aria-label="Save or copy a meal"
+              aria-label={t('tracker.savedMeals.actionsTitle')}
               onClick={() => setMealActionsOpen(true)}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
             >
@@ -383,7 +404,11 @@ export default function TrackerPage() {
             <button
               type="button"
               data-testid="tracker-copy-day"
-              aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+              aria-label={
+                isToday
+                  ? t('tracker.page.copyToToday', { from: copyLabel })
+                  : t('tracker.page.copyToThisDay', { from: copyLabel })
+              }
               onClick={() => setCopyDayOpen(true)}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
             >
@@ -397,24 +422,24 @@ export default function TrackerPage() {
           <button
             type="button"
             onClick={() => changeDate(-1)}
-            aria-label="Previous day"
+            aria-label={t('tracker.page.prevDay')}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100"
           >
             <ChevronLeft className="h-5 w-5 text-neutral-500" />
           </button>
           <div className="min-w-0 text-center">
             <p className="truncate text-sm font-semibold text-neutral-800">
-              {isToday ? 'Today' : format(selectedDate, 'EEEE')}
+              {isToday ? t('tracker.page.today') : translator.date(selectedDate, 'weekday-long')}
             </p>
             <p className="truncate text-xs text-neutral-500">
-              {format(selectedDate, 'dd MMMM yyyy')}
+              {translator.date(selectedDate, 'full')}
             </p>
           </div>
           <button
             type="button"
             onClick={() => changeDate(1)}
             disabled={isToday}
-            aria-label="Next day"
+            aria-label={t('tracker.page.nextDay')}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 disabled:opacity-30"
           >
             <ChevronRight className="h-5 w-5 text-neutral-500" />
@@ -427,7 +452,7 @@ export default function TrackerPage() {
 
         {isFuture && (
           <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
-            Can&apos;t log future meals.
+            {t('tracker.page.future')}
           </div>
         )}
 
@@ -442,7 +467,7 @@ export default function TrackerPage() {
         {/* A failed load is not an empty day (audit F-X-3-1). */}
         {!isFuture && isError && !data && (
           <ErrorState
-            title="Couldn't load this day"
+            title={t('tracker.page.loadError')}
             onRetry={() => void refetch()}
             retrying={isRefetching}
           />
@@ -458,8 +483,8 @@ export default function TrackerPage() {
                 isPremium={isPremium}
                 onLogged={() => void refetch()}
                 onLoggedEntry={({ entryId, name, dayFit }) =>
-                  showToast(withDayFitLine(`Logged ${name}`, { dayFit }), {
-                    label: 'Undo',
+                  showToast(withDayFitLine(t('tracker.logged', { name }), { dayFit }), {
+                    label: t('tracker.undo'),
                     onClick: () => deleteCustomMutation.mutate({ date: dateStr, entryId }),
                   })
                 }
@@ -468,8 +493,8 @@ export default function TrackerPage() {
                 date={dateStr}
                 onLogged={() => void refetch()}
                 onLoggedEntries={({ entryIds, name, dayFit }) =>
-                  showToast(withDayFitLine(`Logged ${name}`, { dayFit }), {
-                    label: 'Undo',
+                  showToast(withDayFitLine(t('tracker.logged', { name }), { dayFit }), {
+                    label: t('tracker.undo'),
                     onClick: () => deleteEntriesMutation.mutate({ date: dateStr, entryIds }),
                   })
                 }
@@ -512,19 +537,22 @@ export default function TrackerPage() {
               <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                    {isToday ? "Today's Progress" : 'Day Progress'}
+                    {isToday ? t('tracker.page.progressToday') : t('tracker.page.progressDay')}
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
                       <Flame className="h-4 w-4 text-[#944a00]" />
                       {proteinOnly
-                        ? `${Math.round(loggedProtein).toLocaleString()} / ${Math.round(proteinTarget).toLocaleString()} g protein`
-                        : `${loggedKcal.toLocaleString()} / ${target.toLocaleString()} kcal`}
+                        ? t('tracker.page.totalProtein', {
+                            logged: Math.round(loggedProtein),
+                            target: Math.round(proteinTarget),
+                          })
+                        : t('tracker.page.totalKcal', { logged: loggedKcal, target })}
                     </span>
                     {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
                     <button
                       type="button"
-                      aria-label="Why this target"
+                      aria-label={t('tracker.page.whyTarget')}
                       data-testid="tracker-why-target"
                       onClick={() => setExplainOpen(true)}
                       className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
@@ -534,46 +562,54 @@ export default function TrackerPage() {
                   </div>
                 </div>
                 {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
-                {[
-                  {
-                    label: 'Calories',
-                    v: loggedKcal,
-                    t: target,
-                    unit: 'kcal',
-                    colour: 'bg-[#944a00]',
-                  },
-                  {
-                    label: 'Protein',
-                    v: loggedProtein,
-                    t: proteinTarget,
-                    unit: 'g',
-                    colour: 'bg-blue-500',
-                  },
-                  {
-                    label: 'Carbs',
-                    v: loggedCarbs,
-                    t: carbsTarget,
-                    unit: 'g',
-                    colour: 'bg-emerald-500',
-                  },
-                  { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
-                ]
+                {(
+                  [
+                    {
+                      key: 'kcal',
+                      v: loggedKcal,
+                      goal: target,
+                      unit: 'kcal',
+                      colour: 'bg-[#944a00]',
+                    },
+                    {
+                      key: 'protein',
+                      v: loggedProtein,
+                      goal: proteinTarget,
+                      unit: 'g',
+                      colour: 'bg-blue-500',
+                    },
+                    {
+                      key: 'carbs',
+                      v: loggedCarbs,
+                      goal: carbsTarget,
+                      unit: 'g',
+                      colour: 'bg-emerald-500',
+                    },
+                    {
+                      key: 'fat',
+                      v: loggedFat,
+                      goal: fatTarget,
+                      unit: 'g',
+                      colour: 'bg-amber-400',
+                    },
+                  ] as const
+                )
                   // WP-08: protein-only shows the protein bar and nothing else.
-                  .filter(({ label }) => !proteinOnly || label === 'Protein')
-                  .map(({ label, v, t, unit, colour }) => (
-                    <div key={label} className="mb-2">
+                  .filter(({ key }) => !proteinOnly || key === 'protein')
+                  .map(({ key, v, goal, unit, colour }) => (
+                    <div key={key} className="mb-2">
                       <div className="mb-1 flex justify-between text-xs">
-                        <span className="text-neutral-600">{label}</span>
+                        <span className="text-neutral-600">{t(`tracker.page.bars.${key}`)}</span>
                         <span className="text-neutral-500">
                           {Math.round(v)}
-                          {unit} / {t}
+                          {unit} / {goal}
                           {unit}
                         </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
                         <div
                           className={`h-full rounded-full ${colour} transition-all`}
-                          style={{ width: `${pct(v, t)}%` }}
+                          style={{ width: `${pct(v, goal)}%` }}
                         />
                       </div>
                     </div>
@@ -595,17 +631,18 @@ export default function TrackerPage() {
                 {!data.hasActivePlan ? (
                   // T-19.6: a Track-only user may never generate a plan — this
                   // reads as an invitation to log, not a missing-plan error.
-                  <p>No plan today — log from Recent or search below.</p>
+                  <p>{t('tracker.page.emptyNoPlan')}</p>
                 ) : (
-                  <>
-                    No meals planned for this day.{' '}
-                    <a
-                      href="/meal-plan"
-                      className="touch-target relative text-[#944a00] hover:underline"
-                    >
-                      Go to Meal Planner →
-                    </a>
-                  </>
+                  rich(t, 'tracker.page.emptyNoMeals', {
+                    link: (
+                      <a
+                        href="/meal-plan"
+                        className="touch-target relative text-[#944a00] hover:underline"
+                      >
+                        {t('tracker.page.goToPlanner')}
+                      </a>
+                    ),
+                  })
                 )}
               </div>
             ) : (
@@ -645,7 +682,7 @@ export default function TrackerPage() {
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                           >
-                            {meal.mealType}
+                            {mealChip(t, meal.mealType)}
                           </span>
                           <p className="mt-0.5 truncate text-sm font-medium text-neutral-500">
                             {meal.recipeName}
@@ -661,14 +698,17 @@ export default function TrackerPage() {
                                   replacement.protein,
                                   proteinOnly,
                                   noNumbers,
+                                  t,
                                 )
-                              : SKIPPED_LABEL}
+                              : skippedLabel(t)}
                           </p>
                         </div>
                         <button
                           type="button"
                           data-testid={`tracker-slot-undo-${k}`}
-                          aria-label={`Undo for ${meal.mealType}`}
+                          aria-label={t('tracker.page.undoFor', {
+                            meal: mealChip(t, meal.mealType),
+                          })}
                           onClick={() =>
                             replacement
                               ? replacement.entryId
@@ -678,7 +718,7 @@ export default function TrackerPage() {
                           }
                           className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
                         >
-                          Undo
+                          {t('tracker.page.undo')}
                         </button>
                       </div>
                     );
@@ -709,7 +749,7 @@ export default function TrackerPage() {
                             <span
                               className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                             >
-                              {meal.mealType}
+                              {mealChip(t, meal.mealType)}
                             </span>
                             <p className="mt-0.5 text-sm font-medium text-neutral-800">
                               {meal.recipeName}
@@ -731,7 +771,11 @@ export default function TrackerPage() {
                               onClick={() => toggleMeal(meal)}
                               aria-pressed={isChecked}
                               className="flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
-                              aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
+                              aria-label={
+                                isChecked
+                                  ? t('tracker.page.uncheck', { name: meal.recipeName })
+                                  : t('tracker.page.check', { name: meal.recipeName })
+                              }
                             >
                               <span
                                 aria-hidden="true"
@@ -748,7 +792,9 @@ export default function TrackerPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <div
                             role="group"
-                            aria-label={`Portion size for ${meal.recipeName}`}
+                            aria-label={t('tracker.page.portionSizeFor', {
+                              name: meal.recipeName,
+                            })}
                             className="flex flex-1 gap-1 sm:flex-none"
                           >
                             {portionOptionsFor(meal).map((p) => (
@@ -769,9 +815,11 @@ export default function TrackerPage() {
                                 ? portionLabel(portion)
                                 : proteinOnly
                                   ? proteinLabel(meal.protein * portion)
-                                  : `${scaledKcal} kcal`,
+                                  : t('tracker.page.kcal', { kcal: scaledKcal }),
                               planPortionOf(meal) !== 1 &&
-                                `plan ${formatPortion(planPortionOf(meal))}`,
+                                t('tracker.page.planPortion', {
+                                  portion: formatPortion(planPortionOf(meal)),
+                                }),
                             )}
                           </span>
                         </div>
@@ -789,7 +837,7 @@ export default function TrackerPage() {
             {alsoEaten.length > 0 && (
               <div className="mb-6" data-testid="tracker-also-eaten">
                 <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  Also eaten
+                  {t('tracker.page.alsoEaten')}
                 </h2>
                 <div className="space-y-4">
                   {alsoEaten.map((group) => (
@@ -797,7 +845,7 @@ export default function TrackerPage() {
                       <span
                         className={`mb-2 inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[group.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                       >
-                        {group.mealType}
+                        {mealChip(t, group.mealType)}
                       </span>
                       <div className="space-y-3">
                         {group.rows.map((item) =>
@@ -809,7 +857,7 @@ export default function TrackerPage() {
                               <button
                                 type="button"
                                 data-testid={`tracker-off-plan-${item.m.entryId ?? item.m.recipeId}`}
-                                aria-label={`Edit ${item.m.recipeName}`}
+                                aria-label={t('tracker.page.edit', { name: item.m.recipeName })}
                                 disabled={!item.m.entryId}
                                 onClick={() => setEditingRecipeEntryId(item.m.entryId ?? null)}
                                 className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl text-left hover:bg-neutral-50 disabled:cursor-default disabled:hover:bg-transparent"
@@ -823,7 +871,12 @@ export default function TrackerPage() {
                                       ? portionLabel(item.m.portionMultiplier ?? 1)
                                       : proteinOnly
                                         ? proteinLabel(item.m.protein)
-                                        : `${Math.round(item.m.kcal)} kcal · ${Math.round(item.m.protein)}g P · ${Math.round(item.m.carbs)}g C · ${Math.round(item.m.fat)}g F`,
+                                        : t('tracker.page.macrosLine', {
+                                            kcal: Math.round(item.m.kcal),
+                                            protein: Math.round(item.m.protein),
+                                            carbs: Math.round(item.m.carbs),
+                                            fat: Math.round(item.m.fat),
+                                          }),
                                     !noNumbers &&
                                       (item.m.portionMultiplier ?? 1) !== 1 &&
                                       formatPortion(item.m.portionMultiplier ?? 1),
@@ -833,7 +886,7 @@ export default function TrackerPage() {
                               {item.m.entryId && (
                                 <button
                                   type="button"
-                                  aria-label={`Delete ${item.m.recipeName}`}
+                                  aria-label={t('tracker.page.delete', { name: item.m.recipeName })}
                                   disabled={deleteEntriesMutation.isPending}
                                   onClick={() => deleteOffPlanEntry(item.m)}
                                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
@@ -863,20 +916,23 @@ export default function TrackerPage() {
                                   <p className="text-xs text-neutral-500">
                                     {proteinOnly
                                       ? proteinLabel(item.row.protein)
-                                      : `${item.row.kcal} kcal${
-                                          item.row.protein > 0 ||
+                                      : item.row.protein > 0 ||
                                           item.row.carbs > 0 ||
                                           item.row.fat > 0
-                                            ? ` · ${Math.round(item.row.protein)}g P · ${Math.round(item.row.carbs)}g C · ${Math.round(item.row.fat)}g F`
-                                            : ''
-                                        }`}
+                                        ? t('tracker.page.macrosLine', {
+                                            kcal: item.row.kcal,
+                                            protein: Math.round(item.row.protein),
+                                            carbs: Math.round(item.row.carbs),
+                                            fat: Math.round(item.row.fat),
+                                          })
+                                        : t('tracker.page.kcal', { kcal: item.row.kcal })}
                                   </p>
                                 )}
                               </div>
                               <span
                                 role="button"
                                 tabIndex={0}
-                                aria-label={`Delete ${item.row.name}`}
+                                aria-label={t('tracker.page.delete', { name: item.row.name })}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   deleteCustomEntry(item.row);
@@ -953,8 +1009,12 @@ export default function TrackerPage() {
         <Sheet
           open={copyDayOpen}
           onClose={() => setCopyDayOpen(false)}
-          title="Copy day"
-          description={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
+          title={t('tracker.page.copyDayTitle')}
+          description={
+            isToday
+              ? t('tracker.page.copyDayBodyToday', { from: copyLabel })
+              : t('tracker.page.copyDayBodyThisDay', { from: copyLabel })
+          }
           size="sm"
           footer={
             <div className="flex w-full gap-2 px-5 pb-2">
@@ -963,7 +1023,7 @@ export default function TrackerPage() {
                 onClick={() => setCopyDayOpen(false)}
                 className="min-h-11 flex-1 rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
               >
-                Cancel
+                {t('common.actions.cancel')}
               </button>
               <button
                 type="button"
@@ -972,7 +1032,9 @@ export default function TrackerPage() {
                 disabled={copyDayMutation.isPending}
                 className="min-h-11 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
               >
-                {copyDayMutation.isPending ? 'Copying…' : `Copy ${copyLabel}`}
+                {copyDayMutation.isPending
+                  ? t('tracker.page.copying')
+                  : t('tracker.page.copyConfirm', { from: copyLabel })}
               </button>
             </div>
           }

@@ -4,13 +4,15 @@ import { notFound } from 'next/navigation';
 import { StoreBadges } from '@/features/app-stores/components/StoreBadges';
 import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { SHARE_CARD_SIZE } from '@/features/share/share-card-art';
+import { getServerTranslator } from '@/lib/i18n/server';
 import { serverClient } from '@/lib/trpc-server';
 import { buttonVariants } from '@chefer/ui';
-import { shareCardLines } from '@chefer/utils';
+import { shareCardText } from './share-card-text';
 
 // Lane E2: the public page a share card links to — the card itself, its
 // words as real text (screen readers, link previews) and the way into Chefer.
-// Public on purpose (the person chose to share it); never indexed.
+// Public on purpose (the person chose to share it); never indexed. The words
+// follow the reader's language (the PNG is drawn by share-card-art.tsx).
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -20,9 +22,9 @@ async function loadCard(id: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const card = await loadCard(id);
-  if (!card) return { title: 'Chefer', robots: { index: false } };
-  const lines = shareCardLines(card.payload);
+  const [card, { t }] = await Promise.all([loadCard(id), getServerTranslator()]);
+  if (!card) return { title: t('today.engagement.share.pageTitle'), robots: { index: false } };
+  const lines = shareCardText(card.payload, t);
   const image = { url: `/s/${id}/image`, ...SHARE_CARD_SIZE, alt: lines.title };
   return {
     ...smartAppBanner(),
@@ -36,9 +38,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ShareCardPage({ params }: Props) {
   const { id } = await params;
-  const card = await loadCard(id);
+  const [card, { t }] = await Promise.all([loadCard(id), getServerTranslator()]);
   if (!card) notFound();
-  const lines = shareCardLines(card.payload);
+  const lines = shareCardText(card.payload, t);
 
   return (
     <main
@@ -56,7 +58,7 @@ export default async function ShareCardPage({ params }: Props) {
           alt=""
           className="h-auto w-full rounded-card shadow-e2"
         />
-        <section aria-label="What this card shows" className="w-full">
+        <section aria-label={t('today.engagement.share.shows')} className="w-full">
           <p className="text-sm font-medium text-gray-600">{lines.eyebrow}</p>
           {lines.stats.length > 0 && (
             <ul className="mt-2 grid gap-1 text-sm text-gray-900">
@@ -70,11 +72,11 @@ export default async function ShareCardPage({ params }: Props) {
         </section>
         <div className="flex w-full flex-col items-center gap-3 text-center">
           <p className="text-base font-semibold text-gray-900">
-            Plan your week, cook it, and train — with Chefer.
+            {t('today.engagement.share.pitch')}
           </p>
           <StoreBadges campaign="share-card" />
           <Link href="/register" className={buttonVariants({ variant: 'outline' })}>
-            Try Chefer on the web
+            {t('today.engagement.share.tryWeb')}
           </Link>
         </div>
       </div>

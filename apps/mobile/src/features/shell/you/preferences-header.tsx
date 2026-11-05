@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 
 /**
  * The new shell's header for `/preferences` ("Goals & diet", 10 Oct board
@@ -10,12 +11,13 @@ import { Icon } from '../../../components/icon';
  * (a cold deep link).
  */
 export function PreferencesHeaderV2({ title }: { title: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <View className="min-h-11 flex-row items-center gap-1 px-4 py-2">
       <IconButton
         testID="preferences-back"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.actions.back')}
         icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/you'))}
         className="-ml-2"

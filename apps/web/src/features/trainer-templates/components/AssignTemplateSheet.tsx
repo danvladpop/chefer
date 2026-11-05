@@ -5,12 +5,10 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Search } from 'lucide-react';
 import {
-  COACHING_COPY,
-  TEMPLATE_COPY,
-  TRAINER_MODE_COPY,
   TRAINER_MODE_LIMITS,
   type AssignTarget,
   type ClientRowDto,
@@ -40,16 +38,8 @@ import { TuneWeightsStep, type TuneClient } from './TuneWeightsStep';
 // client) or replace one of their days. Then the per-client results, and
 // "Set weights for each client" one client at a time.
 
-const copy = TEMPLATE_COPY.assign;
-export const WEEKDAY_NAMES = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
+/** `common.weekdays` keys, Monday first (0 = Monday, as `plannedWeekday`). */
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 type Step = 'template' | 'clients' | 'results' | 'tune';
 
@@ -67,6 +57,7 @@ function ClientTargetFields({
   choice: AssignChoice;
   onChange: (choice: AssignChoice) => void;
 }) {
+  const { t } = useT();
   const id = useId();
   const addable = canAssignAddDay(info);
   const days = info.state === 'ready' ? info.days : [];
@@ -81,10 +72,12 @@ function ClientTargetFields({
       )}
       {info.state === 'error' && (
         <p role="alert" className="text-sm text-red-700">
-          {copy.routineError}
+          {t('trainer.templates.assign.routineError')}
         </p>
       )}
-      {info.state === 'none' && <p className="text-sm text-gray-600">{copy.noRoutine}</p>}
+      {info.state === 'none' && (
+        <p className="text-sm text-gray-600">{t('trainer.templates.assign.noRoutine')}</p>
+      )}
       {info.state === 'ready' && (
         <>
           <label className="flex min-h-11 items-center gap-2 text-sm text-gray-800">
@@ -97,14 +90,18 @@ function ClientTargetFields({
               onChange={() => onChange({ ...choice, mode: 'ADD_DAY' })}
             />
             <span className="min-w-0">
-              {copy.addDay}
-              {!addable && <span className="block text-xs text-gray-500">{copy.dayLimit}</span>}
+              {t('trainer.templates.assign.addDay')}
+              {!addable && (
+                <span className="block text-xs text-gray-500">
+                  {t('trainer.templates.assign.dayLimit')}
+                </span>
+              )}
             </span>
           </label>
           {choice.mode === 'ADD_DAY' && addable && (
             <div className="flex min-w-0 flex-col gap-1 pl-7">
               <label htmlFor={`${id}-weekday`} className="text-xs font-medium text-gray-700">
-                {copy.weekday}
+                {t('trainer.templates.assign.weekday')}
               </label>
               <select
                 id={`${id}-weekday`}
@@ -117,10 +114,10 @@ function ClientTargetFields({
                 }
                 className={selectCls}
               >
-                <option value="">{copy.noWeekday}</option>
-                {WEEKDAY_NAMES.map((name, index) => (
-                  <option key={name} value={index}>
-                    {name}
+                <option value="">{t('trainer.templates.assign.noWeekday')}</option>
+                {WEEKDAY_KEYS.map((key, index) => (
+                  <option key={key} value={index}>
+                    {t(`common.weekdays.${key}`)}
                   </option>
                 ))}
               </select>
@@ -135,12 +132,12 @@ function ClientTargetFields({
               disabled={!canAssignReplaceDay(info)}
               onChange={() => onChange({ ...choice, mode: 'REPLACE_DAY' })}
             />
-            {copy.replaceDay}
+            {t('trainer.templates.assign.replaceDay')}
           </label>
           {choice.mode === 'REPLACE_DAY' && (
             <div className="flex min-w-0 flex-col gap-1 pl-7">
               <label htmlFor={`${id}-day`} className="text-xs font-medium text-gray-700">
-                {copy.pickDay}
+                {t('trainer.templates.assign.pickDay')}
               </label>
               <select
                 id={`${id}-day`}
@@ -149,7 +146,7 @@ function ClientTargetFields({
                 className={selectCls}
               >
                 <option value="" disabled>
-                  {copy.pickDay}…
+                  {t('trainer.templates.assign.pickDayPlaceholder')}
                 </option>
                 {days.map((day) => (
                   <option key={day.id} value={day.id}>
@@ -178,6 +175,7 @@ export function AssignTemplateSheet({
   /** From client detail: this client starts ticked. */
   preselectedClientId?: string;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const searchId = useId();
   const templatePickId = useId();
@@ -221,9 +219,9 @@ export function AssignTemplateSheet({
   const searchable = rows.length >= TRAINER_MODE_LIMITS.clientSearchFrom;
   const shown = searchable ? filterClients(rows, query) : rows;
 
-  const routineQueries = trpc.useQueries((t) =>
+  const routineQueries = trpc.useQueries((q) =>
     (open ? selected : []).map((clientId) =>
-      t.trainer.client.routine({ clientId, today }, { retry: false, staleTime: 15_000 }),
+      q.trainer.client.routine({ clientId, today }, { retry: false, staleTime: 15_000 }),
     ),
   );
   const infoById = new Map<string, AssignClientRoutine>(
@@ -244,7 +242,7 @@ export function AssignTemplateSheet({
     .map((clientId) =>
       assignTargetFor(clientId, choiceOf(clientId), infoById.get(clientId) ?? { state: 'loading' }),
     )
-    .filter((t): t is AssignTarget => t !== null);
+    .filter((target): target is AssignTarget => target !== null);
 
   const assign = trpc.trainer.templates.assign.useMutation({
     meta: { silent: true },
@@ -256,8 +254,16 @@ export function AssignTemplateSheet({
       if (ok > 0) capture('template_assigned', { clients: ok });
       showAppToast(
         failed === 0
-          ? { message: copy.done(ok), type: 'success' }
-          : { message: `${ok > 0 ? `${copy.done(ok)}. ` : ''}${copy.failed(failed)}` },
+          ? { message: t('trainer.templates.assign.done', { count: ok }), type: 'success' }
+          : {
+              message:
+                ok > 0
+                  ? t('trainer.templates.assign.partial', {
+                      done: t('trainer.templates.assign.done', { count: ok }),
+                      failed: t('trainer.templates.assign.failed', { count: failed }),
+                    })
+                  : t('trainer.templates.assign.failed', { count: failed }),
+            },
       );
       void utils.trainer.templates.get.invalidate({ templateId: input.templateId });
       void utils.trainer.templates.list.invalidate();
@@ -287,10 +293,10 @@ export function AssignTemplateSheet({
 
   const title =
     step === 'template' || !active
-      ? copy.fromClient
+      ? t('trainer.templates.assign.fromClient')
       : step === 'tune'
-        ? TEMPLATE_COPY.tune.title
-        : copy.title(active.name);
+        ? t('trainer.templates.tune.title')
+        : t('trainer.templates.assign.title', { template: active.name });
 
   let body: React.ReactNode;
   let footer: React.ReactNode;
@@ -303,18 +309,18 @@ export function AssignTemplateSheet({
           <div className="h-11 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
         ) : templates.length === 0 ? (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-gray-600">{TEMPLATE_COPY.library.emptyBody}</p>
+            <p className="text-sm text-gray-600">{t('trainer.templates.library.emptyBody')}</p>
             <Link
               href={`/trainer/workouts/${NEW_TEMPLATE_ID}`}
               className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 self-start')}
             >
-              {TEMPLATE_COPY.library.newTemplate}
+              {t('trainer.templates.library.newTemplate')}
             </Link>
           </div>
         ) : (
           <div className="flex min-w-0 flex-col gap-1">
             <label htmlFor={templatePickId} className="text-sm font-medium text-gray-700">
-              {copy.pickTemplate}
+              {t('trainer.templates.assign.pickTemplate')}
             </label>
             <select
               id={templatePickId}
@@ -323,11 +329,11 @@ export function AssignTemplateSheet({
               className={selectCls}
             >
               <option value="" disabled>
-                {copy.pickTemplate}…
+                {t('trainer.templates.assign.pickTemplatePlaceholder')}
               </option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              {templates.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
                 </option>
               ))}
             </select>
@@ -338,10 +344,10 @@ export function AssignTemplateSheet({
     footer = (
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onClose}>
-          {COACHING_COPY.common.cancel}
+          {t('common.actions.cancel')}
         </Button>
         <Button type="button" disabled={pickedTemplateId === ''} onClick={() => setStep('clients')}>
-          {copy.next}
+          {t('trainer.templates.assign.next')}
         </Button>
       </div>
     );
@@ -351,14 +357,16 @@ export function AssignTemplateSheet({
         {clients.isLoading ? (
           <div className="h-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
         ) : rows.length === 0 ? (
-          <p className="text-sm text-gray-600">{copy.noClients}</p>
+          <p className="text-sm text-gray-600">{t('trainer.templates.assign.noClients')}</p>
         ) : (
           <fieldset className="flex min-w-0 flex-col gap-2">
-            <legend className="mb-1 text-sm font-semibold text-gray-900">{copy.pickClients}</legend>
+            <legend className="mb-1 text-sm font-semibold text-gray-900">
+              {t('trainer.templates.assign.pickClients')}
+            </legend>
             {searchable && (
               <div className="relative min-w-0">
                 <label htmlFor={searchId} className="sr-only">
-                  {TRAINER_MODE_COPY.clients.search}
+                  {t('trainer.clients.search')}
                 </label>
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -368,7 +376,7 @@ export function AssignTemplateSheet({
                   id={searchId}
                   type="search"
                   value={query}
-                  placeholder={TRAINER_MODE_COPY.clients.search}
+                  placeholder={t('trainer.clients.search')}
                   autoComplete="off"
                   enterKeyHint="search"
                   onChange={(e) => setQuery(e.target.value)}
@@ -415,7 +423,7 @@ export function AssignTemplateSheet({
     footer = (
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onClose} disabled={assign.isPending}>
-          {COACHING_COPY.common.cancel}
+          {t('common.actions.cancel')}
         </Button>
         <Button
           type="button"
@@ -423,7 +431,7 @@ export function AssignTemplateSheet({
           loading={assign.isPending}
           onClick={() => active && assign.mutate({ templateId: active.id, targets })}
         >
-          {copy.confirm(targets.length)}
+          {t('trainer.templates.assign.confirm', { count: targets.length })}
         </Button>
       </div>
     );
@@ -431,15 +439,22 @@ export function AssignTemplateSheet({
     body = (
       <div className="flex flex-col gap-3 px-5 py-4" data-testid="assign-results">
         {okResults.length > 0 && (
-          <p className="text-sm font-medium text-gray-900">{copy.done(okResults.length)}</p>
+          <p className="text-sm font-medium text-gray-900">
+            {t('trainer.templates.assign.done', { count: okResults.length })}
+          </p>
         )}
         {failedResults.length > 0 && (
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-red-700">{copy.failed(failedResults.length)}</p>
+            <p className="text-sm font-medium text-red-700">
+              {t('trainer.templates.assign.failed', { count: failedResults.length })}
+            </p>
             <ul className="flex flex-col gap-1" data-testid="assign-failures">
               {failedResults.map((r) => (
                 <li key={r.clientId} className="min-w-0 break-words text-sm text-gray-700">
-                  {nameOf(r.clientId) || r.clientId}: {copy.failureReason[r.reason]}
+                  {t('trainer.templates.assign.failureLine', {
+                    name: nameOf(r.clientId) || r.clientId,
+                    reason: t(`trainer.templates.assign.failureReason.${r.reason}`),
+                  })}
                 </li>
               ))}
             </ul>
@@ -450,11 +465,11 @@ export function AssignTemplateSheet({
     footer = (
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onClose}>
-          {TEMPLATE_COPY.tune.done}
+          {t('trainer.templates.tune.done')}
         </Button>
         {tuneClients.length > 0 && (
           <Button type="button" onClick={() => setStep('tune')}>
-            {copy.tune}
+            {t('trainer.templates.assign.tune')}
           </Button>
         )}
       </div>

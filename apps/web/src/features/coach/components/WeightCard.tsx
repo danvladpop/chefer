@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Scale } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip } from 'recharts';
@@ -22,6 +23,7 @@ export function WeightCard() {
   const { data: review } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   // Stored in kg; shown in the user's unit (backlog P2-6).
   const system = useUnitSystem();
+  const { t } = useT();
   const unit = bodyWeightUnit(system);
 
   const entries = history ?? [];
@@ -40,7 +42,7 @@ export function WeightCard() {
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-gray-500">
           <Scale className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
-          Weight
+          {t('today.progress.card.title')}
         </p>
         {latest && (
           <p className="min-w-0 truncate text-xs text-gray-500">
@@ -50,7 +52,9 @@ export function WeightCard() {
             {delta != null && Math.abs(delta) >= 0.05 && (
               <span className={delta < 0 ? 'text-emerald-600' : 'text-gray-500'}>
                 {' '}
-                ({formatBodyWeight(delta, system, { signed: true })} / 30d)
+                {t('today.progress.card.delta30', {
+                  change: formatBodyWeight(delta, system, { signed: true }),
+                })}
               </span>
             )}
           </p>
@@ -73,9 +77,7 @@ export function WeightCard() {
           </LineChart>
         </ResponsiveContainer>
       ) : (
-        <p className="py-2 text-sm text-gray-500">
-          Log your weight a couple of times a week and your chef can read the trend.
-        </p>
+        <p className="py-2 text-sm text-gray-500">{t('today.progress.card.hint')}</p>
       )}
 
       {/* Quick entry */}
@@ -83,7 +85,9 @@ export function WeightCard() {
         <WeightLogForm
           lastEntry={latest ?? null}
           {...(todayEntry && {
-            placeholder: `Logged today: ${formatBodyWeight(todayEntry.weightKg, system)}`,
+            placeholder: t('today.progress.card.loggedToday', {
+              weight: formatBodyWeight(todayEntry.weightKg, system),
+            }),
           })}
         />
       </div>
@@ -92,15 +96,14 @@ export function WeightCard() {
           href="/progress#weight-entries"
           className="mt-1 inline-flex min-h-11 items-center text-xs font-medium text-[#944a00] hover:underline"
         >
-          Edit or delete entries
+          {t('today.progress.card.editEntries')}
         </Link>
       )}
 
       {/* Coaching hint — the engagement loop toward the Sunday review. */}
       {review?.status === 'none' && review.daysNeeded > 0 && (
         <p className="mt-3 text-xs text-gray-500">
-          Log meals on {review.daysNeeded} more day{review.daysNeeded === 1 ? '' : 's'} this week
-          and your chef will write you a Sunday review.
+          {t('today.progress.card.reviewHint', { count: review.daysNeeded })}
         </p>
       )}
     </div>

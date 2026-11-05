@@ -1,7 +1,9 @@
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { planDayStatus } from '../../src/features/meal-plan/plan-day-totals';
 import { missScaleFactor, PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // T-11.3: what to do about a planned day that misses its target.
 
@@ -158,5 +160,35 @@ describe('missScaleFactor', () => {
     expect(
       missScaleFactor({ ...args, protein: 200, proteinGapG: 4, goal: 'LOSE_WEIGHT' }),
     ).toBeNull();
+  });
+});
+
+describe('PlanMissSheet in Romanian (Lane J)', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('says the day, the preview and the choices in Romanian', async () => {
+    await wrap(<PlanMissSheet {...base} dayName="Marți" goal="GAIN_MUSCLE" />);
+    expect(screen.getByText('Ajustează ziua')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        'Marți: 1.500 kcal planificate, față de o țintă de 2.000. Poți lăsa ziua așa cum este.',
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByTestId('plan-miss-preview')).toHaveTextContent(
+      'Ar fi 1.900 kcal · 120 g proteine',
+    );
+    expect(screen.getByText('Porții mai mari')).toBeOnTheScreen();
+    expect(screen.getByText('Adaugă o gustare')).toBeOnTheScreen();
+    expect(screen.getByText('Las-o așa')).toBeOnTheScreen();
+  });
+
+  it('writes the day status line in Romanian', () => {
+    expect(planDayStatus({ kcal: 1500, calorieTarget: 2000 })).toBe(
+      'Cu aproximativ 500 kcal sub ținta zilei',
+    );
+    expect(planDayStatus({ kcal: 2000, calorieTarget: 2000, proteinGapG: 25 })).toBe(
+      'Îți lipsesc aproximativ 25 g de proteine',
+    );
   });
 });

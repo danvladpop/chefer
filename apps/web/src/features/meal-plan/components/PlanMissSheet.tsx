@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
@@ -12,7 +13,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { canOfferSnack, missDirection, scaleFactorFor } from '../plan-miss';
-import { aboutKcal } from './DayRecapBar';
+import { aboutKcalAmount } from './DayRecapBar';
 
 // ─── PlanMissSheet (UX-11 T-11.3) ──────────────────────────────────────────────
 // Opens from a day's under/over-target status. Neutral, never alarming: fix the
@@ -59,6 +60,7 @@ export function PlanMissSheet({
   onApplied,
 }: PlanMissSheetProps) {
   const utils = trpc.useUtils();
+  const { t } = useT();
   // WP-08: protein-only mode judges a day by its protein alone and states no calorie figure.
   const { proteinOnly, noNumbers } = useNumbersMode();
   const proteinGap = proteinGapG !== undefined && proteinGapG > 0;
@@ -84,7 +86,9 @@ export function PlanMissSheet({
       void utils.shoppingList.invalidate();
       void utils.dashboard.invalidate();
       onApplied(
-        direction === 'under' ? `${dayName}: portions increased.` : `${dayName}: portions reduced.`,
+        t(direction === 'under' ? 'plan.miss.appliedUp' : 'plan.miss.appliedDown', {
+          day: dayName,
+        }),
       );
       onClose();
     },
@@ -104,7 +108,7 @@ export function PlanMissSheet({
   const lossProteinSnack = direction === 'under' && isLossGoal(goal) && proteinShort;
   const showSnack =
     onAddSnack !== undefined && (canOfferSnack(direction, goal) || lossProteinSnack);
-  const snackTitle = proteinShort ? 'Add a protein snack' : 'Add a snack';
+  const snackTitle = t(proteinShort ? 'plan.miss.snackProtein' : 'plan.miss.snack');
   const optionCls =
     'flex min-h-11 w-full flex-col items-start justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-left hover:bg-gray-50 disabled:opacity-50';
 
@@ -120,9 +124,7 @@ export function PlanMissSheet({
     >
       <span className="text-sm font-semibold text-gray-900">{snackTitle}</span>
       <span className="text-xs text-gray-600">
-        {proteinShort
-          ? 'A small high-protein extra to close the gap'
-          : 'A small extra to close the gap'}
+        {t(proteinShort ? 'plan.miss.snackProteinHint' : 'plan.miss.snackHint')}
       </span>
     </button>
   ) : null;
@@ -133,19 +135,36 @@ export function PlanMissSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={proteinOnly ? 'Short on protein' : `${aboutKcal(kcal - target)} ${direction} target`}
+      title={
+        proteinOnly
+          ? t('plan.miss.titleProtein')
+          : t(
+              direction === 'under'
+                ? 'plan.dayTotals.aboutUnderKcal'
+                : 'plan.dayTotals.aboutOverKcal',
+              {
+                kcal: aboutKcalAmount(kcal - target),
+              },
+            )
+      }
       description={
         proteinOnly
           ? proteinGap
-            ? `${dayName}: about ${proteinGapG} g short on protein`
-            : `${dayName}: as planned`
-          : `${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`
+            ? t('plan.miss.descProteinGap', { day: dayName, grams: proteinGapG })
+            : t('plan.miss.descAsPlanned', { day: dayName })
+          : t('plan.miss.descKcal', {
+              day: dayName,
+              kcal: formatKcal(kcal),
+              target: formatKcal(target),
+            })
       }
       size="sm"
     >
       <div className="flex flex-col gap-2 px-5 pb-5" data-testid="plan-miss-sheet">
         {!proteinOnly && proteinGapG !== undefined && proteinGapG > 0 && (
-          <p className="text-xs text-gray-600">Protein is about {proteinGapG} g short too.</p>
+          <p className="text-xs text-gray-600">
+            {t('plan.miss.proteinAlso', { grams: proteinGapG })}
+          </p>
         )}
         {lossProteinSnack && snackButton}
         {scalable && (
@@ -157,31 +176,47 @@ export function PlanMissSheet({
             className={optionCls}
           >
             <span className="text-sm font-semibold text-gray-900">
-              {direction === 'under'
-                ? capped
-                  ? 'Slightly bigger portions'
-                  : 'Bigger portions'
-                : 'Smaller portions'}
+              {t(
+                direction === 'under'
+                  ? capped
+                    ? 'plan.miss.slightlyBigger'
+                    : 'plan.miss.bigger'
+                  : 'plan.miss.smaller',
+              )}
             </span>
             <span className="text-xs text-gray-600">
               {preview
-                ? `${capped ? `Held to +${Math.round(LOSS_PROTEIN_KCAL_INCREASE_CAP * 100)}% on your weight-loss goal. ` : ''}Brings the day to about ${proteinOnly ? `${preview.protein} g protein` : `${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}`
+                ? [
+                    capped
+                      ? t('plan.miss.heldToCap', {
+                          percent: Math.round(LOSS_PROTEIN_KCAL_INCREASE_CAP * 100),
+                        })
+                      : null,
+                    proteinOnly
+                      ? t('plan.miss.bringsProtein', { grams: preview.protein })
+                      : t('plan.miss.bringsKcalProtein', {
+                          kcal: formatKcal(preview.kcal),
+                          grams: preview.protein,
+                        }),
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
                 : previewMutation.isError
-                  ? 'Adjusts every meal on this day'
-                  : 'Checking the numbers…'}
+                  ? t('plan.miss.adjustsEvery')
+                  : t('plan.miss.checking')}
             </span>
           </button>
         )}
         {!lossProteinSnack && snackButton}
         <button type="button" data-testid="plan-miss-keep" onClick={onClose} className={optionCls}>
-          <span className="text-sm font-semibold text-gray-900">Keep it</span>
-          <span className="text-xs text-gray-600">Leave {dayName} as planned</span>
+          <span className="text-sm font-semibold text-gray-900">{t('plan.miss.keep')}</span>
+          <span className="text-xs text-gray-600">{t('plan.miss.keepHint', { day: dayName })}</span>
         </button>
         {(applyMutation.isError || previewMutation.isError) && (
           <p role="alert" className="text-xs text-red-600">
             {userFacingErrorMessage(
               applyMutation.error ?? previewMutation.error,
-              'Could not change the portions. Try again.',
+              t('plan.miss.applyError'),
             )}
           </p>
         )}

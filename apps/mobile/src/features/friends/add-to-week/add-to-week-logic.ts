@@ -128,6 +128,7 @@ export function readAddFailure(error: unknown): AddFailure {
       canAcknowledge: Boolean(data.unsafeForTable),
     };
   }
+  // The server's own English message (meal-plan.service.ts), matched as sent.
   if (message === FRIENDS_COPY.addToWeek.noPlan) return { kind: 'noPlan' };
   return { kind: 'error' };
 }

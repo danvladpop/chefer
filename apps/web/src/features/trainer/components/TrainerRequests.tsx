@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { formatShortDay } from '@/features/coaching/lib/dates';
+import { formatShortDayT } from '@/features/coaching/lib/dates';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, type TrainerRequestDto } from '@chefer/types';
+import type { TrainerRequestDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
@@ -12,8 +13,6 @@ import { userFacingErrorMessage } from '@chefer/utils';
 // Coaching requests from clients, oldest first. Accept starts the coaching (a
 // client who has a trainer switches on accept); Decline tells the client. An
 // error stays on its own row.
-
-const copy = COACHING_COPY.request;
 
 function RequestRow({
   request,
@@ -26,6 +25,8 @@ function RequestRow({
   error: string | null;
   onAnswer: (answer: 'accept' | 'decline') => void;
 }) {
+  const { t } = useT();
+  const client = request.client.name;
   return (
     <li
       className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -33,10 +34,14 @@ function RequestRow({
     >
       <div className="min-w-0">
         <p className="min-w-0 break-words font-medium text-gray-900">
-          {copy.fromClient(request.client.name)}
+          {t('coaching.request.fromClient', { client })}
         </p>
-        <p className="text-xs text-gray-500">{copy.expires(formatShortDay(request.expiresAt))}</p>
-        {request.hasTrainer && <p className="mt-1 text-sm text-amber-800">{copy.hasTrainer}</p>}
+        <p className="text-xs text-gray-500">
+          {t('coaching.request.expires', { date: formatShortDayT(request.expiresAt, t) })}
+        </p>
+        {request.hasTrainer && (
+          <p className="mt-1 text-sm text-amber-800">{t('coaching.request.hasTrainer')}</p>
+        )}
         {error && (
           <p role="alert" className="mt-1 text-sm text-red-700">
             {error}
@@ -49,10 +54,10 @@ function RequestRow({
           className="min-h-11"
           loading={busy === 'accept'}
           disabled={busy !== null}
-          aria-label={`${copy.accept}: ${request.client.name}`}
+          aria-label={t('coaching.request.acceptFor', { client })}
           onClick={() => onAnswer('accept')}
         >
-          {copy.accept}
+          {t('coaching.request.accept')}
         </Button>
         <Button
           type="button"
@@ -60,10 +65,10 @@ function RequestRow({
           className="min-h-11"
           loading={busy === 'decline'}
           disabled={busy !== null}
-          aria-label={`${copy.decline}: ${request.client.name}`}
+          aria-label={t('coaching.request.declineFor', { client })}
           onClick={() => onAnswer('decline')}
         >
-          {copy.decline}
+          {t('coaching.request.decline')}
         </Button>
       </div>
     </li>
@@ -71,6 +76,7 @@ function RequestRow({
 }
 
 export function TrainerRequests() {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const requests = trpc.trainer.requests.list.useQuery(undefined, {
     retry: false,
@@ -105,7 +111,10 @@ export function TrainerRequests() {
           settle(request.id, null);
           refresh();
           showAppToast({
-            message: choice === 'accept' ? copy.accepted(request.client.name) : copy.declined,
+            message:
+              choice === 'accept'
+                ? t('coaching.request.accepted', { client: request.client.name })
+                : t('coaching.request.declined'),
             type: 'success',
           });
         },
@@ -128,9 +137,9 @@ export function TrainerRequests() {
       className="flex scroll-mt-20 flex-col gap-2"
     >
       <h2 id="trainer-requests-title" className="font-semibold text-gray-900">
-        {copy.listTitle}
+        {t('coaching.request.listTitle')}
       </h2>
-      <ul className="flex flex-col gap-2" aria-label={copy.listTitle}>
+      <ul className="flex flex-col gap-2" aria-label={t('coaching.request.listTitle')}>
         {list.map((r) => (
           <RequestRow
             key={r.id}

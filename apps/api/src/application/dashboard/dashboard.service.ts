@@ -9,17 +9,19 @@ import {
   type LoggedMealEntry,
   type TargetChange,
 } from '@chefer/database';
-import { parseStoredNumbersMode } from '@chefer/types';
-import type {
-  NumbersMode,
-  NutritionTargets,
-  OnboardingJob,
-  ProteinGuide,
-  RefuelSnackDto,
-  SafetyChecks,
-  TrainingDayNutrition,
-  UserProfile,
-  WeekGlanceDay,
+import { createTranslator } from '@chefer/i18n';
+import {
+  parseStoredNumbersMode,
+  type NumbersMode,
+  type NutritionTargets,
+  type OnboardingJob,
+  type ProteinGuide,
+  type RefuelSnackDto,
+  type SafetyChecks,
+  type SupportedLocale,
+  type TrainingDayNutrition,
+  type UserProfile,
+  type WeekGlanceDay,
 } from '@chefer/types';
 import {
   buildProteinGuide,
@@ -37,6 +39,7 @@ import {
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { hasFeature, isPremiumUser } from '../../lib/entitlements.js';
+import { userLocale } from '../../lib/user-locale.js';
 import { atPortion, householdPlanScope } from '../meal-plan/plan-for-date.js';
 import type { DailyTargets } from '../preferences/preferences.service.js';
 import { safetyService } from '../safety/safety.service.js';
@@ -304,6 +307,15 @@ const MEAL_SCHEDULE: Record<string, string> = {
   snack: '3:30 PM',
   dinner: '7:00 PM',
 };
+/** The same times on a 24-hour clock, for readers whose language uses one (Romanian). */
+const MEAL_SCHEDULE_24H: Record<string, string> = {
+  breakfast: '8:00',
+  lunch: '12:30',
+  snack: '15:30',
+  dinner: '19:00',
+};
+const mealScheduleFor = (locale: SupportedLocale) =>
+  locale === 'en' ? MEAL_SCHEDULE : MEAL_SCHEDULE_24H;
 
 // Meal order and windows live in @chefer/utils (shared with the Today
 // surfaces' next-meal logic); re-exported for existing importers.
@@ -330,12 +342,20 @@ export function getNextMealType(currentHour: number, availableTypes: string[]): 
 }
 
 /**
- * "Friday, September 25". A client-supplied local date arrives as UTC
- * midnight (see getSummary), so it is formatted in UTC to keep its weekday.
+ * "Friday, September 25" ("vineri, 25 septembrie"), in the viewer's language.
+ * A client-supplied local date arrives as UTC midnight (see getSummary), so it
+ * is formatted in UTC to keep its weekday. English keeps its US order, as before.
  */
-function formatDayLabel(now: Date): string {
+function formatDayLabel(now: Date, locale: SupportedLocale): string {
   const isUtcMidnight =
     now.getUTCHours() === 0 && now.getUTCMinutes() === 0 && now.getUTCSeconds() === 0;
+  if (locale !== 'en') {
+    return createTranslator(locale).date(
+      now,
+      'weekday-long-date',
+      isUtcMidnight ? 'UTC' : undefined,
+    );
+  }
   return now.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -470,6 +490,7 @@ export class DashboardService {
         jobs,
         include,
         trainingExtras,
+        viewer ? userLocale(viewer) : 'en',
       );
     }
 
@@ -611,7 +632,7 @@ export class DashboardService {
       return [
         {
           mealType: slot.type,
-          scheduledLabel: MEAL_SCHEDULE[slot.type] ?? '',
+          scheduledLabel: mealScheduleFor(viewer ? userLocale(viewer) : 'en')[slot.type] ?? '',
           recipeName: recipe.name,
           recipeId: recipe.id,
           kcal: Math.round(n.calories * slotPortion(slot.portion)),
@@ -723,7 +744,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: chefProfile?.displayName ?? null },
       today: {
-        date: formatDayLabel(now),
+        date: formatDayLabel(now, viewer ? userLocale(viewer) : 'en'),
         dayOfWeek: todayIndex,
         slots: todaySlots,
       },
@@ -898,6 +919,7 @@ export class DashboardService {
     jobs: OnboardingJob[],
     include: Set<DashboardIncludeOption>,
     trainingExtras: Pick<DashboardSummary, 'weekGlance' | 'refuelSnacks'>,
+    locale: SupportedLocale,
   ): Promise<DashboardSummary> {
     const targetsExtras = include.has('targets')
       ? await this.targetsExtrasFor(userId, 0, targets.dailyCalorieTarget)
@@ -905,7 +927,7 @@ export class DashboardService {
     return {
       user: { firstName, displayName: null },
       today: {
-        date: formatDayLabel(now),
+        date: formatDayLabel(now, locale),
         dayOfWeek: todayIndex,
       },
       planId: null,

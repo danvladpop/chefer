@@ -1,12 +1,14 @@
 import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import FriendsHomeRoute from '../../app/friends/index';
 import { resetRememberedSegment } from '../../src/features/friends/home/home-screen';
+import { getTranslator } from '../../src/lib/i18n';
 import { meDto, renderWithTrpc, trpcError, type Handlers } from './friends-core-harness';
 import { homeHandlers, page, personId, settle, who } from './friends-home-fixtures';
+
+const { t } = getTranslator();
 
 // F2.1 · the Following home (UX §5, PRD FR-06–FR-09): the sections, their
 // empty and error states, accepting from the home, the You follow | Followers
@@ -88,7 +90,7 @@ describe('layout and content', () => {
     expect(
       screen.getByTestId('friends-header-activity-count', { includeHiddenElements: true }),
     ).toHaveTextContent('6');
-    expect(screen.getByLabelText(FRIENDS_COPY.home.activityLabel(6))).toBeTruthy();
+    expect(screen.getByLabelText(t('friends.home.activityLabelNew', { unread: 6 }))).toBeTruthy();
     const search = screen.getByTestId('friends-search');
     expect(search.props.accessibilityLabel).toBe('Search people by name');
     expect(search.props.placeholder).toBe('Search by name');
@@ -147,15 +149,15 @@ describe('layout and content', () => {
 describe('empty states', () => {
   it('You follow empty, then Followers empty with an Invite action; suggestions empty shows the invite card', async () => {
     await renderHome();
-    expect(screen.getByText(FRIENDS_COPY.empty.youFollow.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.empty.youFollow.body)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.invite.card.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.invite.card.body)).toBeTruthy();
+    expect(screen.getByText(t('friends.empty.youFollow.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.empty.youFollow.body'))).toBeTruthy();
+    expect(screen.getByText(t('friends.invite.card.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.invite.card.body'))).toBeTruthy();
 
     await userEvent.setup().press(screen.getByTestId('friends-segment-followers'));
     await settle();
-    expect(await screen.findByText(FRIENDS_COPY.empty.followers.title)).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.empty.followers.body)).toBeTruthy();
+    expect(await screen.findByText(t('friends.empty.followers.title'))).toBeTruthy();
+    expect(screen.getByText(t('friends.empty.followers.body'))).toBeTruthy();
     expect(screen.getByTestId('friends-empty-followers-invite')).toHaveTextContent(
       'Invite someone',
     );
@@ -191,8 +193,8 @@ describe('section errors: a failed load never looks empty', () => {
     });
     expect(screen.getByText('Couldn’t load this list.')).toBeTruthy();
     expect(screen.getByText('Couldn’t load suggestions.')).toBeTruthy();
-    expect(screen.queryByText(FRIENDS_COPY.empty.youFollow.title)).toBeNull();
-    expect(screen.queryByText(FRIENDS_COPY.invite.card.title)).toBeNull();
+    expect(screen.queryByText(t('friends.empty.youFollow.title'))).toBeNull();
+    expect(screen.queryByText(t('friends.invite.card.title'))).toBeNull();
     expect(screen.getAllByText('Try again')).toHaveLength(2);
   });
 
@@ -202,7 +204,7 @@ describe('section errors: a failed load never looks empty', () => {
         throw trpcError('FORBIDDEN', 403, { friendsUnavailable: true });
       },
     });
-    expect(await screen.findByText(FRIENDS_COPY.unavailable)).toBeTruthy();
+    expect(await screen.findByText(t('friends.unavailable'))).toBeTruthy();
   });
 });
 
@@ -222,7 +224,7 @@ describe('accepting from the home', () => {
     expect(screen.queryByTestId(`friends-request-${personId(1)}`)).toBeNull();
     expect(screen.getByTestId(`friends-request-${personId(2)}`)).toBeTruthy();
     expect(await screen.findByText('Elena can now see your meals and workouts.')).toBeTruthy();
-    expect(screen.getByText(FRIENDS_COPY.accepted.action)).toBeTruthy();
+    expect(screen.getByText(t('friends.accepted.action'))).toBeTruthy();
   });
 
   it('decline removes the row and calls declineRequest', async () => {

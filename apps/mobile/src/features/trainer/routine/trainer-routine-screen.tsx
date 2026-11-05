@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  COACHING_COPY,
-  editorLabel,
   TEMPLATE_COPY,
   type ExerciseMeta,
   type NextTargetDto,
@@ -24,11 +22,12 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
+import { editorLabelT, formatShortDayT, weekdayNameT } from '../../coaching/copy';
 import { ExercisePicker } from '../../gym/library/exercise-picker';
 import { localDate, newId } from '../../gym/offline/ids';
-import { formatStampDate } from '../../gym/routine/attribution';
 import {
   extractRoutineConflict,
   keepMineAfterConflict,
@@ -45,12 +44,11 @@ import { OverrideSheet } from '../../gym/routine/override-sheet';
 import { routineDraftReducer, type RoutineDraftAction } from '../../gym/routine/reducer';
 import { MAX_DAYS, type RoutineDraft } from '../../gym/routine/types';
 import { useIsOnline } from '../../gym/routine/use-online';
-import { WEEKDAY_SHORT_LABELS } from '../../gym/routine/weekday';
 import { WorkoutTypePickerSheet } from '../../gym/simple/workout-type-chips';
 import { isClientUnavailable, useTrainerClientName } from '../client/use-trainer-client';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { repRangeText } from '../format';
-import { DayWorkoutType, NO_WORKOUT_TYPE_LABEL } from './day-workout-type';
+import { DayWorkoutType } from './day-workout-type';
 import { fillDraftFromRoutine, FillFromMineSheet } from './fill-from-mine';
 import { NextTargetLine } from './next-target-line';
 
@@ -92,6 +90,7 @@ function rowsById(routine: TrainerRoutineDto | null | undefined) {
 
 export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   const isOnline = useIsOnline();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { firstName } = useTrainerClientName(clientId);
   const input = useMemo(() => ({ clientId, today: localDate() }), [clientId]);
@@ -134,8 +133,8 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
 
   const dirty = baseline !== null && !draftsEqual(draft, baseline);
   const guard = useUnsavedGuard(dirty, {
-    title: 'Discard changes?',
-    message: `Your edits to ${firstName}’s routine have not been saved.`,
+    title: t('coaching.trainer.routineEditor.discardTitle'),
+    message: t('coaching.trainer.routineEditor.discardBody', { client: firstName }),
   });
 
   const library = libraryQuery.data ?? [];
@@ -168,13 +167,18 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         snackbar.show({
           message:
             skipped > 0
-              ? `Copied ${copied} exercises. ${skipped} custom exercises were skipped.`
-              : `Copied ${copied} exercises.`,
-          actionLabel: 'Undo',
+              ? `${t('coaching.trainer.routineEditor.copied', { count: copied })} ${t('coaching.trainer.routineEditor.skippedCustom', { count: skipped })}`
+              : t('coaching.trainer.routineEditor.copied', { count: copied }),
+          actionLabel: t('gym.workout.view.undo'),
           onAction: () => setDraft(previous),
         });
       })
-      .catch((error: unknown) => Alert.alert('Could not copy', userFacingErrorMessage(error)));
+      .catch((error: unknown) =>
+        Alert.alert(
+          t('coaching.trainer.routineEditor.couldNotCopy'),
+          userFacingErrorMessage(error),
+        ),
+      );
   };
 
   const submitSave = (routine: RoutineDraft) => {
@@ -196,7 +200,10 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
             setConflict(current);
             return;
           }
-          Alert.alert('Could not save', userFacingErrorMessage(error));
+          Alert.alert(
+            t('coaching.trainer.routineEditor.couldNotSave'),
+            userFacingErrorMessage(error),
+          );
         },
       },
     );
@@ -211,7 +218,11 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
           seed(dto);
           utils.trainer.client.routine.setData(input, dto);
         },
-        onError: (error) => Alert.alert('Could not create', userFacingErrorMessage(error)),
+        onError: (error) =>
+          Alert.alert(
+            t('coaching.trainer.routineEditor.couldNotCreate'),
+            userFacingErrorMessage(error),
+          ),
       },
     );
   };
@@ -250,7 +261,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   const header = (right?: ReactNode) => (
     <TrainerHeader
       testID="trainer-routine-header"
-      title={`${firstName}’s routine`}
+      title={t('coaching.trainer.routineEditor.title', { client: firstName })}
       onBack={goBackOrHome}
       right={right}
     />
@@ -262,10 +273,10 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         {header()}
         <EmptyState
           testID="trainer-routine-offline"
-          title="Needs a connection"
-          description="Reconnect to edit this routine."
+          title={t('coaching.trainer.routineEditor.needsConnection')}
+          description={t('coaching.trainer.routineEditor.reconnect')}
           action={{
-            label: COACHING_COPY.common.tryAgain,
+            label: t('coaching.common.tryAgain'),
             testID: 'trainer-routine-offline-retry',
             onPress: () => void routineQuery.refetch(),
           }}
@@ -290,9 +301,9 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
           {header()}
           <EmptyState
             testID="trainer-routine-unavailable"
-            title={COACHING_COPY.server.clientUnavailable}
+            title={t('coaching.trainer.clientUnavailable')}
             action={{
-              label: 'Back to clients',
+              label: t('coaching.trainer.backToClients'),
               testID: 'trainer-routine-unavailable-back',
               onPress: () => router.replace('/trainer'),
             }}
@@ -313,10 +324,10 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         {header()}
         <EmptyState
           testID="trainer-routine-none"
-          title="No active routine yet"
-          description={`${firstName} has no active routine. Create a 3-day routine to start.`}
+          title={t('coaching.trainer.routineEditor.noRoutineTitle')}
+          description={t('coaching.trainer.routineEditor.noRoutineBody', { client: firstName })}
           action={{
-            label: 'Create a 3-day routine',
+            label: t('coaching.trainer.routineEditor.createThreeDay'),
             testID: 'trainer-routine-create',
             onPress: createRoutine,
           }}
@@ -330,7 +341,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
       {header(
         dirty ? (
           <Badge testID="trainer-routine-dirty" variant="warning">
-            Unsaved
+            {t('coaching.trainer.routineEditor.unsavedBadge')}
           </Badge>
         ) : null,
       )}
@@ -344,7 +355,9 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
               disabled={!isOnline || !dirty}
               onPress={() => submitSave(draft)}
             >
-              {dirty ? 'Save changes' : 'No changes'}
+              {dirty
+                ? t('coaching.trainer.routineEditor.saveChanges')
+                : t('coaching.trainer.routineEditor.noChanges')}
             </Button>
           </View>
         }
@@ -355,33 +368,33 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
             className="rounded-control bg-surface-sunken px-3 py-2"
           >
             <Text className="text-subhead text-label-secondary">
-              Editing a client’s routine needs a connection.
+              {t('coaching.trainer.routineEditor.offlineBanner')}
             </Text>
           </View>
         ) : null}
 
         <Input
           testID="trainer-routine-name"
-          label="Routine name"
+          label={t('coaching.trainer.routineEditor.routineName')}
           value={draft.name}
           maxLength={60}
           onChangeText={(name) => dispatch({ type: 'renameRoutine', name })}
           {...DONE_FIELD_PROPS}
-          placeholder="Routine name"
+          placeholder={t('coaching.trainer.routineEditor.routineName')}
         />
 
         {draft.lastEditedByOther ? (
           <Text testID="trainer-routine-changed-by" className="text-caption text-label-secondary">
-            {COACHING_COPY.trainer.routineChangedByClient(
-              editorLabel(draft.lastEditedByOther),
-              formatStampDate(draft.lastEditedByOther.at),
-            )}
+            {t('coaching.trainer.routineChangedByClient', {
+              name: editorLabelT(draft.lastEditedByOther, t),
+              date: formatShortDayT(draft.lastEditedByOther.at, t),
+            })}
           </Text>
         ) : null}
 
         {dirty ? (
           <Text testID="trainer-routine-save-first" className="text-caption text-label-secondary">
-            Save your changes to adjust next-session targets.
+            {t('coaching.trainer.routineEditor.saveFirst')}
           </Text>
         ) : null}
 
@@ -392,12 +405,12 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
                 testID={`trainer-routine-next-day-${day.key}`}
                 className="text-sm font-semibold"
               >
-                {COACHING_COPY.trainer.nextDay(
-                  day.name,
-                  day.plannedWeekday === null
-                    ? null
-                    : (WEEKDAY_SHORT_LABELS[day.plannedWeekday] ?? null),
-                )}
+                {day.plannedWeekday === null
+                  ? t('coaching.trainer.nextDay', { day: day.name })
+                  : t('coaching.trainer.nextDayPlanned', {
+                      day: day.name,
+                      weekday: weekdayNameT(day.plannedWeekday, t),
+                    })}
               </Text>
             ) : null}
             <DayEditor
@@ -461,7 +474,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
           disabled={!isOnline}
           onPress={() => setFillOpen(true)}
         >
-          {COACHING_COPY.trainer.fillFromMine}
+          {t('coaching.trainer.fillFromMine')}
         </Button>
 
         <Button
@@ -470,7 +483,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
           disabled={draft.days.length >= MAX_DAYS}
           onPress={() => dispatch({ type: 'addDay', dayId: newId() })}
         >
-          Add day
+          {t('coaching.trainer.routineEditor.addDay')}
         </Button>
       </KeyboardAwareScrollView>
 
@@ -484,12 +497,12 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         testID="trainer-routine-type-picker"
         visible={typeDay !== undefined}
         onClose={() => setTypeDayKey(null)}
-        title="Workout type"
+        title={t('coaching.trainer.profile.workoutType.label')}
         {...(typeDay && { eyebrow: typeDay.name })}
         initial={typeDay?.workoutType ?? null}
         includeStrength
         includeRest
-        restLabel={NO_WORKOUT_TYPE_LABEL}
+        restLabel={t('coaching.trainer.profile.workoutType.none')}
         onPick={(workoutType) => {
           if (typeDay) dispatch({ type: 'setWorkoutType', dayKey: typeDay.key, workoutType });
           setTypeDayKey(null);
@@ -504,7 +517,11 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         curatedOnly
         excludeIds={excludeIds}
         preferSwapGroup={preferSwapGroup}
-        title={picker?.mode === 'swap' ? 'Swap exercise' : 'Add exercise'}
+        title={
+          picker?.mode === 'swap'
+            ? t('coaching.trainer.routineEditor.swapExercise')
+            : t('coaching.trainer.routineEditor.addExercise')
+        }
         onPick={(exercise) => {
           if (!picker) return;
           if (picker.mode === 'add') {
@@ -544,20 +561,24 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
                 }
               : null,
           }}
-          title={`Next target: ${adjustMeta.name}`}
-          description={COACHING_COPY.trainer.appliesTo(
-            firstName,
-            adjustMeta.name,
-            repRangeText(adjustRow.repMin, adjustRow.repMax),
-          )}
-          resetLabel={COACHING_COPY.trainer.resetToSuggestion}
+          title={t('coaching.trainer.routineEditor.nextTargetFor', { name: adjustMeta.name })}
+          description={t('coaching.trainer.appliesTo', {
+            client: firstName,
+            exercise: adjustMeta.name,
+            reps: repRangeText(adjustRow.repMin, adjustRow.repMax),
+          })}
+          resetLabel={t('coaching.trainer.resetToSuggestion')}
           saving={setTarget.isPending || clearTarget.isPending}
           onSave={(payload) =>
             setTarget.mutate(
               { clientId, ...payload },
               {
                 onSuccess: (dto) => applyTarget(payload.exerciseId, dto),
-                onError: (error) => Alert.alert('Could not save', userFacingErrorMessage(error)),
+                onError: (error) =>
+                  Alert.alert(
+                    t('coaching.trainer.routineEditor.couldNotSave'),
+                    userFacingErrorMessage(error),
+                  ),
               },
             )
           }
@@ -570,7 +591,11 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
               },
               {
                 onSuccess: (dto) => applyTarget(adjustMeta.id, dto),
-                onError: (error) => Alert.alert('Could not reset', userFacingErrorMessage(error)),
+                onError: (error) =>
+                  Alert.alert(
+                    t('coaching.trainer.routineEditor.couldNotReset'),
+                    userFacingErrorMessage(error),
+                  ),
               },
             )
           }

@@ -10,7 +10,7 @@ import { ConsentUpdateNotice } from '@/features/coaching/components/ConsentUpdat
 import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
-import { TodaySlotNotes } from '@/features/dashboard/components/today-slot-notes';
+import { mealTypeLabel, TodaySlotNotes } from '@/features/dashboard/components/today-slot-notes';
 import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
 import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
@@ -34,19 +34,20 @@ import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
 import { useSlotActions } from '@/features/tracker/lib/use-slot-actions';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
-import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState, Toast } from '@chefer/ui';
 import {
   formatDate,
+  formatKcal,
+  formatNumber,
   localDateStr,
-  proteinAverageText,
   remainingPlannedKcal,
   weeklyAverage,
-  weeklyAverageText,
 } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ function momentFor(hour: number): Moment {
 // surface — what you ate against the target, the next meal with a one-tap
 // "I ate this", quick add / scan, and "Full day" into the full tracker.
 export default function DashboardPage() {
+  const { t } = useT();
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
   // UX-FOOD-23: the hour is part of the query key; keep the previous dashboard
   // on screen while the new hour's summary loads instead of a skeleton.
@@ -150,7 +152,7 @@ export default function DashboardPage() {
     return isError ? (
       <div className="mx-auto max-w-3xl p-4 lg:p-6">
         <ErrorState
-          title="Couldn't load your dashboard"
+          title={t('today.home.page.loadError')}
           onRetry={() => void refetch()}
           retrying={isRefetching}
         />
@@ -212,17 +214,20 @@ export default function DashboardPage() {
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
               <div>
-                <p className="text-sm font-semibold text-emerald-900">Your week is ready</p>
+                <p className="text-sm font-semibold text-emerald-900">
+                  {t('today.home.page.weekReady.title')}
+                </p>
                 <p className="mt-0.5 text-xs text-emerald-800">
-                  The chef prepared this week&apos;s plan for you on Sunday
-                  {d.weekReady.ratedCount > 0 && (
-                    <>
-                      {' '}
-                      — built from <strong>{d.weekReady.ratedCount}</strong> dish
-                      {d.weekReady.ratedCount === 1 ? '' : 'es'} you rated
-                    </>
-                  )}
-                  .
+                  {d.weekReady.ratedCount > 0
+                    ? rich(
+                        t,
+                        'today.home.page.weekReady.bodyRated',
+                        {},
+                        {
+                          count: d.weekReady.ratedCount,
+                        },
+                      )
+                    : t('today.home.page.weekReady.body')}
                 </p>
               </div>
             </div>
@@ -240,17 +245,18 @@ export default function DashboardPage() {
           {showNutritionCards && showProfileNudge && (
             <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#944a00]/20 bg-[#fff3e8] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-[#944a00]">Complete your profile</p>
+                <p className="text-sm font-semibold text-[#944a00]">
+                  {t('today.home.page.profile.title')}
+                </p>
                 <p className="mt-0.5 text-xs text-[#944a00]/80">
-                  Tell the AI chef your goals, body metrics and dietary needs so your meal plans are
-                  built for you.
+                  {t('today.home.page.profile.body')}
                 </p>
               </div>
               <Link
                 href="/onboarding"
                 className="flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] sm:min-h-0 sm:py-2"
               >
-                Set up now
+                {t('today.home.page.profile.cta')}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -267,7 +273,7 @@ export default function DashboardPage() {
                 {d.today.date}
               </p>
               <h1 className="mt-0.5 font-serif text-xl font-bold text-gray-900 sm:text-2xl">
-                Today
+                {t('today.home.title')}
               </h1>
             </div>
             {/* The full tracker (portions, past days, un-logging) stays one tap
@@ -277,7 +283,7 @@ export default function DashboardPage() {
               data-testid="today-full-day"
               className="flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-[#944a00] hover:underline"
             >
-              See full day <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {t('today.home.page.fullDay')} <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
 
@@ -372,24 +378,26 @@ export default function DashboardPage() {
             showTomorrowCard ? null : hasPlan ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-white py-8 text-center shadow-sm">
               <span className="text-3xl">🎉</span>
-              <p className="font-medium text-gray-700">You&apos;re all caught up for today!</p>
+              <p className="font-medium text-gray-700">{t('today.home.page.caughtUp')}</p>
               <Link
                 href="/meal-plan"
                 className="touch-target relative text-sm text-[#944a00] hover:underline"
               >
-                View full plan →
+                {t('today.home.page.viewPlan')}
               </Link>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-white py-10 text-center shadow-sm">
               <span className="text-4xl">🥣</span>
               <div>
-                <p className="font-semibold text-gray-800">Your weekly menu awaits</p>
+                <p className="font-semibold text-gray-800">
+                  {t('today.home.page.emptyWeek.title')}
+                </p>
                 <p className="mt-0.5 text-sm text-gray-500">
                   {/* Tier-honest copy: free plans are chef-curated, not AI (F-DASH-1-5). */}
                   {isPremium
-                    ? 'Let the chef craft a personalised 7-day plan for you.'
-                    : 'Get a 7-day plan of chef-curated recipes that respect your allergies.'}
+                    ? t('today.home.page.emptyWeek.premium')
+                    : t('today.home.page.emptyWeek.free')}
                 </p>
               </div>
               {/* ?generate=1 starts generation on arrival — the button used to
@@ -398,7 +406,7 @@ export default function DashboardPage() {
                 href="/meal-plan?generate=1"
                 className="inline-flex min-h-11 items-center rounded-full bg-[#944a00] px-5 text-sm font-semibold text-white hover:bg-[#7a3d00]"
               >
-                Generate My Week
+                {t('today.home.page.emptyWeek.cta')}
               </Link>
             </div>
           )}
@@ -407,7 +415,7 @@ export default function DashboardPage() {
           {d.restOfToday.length > 0 && (
             <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Later today
+                {t('today.home.page.laterToday')}
               </p>
               <div className="flex flex-col divide-y">
                 {d.restOfToday.map((meal, i) => (
@@ -425,7 +433,7 @@ export default function DashboardPage() {
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                         >
-                          {meal.mealType}
+                          {mealTypeLabel(t, meal.mealType)}
                         </span>
                       </div>
                       <span className="truncate text-sm font-medium text-gray-700">
@@ -434,7 +442,7 @@ export default function DashboardPage() {
                     </div>
                     {!proteinOnly && (
                       <span className="shrink-0 whitespace-nowrap text-xs text-gray-500">
-                        {meal.kcal} kcal
+                        {t('today.home.page.mealValue.kcal', { value: formatKcal(meal.kcal) })}
                       </span>
                     )}
                   </Link>
@@ -447,13 +455,13 @@ export default function DashboardPage() {
           <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Weekly Outlook
+                {t('today.home.page.outlook.title')}
               </p>
               <Link
                 href="/meal-plan"
                 className="touch-target relative shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
               >
-                Full Schedule →
+                {t('today.home.page.outlook.fullSchedule')}
               </Link>
             </div>
             {/* Seven equal chips would be ~41px wide at 375px — under the touch
@@ -502,15 +510,18 @@ export default function DashboardPage() {
                   <div className="mt-4 border-t pt-4">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
                       {isToday
-                        ? "Today's Meals"
-                        : isPast
-                          ? `${dayData?.label} ${dayData?.num} — Past`
-                          : `${dayData?.label} ${dayData?.num} — Upcoming`}
+                        ? t('today.home.page.outlook.todayMeals')
+                        : t(
+                            isPast
+                              ? 'today.home.page.outlook.past'
+                              : 'today.home.page.outlook.upcoming',
+                            { day: dayData?.label ?? '', date: String(dayData?.num ?? '') },
+                          )}
                     </p>
                     {dayMeals.length === 0 ? (
                       <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
                         <UtensilsCrossed className="h-4 w-4" />
-                        No meals planned for this day.
+                        {t('today.home.page.outlook.noMeals')}
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
@@ -532,7 +543,7 @@ export default function DashboardPage() {
                               <span
                                 className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                               >
-                                {meal.mealType}
+                                {mealTypeLabel(t, meal.mealType)}
                               </span>
                               <p className="mt-0.5 truncate text-sm font-medium text-gray-800">
                                 {meal.recipeName}
@@ -540,7 +551,9 @@ export default function DashboardPage() {
                             </div>
                             {meal.kcal > 0 && !proteinOnly && (
                               <span className="shrink-0 text-xs text-gray-500">
-                                {meal.kcal} kcal
+                                {t('today.home.page.mealValue.kcal', {
+                                  value: formatKcal(meal.kcal),
+                                })}
                               </span>
                             )}
                           </Link>
@@ -557,33 +570,46 @@ export default function DashboardPage() {
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                  {proteinOnly ? 'This Week — Protein' : 'This Week — Calories'}
+                  {proteinOnly
+                    ? t('today.home.page.chart.titleProtein')
+                    : t('today.home.page.chart.title.kcal')}
                 </p>
                 <Link
                   href="/progress"
                   className="touch-target relative text-xs font-medium text-[#944a00] hover:underline"
                 >
-                  Full Progress →
+                  {t('today.home.page.chart.fullProgress')}
                 </Link>
               </div>
               {/* Food 2: the weekly average is the number to be pleased with; a
                 single day over or under is just a day. */}
               {weekAverage && (
                 <p data-testid="week-average" className="mb-3 text-sm font-medium text-gray-800">
-                  {proteinOnly ? proteinAverageText(weekAverage) : weeklyAverageText(weekAverage)}
+                  {proteinOnly
+                    ? t('today.numbersMode.proteinAverage', {
+                        value: formatNumber(weekAverage.protein),
+                      })
+                    : t('today.home.page.weekAverage.kcal', {
+                        kcal: formatKcal(weekAverage.kcal),
+                        protein: formatNumber(weekAverage.protein),
+                      })}
                 </p>
               )}
               <ResponsiveContainer width="100%" height={80}>
                 <LineChart
                   data={weekSummary.days.map((d) => ({
-                    date: format(parseISO(d.date), 'EEE'),
+                    date: formatDate(`${d.date}T12:00:00`, 'weekday'),
                     logged: d.hasLog ? (proteinOnly ? d.totalProtein : d.totalKcal) : null,
                     target: chartTarget,
                   }))}
                 >
                   <XAxis dataKey="date" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                   <Tooltip
-                    formatter={(val) => [`${String(val)} ${proteinOnly ? 'g protein' : 'kcal'}`]}
+                    formatter={(val) => [
+                      proteinOnly
+                        ? t('today.home.page.chart.tooltipProtein', { value: String(val) })
+                        : t('today.home.page.chart.tooltip.kcal', { value: String(val) }),
+                    ]}
                   />
                   <ReferenceLine y={chartTarget} stroke="#d1d5db" strokeDasharray="3 3" />
                   <Line
@@ -616,13 +642,13 @@ export default function DashboardPage() {
           <div className="overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Recent Favourites
+                {t('today.home.page.favourites.title')}
               </p>
               <Link
                 href="/recipes?filter=saved"
                 className="touch-target relative shrink-0 whitespace-nowrap text-xs font-medium text-[#944a00] hover:underline"
               >
-                View All →
+                {t('today.home.page.favourites.viewAll')}
               </Link>
             </div>
             {d.recentFavourites.length > 0 ? (
@@ -647,7 +673,10 @@ export default function DashboardPage() {
                     <div className="px-1">
                       <p className="truncate text-xs font-semibold text-gray-800">{fav.name}</p>
                       <p className="text-xs uppercase tracking-wide text-gray-500">
-                        {fav.cuisineType} · {fav.prepTimeMins}m
+                        {t('today.home.page.favourites.meta', {
+                          cuisine: fav.cuisineType,
+                          minutes: String(fav.prepTimeMins),
+                        })}
                       </p>
                     </div>
                   </Link>
@@ -655,12 +684,12 @@ export default function DashboardPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                Save a recipe to see it here.{' '}
+                {t('today.home.page.favourites.empty')}{' '}
                 <Link
                   href="/meal-plan"
                   className="touch-target relative text-[#944a00] hover:underline"
                 >
-                  Go to Meal Planner →
+                  {t('today.home.page.favourites.goToPlanner')}
                 </Link>
               </p>
             )}
@@ -668,7 +697,7 @@ export default function DashboardPage() {
 
           {/* Sign-off */}
           <p className="pb-2 text-center text-xs italic text-gray-500">
-            You&apos;ve got this, chef.
+            {t('today.home.page.signOff')}
           </p>
         </div>
 

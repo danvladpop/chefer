@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Copy, Share2 } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY as COPY, type HouseholdOpenInviteDto } from '@chefer/types';
+import type { HouseholdOpenInviteDto } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { firstNameOf, userFacingErrorMessage } from '@chefer/utils';
 
@@ -43,6 +44,7 @@ export function InviteSheet({
   /** The profile's open invite, when there is one. */
   existing: HouseholdOpenInviteDto | null;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { data: me } = trpc.user.me.useQuery(undefined, { staleTime: 60_000 });
   const ownerName = firstNameOf(me ?? {});
@@ -91,7 +93,7 @@ export function InviteSheet({
   const onShare = async () => {
     if (!url) return;
     try {
-      await navigator.share({ text: COPY.shareMessage(ownerName), url });
+      await navigator.share({ text: t('household.sharing.shareMessage', { ownerName }), url });
       capture('household_invite_created', { via: 'share' });
     } catch {
       // Dismissed share sheet (AbortError) or unsupported target: nothing to do.
@@ -104,8 +106,8 @@ export function InviteSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={COPY.inviteSheetTitle(member.name)}
-      description={COPY.inviteSheetBody(member.name)}
+      title={t('household.sharing.inviteSheetTitle', { name: member.name })}
+      description={t('household.sharing.inviteSheetBody', { name: member.name })}
       size="md"
       footer={
         <div className="flex flex-col gap-2">
@@ -118,7 +120,7 @@ export function InviteSheet({
                 onClick={() => void onShare()}
               >
                 <Share2 aria-hidden="true" />
-                {COPY.shareLink}
+                {t('household.sharing.shareLink')}
               </Button>
             )}
             <Button
@@ -129,7 +131,7 @@ export function InviteSheet({
               onClick={() => void onCopy()}
             >
               <Copy aria-hidden="true" />
-              {COPY.copyLink}
+              {t('household.sharing.copyLink')}
             </Button>
           </div>
           {invite && (
@@ -140,7 +142,7 @@ export function InviteSheet({
               loading={revoke.isPending}
               onClick={() => revoke.mutate({ code: invite.code })}
             >
-              {COPY.revoke}
+              {t('household.sharing.revoke')}
             </Button>
           )}
         </div>
@@ -155,21 +157,27 @@ export function InviteSheet({
             type="text"
             readOnly
             value={url}
-            aria-label={COPY.inviteSheetTitle(member.name)}
+            aria-label={t('household.sharing.inviteSheetTitle', { name: member.name })}
             onFocus={(e) => e.currentTarget.select()}
             data-testid="household-invite-link"
             className="min-h-11 w-full rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm text-foreground"
           />
         )}
-        <p className="text-xs text-muted-foreground">{COPY.inviteExpires}</p>
+        <p className="text-xs text-muted-foreground">{t('household.sharing.inviteExpires')}</p>
         <p role="status" aria-live="polite" className="text-sm">
-          {copyState === 'copied' && <span className="text-emerald-700">{COPY.copied}</span>}
-          {copyState === 'failed' && <span className="text-red-700">{COPY.copyFailed}</span>}
+          {copyState === 'copied' && (
+            <span className="text-emerald-700">{t('household.sharing.copied')}</span>
+          )}
+          {copyState === 'failed' && (
+            <span className="text-red-700">{t('household.sharing.copyFailed')}</span>
+          )}
         </p>
         {error && (
           <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
             <span className="min-w-0 flex-1">
-              {create.error ? COPY.inviteLoadFailed : userFacingErrorMessage(error)}
+              {create.error
+                ? t('household.sharing.inviteLoadFailed')
+                : userFacingErrorMessage(error)}
             </span>
             {create.error && (
               <Button
@@ -179,7 +187,7 @@ export function InviteSheet({
                 className="min-h-11"
                 onClick={() => createInvite({ memberId: member.id })}
               >
-                {COPY.tryAgain}
+                {t('household.sharing.tryAgain')}
               </Button>
             )}
           </div>

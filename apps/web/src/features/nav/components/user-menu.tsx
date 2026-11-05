@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 import { ChefHat, ChevronDown, LogOut, Settings, ShieldCheck, User } from 'lucide-react';
 import { useMenu } from '@chefer/ui';
 import { cn } from '@chefer/utils';
@@ -18,6 +19,7 @@ export interface UserMenuProps {
 }
 
 export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProps) {
+  const { t } = useT();
   const { open, setOpen, rootRef, triggerProps, menuProps } = useMenu();
 
   const initials = displayName
@@ -38,7 +40,7 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
           'flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-100 sm:px-3',
           open && 'bg-gray-100',
         )}
-        aria-label={`Account menu for ${displayName}`}
+        aria-label={t('nav.user.accountMenu', { name: displayName })}
       >
         <div
           aria-hidden="true"
@@ -67,7 +69,7 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
             className={itemClass}
           >
             <User className="h-4 w-4 text-gray-500" aria-hidden="true" />
-            Profile
+            {t('nav.user.profile')}
           </Link>
           <Link
             href="/preferences"
@@ -77,7 +79,7 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
             className={cn(itemClass, 'border-b')}
           >
             <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
-            Preferences
+            {t('nav.user.preferences')}
           </Link>
           {isAdmin && (
             <Link
@@ -88,7 +90,7 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
               className={cn(itemClass, 'border-b')}
             >
               <ShieldCheck className="h-4 w-4 text-gray-500" aria-hidden="true" />
-              Admin · Users
+              {t('nav.user.adminUsers')}
             </Link>
           )}
           {isAdmin && (
@@ -117,7 +119,7 @@ export function UserMenu({ displayName, email, isAdmin, onLogout }: UserMenuProp
             )}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
-            Sign out
+            {t('nav.user.signOut')}
           </button>
         </div>
       )}

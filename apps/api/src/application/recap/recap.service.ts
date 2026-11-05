@@ -6,7 +6,8 @@ import {
   type IDailyLogRepository,
   type IMealPlanRepository,
 } from '@chefer/database';
-import type { WeeklyRecapDto } from '@chefer/types';
+import { createTranslator, monthsShort } from '@chefer/i18n';
+import type { SupportedLocale, WeeklyRecapDto } from '@chefer/types';
 import {
   dateOnlyKey,
   lastCompletedWeekStart,
@@ -26,9 +27,11 @@ import { resolveTargets } from '../preferences/preferences.service.js';
 // plan, protein-target days and new recipes tried, plus the week's sessions,
 // PRs and the training streak. The counting rules are pure (`recapFoodCounts`,
 // `@chefer/utils`); this service only loads the rows. Reached from the Monday
-// email and Today on Monday, and the source of the recap share card.
+// email and Today on Monday, and the source of the recap share card. The
+// week label ("12–18 Oct" / "12–18 oct.") is in the reader's language.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
 const NEW_RECIPES_SHOWN = 5;
 
 type GymWeek = Pick<GymStatsService, 'weekRecap'>;
@@ -50,6 +53,8 @@ export class RecapService {
   async week(
     userId: string,
     input: { weekStart?: string | undefined; localDate?: string | undefined } = {},
+    /** The reader's language (`userLocale(ctx.user)`), for the week label. */
+    locale: SupportedLocale = 'en',
   ): Promise<WeeklyRecapDto> {
     const today = input.localDate ?? serverToday();
     const weekStart = input.weekStart ? mondayOf(input.weekStart) : lastCompletedWeekStart(today);
@@ -95,7 +100,7 @@ export class RecapService {
     );
     return {
       weekStart,
-      label: weekLabel(from),
+      label: weekLabel(from, monthsShort(createTranslator(locale))),
       food: {
         plannedMeals: counts.plannedMeals,
         cookedFromPlan: counts.cookedFromPlan,

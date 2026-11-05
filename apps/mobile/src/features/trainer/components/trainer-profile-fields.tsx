@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { View, type TextInput } from 'react-native';
-import { COACHING_COPY, COACHING_LIMITS } from '@chefer/types';
+import { COACHING_LIMITS } from '@chefer/types';
 import { FormField, Input } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 
 // The trainer's public line (PRD 2026-10 §4.1): the name clients see and the optional "Gym / city" under
 // it, to tell apart six people called Ana in Find a trainer. Used by the turn-on card and the trainer's
@@ -29,13 +30,14 @@ export function TrainerProfileFields({
   onChange: (next: TrainerProfileDraft) => void;
   onSubmit: () => void;
 }) {
+  const { t } = useT();
   const gymRef = useRef<TextInput>(null);
   return (
     <View className="gap-3">
-      <FormField label={COACHING_COPY.trainer.displayName} testID={`${testID}-name-field`}>
+      <FormField label={t('coaching.trainer.displayName')} testID={`${testID}-name-field`}>
         <Input
           testID={`${testID}-name`}
-          label={COACHING_COPY.trainer.displayName}
+          label={t('coaching.trainer.displayName')}
           value={value.displayName}
           maxLength={COACHING_LIMITS.displayNameMaxChars}
           autoCapitalize="words"
@@ -45,14 +47,14 @@ export function TrainerProfileFields({
         />
       </FormField>
       <FormField
-        label={COACHING_COPY.trainerProfile.gymLine}
-        hint={COACHING_COPY.trainerProfile.gymLineHint}
+        label={t('coaching.trainer.profile.gymLine')}
+        hint={t('coaching.trainer.profile.gymLineHint')}
         testID={`${testID}-gym-field`}
       >
         <Input
           ref={gymRef}
           testID={`${testID}-gym`}
-          label={COACHING_COPY.trainerProfile.gymLine}
+          label={t('coaching.trainer.profile.gymLine')}
           value={value.gymLine}
           maxLength={COACHING_LIMITS.gymLineMaxChars}
           autoCapitalize="words"

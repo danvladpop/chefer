@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { getTranslator } from './i18n';
 
 /**
  * Shared tab-bar look for BOTH mode tab bars (Food / Gym). Labels are 12pt
@@ -21,7 +22,7 @@ export const TAB_BAR_SCREEN_OPTIONS = {
  * tab button — the icon font's private-use glyph included — so TalkBack said
  * "<glyph>, Today". iOS keeps React Navigation's own wording; Android gets the
  * plain title (TalkBack adds "tab" from the role itself). A badge is spoken
- * as "N new" on both.
+ * as "N new" on both. The words come from `nav.tab.*` (Lane J phase 4).
  */
 export function tabAccessibilityLabel(
   title: string,
@@ -30,6 +31,9 @@ export function tabAccessibilityLabel(
   badgeCount = 0,
   os: typeof Platform.OS = Platform.OS,
 ): string {
-  const name = badgeCount > 0 ? `${title}, ${badgeCount} new` : title;
-  return os === 'ios' ? `${name}, tab, ${index + 1} of ${count}` : name;
+  // Called while a layout renders; the layouts read `useT()`, so a language
+  // change re-renders them and this reads the new translator.
+  const { t } = getTranslator();
+  const name = badgeCount > 0 ? t('nav.tab.withBadge', { count: badgeCount, title }) : title;
+  return os === 'ios' ? t('nav.tab.position', { name, position: index + 1, total: count }) : name;
 }

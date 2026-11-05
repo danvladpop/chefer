@@ -1,27 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 import { CalendarPlus, ChevronRight, MapPin } from 'lucide-react';
-import { BOOKING_COPY, type SessionsDeliveredDto, type TrainerBookingDto } from '@chefer/types';
+import type { SessionsDeliveredDto, TrainerBookingDto } from '@chefer/types';
 import { Button, pressCard } from '@chefer/ui';
-import {
-  bookingTimeRange,
-  bookingWhat,
-  bookingWhen,
-  bookingWho,
-  cn,
-  todaysNextBooking,
-} from '@chefer/utils';
+import { bookingTimeRange, bookingWhat, cn, todaysNextBooking } from '@chefer/utils';
+import { bookingWhenText, bookingWhoText } from '../lib/schedule-layout';
 import { StartButton } from './StartButton';
 
 // ─── Trainer Today: the booking parts (trainer-mode.md §6.1, M3) ──────────────
 // Next booking (Start from 15 minutes before), the rest of today, past
 // bookings that still need attendance, and sessions delivered this month.
 
-const copy = BOOKING_COPY.today;
 const detailHref = (b: TrainerBookingDto) => `/trainer/bookings/${encodeURIComponent(b.id)}`;
 
 function BookingRow({ booking, when }: { booking: TrainerBookingDto; when: string }) {
+  const tr = useT();
   const what = bookingWhat(booking);
   return (
     <li>
@@ -37,7 +32,7 @@ function BookingRow({ booking, when }: { booking: TrainerBookingDto; when: strin
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-gray-900">{when}</span>
           <span className="block min-w-0 break-words text-sm text-gray-700">
-            {[bookingWho(booking), what].filter(Boolean).join(' · ')}
+            {[bookingWhoText(tr, booking), what].filter(Boolean).join(' · ')}
           </span>
         </span>
         <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
@@ -60,6 +55,8 @@ export function NextBookingCard({
   now: Date;
   onAdd: () => void;
 }) {
+  const tr = useT();
+  const { t } = tr;
   const { today: todays, later } = todaysNextBooking(booking, timeZone, today);
   return (
     <section
@@ -68,7 +65,7 @@ export function NextBookingCard({
       data-testid="trainer-today-next"
     >
       <h2 id="trainer-today-next" className="font-semibold text-gray-900">
-        {copy.nextBooking}
+        {t('trainer.bookings.today.nextBooking')}
       </h2>
       {todays ? (
         <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-[#f2c9a1] bg-[#fff8f1] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -78,10 +75,10 @@ export function NextBookingCard({
               href={detailHref(todays)}
               className="block min-w-0 break-words font-semibold text-gray-900 underline-offset-2 hover:underline"
             >
-              {todays.clients.map((c) => c.name).join(', ') || bookingWho(todays)}
+              {todays.clients.map((c) => c.name).join(', ') || bookingWhoText(tr, todays)}
             </Link>
             <p className="min-w-0 break-words text-sm text-gray-700">
-              {bookingWhat(todays) ?? BOOKING_COPY.editor.nextDay}
+              {bookingWhat(todays) ?? t('trainer.bookings.editor.nextDay')}
             </p>
             {todays.location && (
               <p className="flex min-w-0 items-center gap-1 text-sm text-gray-600">
@@ -95,18 +92,23 @@ export function NextBookingCard({
       ) : (
         <div className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="font-medium text-gray-900">{copy.noBookingsToday}</p>
+            <p className="font-medium text-gray-900">
+              {t('trainer.bookings.today.noBookingsToday')}
+            </p>
             {later && (
               <Link
                 href={detailHref(later)}
                 className="block min-w-0 break-words text-sm text-gray-700 underline underline-offset-2"
               >
-                {`${copy.nextOn(bookingWhen(later.startsAt, timeZone))} · ${bookingWho(later)}`}
+                {`${t('trainer.bookings.today.nextOn', {
+                  when: bookingWhenText(tr, later.startsAt, timeZone),
+                })} · ${bookingWhoText(tr, later)}`}
               </Link>
             )}
           </div>
           <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={onAdd}>
-            <CalendarPlus className="h-4 w-4" aria-hidden="true" /> {BOOKING_COPY.schedule.add}
+            <CalendarPlus className="h-4 w-4" aria-hidden="true" />{' '}
+            {t('trainer.bookings.schedule.add')}
           </Button>
         </div>
       )}
@@ -122,11 +124,12 @@ export function TodaysBookings({
   bookings: TrainerBookingDto[];
   timeZone: string;
 }) {
+  const { t } = useT();
   if (bookings.length === 0) return null;
   return (
     <section aria-labelledby="trainer-today-later" className="flex flex-col gap-2">
       <h2 id="trainer-today-later" className="font-semibold text-gray-900">
-        {copy.todaysBookings}
+        {t('trainer.bookings.today.todaysBookings')}
       </h2>
       <ul className="flex flex-col gap-2" data-testid="trainer-today-bookings">
         {bookings.map((b) => (
@@ -145,13 +148,20 @@ export function UnmarkedAttendance({
   bookings: TrainerBookingDto[];
   timeZone: string;
 }) {
+  const tr = useT();
+  const { t } = tr;
   if (bookings.length === 0) return null;
   return (
     <div className="flex flex-col gap-2" data-testid="trainer-today-unmarked">
-      <p className="text-sm font-medium text-amber-900">{copy.unmarked(bookings.length)}</p>
-      <ul className="flex flex-col gap-2" aria-label={copy.unmarked(bookings.length)}>
+      <p className="text-sm font-medium text-amber-900">
+        {t('trainer.bookings.today.unmarked', { count: bookings.length })}
+      </p>
+      <ul
+        className="flex flex-col gap-2"
+        aria-label={t('trainer.bookings.today.unmarked', { count: bookings.length })}
+      >
         {bookings.map((b) => (
-          <BookingRow key={b.id} booking={b} when={bookingWhen(b.startsAt, timeZone)} />
+          <BookingRow key={b.id} booking={b} when={bookingWhenText(tr, b.startsAt, timeZone)} />
         ))}
       </ul>
     </div>
@@ -160,6 +170,7 @@ export function UnmarkedAttendance({
 
 /** Sessions delivered this month (O-4): "Maria · 6" → that client's Bookings tab. */
 export function SessionsDelivered({ rows }: { rows: SessionsDeliveredDto[] }) {
+  const { t } = useT();
   if (rows.length === 0) return null;
   return (
     <section
@@ -168,7 +179,7 @@ export function SessionsDelivered({ rows }: { rows: SessionsDeliveredDto[] }) {
       data-testid="trainer-today-delivered"
     >
       <h2 id="trainer-today-delivered" className="font-semibold text-gray-900">
-        {copy.sessionsDelivered}
+        {t('trainer.bookings.today.sessionsDelivered')}
       </h2>
       <ul className="flex flex-col gap-2">
         {rows.map((r) => (
@@ -181,14 +192,14 @@ export function SessionsDelivered({ rows }: { rows: SessionsDeliveredDto[] }) {
               )}
             >
               <span className="min-w-0 flex-1 break-words text-sm font-medium text-gray-900">
-                {copy.sessionsDeliveredRow(r.name, r.count)}
+                {t('trainer.bookings.today.sessionsDeliveredRow', { name: r.name, n: r.count })}
               </span>
               <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
             </Link>
           </li>
         ))}
       </ul>
-      <p className="text-xs text-gray-600">{copy.sessionsDeliveredFooter}</p>
+      <p className="text-xs text-gray-600">{t('trainer.bookings.today.sessionsDeliveredFooter')}</p>
     </section>
   );
 }

@@ -1,14 +1,12 @@
 'use client';
 
+import { formatDayWithWeekdayT, formatShortDayT } from '@/features/coaching/lib/dates';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_DATA_COPY, type ClientSharingDto } from '@chefer/types';
-import {
-  foodDayParts,
-  formatBodyWeight,
-  formatDayWithWeekday,
-  formatShortDay,
-} from '@chefer/utils';
+import type { ClientSharingDto } from '@chefer/types';
+import { formatBodyWeight } from '@chefer/utils';
+import { foodDayPartsT } from '../data-lines';
 import { useTrainerUnit } from '../use-trainer-unit';
 
 // ─── Client › Food (lane K2) ──────────────────────────────────────────────────
@@ -38,6 +36,8 @@ function WeightSpark({ points }: { points: number[] }) {
 }
 
 function FoodSection({ clientId, firstName }: { clientId: string; firstName: string }) {
+  const tr = useT();
+  const { t } = tr;
   const food = trpc.trainer.client.food.useQuery(
     { clientId, today: localDate(), days: 7 },
     { retry: false },
@@ -46,7 +46,11 @@ function FoodSection({ clientId, firstName }: { clientId: string; firstName: str
     return <div className="h-40 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />;
   }
   if (food.isError) {
-    return <p className="text-sm text-gray-700">{COACHING_DATA_COPY.food.notShared(firstName)}</p>;
+    return (
+      <p className="text-sm text-gray-700">
+        {t('coaching.trainer.data.food.notShared', { client: firstName })}
+      </p>
+    );
   }
   return (
     <section
@@ -56,26 +60,30 @@ function FoodSection({ clientId, firstName }: { clientId: string; firstName: str
     >
       <div>
         <h2 id="trainer-food-title" className="font-semibold text-gray-900">
-          {COACHING_DATA_COPY.food.heading}
+          {t('coaching.trainer.data.food.heading')}
         </h2>
         <p className="text-xs text-gray-600">
-          {COACHING_DATA_COPY.food.sharedSince(formatShortDay(food.data.sharedSince))}
+          {t('coaching.trainer.data.food.sharedSince', {
+            date: formatShortDayT(food.data.sharedSince, t),
+          })}
         </p>
         {food.data.numbers === 'NONE' && (
           <p className="text-xs text-gray-600">
-            {COACHING_DATA_COPY.week.numbersHidden(firstName)}
+            {t('coaching.trainer.data.week.numbersHidden', { client: firstName })}
           </p>
         )}
       </div>
       <ul className="flex flex-col divide-y">
         {[...food.data.days].reverse().map((day) => (
           <li key={day.date} className="py-2" data-testid={`trainer-food-day-${day.date}`}>
-            <p className="text-sm font-semibold text-gray-900">{formatDayWithWeekday(day.date)}</p>
-            <p className="text-sm text-gray-600">{foodDayParts(day).join(' · ')}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {formatDayWithWeekdayT(day.date, t)}
+            </p>
+            <p className="text-sm text-gray-600">{foodDayPartsT(day, tr).join(' · ')}</p>
             {day.entries.map((entry, i) => (
               <p key={`${entry.name}-${i}`} className="min-w-0 break-words text-sm text-gray-800">
                 {entry.name}
-                {entry.onPlan ? ` · ${COACHING_DATA_COPY.food.onPlan}` : ''}
+                {entry.onPlan ? ` · ${t('coaching.trainer.data.food.onPlan')}` : ''}
               </p>
             ))}
           </li>
@@ -86,6 +94,7 @@ function FoodSection({ clientId, firstName }: { clientId: string; firstName: str
 }
 
 function WeightSection({ clientId, firstName }: { clientId: string; firstName: string }) {
+  const { t } = useT();
   const unit = useTrainerUnit();
   const system = unit === 'LB' ? 'IMPERIAL' : 'METRIC';
   const weight = trpc.trainer.client.weight.useQuery(
@@ -97,7 +106,9 @@ function WeightSection({ clientId, firstName }: { clientId: string; firstName: s
   }
   if (weight.isError) {
     return (
-      <p className="text-sm text-gray-700">{COACHING_DATA_COPY.weight.notShared(firstName)}</p>
+      <p className="text-sm text-gray-700">
+        {t('coaching.trainer.data.weight.notShared', { client: firstName })}
+      </p>
     );
   }
   const entries = weight.data.entries;
@@ -108,10 +119,10 @@ function WeightSection({ clientId, firstName }: { clientId: string; firstName: s
       className="flex flex-col gap-2 rounded-2xl border bg-white p-4 text-gray-900 shadow-sm"
     >
       <h2 id="trainer-weight-title" className="font-semibold">
-        {COACHING_DATA_COPY.weight.heading}
+        {t('coaching.trainer.data.weight.heading')}
       </h2>
       {entries.length === 0 ? (
-        <p className="text-sm text-gray-600">{COACHING_DATA_COPY.weight.empty}</p>
+        <p className="text-sm text-gray-600">{t('coaching.trainer.data.weight.empty')}</p>
       ) : (
         <>
           <WeightSpark points={entries.map((e) => e.weightKg)} />
@@ -121,7 +132,7 @@ function WeightSection({ clientId, firstName }: { clientId: string; firstName: s
               .slice(0, 5)
               .map((e) => (
                 <li key={e.date} className="text-sm text-gray-800">
-                  {formatDayWithWeekday(e.date)} · {formatBodyWeight(e.weightKg, system)}
+                  {formatDayWithWeekdayT(e.date, t)} · {formatBodyWeight(e.weightKg, system)}
                 </li>
               ))}
           </ul>
@@ -140,17 +151,22 @@ export function FoodTab({
   firstName: string;
   sharing: ClientSharingDto;
 }) {
+  const { t } = useT();
   return (
     <div className="flex flex-col gap-4" data-testid="trainer-food-tab">
       {sharing.food ? (
         <FoodSection clientId={clientId} firstName={firstName} />
       ) : (
-        <p className="text-sm text-gray-700">{COACHING_DATA_COPY.food.notShared(firstName)}</p>
+        <p className="text-sm text-gray-700">
+          {t('coaching.trainer.data.food.notShared', { client: firstName })}
+        </p>
       )}
       {sharing.weight ? (
         <WeightSection clientId={clientId} firstName={firstName} />
       ) : (
-        <p className="text-sm text-gray-700">{COACHING_DATA_COPY.weight.notShared(firstName)}</p>
+        <p className="text-sm text-gray-700">
+          {t('coaching.trainer.data.weight.notShared', { client: firstName })}
+        </p>
       )}
     </div>
   );

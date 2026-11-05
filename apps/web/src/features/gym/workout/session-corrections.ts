@@ -1,13 +1,10 @@
 'use client';
 
+import { createTranslator, type Translator } from '@chefer/i18n';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
-import {
-  applySessionDeleted,
-  discardedTombstone,
-  sessionDeletePreview,
-  weekdayDateLabel,
-} from '@chefer/utils';
+import { applySessionDeleted, discardedTombstone, sessionDeletePreview } from '@chefer/utils';
 import { captureGymEvent } from '../analytics';
+import { weekdayDateLabelT } from '../shared/format';
 import { showGymToast } from '../shared/gym-toast';
 import { localDate } from '../use-gym-bootstrap';
 import { nowIso } from './ids';
@@ -28,8 +25,6 @@ export type DeleteSource = 'recent' | 'history' | 'detail';
 
 // ─── The confirm's words ──────────────────────────────────────────────────────
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 /** Completed working sets — the confirm's "{n} sets". */
 export function completedWorkingSets(session: SessionSummaryDto): number {
   return session.exercises.reduce(
@@ -46,6 +41,7 @@ export function deleteConfirmLines(
   session: SessionSummaryDto,
   bootstrap: Pick<GymBootstrap, 'weeks' | 'streak'> | undefined,
   today: string = localDate(),
+  t: Translator['t'] = createTranslator('en').t,
 ): string[] {
   const preview = sessionDeletePreview({
     weeks: bootstrap?.weeks ?? [],
@@ -62,19 +58,26 @@ export function deleteConfirmLines(
     today,
   });
   const lines = [
-    `${session.name} on ${weekdayDateLabel(session.localDate)}: ${plural(preview.setsCount, 'set', 'sets')}.`,
+    t('gym.session.delete.first', {
+      name: session.name,
+      date: weekdayDateLabelT(session.localDate, t),
+      count: preview.setsCount,
+    }),
   ];
   if (preview.weekChanged) {
     lines.push(
-      `This week goes from ${preview.thisWeekBefore} to ${plural(preview.thisWeekAfter, 'session', 'sessions')}.`,
+      t('gym.session.delete.week', {
+        before: preview.thisWeekBefore,
+        count: preview.thisWeekAfter,
+      }),
     );
   }
   if (preview.streakChanged) {
     lines.push(
-      `Your streak goes from ${plural(preview.streakBefore, 'week', 'weeks')} to ${preview.streakAfter}.`,
+      t('gym.session.delete.streak', { count: preview.streakBefore, after: preview.streakAfter }),
     );
   }
-  lines.push('Next time targets for its exercises are worked out again.');
+  lines.push(t('gym.session.delete.targets'));
   return lines;
 }
 
@@ -204,8 +207,11 @@ export async function deleteSessionWithUndo(args: {
   source: DeleteSource;
   /** Optional cached bootstrap snapshot (for restoring week/streak on Undo). */
   previous?: GymBootstrap | undefined;
+  /** The UI translator for the toast (English when omitted). */
+  t?: Translator['t'];
 }): Promise<void> {
   const { utils, session, source } = args;
+  const t = args.t ?? createTranslator('en').t;
   const id = session.id;
   const today = localDate();
   await utils.gym.bootstrap.cancel();
@@ -236,8 +242,8 @@ export async function deleteSessionWithUndo(args: {
   captureGymEvent('session_deleted', { from: source });
 
   showGymToast({
-    message: 'Workout deleted',
-    actionLabel: 'Undo',
+    message: t('gym.session.delete.deleted'),
+    actionLabel: t('gym.workout.view.undo'),
     durationMs: UNDO_WINDOW_MS,
     onAction: () => {
       const timer = holdTimers.get(id);
@@ -245,7 +251,7 @@ export async function deleteSessionWithUndo(args: {
       holdTimers.delete(id);
       if (outbox.cancelHeld(id) === null) {
         // The hold already lapsed: the delete is on its way; don't pretend otherwise.
-        showGymToast({ message: 'Too late to undo. The workout is already deleted.' });
+        showGymToast({ message: t('gym.session.delete.tooLate') });
         return;
       }
       if (displaced) outbox.enqueue(displaced.doc, { ownerId: displaced.ownerId });
