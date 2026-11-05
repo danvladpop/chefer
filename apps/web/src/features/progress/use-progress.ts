@@ -1,27 +1,25 @@
 'use client';
 
-import { useFlags } from '@/features/flags/use-flags';
 import { trpc } from '@/lib/trpc';
 import type { ProgressSummary } from '@chefer/types';
 import { localDateStr } from '@chefer/utils';
 
 // ─── The Kitchen progress gate (build-plan lane D) ────────────────────────────
-// `useFlags().gamification && trpc.progress.availability` → `enabled`. With the
-// gate off nothing renders and no `progress.*` call is made (the availability
-// query itself waits for the flag). `finishCook` is the one exception: the cook
-// is recorded for everyone (D1).
+// `trpc.progress.availability` → `enabled`: the server's answer, the
+// `gamification` flag OR the user's email on GAMIFICATION_ALLOWLIST (the
+// dogfood). Not `profile.flags`, which is global — an allowlisted user would
+// never see it while the flag is off. With the gate off nothing renders and no
+// other `progress.*` call is made. `finishCook` is the one exception: the cook
+// is recorded for everyone (D1). Used only on signed-in (dashboard) pages.
 
 export function useProgressEnabled(): { enabled: boolean; isLoading: boolean } {
-  const flags = useFlags();
-  const flagOn = flags.gamification === true;
   const availability = trpc.progress.availability.useQuery(undefined, {
-    enabled: flagOn,
     staleTime: 5 * 60_000,
     retry: false,
   });
   return {
-    enabled: flagOn && availability.data?.enabled === true,
-    isLoading: flagOn && availability.isPending,
+    enabled: availability.data?.enabled === true,
+    isLoading: availability.isPending,
   };
 }
 

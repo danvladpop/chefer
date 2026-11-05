@@ -808,7 +808,7 @@ enforced by the drift guard) built on the shared data hooks:
 | `/achievements`, `/kitchen-recap/[week]`, `/settings/rewards`                                                                   | `src/features/progress/*`              | **new routes (Kitchen progress, flag `gamification`, revamp shell only)**: the achievements shelf, the weekly recap story, Rewards & motivation (celebrations, show XP, show flame, Biscuit, goal, pause, gentle reminder)                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 **Kitchen progress on mobile (`src/features/progress/`, flag `gamification` + the revamp shell; `docs/gamification-2026-10/`).**
-`useProgressEnabled()` = flag && `useShellV2()` && `progress.availability`. With the gate off nothing renders and
+`useProgressEnabled()` = signed in && `useShellV2()` && `progress.availability` (the server's flag-or-`GAMIFICATION_ALLOWLIST` answer; `profile.flags` is global and is not consulted, so an allowlisted dogfooder sees it while the flag is off). With the gate off nothing renders and
 no `progress.*` query runs. The one exception is `progress.finishCook`: it records every cook (ADR 0002), and a failed
 call is retried from a small queue in the gym KV store on the next foreground.
 
@@ -2791,6 +2791,15 @@ eggs", "green vegetables" — expands to its whole pattern set instead of only i
   sauce, baking powder, oats, chocolate, sausages) surface as `findLabelCaveats()` (`SafetyChecks.labelCaveats`)
   instead of excluding, unless `SafetyPrefs.excludeLabelDependent` (→ `DietaryPreferences.excludeLabelDependent`) is
   set, in which case they exclude — same as the coeliac-strength `gluten-free-coeliac` rule, which always excludes them.
+- **Pasta shapes and wheat staples (2026-10-24)** — a line named only "spaghetti" used to pass a Gluten allergy and a
+  gluten-free diet. `GLUTEN_PATTERNS` now also matches spaghetti (not spaghetti squash), penne, fusilli, tagliatelle,
+  linguine, fettuccine, pappardelle, rigatoni, farfalle, macaroni, lasagne/lasagna, cannelloni, orzo, vermicelli,
+  ramen, tortellini, ravioli, gnocchi, udon, soba, panko, naan, chapati, croissant, brioche, pretzel, pastry, filo/
+  phyllo and "pitta"; the wheat pattern is `(?<!buck)wheat`, so "wholewheat" matches too. Pasta and noodles that name
+  a gluten-free base (`GF_BASE`: rice, corn, chickpea, lentil, bean, konjac, glass, zucchini/courgette…) are exempt,
+  so "rice noodles" and "chickpea pasta" are safe; filled pasta, gnocchi and udon never take that exemption. Curated
+  effect: "Turkey Bolognese with Spaghetti" (wholewheat spaghetti) is now correctly unsafe for a Gluten allergy, and
+  "Courgette Noodle Beef Bolognese" is no longer over-blocked by its own name. Pinned in `safety.test.ts`.
 - **T-01.10** `deriveDietTags(recipe)` / `deriveTagQualifiers(recipe)` — ingredient-derived vegan/vegetarian/
   gluten-free/dairy-free tags, independent of the stored (no-longer-trusted) `dietaryTags`; a qualifier is attached
   whenever a derived `gluten-free` tag depends on a label-dependent ingredient (AC14: never a bare tag in that case).
