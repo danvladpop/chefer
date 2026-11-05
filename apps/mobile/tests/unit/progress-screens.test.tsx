@@ -108,13 +108,22 @@ describe('Achievements', () => {
     expect(await screen.findByTestId('achievements-error')).toBeTruthy();
   });
 
-  it('is unavailable with the feature off, and calls no progress procedure', async () => {
+  it('is unavailable when the server says the feature is off, and calls no other progress procedure', async () => {
     const { paths } = await renderWithTrpc(<AchievementsScreen />, {
+      ...handlers(),
+      'progress.availability': () => ({ enabled: false }),
+    });
+    expect(await screen.findByTestId('achievements-unavailable')).toBeTruthy();
+    expect(paths().filter((p) => p.startsWith('progress.'))).toEqual(['progress.availability']);
+  });
+
+  it('is available to an allowlisted user while the global flag is off (dogfood)', async () => {
+    await renderWithTrpc(<AchievementsScreen />, {
       ...handlers(),
       'profile.flags': () => ({ gamification: false }),
     });
-    expect(await screen.findByTestId('achievements-unavailable')).toBeTruthy();
-    expect(paths().filter((p) => p.startsWith('progress.'))).toEqual([]);
+    expect(await screen.findByTestId('achievements-count')).toBeTruthy();
+    expect(screen.queryByTestId('achievements-unavailable')).toBeNull();
   });
 });
 
