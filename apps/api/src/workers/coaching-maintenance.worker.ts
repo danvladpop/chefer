@@ -1,20 +1,24 @@
 import {
   bookingRepository,
+  coachingCheckInRepository,
   coachingInviteRepository,
   coachingLinkRepository,
   coachingNoteRepository,
   coachingRequestRepository,
+  householdSharingRepository,
   trainerProfileRepository,
   workoutTemplateRepository,
   type IBookingRepository,
+  type ICoachingCheckInRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
   type ICoachingNoteRepository,
   type ICoachingRequestRepository,
+  type IHouseholdSharingRepository,
   type ITrainerProfileRepository,
   type IWorkoutTemplateRepository,
 } from '@chefer/database';
-import { COACHING_RETENTION, LEGAL_VERSIONS } from '@chefer/types';
+import { COACHING_RETENTION, HOUSEHOLD_SHARING_LIMITS, LEGAL_VERSIONS } from '@chefer/types';
 import { trainerProfileService } from '../application/coaching/trainer-profile.service.js';
 import { logger } from '../lib/logger.js';
 
@@ -37,6 +41,9 @@ import { logger } from '../lib/logger.js';
 //      deleted, then bookings left with nobody and empty series. Runs BEFORE
 //      step 3 deletes those links. The trainer's own blocked time goes after
 //      `BLOCK_RETENTION_MONTHS` (24). Coached workouts are the client's and stay.
+//   9. lane K3: weekly check-ins of a pair with no ACTIVE coaching, answered more
+//      than `endedLinkMonths` (24) ago, are deleted (the trainer stopped seeing
+//      them the moment the coaching ended).
 // Every step is idempotent; the "done today" marker is only set when all steps
 // succeeded, so a failed step retries on the next tick.
 
@@ -60,24 +67,29 @@ function monthsBefore(now: Date, months: number): Date {
 
 export interface CoachingMaintenanceDeps {
   invites: Pick<ICoachingInviteRepository, 'deleteExpiredBefore'>;
+  /** ADR 0003: household invites ride the same nightly prune (same 30-day rule). */
+  householdInvites: Pick<IHouseholdSharingRepository, 'deleteExpiredInvitesBefore'>;
   notes: Pick<ICoachingNoteRepository, 'deleteHiddenBefore'>;
   links: Pick<ICoachingLinkRepository, 'deleteEndedBefore'>;
   requests: Pick<ICoachingRequestRepository, 'expireDue' | 'deleteAnsweredBefore'>;
   trainers: Pick<ITrainerProfileRepository, 'listActiveWithEmail'>;
   templates: Pick<IWorkoutTemplateRepository, 'purgeDeletedBefore'>;
   bookings: Pick<IBookingRepository, 'deleteForEndedLinksBefore' | 'deleteBlocksBefore'>;
+  checkIns: Pick<ICoachingCheckInRepository, 'deleteOrphanedBefore'>;
   /** TrainerProfileService.enforceAllowlist: true when it turned trainer tools off. */
   enforceAllowlist: (user: { id: string; email: string }) => Promise<boolean>;
 }
 
 const defaultDeps: CoachingMaintenanceDeps = {
   invites: coachingInviteRepository,
+  householdInvites: householdSharingRepository,
   notes: coachingNoteRepository,
   links: coachingLinkRepository,
   requests: coachingRequestRepository,
   trainers: trainerProfileRepository,
   templates: workoutTemplateRepository,
   bookings: bookingRepository,
+  checkIns: coachingCheckInRepository,
   enforceAllowlist: (user) => trainerProfileService.enforceAllowlist(user),
 };
 
@@ -90,6 +102,7 @@ export interface CoachingHousekeepingResult {
   trainersRemoved: number;
   prunedTemplates: number;
   prunedBookings: number;
+  prunedCheckIns: number;
 }
 
 export class CoachingMaintenanceWorker {
@@ -141,6 +154,7 @@ export class CoachingMaintenanceWorker {
       trainersRemoved: 0,
       prunedTemplates: 0,
       prunedBookings: 0,
+      prunedCheckIns: 0,
     };
     let failed = false;
     const step = async (name: string, run: () => Promise<void>): Promise<void> => {
@@ -155,6 +169,11 @@ export class CoachingMaintenanceWorker {
     await step('prune invites', async () => {
       result.prunedInvites = await this.deps.invites.deleteExpiredBefore(
         daysBefore(now, COACHING_RETENTION.inviteAfterExpiryDays),
+      );
+    });
+    await step('prune household invites', async () => {
+      await this.deps.householdInvites.deleteExpiredInvitesBefore(
+        daysBefore(now, HOUSEHOLD_SHARING_LIMITS.inviteAfterExpiryDays),
       );
     });
     await step('prune hidden notes', async () => {
@@ -176,6 +195,12 @@ export class CoachingMaintenanceWorker {
       // Never drop a link whose bookings are still to be matched to it (retried next tick).
       if (!bookingsPruned) throw new Error('bookings not pruned yet');
       result.prunedLinks = await this.deps.links.deleteEndedBefore(
+        monthsBefore(now, COACHING_RETENTION.endedLinkMonths),
+      );
+    });
+
+    await step('prune check-ins', async () => {
+      result.prunedCheckIns = await this.deps.checkIns.deleteOrphanedBefore(
         monthsBefore(now, COACHING_RETENTION.endedLinkMonths),
       );
     });

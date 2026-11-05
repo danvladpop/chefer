@@ -3,6 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardPage from './page';
 
+// Lane E2: the Monday recap card has its own suite (recap-dashboard-card.test.tsx).
+vi.mock('@/features/recap/recap-dashboard-card', () => ({ RecapDashboardCard: () => null }));
+
 // WP-08: Today in protein-only mode. The ring is a protein ring with the
 // per-meal guide, the macro bars and every kcal caption are gone, and the
 // meal lists, notes and the week's chart speak in protein. Switching back to
@@ -261,10 +264,19 @@ describe('Today — protein-only mode (WP-08)', () => {
     expect(screen.getByText('This Week — Calories')).toBeTruthy();
   });
 
-  it('an unknown or reserved mode (NONE, WP-16) reads as the full numbers', () => {
-    m.summary = summary('NONE');
+  it('an unknown mode reads as the full numbers', () => {
+    m.summary = summary('KETO');
     render(<DashboardPage />);
     expect(screen.getAllByTestId('calorie-ring').length).toBeGreaterThan(0);
     expect(document.body.textContent).toMatch(/kcal/);
+  });
+
+  it('lane E3 "Hide numbers" (NONE): no ring, no kcal and no protein figure — "Today so far" instead', () => {
+    m.summary = summary('NONE');
+    render(<DashboardPage />);
+    expect(screen.queryByTestId('calorie-ring')).toBeNull();
+    expect(screen.queryByTestId('protein-ring')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/kcal|g protein/i);
+    expect(screen.getAllByTestId('nutrition-on-plan').length).toBeGreaterThan(0);
   });
 });

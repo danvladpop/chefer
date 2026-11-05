@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import {
   coachingInviteRepository,
@@ -17,6 +16,7 @@ import {
   type InvitePreviewDto,
 } from '@chefer/types';
 import { env } from '../../lib/env.js';
+import { generateInviteCode } from '../../lib/invite-code.js';
 import { inviteStateOf, toInviteDto } from './coaching-dto.mappers.js';
 
 // ─── Trainer coaching: invites (spec §2.2, §7.2, §7.3) ────────────────────────
@@ -24,20 +24,7 @@ import { inviteStateOf, toInviteDto } from './coaching-dto.mappers.js';
 // code is the only secret: 10 characters of Crockford base32 from crypto random
 // (50 bits; the rate limits on previewInvite/join make guessing hopeless).
 
-/** Crockford base32: no I, L, O, U. */
-const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** `length` characters of Crockford base32 from crypto random (32 symbols: a byte's low 5 bits, no modulo bias). */
-export function generateInviteCode(
-  length: number = COACHING_LIMITS.inviteCodeLength,
-  bytes: (n: number) => Uint8Array = randomBytes,
-): string {
-  const random = bytes(length);
-  let code = '';
-  for (let i = 0; i < length; i += 1) code += ALPHABET.charAt((random[i] ?? 0) & 31);
-  return code;
-}
 
 export interface CoachingInviteDeps {
   invites: ICoachingInviteRepository;
@@ -154,3 +141,5 @@ export class CoachingInviteService {
 }
 
 export const coachingInviteService = new CoachingInviteService();
+
+export { generateInviteCode };

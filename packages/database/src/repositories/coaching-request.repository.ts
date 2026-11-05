@@ -4,6 +4,7 @@ import {
   closePendingRequestsTx,
   startLinkTx,
   type ClientNameRow,
+  type ShareChoice,
 } from './coaching-link.repository';
 
 // ─── Trainer coaching: coaching requests (PRD 2026-10 §4.1) ───────────────────
@@ -18,6 +19,12 @@ import {
 // `expiresAt` reads as expired everywhere and is flipped to EXPIRED (with its
 // withdrawn event) before the client's next request and by the maintenance
 // worker. A request never creates a follow.
+//
+// Lane K1: the consent screen's food / weight switches are stored on the
+// request and logged when it is SENT (granted COACHING_SHARING events with
+// `providers` ['FOOD'] / ['WEIGHT'], `contextId` = the request). The request's
+// withdrawn event (`providers` []) closes everything asked in it; an accept
+// starts the coaching with those switches on.
 
 export type CoachingRequestWithClient = CoachingRequest & { client: ClientNameRow };
 
@@ -30,6 +37,10 @@ export interface CreateRequestData {
   source: string;
   documentVersion: string;
   now: Date;
+  /** Lane K1: what the client chose to share once coaching starts (default nothing). */
+  share?: ShareChoice;
+  /** The granted sharing events' `documentVersion` (default: `documentVersion`). */
+  shareDocumentVersion?: string;
 }
 
 export type CreateRequestResult =
@@ -134,19 +145,28 @@ export class CoachingRequestRepository implements ICoachingRequestRepository {
             startedOn: data.startedOn,
             createdAt: data.now,
             expiresAt: data.expiresAt,
+            shareFood: data.share?.food ?? false,
+            shareWeight: data.share?.weight ?? false,
           },
         });
-        await tx.consentEvent.create({
-          data: {
+        const shared = [
+          ...(request.shareFood ? ['FOOD'] : []),
+          ...(request.shareWeight ? ['WEIGHT'] : []),
+        ];
+        await tx.consentEvent.createMany({
+          data: [[], ...shared.map((kind) => [kind])].map((providers) => ({
             userId: data.clientId,
-            kind: 'COACHING_SHARING',
+            kind: 'COACHING_SHARING' as const,
             granted: true,
-            providers: [],
-            documentVersion: data.documentVersion,
+            providers,
+            documentVersion:
+              providers.length === 0
+                ? data.documentVersion
+                : (data.shareDocumentVersion ?? data.documentVersion),
             source: data.source,
             contextId: request.id,
             createdAt: data.now,
-          },
+          })),
         });
         return { status: 'created', request } satisfies CreateRequestResult;
       });
@@ -225,6 +245,7 @@ export class CoachingRequestRepository implements ICoachingRequestRepository {
           documentVersion: data.documentVersion,
           now: data.now,
           writeGrantedEvent: false,
+          share: { food: request.shareFood, weight: request.shareWeight },
           ...(data.consentCopyVersion !== undefined && {
             consentCopyVersion: data.consentCopyVersion,
           }),

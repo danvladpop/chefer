@@ -6,6 +6,7 @@ import type { OnboardingJob } from '@chefer/types';
 import { bodyMetricsAgeError, isPlausibleHeightCm, isPlausibleWeightKg } from '@chefer/types';
 import { ConfirmSheet, Sheet, Text } from '@chefer/ui-mobile';
 import {
+  activeReminderSlots,
   activityFromTrainingDays,
   aiConsentRequiredFor,
   computeCalorieTarget,
@@ -14,7 +15,9 @@ import {
   detectRegion,
   eatsEverything,
   EMPTY_SAFETY_VALUE,
+  ENGAGEMENT_COPY,
   heightCmFromText,
+  mealReminderLabel,
   ONBOARDING_V4_GOAL_TILES,
   onboardingV4Progress,
   onboardingV4ResumeStep,
@@ -36,8 +39,10 @@ import { track } from '../../lib/analytics';
 import { trackOnboardingCompleted, trackPlanGenerated } from '../../lib/analytics-events';
 import { getToken } from '../../lib/auth-store';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
+import { refreshNotificationPermission } from '../../lib/use-notification-permission';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
+import { ensureGymReminderPermission } from '../gym/reminders/permission';
 import {
   onboardingWeeklyGoal,
   styleOfAnswer,
@@ -46,6 +51,7 @@ import {
 import { TrainingStyleCards } from '../gym/simple/training-style-cards';
 import { gymBootstrapQueryKey } from '../gym/use-gym-bootstrap';
 import { markLandingDecided } from '../navigation/landing-gate';
+import { useSaveMealReminders } from '../notifications/meal-reminder-settings';
 import { clearOnboardingDraft } from '../onboarding/onboarding-draft';
 import { markOnboardingGateHandled } from '../onboarding/onboarding-gate';
 import { ACTIVITY_OPTIONS } from '../preferences/types';
@@ -64,6 +70,7 @@ import {
   JobsStep,
   PremiumStep,
   ReadyStep,
+  RemindersStep,
   SafetyStep,
   TrainStep,
   type AboutYouValue,
@@ -108,7 +115,7 @@ export function OnboardingV4() {
   const [startedPremium] = useState(draft?.startedPremium ?? premiumTier);
   const [jobs, setJobs] = useState<OnboardingJob[]>(draft?.jobs ?? []);
   const steps = useMemo(
-    () => onboardingV4Steps({ jobs, isPremium: startedPremium }),
+    () => onboardingV4Steps({ jobs, isPremium: startedPremium, offerReminders: true }),
     [jobs, startedPremium],
   );
   const [resumeStep] = useState(() =>
@@ -148,6 +155,12 @@ export function OnboardingV4() {
   const finished = useRef(false);
 
   const hasTrain = jobs.includes('TRAIN');
+  // Lane E1: "Remind me at mealtimes?" — the planned meals' suggested times.
+  const mealReminders = trpc.notifications.getMealReminders.useQuery(undefined, {
+    enabled: step === 'reminders',
+  });
+  const saveReminders = useSaveMealReminders();
+  const [remindersRefused, setRemindersRefused] = useState(false);
   const goal = goalChoice === null ? null : (ONBOARDING_V4_GOAL_TILES[goalChoice]?.goal ?? null);
   const activity =
     activityOverride ?? activityFromTrainingDays(hasTrain ? about.trainingWeekdays.length : null);
@@ -581,6 +594,54 @@ export function OnboardingV4() {
         </>
       );
       break;
+    case 'reminders': {
+      const current = mealReminders.data?.reminders;
+      body = (
+        <RemindersStep
+          rows={
+            current
+              ? activeReminderSlots({ ...current, enabled: true }).map((slot) => ({
+                  slot,
+                  label: mealReminderLabel(slot),
+                  time: current.times[slot] ?? '',
+                }))
+              : []
+          }
+          refused={remindersRefused}
+        />
+      );
+      footer = remindersRefused ? (
+        <V4Primary label={COPY.continue} onPress={next} testID="onb-v4-continue" />
+      ) : (
+        <>
+          <V4Primary
+            label={ENGAGEMENT_COPY.remindersStepYes}
+            disabled={!current}
+            onPress={() => {
+              if (!current) return;
+              void ensureGymReminderPermission().then((allowed) => {
+                refreshNotificationPermission();
+                track('meal_reminders_offer_answered', { answer: allowed ? 'yes' : 'denied' });
+                saveReminders.mutate({ ...current, enabled: allowed });
+                if (allowed) next();
+                else setRemindersRefused(true);
+              });
+            }}
+            testID="onb-v4-reminders-yes"
+          />
+          <V4Ghost
+            label={ENGAGEMENT_COPY.remindersStepNo}
+            onPress={() => {
+              track('meal_reminders_offer_answered', { answer: 'no' });
+              if (current) saveReminders.mutate({ ...current, enabled: false });
+              next();
+            }}
+            testID="onb-v4-reminders-no"
+          />
+        </>
+      );
+      break;
+    }
     case 'premium':
       body = <PremiumStep on={premiumOn} error={premiumError} />;
       footer = premiumOn ? (

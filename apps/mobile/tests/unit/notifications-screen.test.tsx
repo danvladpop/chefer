@@ -25,6 +25,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+// Mealtime reminders have their own suite (meal-reminder-settings.test.tsx).
+jest.mock('../../src/features/notifications/meal-reminder-settings', () => ({
+  MealReminderSettings: () => null,
+}));
+
 // The Weekly updates card has its own suite (weekly-updates-card.test.tsx).
 const mockWeeklyCard = jest.fn(() => null);
 jest.mock('../../src/features/preferences/weekly-updates-card', () => ({
@@ -116,6 +121,9 @@ describe('NotificationsScreen', () => {
     expect(screen.getByTestId('notifications-nudge-dinner')).toBeTruthy();
     expect(screen.getByTestId('notifications-nudge-plan')).toBeTruthy();
     expect(screen.getByTestId('notifications-rest-timer')).toBeTruthy();
+    expect(screen.getByTestId('notifications-meal-reminders')).toHaveTextContent(
+      'Mealtime reminders',
+    );
     // Class reminders arrive with classes (WP-05): no placeholder row until then.
     expect(screen.queryByText(/class/i)).toBeNull();
   });

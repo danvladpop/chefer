@@ -17,7 +17,7 @@ import {
   type WeeklyEmailRecipient,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { formatBodyWeight, formatMoney, toDisplayCurrency } from '@chefer/utils';
+import { formatBodyWeight, formatMoney, toDisplayCurrency, weekLabel } from '@chefer/utils';
 import { bulkDailyAllowance } from '../../lib/email/config.js';
 import {
   EmailQuotaError,
@@ -36,6 +36,7 @@ import { unsubscribeUrl, type UnsubscribeScope } from '../../lib/email/tokens.js
 import { isPremiumUser } from '../../lib/entitlements.js';
 import { env } from '../../lib/env.js';
 import { weekStartUtc } from '../coach/coach.service.js';
+import { householdPlanScope } from '../meal-plan/plan-for-date.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 
@@ -86,19 +87,8 @@ export function mondayLocal(now: Date, offsetWeeks = 0): Date {
   return monday;
 }
 
-// A fixed table, not Intl: ICU versions disagree on "Sep" vs "Sept".
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthOf = (date: Date): string => MONTHS[date.getUTCMonth()] ?? '';
-
-/** "22–28 Sep", or "29 Sep – 5 Oct" across a month boundary. `monday` is UTC midnight. */
-export function weekLabel(monday: Date): string {
-  const sunday = new Date(monday.getTime() + 6 * DAY_MS);
-  const startMonth = monthOf(monday);
-  const endMonth = monthOf(sunday);
-  return startMonth === endMonth
-    ? `${monday.getUTCDate()}–${sunday.getUTCDate()} ${endMonth}`
-    : `${monday.getUTCDate()} ${startMonth} – ${sunday.getUTCDate()} ${endMonth}`;
-}
+/** "22–28 Sep" — moved to @chefer/utils (lane E2: the recap screen uses it too). */
+export { weekLabel };
 
 /** "YYYY-MM-DD" of a UTC-midnight date. */
 function isoDate(date: Date): string {
@@ -194,6 +184,8 @@ export interface WeeklyEmailDeps {
   reviews: Pick<IChefReviewRepository, 'findByUserAndWeek'>;
   /** This week's shopping-list estimate in EUR (what the list page shows). */
   listTotalEur: (user: UserProfile) => Promise<number | null>;
+  /** ADR 0003: whose plan the email shows — the household owner's for a partner. */
+  planUserId: (userId: string) => Promise<string>;
   appUrl: string;
   unsubscribeUrl: (userId: string, scope: UnsubscribeScope) => string;
   sendDelayMs: number;
@@ -242,6 +234,7 @@ export class WeeklyEmailService {
       reviews: chefReviewRepository,
       listTotalEur: async (user) =>
         (await shoppingListService.getForWeek(user, 0)).estimatedTotalEur,
+      planUserId: async (userId) => (await householdPlanScope(userId)).planUserId,
       appUrl: env.APP_URL,
       unsubscribeUrl,
       sendDelayMs: DEFAULT_SEND_DELAY_MS,
@@ -353,6 +346,7 @@ export class WeeklyEmailService {
       nextWeekUrl: `${app}/meal-plan?week=1`,
       listUrl: `${app}/shopping-list`,
       progressUrl: `${app}/progress`,
+      recapUrl: `${app}/recap?from=email`,
       preferencesUrl: `${app}/preferences`,
       unsubscribeUrl: this.deps.unsubscribeUrl(userId, SCOPE[kind]),
     };
@@ -360,7 +354,10 @@ export class WeeklyEmailService {
 
   /** Null when there is nothing planned this week — no "ready" email for an empty week. */
   async buildWeekReady(user: WeeklyEmailRecipient, now: Date): Promise<RenderedEmail | null> {
-    const plan = await this.deps.mealPlans.findByWeekStart(user.id, mondayLocal(now));
+    const plan = await this.deps.mealPlans.findByWeekStart(
+      await this.deps.planUserId(user.id),
+      mondayLocal(now),
+    );
     if (!plan) return null;
 
     const slots = plan.days.flatMap((d) => (Array.isArray(d.meals) ? (d.meals as Slot[]) : []));
@@ -390,6 +387,7 @@ export class WeeklyEmailService {
       listTotal: totalEur != null ? `~${formatMoney(totalEur, currency, { decimals: 0 })}` : null,
       planUrl: urls.planUrl,
       listUrl: urls.listUrl,
+      recapUrl: urls.recapUrl,
       preferencesUrl: urls.preferencesUrl,
       unsubscribeUrl: urls.unsubscribeUrl,
     });
@@ -413,7 +411,7 @@ export class WeeklyEmailService {
         isoDate(new Date(weekEnd.getTime() - DAY_MS)),
       ),
       this.deps.reviews.findByUserAndWeek(user.id, weekStart),
-      this.deps.mealPlans.findByWeekStart(user.id, mondayLocal(now, 1)),
+      this.deps.mealPlans.findByWeekStart(await this.deps.planUserId(user.id), mondayLocal(now, 1)),
     ]);
 
     const targets = resolveDailyTargets(profile ?? null);

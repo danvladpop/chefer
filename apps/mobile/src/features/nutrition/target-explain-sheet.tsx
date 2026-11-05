@@ -24,7 +24,9 @@ export interface TargetExplainSheetProps {
 }
 
 export function TargetExplainSheet({ visible, onClose, view, testID }: TargetExplainSheetProps) {
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
+  // Lane E3 "Hide numbers": targets are never explained in figures.
+  if (noNumbers) return null;
   // WP-08: protein-only mode explains the one number it shows — no calories, carbs or fat.
   if (proteinOnly) {
     return (

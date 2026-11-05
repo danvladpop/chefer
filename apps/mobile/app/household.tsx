@@ -9,15 +9,23 @@ import {
 } from '@chefer/ui-mobile';
 import { Icon } from '../src/components/icon';
 import { HouseholdEditor } from '../src/features/household/household-editor';
+import { HouseholdNotices } from '../src/features/household/sharing/household-notices';
+import { LeaveHouseholdButton } from '../src/features/household/sharing/leave-household';
+import { PartnerBanner } from '../src/features/household/sharing/partner-banner';
+import { useHouseholdSharing } from '../src/features/household/sharing/use-household-sharing';
 
 // Household (F2, backlog P2-3) — port of web's preferences household-section.
 // Every tier adds, edits and removes members (their allergies apply to every
 // plan; a free, empty table sees the ghost for the chip tapped, F-PM-12);
 // scaling servings and the list to the table is premium. Reached from
 // Profile → Household and More → Household.
+// ADR 0003 (behind `householdSharing`): notices at the top, "Invite to Chefer"
+// on adult members, and for a partner the owner's table (read-only except
+// their own profile) with "Leave household" at the bottom.
 
 export default function HouseholdScreen() {
   const colors = useThemeColors();
+  const sharing = useHouseholdSharing();
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
       {/* The shell's pushed-page top bar (chevron Back + title1), drawn here
@@ -44,11 +52,17 @@ export default function HouseholdScreen() {
         testID="household-scroll"
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
       >
-        <Text className="text-subhead text-label-secondary">
-          Who eats with you? Everyone&apos;s allergies and restrictions apply to every plan, free.
-          With Premium, portions, the shopping list and the week cost scale to your whole table.
-        </Text>
-        <HouseholdEditor />
+        <HouseholdNotices />
+        {sharing.isPartner && sharing.ownerName ? (
+          <PartnerBanner testID="household-partner-banner" ownerName={sharing.ownerName} />
+        ) : (
+          <Text className="text-subhead text-label-secondary">
+            Who eats with you? Everyone&apos;s allergies and restrictions apply to every plan, free.
+            With Premium, portions, the shopping list and the week cost scale to your whole table.
+          </Text>
+        )}
+        <HouseholdEditor sharing={sharing} />
+        {sharing.isPartner ? <LeaveHouseholdButton ownerName={sharing.ownerName ?? ''} /> : null}
       </KeyboardAwareScrollView>
     </Screen>
   );

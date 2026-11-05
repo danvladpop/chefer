@@ -26,6 +26,7 @@ import {
   isLoggedDay,
   localDateStr,
   MEASUREMENTS_COPY,
+  PROGRESS_PHOTOS_COPY,
   PROGRESS_RANGES,
   summarizeWeightTrend,
   TREND_WEIGHT_EXPLAINER,
@@ -35,8 +36,10 @@ import {
   type WeightChangeTone,
 } from '@chefer/utils';
 import { BodyMeasurements } from '../src/features/body/body-measurements';
+import { ProgressPhotos } from '../src/features/body/progress-photos';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
+import { useNumbersMode } from '../src/features/numbers-mode/numbers-mode';
 import { useShellV2 } from '../src/features/shell/shell-store';
 import { StatsScreen } from '../src/features/shell/stats/stats-screen';
 import { trpc } from '../src/lib/trpc';
@@ -449,6 +452,12 @@ function LegacyProgressScreen() {
           <SectionLabel>{MEASUREMENTS_COPY.title}</SectionLabel>
           <BodyMeasurements />
         </Card>
+
+        {/* Progress photos: on this phone only (lane D4) */}
+        <Card>
+          <SectionLabel>{PROGRESS_PHOTOS_COPY.title}</SectionLabel>
+          <ProgressPhotos />
+        </Card>
       </KeyboardAwareScrollView>
     </Screen>
   );
@@ -457,5 +466,8 @@ function LegacyProgressScreen() {
 // 10 Oct redesign: the new shell shows Stats (board Progress), opened from
 // Today's top bar; the old Food|Gym shell keeps the screen above.
 export default function ProgressScreen() {
-  return useShellV2() ? <StatsScreen /> : <LegacyProgressScreen />;
+  const shellV2 = useShellV2();
+  // Lane E3 "Hide numbers": the legacy screen is calorie charts; Stats handles the mode.
+  const { noNumbers } = useNumbersMode();
+  return shellV2 || noNumbers ? <StatsScreen /> : <LegacyProgressScreen />;
 }
