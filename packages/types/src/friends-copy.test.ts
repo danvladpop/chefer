@@ -34,7 +34,7 @@ describe('FRIENDS_COPY', () => {
   collect(FRIENDS_COPY, 'FRIENDS_COPY', all);
 
   it('has a substantial deck and no empty strings', () => {
-    expect(all.length).toBeGreaterThan(150);
+    expect(all.length).toBeGreaterThan(40);
     expect(all.filter((s) => s.text.trim() === '')).toEqual([]);
   });
 
@@ -49,12 +49,9 @@ describe('FRIENDS_COPY', () => {
 
   it('says Following', () => {
     expect(FRIENDS_COPY.nav.label).toBe('Following');
-    expect(FRIENDS_COPY.intro.cta).toBe('Turn on Following');
-    expect(FRIENDS_COPY.turnOff.done).toBe('Following is off.');
   });
 
-  it('carries the Blocked people title and the consent-history label', () => {
-    expect(FRIENDS_COPY.blocked.title).toBe('Blocked people');
+  it('carries the consent-history label', () => {
     expect(FRIENDS_COPY.consent.label(true)).toBe('Following and sharing: on');
     expect(FRIENDS_COPY.consent.label(false)).toBe('Following and sharing: off');
   });
@@ -79,32 +76,9 @@ describe('FRIENDS_COPY', () => {
     );
   });
 
-  it('interpolates like UX §12', () => {
-    expect(FRIENDS_COPY.locked.private.body('Maria')).toBe(
-      'Follow Maria to see their meals and workouts.',
-    );
-    expect(FRIENDS_COPY.home.activityLabel(0)).toBe('Activity');
-    expect(FRIENDS_COPY.home.activityLabel(2)).toBe('Activity, 2 new');
-    expect(FRIENDS_COPY.home.requests(4)).toBe('Requests · 4');
-    expect(FRIENDS_COPY.reason.mutualMany('Maria', 1)).toBe('Followed by Maria and 1 other');
-    expect(FRIENDS_COPY.reason.mutualMany('Maria', 3)).toBe('Followed by Maria and 3 others');
-    expect(FRIENDS_COPY.profile.counts(1, 31)).toBe('1 follower · 31 following');
-    expect(FRIENDS_COPY.profile.counts(24, 31)).toBe('24 followers · 31 following');
-    expect(FRIENDS_COPY.search.announce(0)).toBe('No one found');
-    expect(FRIENDS_COPY.search.announce(1)).toBe('1 person found');
-    expect(FRIENDS_COPY.search.announce(7)).toBe('7 people found');
-    expect(FRIENDS_COPY.search.noResults.title('ana')).toBe('No one found for “ana”');
-    expect(FRIENDS_COPY.activated.filterHidden(1)).toBe(
-      'One of your recipes won’t be shown to followers because of words in their name or description.',
-    );
-    expect(FRIENDS_COPY.activated.filterHidden(3)).toContain('3 of your recipes');
-    expect(FRIENDS_COPY.food.avg(2150)).toBe('avg 2,150 kcal/day');
-    expect(FRIENDS_COPY.food.macros(420, 28, 45, 12)).toBe('420 kcal · P 28 g · C 45 g · F 12 g');
-    expect(FRIENDS_COPY.food.portion(1)).toBe('1 portion');
-    expect(FRIENDS_COPY.food.portion(2)).toBe('2 portions');
-    expect(FRIENDS_COPY.gym.exercises(1)).toBe('1 exercise');
+  it('interpolates the add-to-week lines', () => {
     expect(FRIENDS_COPY.addToWeek.cta('Tue', 'lunch')).toBe('Add to Tue lunch');
-    expect(FRIENDS_COPY.report.reasons.OTHER).toBe('Something else');
-    expect(FRIENDS_COPY.turnOff.bullets).toHaveLength(4);
+    expect(FRIENDS_COPY.addToWeek.replaceTitle('lunch')).toBe('Replace lunch?');
+    expect(FRIENDS_COPY.gym.filtered.day(3)).toBe('Day 3');
   });
 });

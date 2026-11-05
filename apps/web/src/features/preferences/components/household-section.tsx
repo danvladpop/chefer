@@ -13,13 +13,15 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { useHousehold, type HouseholdMemberDto } from '@/hooks/useHousehold';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { Baby, ChevronRight, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import {
   findSafetyTaxonomyEntry,
   HOUSEHOLD_AGE_BANDS,
   HOUSEHOLD_PORTION_OPTIONS,
-  HOUSEHOLD_SHARING_COPY,
   type HouseholdAgeBand,
 } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
@@ -27,13 +29,10 @@ import {
   AGE_BAND_LABELS,
   ageBandLabel,
   ageBandPortionFactor,
-  allergiesAndDietForText,
   classifySafetyValue,
   householdGhostSample,
   householdPortionSum,
-  memberSummaryLine,
   parseAgeBand,
-  tableSummaryLine,
   userFacingErrorMessage,
   type HouseholdGhostKind,
   type SafetyPickerValue,
@@ -48,18 +47,56 @@ import {
 // chip shows a kid at ½ portion with a common allergy, audit F-PM-12), with a
 // free "add" and the scaling upsell. Premium + empty: chips open the editor.
 
-const PORTION_LABELS: Record<number, string> = {
-  0.5: '½ · kid',
-  0.75: '¾ · light',
-  1: '1 · standard',
-  1.25: '1¼ · hearty',
-  1.5: '1½ · big eater',
+type PortionChipKey = `household.editor.portionChip.${'p50' | 'p75' | 'p100' | 'p125' | 'p150'}`;
+
+const PORTION_LABELS: Record<number, PortionChipKey> = {
+  0.5: 'household.editor.portionChip.p50',
+  0.75: 'household.editor.portionChip.p75',
+  1: 'household.editor.portionChip.p100',
+  1.25: 'household.editor.portionChip.p125',
+  1.5: 'household.editor.portionChip.p150',
 };
 
-const PORTION_OPTIONS = HOUSEHOLD_PORTION_OPTIONS.map((value) => ({
-  value,
-  label: PORTION_LABELS[value] ?? String(value),
-}));
+/** "A, B and C" in the UI language. */
+function joinList(t: Translator['t'], items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return t('household.editor.listAnd', {
+    list: items.slice(0, -1).join(', '),
+    last: items[items.length - 1] ?? '',
+  });
+}
+
+/** `{n} at the table · we’ll check for tree nuts (Luca) and fish (Ana)` (UX-02, CI-41). */
+function tableSummaryText(
+  t: Translator['t'],
+  peopleCount: number,
+  rules: readonly { label: string; who: string }[],
+): string {
+  if (rules.length === 0) return t('household.editor.atTable', { people: peopleCount });
+  return t('household.editor.tableSummary', {
+    people: peopleCount,
+    list: joinList(
+      t,
+      rules.map((r) => t('household.editor.tableRule', { label: r.label, who: r.who })),
+    ),
+  });
+}
+
+/** `{portion} portion · allergic: … · {diet} · won’t eat: …` (member card). */
+function memberSummaryText(
+  t: Translator['t'],
+  parts: { portionLabel: string; allergies: string[]; diet?: string; dislikes: string[] },
+): string {
+  const segments = [t('household.editor.portion', { portion: parts.portionLabel })];
+  if (parts.allergies.length > 0) {
+    segments.push(t('household.editor.summaryAllergic', { list: parts.allergies.join(', ') }));
+  }
+  if (parts.diet) segments.push(parts.diet);
+  if (parts.dislikes.length > 0) {
+    segments.push(t('household.editor.summaryWontEat', { list: parts.dislikes.join(', ') }));
+  }
+  return segments.join(' · ');
+}
 
 export interface MemberFormState {
   name: string;
@@ -88,18 +125,23 @@ export const MEMBER_PRESETS: Record<HouseholdGhostKind, Partial<MemberFormState>
   kid: { portionFactor: 0.5, isKid: true },
 };
 
-function safetySummary(member: HouseholdMemberDto): string {
+function safetySummary(t: Translator['t'], member: HouseholdMemberDto): string {
   const parts: string[] = [];
-  if (member.allergies.length) parts.push(`allergic to ${member.allergies.join(', ')}`);
+  if (member.allergies.length) {
+    parts.push(t('household.editor.summaryAllergicTo', { list: member.allergies.join(', ') }));
+  }
   if (member.dietaryRestrictions.length) parts.push(member.dietaryRestrictions.join(', '));
   if (member.dislikedIngredients.length) {
-    parts.push(`dislikes ${member.dislikedIngredients.join(', ')}`);
+    parts.push(
+      t('household.editor.summaryDislikes', { list: member.dislikedIngredients.join(', ') }),
+    );
   }
-  return parts.length ? parts.join(' · ') : 'no restrictions';
+  return parts.length ? parts.join(' · ') : t('household.editor.summaryNone');
 }
 
-function portionLabel(factor: number): string {
-  return PORTION_LABELS[factor] ?? `×${factor}`;
+function portionLabel(t: Translator['t'], factor: number): string {
+  const key = PORTION_LABELS[factor];
+  return key ? t(key) : `×${factor}`;
 }
 
 /** Member changes move plan warnings, list sizes and costs — refetch them. */
@@ -128,6 +170,7 @@ export function MemberEditorSheet({
   /** Starting values for a new member (quick chips). */
   preset?: Partial<MemberFormState>;
 }) {
+  const { t } = useT();
   const [form, setForm] = useState<MemberFormState>(
     editing
       ? {
@@ -224,8 +267,12 @@ export function MemberEditorSheet({
       <Sheet
         open={open}
         onClose={onClose}
-        title={editing ? `Edit ${editing.name}` : 'Add someone to your table'}
-        description="Their allergies and restrictions become hard rules for every plan. Portion size sets how much of each dish is theirs."
+        title={
+          editing
+            ? t('household.editor.editTitle', { name: editing.name })
+            : t('household.editor.addTitle')
+        }
+        description={t('household.editor.sheetDescription')}
         size="lg"
         footer={
           <div className="flex flex-col gap-2">
@@ -236,7 +283,11 @@ export function MemberEditorSheet({
               disabled={!form.name.trim() || isSaving}
               className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
             >
-              {isSaving ? 'Saving…' : editing ? 'Save changes' : 'Add to my table'}
+              {isSaving
+                ? t('common.states.saving')
+                : editing
+                  ? t('household.editor.saveChanges')
+                  : t('household.editor.addToTable')}
             </button>
           </div>
         }
@@ -246,14 +297,18 @@ export function MemberEditorSheet({
           {/* Name */}
           <div>
             <label htmlFor="member-name" className="mb-1 block text-sm font-medium">
-              Name
+              {t('household.editor.name')}
             </label>
             <input
               id="member-name"
               type="text"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder={form.isKid ? 'e.g. Sam' : 'e.g. Maria'}
+              placeholder={
+                form.isKid
+                  ? t('household.editor.namePlaceholderKid')
+                  : t('household.editor.namePlaceholderAdult')
+              }
               maxLength={60}
               className="min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
@@ -262,17 +317,17 @@ export function MemberEditorSheet({
           {/* Portion */}
           <div>
             <p id="member-portion-label" className="mb-1 text-sm font-medium">
-              Portion size
+              {t('household.editor.portionSize')}
             </p>
             <p className="mb-2 text-xs text-muted-foreground">
-              Relative to one standard serving — a kid eats about half.
+              {t('household.editor.portionHint')}
             </p>
             <div
               role="group"
               aria-labelledby="member-portion-label"
               className="flex flex-wrap gap-2"
             >
-              {PORTION_OPTIONS.map(({ value, label }) => (
+              {HOUSEHOLD_PORTION_OPTIONS.map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -284,7 +339,7 @@ export function MemberEditorSheet({
                       : 'border-input text-muted-foreground hover:border-primary/40'
                   }`}
                 >
-                  {label}
+                  {portionLabel(t, value)}
                 </button>
               ))}
             </div>
@@ -307,14 +362,17 @@ export function MemberEditorSheet({
               }}
               className="h-5 w-5 accent-[#944a00]"
             />
-            This is a kid
+            {t('household.editor.isKid')}
           </label>
 
           {/* UX-PLAN-12: optional age — picking one pre-fills the portion, which stays adjustable. */}
           {form.isKid && (
             <div>
               <p id="member-age-label" className="mb-1 text-sm font-medium">
-                Age <span className="font-normal text-muted-foreground">(optional)</span>
+                {t('household.editor.age')}{' '}
+                <span className="font-normal text-muted-foreground">
+                  {t('household.editor.optional')}
+                </span>
               </p>
               <div
                 role="group"
@@ -334,7 +392,7 @@ export function MemberEditorSheet({
                       )
                     }
                     aria-pressed={form.ageBand === band}
-                    aria-label={`Age ${AGE_BAND_LABELS[band]}`}
+                    aria-label={t('household.editor.ageLabel', { range: AGE_BAND_LABELS[band] })}
                     className={`min-h-11 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
                       form.ageBand === band
                         ? 'border-primary bg-primary/5 text-primary'
@@ -369,9 +427,12 @@ export function MemberEditorSheet({
 
 // ─── Quick chips ──────────────────────────────────────────────────────────────
 
-const CHIPS: { kind: HouseholdGhostKind; label: string }[] = [
-  { kind: 'partner', label: '+ add your partner' },
-  { kind: 'kid', label: '+ add a kid' },
+const CHIPS: {
+  kind: HouseholdGhostKind;
+  label: 'household.editor.chipPartner' | 'household.editor.chipKid';
+}[] = [
+  { kind: 'partner', label: 'household.editor.chipPartner' },
+  { kind: 'kid', label: 'household.editor.chipKid' },
 ];
 
 function QuickChips({
@@ -381,6 +442,7 @@ function QuickChips({
   onPick: (kind: HouseholdGhostKind) => void;
   active?: HouseholdGhostKind | null;
 }) {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap gap-2">
       {CHIPS.map(({ kind, label }) => (
@@ -395,7 +457,7 @@ function QuickChips({
               : 'border-amber-300 bg-amber-50/40 text-amber-800 hover:border-amber-400 hover:bg-amber-50'
           }`}
         >
-          {label}
+          {t(label)}
         </button>
       ))}
     </div>
@@ -404,11 +466,7 @@ function QuickChips({
 
 // ─── Free-tier ghost (§6.4, F-PM-12) ──────────────────────────────────────────
 
-const SAMPLE_WEEK: { day: string; dish: string }[] = [
-  { day: 'Mon', dish: 'Chickpea & Roast Pepper Tagine' },
-  { day: 'Tue', dish: 'Miso Ginger Noodle Stir-fry' },
-  { day: 'Wed', dish: 'Charred Broccoli Rice Bowls' },
-];
+const SAMPLE_WEEK = ['mon', 'tue', 'wed'] as const;
 
 function HouseholdGhost({
   ownerSafety,
@@ -417,6 +475,7 @@ function HouseholdGhost({
   ownerSafety: OwnerSafety;
   onAdd: (kind: HouseholdGhostKind) => void;
 }) {
+  const { t } = useT();
   const [kind, setKind] = useState<HouseholdGhostKind | null>(null);
 
   function reveal(next: HouseholdGhostKind) {
@@ -434,8 +493,8 @@ function HouseholdGhost({
     ? [
         ...new Set(
           [
-            ...ownerSafety.allergies.map((a) => `no ${a}`),
-            ...sample.allergies.map((a) => `no ${a}`),
+            ...ownerSafety.allergies.map((a) => t('household.editor.ghost.noItem', { item: a })),
+            ...sample.allergies.map((a) => t('household.editor.ghost.noItem', { item: a })),
             ...ownerSafety.dietaryRestrictions,
             ...sample.dietaryRestrictions,
           ].map((c) => c.toLowerCase()),
@@ -454,29 +513,35 @@ function HouseholdGhost({
           className="mt-4 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4"
         >
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-amber-700">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Sample: your week with{' '}
-            {sample.name}
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />{' '}
+            {t('household.editor.ghost.title', { name: sample.name })}
           </p>
           <p className="mt-2 text-sm text-gray-700">
-            Say you add <span className="font-semibold">{sample.name}</span> — {sample.summary}.
-            Every dinner would be safe for you both:
+            {rich(
+              t,
+              'household.editor.ghost.body',
+              { name: <span className="font-semibold">{sample.name}</span> },
+              { summary: t(`household.editor.ghost.summary.${kind}`) },
+            )}
           </p>
           <ul className="mt-3 space-y-1.5">
-            {SAMPLE_WEEK.map(({ day, dish }) => (
+            {SAMPLE_WEEK.map((day) => (
               <li key={day} className="flex items-center gap-2 text-sm">
                 <span className="w-9 shrink-0 text-xs font-semibold uppercase text-gray-500">
-                  {day}
+                  {t(`common.weekdaysShort.${day}`)}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{dish}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-gray-800">
+                  {t(`household.editor.ghost.dishes.${day}`)}
+                </span>
                 <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
-                  {servings} servings
+                  {t('common.counts.servings', { count: servings })}
                 </span>
               </li>
             ))}
           </ul>
           {mergedChips.length > 0 && (
             <p className="mt-3 text-xs text-gray-600">
-              Combined table rules: {mergedChips.join(' · ')}
+              {t('household.editor.ghost.combinedRules', { rules: mergedChips.join(' · ') })}
             </p>
           )}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -486,11 +551,12 @@ function HouseholdGhost({
               className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              {kind === 'kid' ? 'Add a kid' : 'Add your partner'} — free
+              {kind === 'kid'
+                ? t('household.editor.ghost.addKidFree')
+                : t('household.editor.ghost.addPartnerFree')}
             </button>
             <p className="min-w-0 text-xs text-gray-600">
-              Allergies are free. Premium also sizes servings and the shopping list for {servings}{' '}
-              portions.
+              {t('household.editor.ghost.upsell', { count: servings })}
             </p>
           </div>
           <div className="mt-3">
@@ -515,6 +581,7 @@ const EMPTY_SAFETY: SafetyPickerValue = {
 };
 
 function YouRow() {
+  const { t } = useT();
   const { data, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -555,11 +622,11 @@ function YouRow() {
         className="flex items-center gap-3 rounded-xl border border-input bg-card px-3 py-2"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium text-foreground">You</span>
+          <span className="block text-sm font-medium text-foreground">
+            {t('household.editor.you')}
+          </span>
           <span className="block text-xs text-muted-foreground">
-            {isError
-              ? 'Couldn’t load your allergies and diet. Nothing has been changed.'
-              : 'Loading your allergies and diet…'}
+            {isError ? t('household.editor.youLoadError') : t('household.editor.youLoading')}
           </span>
         </span>
         {isError && (
@@ -568,7 +635,7 @@ function YouRow() {
             onClick={() => void refetch()}
             className="min-h-11 rounded-lg border border-input bg-background px-3 text-sm font-medium"
           >
-            Retry
+            {t('household.editor.retry')}
           </button>
         )}
       </div>
@@ -583,16 +650,18 @@ function YouRow() {
           setDraft(ownSafety);
           setOpen(true);
         }}
-        aria-label={allergiesAndDietForText('you')}
+        aria-label={t('household.editor.allergiesAndDietForYou')}
         className="flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium text-foreground">You</span>
+          <span className="block text-sm font-medium text-foreground">
+            {t('household.editor.you')}
+          </span>
           <span className="block truncate text-xs text-muted-foreground">
-            {memberSummaryLine({
+            {memberSummaryText(t, {
               portionLabel: '1',
               allergies: classified.allergyIds.map(labelFor),
-              diet: dietParts.length > 0 ? dietParts.join(', ') : undefined,
+              ...(dietParts.length > 0 && { diet: dietParts.join(', ') }),
               dislikes: classified.dislikeIds.map(labelFor),
             })}
           </span>
@@ -602,7 +671,7 @@ function YouRow() {
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
-        title={allergiesAndDietForText('you')}
+        title={t('household.editor.allergiesAndDietForYou')}
         size="lg"
         footer={
           <button
@@ -624,7 +693,7 @@ function YouRow() {
             disabled={saveMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
           >
-            {saveMutation.isPending ? 'Saving…' : 'Save changes'}
+            {saveMutation.isPending ? t('common.states.saving') : t('household.editor.saveChanges')}
           </button>
         }
       >
@@ -664,6 +733,7 @@ export function HouseholdSection({
    */
   variant?: 'preferences' | 'onboarding';
 }) {
+  const { t } = useT();
   const { members, memberCount, peopleCount, tablePortions, scalesForTable, loadFailed, refetch } =
     useHousehold();
   const { limit } = useEntitlement('householdMembers');
@@ -699,7 +769,8 @@ export function HouseholdSection({
 
   const tableSummary =
     !onboarding && table?.hasRules
-      ? tableSummaryLine(
+      ? tableSummaryText(
+          t,
           peopleCount,
           table.people.flatMap((p) => p.items.map((item) => ({ label: item.label, who: p.who }))),
         )
@@ -718,14 +789,14 @@ export function HouseholdSection({
           className="flex flex-col gap-2 rounded-xl border border-input px-3 py-3 sm:flex-row sm:items-center"
         >
           <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-            Couldn’t load your household. Nothing has been changed.
+            {t('household.editor.loadError')}
           </p>
           <button
             type="button"
             onClick={refetch}
             className="min-h-11 rounded-lg border border-input bg-background px-3 text-sm font-medium"
           >
-            Try again
+            {t('common.actions.retry')}
           </button>
         </div>
       ) : showGhost ? (
@@ -751,8 +822,9 @@ export function HouseholdSection({
                     className="flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 sm:flex-row sm:items-center"
                   >
                     <p className="min-w-0 flex-1 text-sm text-red-800">
-                      Remove <span className="font-semibold">{m.name}</span>? Their allergies stop
-                      applying to your plans.
+                      {rich(t, 'household.editor.removeConfirm', {
+                        name: <span className="font-semibold">{m.name}</span>,
+                      })}
                     </p>
                     <div className="flex shrink-0 gap-2">
                       <button
@@ -760,7 +832,7 @@ export function HouseholdSection({
                         onClick={() => setConfirmingId(null)}
                         className="min-h-11 rounded-lg border border-input bg-background px-3 text-sm font-medium"
                       >
-                        Keep
+                        {t('household.editor.keep')}
                       </button>
                       <button
                         type="button"
@@ -768,7 +840,9 @@ export function HouseholdSection({
                         disabled={removeMutation.isPending}
                         className="min-h-11 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white disabled:opacity-50"
                       >
-                        {removeMutation.isPending ? 'Removing…' : 'Remove'}
+                        {removeMutation.isPending
+                          ? t('household.editor.removing')
+                          : t('household.editor.remove')}
                       </button>
                     </div>
                   </li>
@@ -787,23 +861,29 @@ export function HouseholdSection({
                           {m.name}
                           {m.isYou && (
                             <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                              {HOUSEHOLD_SHARING_COPY.you}
+                              {t('household.sharing.you')}
                             </span>
                           )}
                           <span className="ml-2 text-xs font-normal text-muted-foreground">
-                            {ageBandLabel(m.ageBand) ? `${ageBandLabel(m.ageBand)} · ` : ''}
-                            {portionLabel(m.portionFactor)} portion
+                            {ageBandLabel(m.ageBand)
+                              ? t('household.editor.agePortion', {
+                                  age: ageBandLabel(m.ageBand) ?? '',
+                                  portion: portionLabel(t, m.portionFactor),
+                                })
+                              : t('household.editor.portion', {
+                                  portion: portionLabel(t, m.portionFactor),
+                                })}
                           </span>
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {safetySummary(m)}
+                          {safetySummary(t, m)}
                         </span>
                       </span>
                       {(!isPartner || m.isYou) && (
                         <button
                           type="button"
                           onClick={() => openEditor(m)}
-                          aria-label={`Edit ${m.name}`}
+                          aria-label={t('household.editor.editLabel', { name: m.name })}
                           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
                           <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -813,7 +893,7 @@ export function HouseholdSection({
                         <button
                           type="button"
                           onClick={() => setConfirmingId(m.id)}
-                          aria-label={`Remove ${m.name}`}
+                          aria-label={t('household.editor.removeLabel', { name: m.name })}
                           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -836,11 +916,13 @@ export function HouseholdSection({
                 className="flex min-h-11 items-center gap-1.5 rounded-xl border border-dashed border-primary/40 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                {memberCount === 0 ? 'Add someone else' : 'Add someone'}
+                {memberCount === 0
+                  ? t('household.editor.addSomeoneElse')
+                  : t('household.editor.addSomeone')}
               </button>
               {limit !== null && (
                 <span className="text-xs text-muted-foreground">
-                  {memberCount} of {limit}
+                  {t('household.editor.ofLimit', { used: memberCount, limit })}
                 </span>
               )}
             </div>
@@ -853,9 +935,7 @@ export function HouseholdSection({
           {!isPremium && !onboarding && !isPartner && memberCount > 0 && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
               <p className="text-sm text-gray-700">
-                Everyone&apos;s allergies already apply to every plan. Your shopping list and
-                servings are still sized for one portion — Premium scales them for your table of{' '}
-                {peopleCount} ({tablePortions} portions).
+                {t('household.editor.freeNote', { people: peopleCount, count: tablePortions ?? 0 })}
               </p>
               <div className="mt-2">
                 <UpgradeButton className="px-4 py-2 text-xs" source="household" />
@@ -891,17 +971,18 @@ export function HouseholdSection({
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <Users className="h-4 w-4 text-[#944a00]" aria-hidden="true" />
         <h2 id="household-heading" className="text-base font-semibold">
-          My household
+          {t('household.editor.sectionTitle')}
         </h2>
         {memberCount > 0 && (
           <span className="rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-medium text-[#944a00]">
-            {scalesForTable ? `cooking for ${tablePortions}` : `${peopleCount} at the table`}
+            {scalesForTable
+              ? t('household.editor.cookingFor', { portions: tablePortions ?? 0 })
+              : t('household.editor.atTable', { people: peopleCount })}
           </span>
         )}
       </div>
       <p className="mb-4 text-sm text-muted-foreground" hidden={isPartner}>
-        Add the people you cook for. Their allergies and restrictions apply to every plan — free.
-        Premium also scales servings and the shopping list to the whole table.
+        {t('household.editor.sectionIntro')}
       </p>
       {body}
     </section>

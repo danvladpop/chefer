@@ -2,10 +2,12 @@ import { Platform } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { screen, userEvent } from '@testing-library/react-native';
 import { resetEntrancesForTests, resetSnackbarForTests } from '@chefer/ui-mobile';
-import { bookingWhen, deviceTimeZone, newBookingSlot } from '@chefer/utils';
+import { deviceTimeZone, newBookingSlot } from '@chefer/utils';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { bookingWhenText } from '../../src/features/trainer-mode/bookings/booking-model';
 import { resetShellModeStoreForTests } from '../../src/features/trainer-mode/mode-store';
 import { TrainerTodayScreen } from '../../src/features/trainer-mode/today/trainer-today-screen';
+import { getTranslator } from '../../src/lib/i18n';
 import { renderWithTrpc } from './friends-core-harness';
 import { bookingClient, bookingIn, ION_CLIENT } from './trainer-bookings-fixtures';
 import { ION, MARIA, settle } from './trainer-fixtures';
@@ -115,7 +117,10 @@ describe('Trainer Today: bookings (M3)', () => {
     await settle();
     expect(screen.getByTestId('trainer-today-no-bookings')).toHaveTextContent('No bookings today');
     const link = screen.getByTestId('trainer-today-next-booking-open');
-    expect(link).toHaveTextContent(`Next booking: ${bookingWhen(later.startsAt, ZONE)} · Maria`);
+    // The day is written by the translator's date() (the UI language's Intl format).
+    expect(link).toHaveTextContent(
+      `Next booking: ${bookingWhenText(getTranslator(), later.startsAt, ZONE)} · Maria`,
+    );
     expect(screen.queryByTestId('trainer-today-start')).toBeNull();
     await user.press(link);
     expect(router.push).toHaveBeenCalledWith('/trainer/bookings/b1');

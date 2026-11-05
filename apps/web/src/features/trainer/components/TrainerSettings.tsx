@@ -2,12 +2,14 @@
 
 import { useId, useState } from 'react';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Mail } from 'lucide-react';
-import { COACHING_COPY, COACHING_LIMITS, SUPPORT_EMAIL } from '@chefer/types';
+import { COACHING_LIMITS, SUPPORT_EMAIL } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
+// The subject stays English: it is for the support inbox, not the trainer.
 const FEEDBACK_HREF = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Trainer tools feedback')}`;
 
 /**
@@ -21,7 +23,7 @@ export function TrainerSettings({
   displayName,
   gymLine: savedGymLine,
   activeClients,
-  title = COACHING_COPY.trainer.title,
+  title,
   onTurnedOff,
   children,
 }: {
@@ -35,8 +37,7 @@ export function TrainerSettings({
   /** Rows between the profile form and the feedback / turn-off footer. */
   children?: React.ReactNode;
 }) {
-  const copy = COACHING_COPY.trainer;
-  const profileCopy = COACHING_COPY.trainerProfile;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const nameId = useId();
   const gymId = useId();
@@ -49,7 +50,7 @@ export function TrainerSettings({
     meta: { silent: true },
     onSuccess: () => {
       void utils.trainer.status.invalidate();
-      showAppToast({ message: 'Saved', type: 'success' });
+      showAppToast({ message: t('common.states.saved'), type: 'success' });
     },
     onError: (err) => showAppToast({ message: userFacingErrorMessage(err) }),
   });
@@ -74,7 +75,7 @@ export function TrainerSettings({
       className="flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
     >
       <h2 id="trainer-settings-title" className="font-semibold text-gray-900">
-        {title}
+        {title ?? t('coaching.trainer.title')}
       </h2>
       <form
         className="flex flex-col gap-3"
@@ -86,7 +87,7 @@ export function TrainerSettings({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex min-w-0 flex-col gap-1.5">
             <label htmlFor={nameId} className="text-sm font-medium text-gray-700">
-              {copy.displayName}
+              {t('coaching.trainer.displayName')}
             </label>
             <input
               id={nameId}
@@ -98,7 +99,7 @@ export function TrainerSettings({
           </div>
           <div className="flex min-w-0 flex-col gap-1.5">
             <label htmlFor={gymId} className="text-sm font-medium text-gray-700">
-              {profileCopy.gymLine}
+              {t('coaching.trainer.profile.gymLine')}
             </label>
             <input
               id={gymId}
@@ -109,7 +110,7 @@ export function TrainerSettings({
               className="h-11 w-full min-w-0 rounded-lg border border-gray-200 px-3 text-base focus:border-gray-400 focus:outline-none sm:text-sm"
             />
             <p id={gymHintId} className="text-xs text-gray-500">
-              {profileCopy.gymLineHint}
+              {t('coaching.trainer.profile.gymLineHint')}
             </p>
           </div>
         </div>
@@ -120,7 +121,7 @@ export function TrainerSettings({
           disabled={!changed}
           loading={update.isPending}
         >
-          Save
+          {t('common.actions.save')}
         </Button>
       </form>
       {children}
@@ -130,7 +131,7 @@ export function TrainerSettings({
           className="inline-flex min-h-11 items-center gap-2 self-start rounded-lg px-1 text-sm font-medium text-gray-900 underline underline-offset-4"
         >
           <Mail className="h-4 w-4" aria-hidden="true" />
-          {profileCopy.feedback}
+          {t('coaching.trainer.profile.feedback')}
         </a>
         <Button
           type="button"
@@ -138,14 +139,14 @@ export function TrainerSettings({
           className="min-h-11 self-start text-red-700"
           onClick={() => setConfirming(true)}
         >
-          {copy.turnOff}
+          {t('coaching.trainer.turnOff')}
         </Button>
       </div>
 
       <Sheet
         open={confirming}
         onClose={() => setConfirming(false)}
-        title={copy.turnOff}
+        title={t('coaching.trainer.turnOff')}
         size="sm"
         footer={
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -155,14 +156,14 @@ export function TrainerSettings({
               onClick={() => setConfirming(false)}
               disabled={deactivate.isPending}
             >
-              {COACHING_COPY.common.cancel}
+              {t('coaching.common.cancel')}
             </Button>
             <Button
               type="button"
               onClick={() => deactivate.mutate()}
               loading={deactivate.isPending}
             >
-              {copy.turnOff}
+              {t('coaching.trainer.turnOff')}
             </Button>
           </div>
         }
@@ -170,10 +171,10 @@ export function TrainerSettings({
         <div className="flex flex-col gap-2 px-5 py-4 text-sm text-gray-600">
           {activeClients !== null && activeClients > 0 && (
             <p className="font-medium text-gray-900" data-testid="trainer-turn-off-clients">
-              {profileCopy.turnOffWithClients(activeClients)}
+              {t('coaching.trainer.profile.turnOffWithClients', { count: activeClients })}
             </p>
           )}
-          <p>{copy.turnOffBody}</p>
+          <p>{t('coaching.trainer.turnOffBody')}</p>
         </div>
       </Sheet>
     </section>

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { CoachView } from '@/features/trainer-coach/components/CoachView';
 import { TrainerModeGate } from '@/features/trainer-mode/components/TrainerModeGate';
+import { getServerTranslator } from '@/lib/i18n/server';
 
 /** "Log a workout for Maria" from client detail (trainer-mode.md §6.7): a coached workout with no booking. */
 export default async function TrainerCoachClientPage({
@@ -10,8 +11,9 @@ export default async function TrainerCoachClientPage({
 }) {
   const { clientId } = await searchParams;
   if (typeof clientId !== 'string' || clientId === '') redirect('/trainer/clients');
+  const { t } = await getServerTranslator();
   return (
-    <TrainerModeGate title="Coaching">
+    <TrainerModeGate title={t('coaching.trainer.pages.coaching')}>
       <CoachView bookingId={null} clientId={clientId} />
     </TrainerModeGate>
   );

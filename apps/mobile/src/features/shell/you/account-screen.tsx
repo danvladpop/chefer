@@ -1,6 +1,6 @@
 import { ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
+import type { Catalog, Translator } from '@chefer/i18n';
 import { ListRow, ListSection, Screen, Text } from '@chefer/ui-mobile';
 import { useIsPremium } from '../../../hooks/use-is-premium';
 import { useLocaleChoice, useT } from '../../../lib/i18n';
@@ -28,43 +28,69 @@ type AccountRow = {
   value?: string | undefined;
 };
 
-const YOU_ROWS: readonly AccountRow[] = [
-  { title: 'What you use Chefer for', testID: 'settings-jobs', href: '/settings/jobs' },
-  { title: 'Goal & body', testID: 'settings-goal-body', href: '/preferences?section=goal-body' },
-  { title: 'Your targets', testID: 'settings-targets', href: '/preferences?section=targets' },
+/** A row before translation: the title is a catalog key. */
+type RowSpec = {
+  titleKey: `settings.hub.rows.${keyof Catalog['settings']['hub']['rows']}`;
+  testID: string;
+  href: Href;
+};
+
+const YOU_ROWS: readonly RowSpec[] = [
+  { titleKey: 'settings.hub.rows.jobs', testID: 'settings-jobs', href: '/settings/jobs' },
+  {
+    titleKey: 'settings.hub.rows.goalBody',
+    testID: 'settings-goal-body',
+    href: '/preferences?section=goal-body',
+  },
+  {
+    titleKey: 'settings.hub.rows.targets',
+    testID: 'settings-targets',
+    href: '/preferences?section=targets',
+  },
 ];
 
-const LEGAL_ROWS: readonly AccountRow[] = [
-  { title: 'Terms of Service', testID: 'settings-terms', href: legalHref('terms') },
-  { title: 'Privacy Policy', testID: 'settings-privacy-policy', href: legalHref('privacy') },
+const LEGAL_ROWS: readonly RowSpec[] = [
+  { titleKey: 'settings.hub.rows.terms', testID: 'settings-terms', href: legalHref('terms') },
+  {
+    titleKey: 'settings.hub.rows.privacyPolicy',
+    testID: 'settings-privacy-policy',
+    href: legalHref('privacy'),
+  },
 ];
-
-/**
- * The board's shorter wording of WELLNESS_COPY.aboutMedicalDisclaimer (the
- * full text stays in the legacy Settings screen and on web).
- */
-export const ACCOUNT_DISCLAIMER =
-  "Chefer suggests meals and workouts as general guidance only. It isn't a medical device. Suggestions, including AI ones, can be wrong, even about allergens.";
 
 function accountRows(
+  t: Translator['t'],
   isPremium: boolean | undefined,
   friendsAvailable: boolean,
   language: { title: string; value: string },
 ): AccountRow[] {
   return [
     {
-      title: 'Plan & Premium',
+      title: t('settings.hub.rows.planPremium'),
       testID: 'settings-plan-premium',
       href: '/profile?section=plan',
       // Nothing while the user loads: no "Free" flash for a Premium account.
-      value: isPremium === undefined ? undefined : isPremium ? 'Premium' : 'Free',
+      value:
+        isPremium === undefined
+          ? undefined
+          : isPremium
+            ? t('settings.account.planPremium')
+            : t('settings.account.planFree'),
     },
-    { title: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
+    {
+      title: t('settings.hub.rows.emails'),
+      testID: 'settings-emails',
+      href: '/preferences?section=weekly-updates',
+    },
     // ADR 0004: shows the language in itself ("Română"), so it is findable in any language.
     { ...language, testID: 'settings-language', href: '/settings/language' },
-    { title: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
     {
-      title: 'Download or delete my data',
+      title: t('settings.hub.rows.privacyData'),
+      testID: 'settings-privacy',
+      href: '/profile?section=privacy',
+    },
+    {
+      title: t('settings.hub.rows.accountData'),
       testID: 'settings-account-data',
       href: '/profile?section=account',
     },
@@ -72,7 +98,7 @@ function accountRows(
     ...(friendsAvailable
       ? [
           {
-            title: FRIENDS_COPY.settings.title,
+            title: t('friends.settings.title'),
             testID: 'settings-sharing',
             href: '/friends/settings' as Href,
           },
@@ -91,6 +117,12 @@ export function AccountScreen() {
     value: choice ? t(`settings.language.names.${locale}`) : t('settings.language.automatic'),
   };
 
+  const spec = (item: RowSpec): AccountRow => ({
+    title: t(item.titleKey),
+    testID: item.testID,
+    href: item.href,
+  });
+
   const row = (item: AccountRow) => (
     <ListRow
       key={item.testID}
@@ -102,23 +134,29 @@ export function AccountScreen() {
   );
 
   return (
-    <ShellChromeProvider value={{ kind: 'pushed', fallback: '/you', title: 'Account' }}>
+    <ShellChromeProvider
+      value={{ kind: 'pushed', fallback: '/you', title: t('settings.account.title') }}
+    >
       <Screen className="bg-canvas px-0">
         <View testID="account-header" className="px-4">
           <ShellTopBar />
         </View>
         <ScrollView testID="account-scroll" contentContainerClassName="gap-6 px-4 pb-8 pt-2">
-          <ListSection title="You">{YOU_ROWS.map(row)}</ListSection>
-          <ListSection title="Account">
-            {accountRows(isPremium, friendsAvailable, language).map(row)}
+          <ListSection title={t('settings.hub.groups.you')}>
+            {YOU_ROWS.map(spec).map(row)}
           </ListSection>
-          <ListSection title="Legal">{LEGAL_ROWS.map(row)}</ListSection>
+          <ListSection title={t('settings.hub.groups.account')}>
+            {accountRows(t, isPremium, friendsAvailable, language).map(row)}
+          </ListSection>
+          <ListSection title={t('settings.hub.groups.legal')}>
+            {LEGAL_ROWS.map(spec).map(row)}
+          </ListSection>
           {/* T-22.3: the medical/legal disclaimer stays visible on this screen. */}
           <Text
             testID="settings-about-disclaimer"
             className="px-4 text-caption text-label-secondary"
           >
-            {ACCOUNT_DISCLAIMER}
+            {t('settings.account.disclaimer')}
           </Text>
         </ScrollView>
       </Screen>

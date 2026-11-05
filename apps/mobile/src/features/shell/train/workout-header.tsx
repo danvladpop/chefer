@@ -9,6 +9,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { formatClock } from '../../gym/workout/workout-model';
 import { TrainButton } from './train-button';
 
@@ -58,6 +59,7 @@ export function WorkoutHeader({
   onMinimise,
   onFinish,
 }: WorkoutHeaderProps) {
+  const { t } = useT();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   // Large screens: Screen pads a wide window down to the readable column; the
@@ -85,7 +87,7 @@ export function WorkoutHeader({
       <View className="flex-row items-center gap-2">
         <IconButton
           testID="workout-minimise"
-          accessibilityLabel="Minimise workout"
+          accessibilityLabel={t('gym.workout.logger.screen.minimiseA11y')}
           className="bg-brand-on/20"
           icon={<Icon name="chevronDown" color={colors.onBrand} />}
           onPress={onMinimise}
@@ -102,24 +104,24 @@ export function WorkoutHeader({
           testID="workout-finish"
           variant="onBrand"
           pill
-          label="Finish"
-          accessibilityLabel="Finish workout"
+          label={t('gym.workout.view.finish')}
+          accessibilityLabel={t('gym.workout.logger.screen.finishWorkout')}
           loading={finishing}
           onPress={onFinish}
         />
       </View>
       <View className="flex-row items-end justify-between gap-3">
         <View accessible>
-          <Text className="text-subhead text-brand-on">Time</Text>
+          <Text className="text-subhead text-brand-on">{t('gym.workout.logger.screen.time')}</Text>
           <Elapsed startedAt={startedAt} />
         </View>
         <View
           testID="workout-progress"
           accessible
-          accessibilityLabel={`${done} of ${planned} sets done`}
+          accessibilityLabel={t('gym.workout.view.setsDoneAria', { done, planned })}
           className="items-end"
         >
-          <Text className="text-subhead text-brand-on">Sets</Text>
+          <Text className="text-subhead text-brand-on">{t('gym.summary.stats.sets')}</Text>
           <Text maxFontSizeMultiplier={1.3} className="text-title1 font-bold text-brand-on">
             {done}
             <Text className="text-title3 font-semibold text-brand-on">{` / ${planned}`}</Text>
@@ -131,7 +133,7 @@ export function WorkoutHeader({
         progress={planned > 0 ? done / planned : 0}
         color={colors.onBrand}
         className="h-2 bg-brand-on/30"
-        accessibilityLabel={`${done} of ${planned} sets`}
+        accessibilityLabel={t('gym.workout.logger.screen.setsOf', { done, planned })}
       />
     </View>
   );

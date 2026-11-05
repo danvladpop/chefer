@@ -2,16 +2,33 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import type { PlanTrainingBasis, PlanTrainingDay, TrainingDayNutrition } from '@chefer/types';
 import { ExplainSheet, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
-  trainingDayLine,
+  formatKcal,
+  formatNumber,
   trainingExplainCopy,
   trainingGlyph,
   weekdayLongName,
 } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+
+/** "Training day · +250 kcal, +30 g protein" — the note's first line. */
+export function trainingDayLineText(
+  t: Translator['t'],
+  day: Pick<TrainingDayNutrition, 'kcalBonus' | 'proteinBonus' | 'kind'>,
+): string {
+  const kcal = formatKcal(day.kcalBonus);
+  if (day.kind === 'long_run') return t('today.home.trainingDay.line.longRun.kcal', { kcal });
+  if (day.kind === 'run') return t('today.home.trainingDay.line.run.kcal', { kcal });
+  return t('today.home.trainingDay.line.lift.kcal', {
+    kcal,
+    protein: formatNumber(day.proteinBonus),
+  });
+}
 
 /**
  * Training-aware nutrition (audit P2-4), mirrors web's TrainingDayNote and is
@@ -28,7 +45,7 @@ import { useNumbersMode } from '../../numbers-mode/numbers-mode';
  * the Explain sheet omits its rest-day row.
  */
 export function TrainingDayNote({
-  t,
+  t: note,
   isToday = true,
   restKcal,
   restProteinG,
@@ -40,13 +57,14 @@ export function TrainingDayNote({
   restProteinG?: number;
   className?: string;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const [explainOpen, setExplainOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion.
   const [explainMounted, setExplainMounted] = useState(false);
   const { proteinOnly, noNumbers } = useNumbersMode();
-  if (!t.isTrainingDay) return null;
-  const kind = t.kind ?? 'lift';
+  if (!note.isTrainingDay) return null;
+  const kind = note.kind ?? 'lift';
   const isRun = kind !== 'lift';
   // WP-08: protein-only shows the protein bump of a lifting day and nothing else
   // (a run day's bump is carbs and calories; its Why? sheet is all calories).
@@ -64,15 +82,29 @@ export function TrainingDayNote({
             className="min-w-0 flex-1 text-xs font-semibold text-primary"
           >
             {/* Lane E3 "Hide numbers": the day is named, the bump is not. */}
-            {noNumbers ? 'Training day' : `Training day · +${t.proteinBonus} g protein`}
+            {noNumbers
+              ? t('today.home.trainingDay.label')
+              : t('today.home.trainingDay.protein', { value: formatNumber(note.proteinBonus) })}
           </Text>
         </View>
       </View>
     );
   }
-  const workout = t.workoutName ?? 'Your workout';
-  const when = t.reason === 'COMPLETED' ? 'done' : isToday ? 'today' : 'planned';
-  const day = isToday ? 'today' : 'this day';
+  const workout = note.workoutName ?? t('today.home.trainingDay.yourWorkout');
+  const done = note.reason === 'COMPLETED';
+  const perKg = formatNumber(note.basis.trainingDayProteinGPerKg, { maximumFractionDigits: 1 });
+  const detail = isRun
+    ? t(isToday ? 'today.home.trainingDay.carbsToday' : 'today.home.trainingDay.carbsThisDay')
+    : t(
+        isToday
+          ? done
+            ? 'today.home.trainingDay.liftProtein.doneToday'
+            : 'today.home.trainingDay.liftProtein.today'
+          : done
+            ? 'today.home.trainingDay.liftProtein.doneThisDay'
+            : 'today.home.trainingDay.liftProtein.planned',
+        { workout, perKg },
+      );
   const glyph = trainingGlyph(kind);
 
   // A single-day PlanTrainingDay for the shared Explain copy (T-06.5).
@@ -82,17 +114,17 @@ export function TrainingDayNote({
     dayOfWeek,
     dayName: weekdayLongName(dayOfWeek),
     kind,
-    workoutName: t.workoutName ?? null,
-    kcalBonus: t.kcalBonus,
-    proteinBonus: t.proteinBonus,
-    carbsBonus: t.carbsBonus ?? 0,
-    done: t.reason === 'COMPLETED',
+    workoutName: note.workoutName ?? null,
+    kcalBonus: note.kcalBonus,
+    proteinBonus: note.proteinBonus,
+    carbsBonus: note.carbsBonus ?? 0,
+    done,
     applied: true,
     // UX-FOOD-19: the day's real target, so the sheet quotes it beside the rest-day one.
     ...(restKcal !== undefined &&
       restProteinG !== undefined && {
-        targetKcal: restKcal + t.kcalBonus,
-        targetProteinG: restProteinG + t.proteinBonus,
+        targetKcal: restKcal + note.kcalBonus,
+        targetProteinG: restProteinG + note.proteinBonus,
       }),
   };
   const basis: PlanTrainingBasis | null =
@@ -100,8 +132,8 @@ export function TrainingDayNote({
       ? {
           restKcal,
           restProteinG,
-          proteinGPerKg: t.basis.proteinGPerKg,
-          bodyweightKg: t.basis.bodyweightKg,
+          proteinGPerKg: note.basis.proteinGPerKg,
+          bodyweightKg: note.basis.bodyweightKg,
         }
       : null;
   const explain = trainingExplainCopy({ days: [explainDay], basis });
@@ -114,25 +146,23 @@ export function TrainingDayNote({
           testID="training-day-line"
           className="min-w-0 flex-1 text-xs font-semibold text-primary"
         >
-          {trainingDayLine(t)}
+          {trainingDayLineText(t, note)}
         </Text>
       </View>
-      <Text className="mt-0.5 text-xs text-primary/80">
-        {isRun
-          ? `Mostly carbs, added to ${day}`
-          : `${workout} ${when} · protein at ${t.basis.trainingDayProteinGPerKg} g/kg, added to ${day}`}
-      </Text>
+      <Text className="mt-0.5 text-xs text-primary/80">{detail}</Text>
       <Pressable
         testID="training-day-why"
         accessibilityRole="button"
-        accessibilityLabel="Why this training day target"
+        accessibilityLabel={t('today.home.trainingDay.whyLabel')}
         onPress={() => {
           setExplainMounted(true);
           setExplainOpen(true);
         }}
         className="min-h-11 justify-center self-start pr-4"
       >
-        <Text className="text-xs font-semibold text-primary">Why?</Text>
+        <Text className="text-xs font-semibold text-primary">
+          {t('today.home.trainingDay.why')}
+        </Text>
       </Pressable>
       {explainMounted && (
         <ExplainSheet

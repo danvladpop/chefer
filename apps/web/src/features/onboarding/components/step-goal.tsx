@@ -1,60 +1,41 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import { Check } from 'lucide-react';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import type { Goal } from '../types';
 
+// Label, description and calorie effect: `today.settings.goal.goals.<GOAL>.*`.
+// The effect shows how the goal changes the daily calorie target, on the card,
+// so the adjustment is visible at the moment of choosing.
 const GOALS: {
   value: Goal;
-  label: string;
   icon: string;
-  description: string;
-  /** How the goal changes the daily calorie target — shown on the card so the
-      adjustment is visible at the moment of choosing, not just in the preview. */
-  calorieEffect: string;
 }[] = [
   {
     value: 'LOSE_WEIGHT',
-    label: 'Lose Weight',
     icon: '⚖️',
-    description: 'Reduce body fat and reach a healthier weight',
-    calorieEffect: '−500 kcal/day deficit',
   },
   {
     value: 'MAINTAIN',
-    label: 'Maintain Weight',
     icon: '🎯',
-    description: 'Keep your current weight while eating well',
-    calorieEffect: 'Maintenance calories',
   },
   {
     value: 'GAIN_MUSCLE',
-    label: 'Gain Muscle',
     icon: '💪',
-    description: 'Build strength and increase lean muscle mass',
-    calorieEffect: '+300 kcal/day surplus',
   },
   {
     value: 'EAT_HEALTHIER',
-    label: 'Eat Healthier',
     icon: '🥗',
-    description: 'Improve overall nutrition and eating habits',
-    calorieEffect: 'Maintenance calories, better macros',
   },
   {
     value: 'RECOMP',
-    label: 'Recomposition',
     icon: '🔄',
-    description: 'Lose fat and build muscle at the same time',
-    calorieEffect: 'Maintenance calories',
   },
   {
     value: 'PERFORMANCE',
-    label: 'Performance',
     icon: '🏃',
-    description: 'Fuel training and recovery, not a scale number',
-    calorieEffect: 'Maintenance calories',
   },
 ];
 
@@ -87,15 +68,14 @@ export function StepGoal({
   // Lane E3: the goal's kcal effect is a nutrition figure; protein-only and
   // "Hide numbers" users see the goal without it.
   const { show } = useNumbersMode();
+  const { t } = useT();
   return (
     <div className="space-y-8">
       <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          What&apos;s your main goal?
+          {t('today.settings.goal.title')}
         </h1>
-        <p className="mt-2 text-muted-foreground">
-          Your meal plan will be optimised to support this goal.
-        </p>
+        <p className="mt-2 text-muted-foreground">{t('today.settings.goal.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -105,7 +85,7 @@ export function StepGoal({
             data-testid="goal-good-food"
             onClick={() => onGoodFood?.()}
             aria-pressed={goodFood}
-            aria-label="Just good food"
+            aria-label={t('today.settings.goal.goodFood.title')}
             className={`relative flex flex-col items-center gap-3 rounded-xl border-2 p-6 text-center transition-all hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               goodFood ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'
             }`}
@@ -119,15 +99,18 @@ export function StepGoal({
               🍽️
             </span>
             <div>
-              <p className="font-semibold">Just good food</p>
+              <p className="font-semibold">{t('today.settings.goal.goodFood.title')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                No calorie target. We&apos;ll plan balanced meals and never count for you.
+                {t('today.settings.goal.goodFood.detail')}
               </p>
             </div>
           </button>
         )}
-        {GOALS.map(({ value: v, label, icon, description, calorieEffect }) => {
+        {GOALS.map(({ value: v, icon }) => {
           const selected = !goodFood && value === v;
+          const label = t(`today.settings.goal.goals.${v}.label`);
+          const description = t(`today.settings.goal.goals.${v}.description`);
+          const calorieEffect = t(`today.settings.goal.goals.${v}.effect.kcal`);
           return (
             <button
               key={v}

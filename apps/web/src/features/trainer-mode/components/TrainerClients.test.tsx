@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRowDto } from '@chefer/types';
@@ -63,6 +64,20 @@ describe('TrainerClients', () => {
     expect(screen.getByTestId('requests')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Invite a client' }));
     expect(screen.getByRole('dialog', { name: 'Invite a client' })).toBeInTheDocument();
+  });
+
+  it('reads in Romanian: title, capacity with „de”, search and the sorts', () => {
+    m.rows = NAMES.map((n, i) => client(i, n, null));
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <TrainerClients />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Clienți' })).toBeInTheDocument();
+    expect(screen.getByTestId('trainer-clients-capacity')).toHaveTextContent('8 din 50 de clienți');
+    fireEvent.change(screen.getByLabelText('Caută clienți'), { target: { value: 'zz' } });
+    expect(screen.getByRole('status')).toHaveTextContent('Niciun client nu se potrivește cu „zz”.');
+    expect(screen.getByRole('option', { name: 'Următoarea programare' })).toBeInTheDocument();
   });
 
   it('has no search below 8 clients', () => {

@@ -1,10 +1,12 @@
-import { COACHING_COPY, COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import type { CoachingShareChoice } from '@chefer/types';
 import { Button } from '@chefer/ui';
+import { consentCanLines, consentWillSeeLines } from '../lib/copy';
 import { SharingSwitches } from './SharingSwitches';
 
 // ─── Consent screen (spec §2.3) ───────────────────────────────────────────────
 // The legal text of the COACHING_SHARING consent: every line comes from the
-// shared COACHING_COPY (mobile renders the same strings). Do not reword here.
+// `coaching.consent.*` catalog (mobile renders the same strings). Do not reword here.
 
 export interface ConsentScreenProps {
   trainerName: string;
@@ -41,23 +43,24 @@ export function ConsentScreen({
   share,
   onShareChange,
 }: ConsentScreenProps) {
-  const copy = COACHING_COPY.consent;
+  const { t } = useT();
+  const trainer = trainerName;
   return (
     <section aria-labelledby="coaching-consent-title" className="flex flex-col gap-5">
       <h1
         id="coaching-consent-title"
         className="font-serif text-2xl font-bold leading-tight text-gray-900"
       >
-        {title ?? copy.title(trainerName)}
+        {title ?? t('coaching.consent.title', { trainer })}
       </h1>
 
       <div className="flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div>
           <h2 className="text-sm font-semibold text-gray-900">
-            {copy.willSeeHeading(trainerName)}
+            {t('coaching.consent.willSeeHeading', { trainer })}
           </h2>
           <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-gray-700">
-            {copy.willSee.map((line) => (
+            {consentWillSeeLines(t).map((line) => (
               <li key={line} className="min-w-0 break-words">
                 {line}
               </li>
@@ -66,9 +69,11 @@ export function ConsentScreen({
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">{copy.canHeading(trainerName)}</h2>
+          <h2 className="text-sm font-semibold text-gray-900">
+            {t('coaching.consent.canHeading', { trainer })}
+          </h2>
           <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-gray-700">
-            {copy.can(trainerName).map((line) => (
+            {consentCanLines(trainer, t).map((line) => (
               <li key={line} className="min-w-0 break-words">
                 {line}
               </li>
@@ -76,21 +81,23 @@ export function ConsentScreen({
           </ul>
         </div>
 
-        <p className="text-sm text-gray-700">{copy.privateNotes(trainerName)}</p>
+        <p className="text-sm text-gray-700">{t('coaching.consent.privateNotes', { trainer })}</p>
 
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">{copy.neverHeading(trainerName)}</h2>
-          <p className="mt-1.5 text-sm text-gray-700">{copy.never}</p>
+          <h2 className="text-sm font-semibold text-gray-900">
+            {t('coaching.consent.neverHeading', { trainer })}
+          </h2>
+          <p className="mt-1.5 text-sm text-gray-700">{t('coaching.consent.never')}</p>
         </div>
 
-        <p className="text-sm text-gray-700">{copy.oneTrainer(trainerName)}</p>
+        <p className="text-sm text-gray-700">{t('coaching.consent.oneTrainer', { trainer })}</p>
 
         {currentTrainerName && (
           <p
             className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
             data-testid="coaching-switch-line"
           >
-            {switchNote ?? copy.switchLine(currentTrainerName)}
+            {switchNote ?? t('coaching.consent.switchLine', { current: currentTrainerName })}
           </p>
         )}
         {footnote && <p className="text-sm text-gray-700">{footnote}</p>}
@@ -98,7 +105,7 @@ export function ConsentScreen({
 
       {share && onShareChange && (
         <div className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-semibold text-gray-900">{COACHING_SHARING_COPY.heading}</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{t('coaching.sharing.heading')}</h2>
           <SharingSwitches
             testId="coaching-consent-share"
             trainerName={trainerName}
@@ -117,7 +124,10 @@ export function ConsentScreen({
 
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <Button type="button" className="min-h-11 sm:flex-1" onClick={onAllow} loading={busy}>
-          {allowLabel ?? (currentTrainerName ? copy.switchTo(trainerName) : copy.allow)}
+          {allowLabel ??
+            (currentTrainerName
+              ? t('coaching.consent.switchTo', { trainer })
+              : t('coaching.consent.allow'))}
         </Button>
         <Button
           type="button"
@@ -126,7 +136,7 @@ export function ConsentScreen({
           onClick={onDecline}
           disabled={busy}
         >
-          {copy.notNow}
+          {t('coaching.consent.notNow')}
         </Button>
       </div>
     </section>

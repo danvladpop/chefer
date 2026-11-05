@@ -11,6 +11,7 @@ import {
   type SocialSignInPayload,
 } from '@/features/auth/lib/social-web';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Download, LogOut, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
@@ -20,7 +21,6 @@ import {
   DATA_EXPORT_COPY as EXPORT_COPY,
   exportErrorMessage,
   exportSizeBucket,
-  PROGRESS_PHOTOS_COPY,
   todayIn,
   userFacingErrorMessage,
 } from '@chefer/utils';
@@ -34,6 +34,9 @@ import {
 // account-data-card.tsx shares the same file).
 
 /** The archive arrives base64 over tRPC; the browser saves the bytes. */
+/** The five "Deleted for good" lines (`today.settings.account.delete.deleted.*`). */
+const DELETED_LINES = ['profile', 'plans', 'recipes', 'workouts', 'household'] as const;
+
 function saveZip(filename: string, base64: string): void {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -47,6 +50,7 @@ function saveZip(filename: string, base64: string): void {
 }
 
 export function AccountDataCard() {
+  const { t } = useT();
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -66,23 +70,30 @@ export function AccountDataCard() {
       });
       setExportReady(true);
     } catch (err) {
-      setExportError(exportErrorMessage(err));
+      // exportErrorMessage() tells the rate limit apart; the words are the catalog's.
+      setExportError(
+        exportErrorMessage(err) === EXPORT_COPY.tooSoon
+          ? t('today.settings.account.export.tooSoon')
+          : t('today.settings.account.export.failed'),
+      );
     }
   }
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-      <h2 className="mb-1 font-semibold text-gray-800">Your data</h2>
-      <p className="mb-4 text-sm text-gray-600">{EXPORT_COPY.intro}</p>
-      <p className="-mt-3 mb-4 text-xs text-gray-500">{PROGRESS_PHOTOS_COPY.exportNote}</p>
+      <h2 className="mb-1 font-semibold text-gray-800">{t('today.settings.account.title')}</h2>
+      <p className="mb-4 text-sm text-gray-600">{t('today.settings.account.export.intro')}</p>
+      <p className="-mt-3 mb-4 text-xs text-gray-500">{t('today.photos.exportNote')}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button variant="outline" onClick={() => void downloadData()} disabled={exporting}>
           <Download aria-hidden="true" />
-          {exporting ? EXPORT_COPY.busy : EXPORT_COPY.button}
+          {exporting
+            ? t('today.settings.account.export.busy')
+            : t('today.settings.account.export.button')}
         </Button>
         <Button variant="outline" onClick={logout}>
           <LogOut aria-hidden="true" />
-          Sign out
+          {t('today.settings.account.signOut')}
         </Button>
         <Button
           variant="outline"
@@ -90,7 +101,7 @@ export function AccountDataCard() {
           onClick={() => setDeleteOpen(true)}
         >
           <Trash2 aria-hidden="true" />
-          {COPY.button}
+          {t('today.settings.account.delete.button')}
         </Button>
       </div>
       {exportError && (
@@ -98,13 +109,19 @@ export function AccountDataCard() {
           {exportError}
         </p>
       )}
-      {exportReady && <Toast message={EXPORT_COPY.ready} onClose={() => setExportReady(false)} />}
+      {exportReady && (
+        <Toast
+          message={t('today.settings.account.export.ready')}
+          onClose={() => setExportReady(false)}
+        />
+      )}
       <DeleteAccountSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </div>
   );
 }
 
 function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useT();
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -151,7 +168,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
   };
   const onSdkError = (err: Error) => {
     if (!(err instanceof SocialCancelledError)) {
-      setSdkError('We couldn’t reach the sign-in service. Check your connection and try again.');
+      setSdkError(t('today.settings.account.delete.sdkError'));
     }
   };
 
@@ -159,11 +176,11 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
     <Sheet
       open={open}
       onClose={onClose}
-      title={COPY.title}
+      title={t('today.settings.account.delete.title')}
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onClose}>
-            {COPY.cancel}
+            {t('today.settings.account.delete.cancel')}
           </Button>
           {!passwordless && (
             <Button
@@ -171,7 +188,9 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
               disabled={!ready || deleteMutation.isPending}
               onClick={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
             >
-              {deleteMutation.isPending ? COPY.submitting : COPY.submit}
+              {deleteMutation.isPending
+                ? t('today.settings.account.delete.submitting')
+                : t('today.settings.account.delete.submit')}
             </Button>
           )}
         </div>
@@ -179,23 +198,29 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
     >
       <div className="space-y-3 px-5 pb-2">
         <div className="space-y-2 text-sm text-gray-700" data-testid="delete-account-summary">
-          <p className="font-medium text-gray-900">{COPY.permanent}</p>
-          <p>{COPY.listHeading}</p>
+          <p className="font-medium text-gray-900">
+            {t('today.settings.account.delete.permanent')}
+          </p>
+          <p>{t('today.settings.account.delete.listHeading')}</p>
           <ul className="list-disc space-y-1 pl-5">
-            {COPY.deleted.map((line) => (
-              <li key={line}>{line}</li>
+            {DELETED_LINES.map((line) => (
+              <li key={line}>{t(`today.settings.account.delete.deleted.${line}`)}</li>
             ))}
           </ul>
-          <p className="text-xs text-gray-600">{COPY.backups}</p>
-          <p className="text-xs text-gray-600">{COPY.progressPhotos}</p>
+          <p className="text-xs text-gray-600">{t('today.settings.account.delete.backups')}</p>
+          <p className="text-xs text-gray-600">
+            {t('today.settings.account.delete.progressPhotos')}
+          </p>
         </div>
         {passwordless ? (
           <div className="space-y-2" data-testid="delete-account-reauth">
-            <p className="text-sm font-medium text-gray-800">{COPY.reauthTitle}</p>
-            <p className="text-xs text-gray-600">{COPY.reauthHint}</p>
+            <p className="text-sm font-medium text-gray-800">
+              {t('today.settings.account.delete.reauthTitle')}
+            </p>
+            <p className="text-xs text-gray-600">{t('today.settings.account.delete.reauthHint')}</p>
             {!confirmed && (
               <p className="text-xs text-gray-600" data-testid="delete-account-reauth-wait">
-                {COPY.reauthTypeFirst}
+                {t('today.settings.account.delete.reauthTypeFirst', { word: COPY.confirmWord })}
               </p>
             )}
             {confirmed && canGoogle && providers.google && (
@@ -207,7 +232,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
             )}
             {canApple && apple && (
               <AppleSignInButton
-                label={COPY.reauthApple}
+                label={t('today.settings.account.delete.reauthApple')}
                 disabled={!confirmed || deleteMutation.isPending}
                 onClick={() => {
                   setSdkError(null);
@@ -217,7 +242,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
             )}
             {noReauthOnWeb && (
               <p className="text-sm text-gray-700" data-testid="delete-account-reauth-unavailable">
-                {COPY.reauthUnavailable}
+                {t('today.settings.account.delete.reauthUnavailable')}
               </p>
             )}
             {sdkError && (
@@ -234,7 +259,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
         ) : (
           <>
             <label className="block text-sm font-medium text-gray-800">
-              {COPY.passwordLabel}
+              {t('today.settings.account.delete.passwordLabel')}
               <input
                 ref={passwordRef}
                 type="password"
@@ -270,7 +295,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
                   className="text-sm text-gray-700"
                   data-testid="delete-account-reset-sent"
                 >
-                  {COPY.resetSentTo} {email}. {COPY.resetSentHint}
+                  {t('today.settings.account.delete.resetSent', { email })}
                 </p>
               ) : (
                 <button
@@ -280,7 +305,9 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
                   onClick={() => resetMutation.mutate({ email })}
                   className="min-h-11 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
                 >
-                  {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
+                  {resetMutation.isPending
+                    ? t('today.settings.account.delete.resetSending')
+                    : t('today.settings.account.delete.forgotPassword')}
                 </button>
               ))}
             {resetMutation.isError && (
@@ -291,7 +318,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
           </>
         )}
         <label className="block text-sm font-medium text-gray-800">
-          {COPY.confirmLabel}
+          {t('today.settings.account.delete.confirmLabel', { word: COPY.confirmWord })}
           <input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}

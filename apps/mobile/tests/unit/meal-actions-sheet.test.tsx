@@ -1,6 +1,13 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { MealActionsSheet } from '../../src/features/tracker/meal-actions-sheet';
+import {
+  mealLabel,
+  skippedMessage,
+  SLOT_COPY,
+  youHadText,
+} from '../../src/features/tracker/slot-copy';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // Lane A2: save one meal of the day under a name, or copy it to another day
 // and/or meal with an Undo that deletes exactly the copies.
@@ -135,5 +142,29 @@ describe('MealActionsSheet (lane A2)', () => {
     expect(screen.getByTestId('meal-actions-count')).toHaveTextContent(/Nothing logged/);
     expect(screen.getByTestId('meal-actions-save')).toBeDisabled();
     expect(screen.getByTestId('meal-actions-copy')).toBeDisabled();
+  });
+});
+
+describe('MealActionsSheet and the slot copy in Romanian (Lane J)', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('counts the entries and confirms a copy in Romanian', async () => {
+    const user = userEvent.setup();
+    await renderSheet(['lunch', 'lunch']);
+    expect(screen.getByTestId('meal-actions-count')).toHaveTextContent('2 intrări adăugate');
+    await user.press(screen.getByTestId('meal-actions-to-meal-dinner'));
+    await user.press(screen.getByTestId('meal-actions-copy'));
+    const snack = mockSnackbarShow.mock.calls.at(-1)?.[0] as { message: string };
+    expect(snack.message).toMatch(/^Ai copiat 2 intrări la cină, /);
+  });
+
+  it('the slot helpers other screens import follow the UI language', () => {
+    expect(SLOT_COPY.skippedLabel).toBe('Sărită');
+    expect(mealLabel('dinner')).toBe('Cină');
+    expect(skippedMessage('lunch')).toBe('Ai sărit prânzul');
+    expect(youHadText({ custom: { name: 'Shaorma' }, kcal: 650 }, false, true)).toBe(
+      'Ai mâncat: Shaorma',
+    );
   });
 });

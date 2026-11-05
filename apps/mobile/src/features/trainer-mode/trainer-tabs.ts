@@ -1,4 +1,3 @@
-import { TRAINER_MODE_COPY } from '@chefer/types';
 import type { IconName } from '../../components/icon';
 import type { TrainerTab } from '../shell/shell-routes';
 
@@ -7,28 +6,29 @@ import type { TrainerTab } from '../shell/shell-routes';
 
 export const TRAINER_TABS: readonly {
   name: TrainerTab;
-  title: string;
+  /** The tab's name, translated where the tab bar is drawn. */
+  titleKey: `trainer.tabs.${TrainerTab}`;
   icon: IconName;
   activeIcon: IconName;
 }[] = [
   {
     name: 'schedule',
-    title: TRAINER_MODE_COPY.tabs.schedule,
+    titleKey: 'trainer.tabs.schedule',
     icon: 'schedule',
     activeIcon: 'scheduleActive',
   },
   {
     name: 'clients',
-    title: TRAINER_MODE_COPY.tabs.clients,
+    titleKey: 'trainer.tabs.clients',
     icon: 'clients',
     activeIcon: 'clientsActive',
   },
-  { name: 'today', title: TRAINER_MODE_COPY.tabs.today, icon: 'today', activeIcon: 'todayActive' },
+  { name: 'today', titleKey: 'trainer.tabs.today', icon: 'today', activeIcon: 'todayActive' },
   {
     name: 'workouts',
-    title: TRAINER_MODE_COPY.tabs.workouts,
+    titleKey: 'trainer.tabs.workouts',
     icon: 'workouts',
     activeIcon: 'workoutsActive',
   },
-  { name: 'you', title: TRAINER_MODE_COPY.tabs.you, icon: 'you', activeIcon: 'youActive' },
+  { name: 'you', titleKey: 'trainer.tabs.you', icon: 'you', activeIcon: 'youActive' },
 ];

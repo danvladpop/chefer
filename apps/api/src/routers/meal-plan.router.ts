@@ -9,6 +9,7 @@ import type { HouseholdScope } from '../application/household/household-access.s
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
+import { recipeTranslationService } from '../application/recipe/recipe-translation.service.js';
 import { assertAiConsent } from '../lib/ai-consent-gate.js';
 import { checkUserAiBudget } from '../lib/ai/budget-gate.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
@@ -20,6 +21,7 @@ import {
 } from '../lib/household-middleware.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
+import { userLocale } from '../lib/user-locale.js';
 
 // A one-off override on `generate`: every field optional, merged over the
 // user's stored shape for this call only (never persisted) — e.g.
@@ -269,9 +271,13 @@ export const mealPlanRouter = router({
    * Returns the user's current active meal plan with all recipes, or null.
    */
   getActive: householdPlanProcedure.query(async ({ ctx }) => {
-    return mealPlanService.getActive(
-      ctx.household.planUserId,
-      sharedView(ctx.user, ctx.household, ctx.planUser),
+    // ADR 0004: curated recipes in the reader's language (English fallback).
+    return recipeTranslationService.localizeWeekPlan(
+      await mealPlanService.getActive(
+        ctx.household.planUserId,
+        sharedView(ctx.user, ctx.household, ctx.planUser),
+      ),
+      userLocale(ctx.user),
     );
   }),
 
@@ -285,10 +291,13 @@ export const mealPlanRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getForWeek(
-        ctx.household.planUserId,
-        input.weekOffset,
-        sharedView(ctx.user, ctx.household, ctx.planUser),
+      return recipeTranslationService.localizeWeekPlan(
+        await mealPlanService.getForWeek(
+          ctx.household.planUserId,
+          input.weekOffset,
+          sharedView(ctx.user, ctx.household, ctx.planUser),
+        ),
+        userLocale(ctx.user),
       );
     }),
 
@@ -298,7 +307,10 @@ export const mealPlanRouter = router({
   getRecipe: protectedProcedure
     .input(z.object({ recipeId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      return mealPlanService.getRecipe(ctx.user.id, input.recipeId);
+      return recipeTranslationService.localizeOne(
+        await mealPlanService.getRecipe(ctx.user.id, input.recipeId),
+        userLocale(ctx.user),
+      );
     }),
 
   /**

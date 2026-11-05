@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   Button,
   Chip,
@@ -20,6 +19,7 @@ import {
 } from '@chefer/ui-mobile';
 import { formatKcal } from '@chefer/utils';
 import { Icon, type IconName } from '../../../components/icon';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc } from '../../../lib/trpc';
 import { nutritionStatusBadge } from '../../ingredients/nutrition-provenance';
@@ -41,21 +41,10 @@ type Tab = 'all' | 'saved' | 'my' | 'discover';
 
 const PAGE_SIZE = 30;
 
-const TABS = [
-  { value: 'all' as const, label: 'All', testID: 'cookbook-tab-all' },
-  { value: 'saved' as const, label: 'Saved', testID: 'cookbook-tab-saved' },
-  { value: 'my' as const, label: 'Mine', testID: 'cookbook-tab-my' },
-  { value: 'discover' as const, label: 'Discover', testID: 'cookbook-tab-discover' },
-];
+const TAB_VALUES = ['all', 'saved', 'my', 'discover'] as const;
 
 type MealFilter = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-const MEAL_FILTERS: { key: MealFilter | null; label: string }[] = [
-  { key: null, label: 'Any meal' },
-  { key: 'breakfast', label: 'Breakfast' },
-  { key: 'lunch', label: 'Lunch' },
-  { key: 'dinner', label: 'Dinner' },
-  { key: 'snack', label: 'Snack' },
-];
+const MEAL_FILTERS: (MealFilter | null)[] = [null, 'breakfast', 'lunch', 'dinner', 'snack'];
 const QUICK_MINS = 30;
 
 /** The fields a tile needs — shared by recipe.list and recipe.discover rows. */
@@ -76,11 +65,12 @@ export interface CookbookRecipe {
 export function cookbookFromLabel(
   recipe: Pick<CookbookRecipe, 'creator' | 'origin'>,
 ): string | null {
-  if (recipe.creator) return FRIENDS_COPY.recipe.from(recipe.creator.firstName);
+  const { t } = getTranslator();
+  if (recipe.creator) return t('friends.recipe.from', { first: recipe.creator.firstName });
   if (recipe.origin) {
     return recipe.origin.creatorFirstName
-      ? FRIENDS_COPY.recipe.from(recipe.origin.creatorFirstName)
-      : FRIENDS_COPY.recipe.fromGone;
+      ? t('friends.recipe.from', { first: recipe.origin.creatorFirstName })
+      : t('friends.recipe.fromGone');
   }
   return null;
 }
@@ -91,10 +81,15 @@ export function cookbookFromLabel(
  */
 export function cookbookTileMeta(recipe: CookbookRecipe, proteinOnly = false): string {
   const minutes = Math.max(0, Math.round(recipe.prepTimeMins + recipe.cookTimeMins));
-  if (proteinOnly) return `${minutes} min`;
+  const { t } = getTranslator();
+  if (proteinOnly) return t('recipes.detail.minutes', { mins: minutes });
   const kcal = (recipe.nutritionInfo as { calories?: number } | null)?.calories;
   const caveat = nutritionStatusBadge(recipe.nutritionStatus);
-  return [`${minutes} min`, kcal !== undefined ? `${formatKcal(kcal)} kcal` : null, caveat]
+  return [
+    t('recipes.detail.minutes', { mins: minutes }),
+    kcal !== undefined ? t('recipes.card.kcal', { value: formatKcal(kcal) }) : null,
+    caveat,
+  ]
     .filter(Boolean)
     .join(' · ');
 }
@@ -151,8 +146,14 @@ function HeaderButton({
 }
 
 export function CookbookScreen() {
+  const { t } = useT();
   const colors = useThemeColors();
   const { proteinOnly } = useNumbersMode();
+  const tabs = TAB_VALUES.map((value) => ({
+    value,
+    label: t(`recipes.cookbook.tabs.${value}`),
+    testID: `cookbook-tab-${value}`,
+  }));
   const [tab, setTab] = useState<Tab>('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -249,13 +250,13 @@ export function CookbookScreen() {
         imageUri={getRecipeImageUrl(recipe.imageUrl)}
         illustration={<Icon name="recipes" color={colors.brand} size={32} />}
         {...(from ? { badge: from } : {})}
-        accessibilityHint="Opens the recipe"
+        accessibilityHint={t('recipes.cookbook.opensRecipe')}
         onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
         action={
           <IconButton
             testID={`cookbook-heart-${recipe.id}`}
             accessibilityLabel={
-              recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
+              recipe.isFavourite ? t('recipes.list.unfavourite') : t('recipes.list.favourite')
             }
             className="bg-surface"
             icon={
@@ -279,7 +280,7 @@ export function CookbookScreen() {
         <View className="flex-row gap-2.5">
           <HeaderButton
             testID="cookbook-new"
-            label="New recipe"
+            label={t('recipes.cookbook.newRecipe')}
             icon="add"
             tone="primary"
             onPress={() => router.push('/recipe-form')}
@@ -287,7 +288,7 @@ export function CookbookScreen() {
           {/* Import (F5) — every tier: free gets the preview. */}
           <HeaderButton
             testID="cookbook-import"
-            label="Import"
+            label={t('recipes.list.import')}
             icon="link"
             tone="tinted"
             onPress={() => router.push('/import-recipe')}
@@ -296,16 +297,22 @@ export function CookbookScreen() {
         <SearchField
           testID="cookbook-search"
           accessibilityLabel={
-            tab === 'discover' ? 'Search dishes or ingredients' : 'Search recipes'
+            tab === 'discover'
+              ? t('recipes.cookbook.searchDiscover')
+              : t('recipes.list.searchLabel')
           }
           value={search}
           onChangeText={handleSearch}
-          placeholder={tab === 'discover' ? 'Search dishes or ingredients' : 'Search recipes'}
+          placeholder={
+            tab === 'discover'
+              ? t('recipes.cookbook.searchDiscover')
+              : t('recipes.list.searchLabel')
+          }
         />
         <SegmentedControl
           testID="cookbook-tabs"
-          accessibilityLabel="Recipes to show"
-          options={TABS}
+          accessibilityLabel={t('recipes.cookbook.tabsLabel')}
+          options={tabs}
           value={tab}
           onChange={changeTab}
         />
@@ -316,17 +323,17 @@ export function CookbookScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerClassName="gap-2"
           >
-            {MEAL_FILTERS.map(({ key, label }) => (
+            {MEAL_FILTERS.map((key) => (
               <Chip
-                key={label}
-                label={label}
+                key={key ?? 'any'}
+                label={t(`recipes.list.mealFilters.${key ?? 'any'}`)}
                 selected={mealFilter === key}
                 onPress={() => setMealFilter(key)}
                 testID={`cookbook-meal-${key ?? 'any'}`}
               />
             ))}
             <Chip
-              label={`≤ ${QUICK_MINS} min`}
+              label={t('recipes.list.quickFilter', { mins: QUICK_MINS })}
               selected={quickOnly}
               onPress={() => setQuickOnly((q) => !q)}
               testID="cookbook-quick"
@@ -340,7 +347,7 @@ export function CookbookScreen() {
           <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : isError && !recipes ? (
-        <ErrorState title="Couldn't load your recipes" onRetry={() => void refetch()} />
+        <ErrorState title={t('recipes.list.loadError')} onRetry={() => void refetch()} />
       ) : !recipes || recipes.length === 0 ? (
         <View
           testID="cookbook-empty"
@@ -350,7 +357,7 @@ export function CookbookScreen() {
             // UX-REC-09: the diet filters removed everything — say so.
             <>
               <Text className="text-center text-headline text-label">
-                Your diet settings hide every dish
+                {t('recipes.list.empty.dietHidesTitle')}
               </Text>
               <FilteredForLine
                 testID="cookbook-empty-filtered-for"
@@ -359,50 +366,62 @@ export function CookbookScreen() {
                 onPress={() => setWhatWeCheckOpen(true)}
               />
               <Button variant="outline" onPress={() => router.push('/preferences?section=safety')}>
-                Review your diet settings
+                {t('recipes.list.empty.dietHidesAction')}
               </Button>
             </>
           ) : searching ? (
             <>
-              <Text className="text-center text-headline text-label">No matches</Text>
+              <Text className="text-center text-headline text-label">
+                {t('recipes.cookbook.noMatches')}
+              </Text>
               <Text className="text-center text-subhead text-label-secondary">
-                Try another word{tab === 'discover' ? ', or clear the filters.' : '.'}
+                {tab === 'discover'
+                  ? t('recipes.cookbook.tryAnotherWordFilters')
+                  : t('recipes.cookbook.tryAnotherWord')}
               </Text>
             </>
           ) : tab === 'discover' ? (
             <>
-              <Text className="text-center text-headline text-label">No dishes match</Text>
+              <Text className="text-center text-headline text-label">
+                {t('recipes.list.empty.discoverTitle')}
+              </Text>
               <Text className="text-center text-subhead text-label-secondary">
-                {filtered ? 'Try clearing the filters.' : 'Check back soon, new dishes are added.'}
+                {filtered
+                  ? t('recipes.cookbook.tryClearingFilters')
+                  : t('recipes.cookbook.checkBackSoon')}
               </Text>
             </>
           ) : tab === 'saved' ? (
             <>
-              <Text className="text-center text-headline text-label">No saved recipes yet</Text>
+              <Text className="text-center text-headline text-label">
+                {t('recipes.list.empty.savedTitle')}
+              </Text>
               <Text className="text-center text-subhead text-label-secondary">
-                Tap the heart on any recipe to save it here.
+                {t('recipes.cookbook.savedBody')}
               </Text>
             </>
           ) : tab === 'my' ? (
             <>
               <Text className="text-center text-headline text-label">
-                No recipes of your own yet
+                {t('recipes.cookbook.myTitle')}
               </Text>
               <Text className="text-center text-subhead text-label-secondary">
-                Write one, or import one from a link, photo or video.
+                {t('recipes.cookbook.myBody')}
               </Text>
               <Button testID="cookbook-empty-create" onPress={() => router.push('/recipe-form')}>
-                Create a recipe
+                {t('recipes.cookbook.createRecipe')}
               </Button>
             </>
           ) : (
             <>
-              <Text className="text-center text-headline text-label">No recipes yet</Text>
+              <Text className="text-center text-headline text-label">
+                {t('recipes.list.empty.allTitle')}
+              </Text>
               <Text className="text-center text-subhead text-label-secondary">
-                Recipes from your meal plans appear here. Browse the collection meanwhile.
+                {t('recipes.list.empty.allBody')}
               </Text>
               <Button testID="cookbook-browse-discover" onPress={() => changeTab('discover')}>
-                Browse Discover
+                {t('recipes.list.empty.browseDiscover')}
               </Button>
             </>
           )}
@@ -442,7 +461,7 @@ export function CookbookScreen() {
                 variant="outline"
                 onPress={() => void list.fetchNextPage()}
               >
-                Couldn&apos;t load more. Try again
+                {t('recipes.cookbook.loadMoreError')}
               </Button>
             ) : null
           }

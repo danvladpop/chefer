@@ -97,6 +97,14 @@ export const cheferizedRecipeSchema = z.object({
   ),
 });
 
+/** Lane J phase 3: the translated text of one recipe (ADR 0004). */
+export const recipeTranslationDraftSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000),
+  instructions: z.array(z.string().trim().min(1).max(2000)).max(60),
+  ingredientNames: z.array(z.string().trim().min(1).max(200)).max(80),
+});
+
 /** rewriteRecipeProse's response (curated ingest). */
 export const rewrittenProseSchema = z.object({
   name: z.string().min(1),

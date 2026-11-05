@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { FRIENDS_COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
@@ -67,6 +68,7 @@ export function AddToWeekSheet({
   recipe: { id: string; name: string; kcal: number };
   onAdded: (result: AddToWeekResult) => void;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const nextWeekAllowed = canPickNextWeek();
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
@@ -155,7 +157,7 @@ export function AddToWeekSheet({
         disabled={add.isPending}
         onClick={() => setConfirming(false)}
       >
-        Cancel
+        {t('common.actions.cancel')}
       </Button>
     </div>
   ) : (
@@ -252,7 +254,11 @@ export function AddToWeekSheet({
             {FRIENDS_COPY.relation.error}
           </p>
         ) : (
-          <div role="radiogroup" aria-label="Meal slot" className="flex flex-col gap-2">
+          <div
+            role="radiogroup"
+            aria-label={t('recipes.detail.mealSlot')}
+            className="flex flex-col gap-2"
+          >
             {rows.map((row) => {
               const isSelected = selected?.key === row.key;
               const action =

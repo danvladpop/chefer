@@ -1,5 +1,6 @@
 'use client';
 
+import { useT } from '@/lib/i18n';
 import { MoreHorizontal } from 'lucide-react';
 import { useMenu } from '@chefer/ui';
 
@@ -18,12 +19,13 @@ export function SessionOptionsMenu({
   onDelete: () => void;
   testId: string;
 }) {
+  const { t } = useT();
   const menu = useMenu();
   return (
     <div ref={menu.rootRef} className="relative shrink-0">
       <button
         {...menu.triggerProps}
-        aria-label={`Options for ${label}`}
+        aria-label={t('gym.session.optionsFor', { label })}
         data-testid={testId}
         className="flex h-11 w-11 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
       >
@@ -39,11 +41,11 @@ export function SessionOptionsMenu({
             role="menuitem"
             tabIndex={-1}
             disabled
-            title="Editing a past workout is in the Chefer phone app for now."
+            title={t('gym.session.editTitle')}
             className="flex min-h-11 w-full flex-col items-start justify-center rounded-lg px-3 text-left text-sm text-gray-400"
           >
-            Edit workout
-            <span className="text-xs">In the phone app for now</span>
+            {t('gym.session.editWorkout')}
+            <span className="text-xs">{t('gym.session.editHint')}</span>
           </button>
           <button
             type="button"
@@ -56,7 +58,7 @@ export function SessionOptionsMenu({
             }}
             className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
           >
-            Delete workout
+            {t('gym.session.deleteWorkout')}
           </button>
         </div>
       )}

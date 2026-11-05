@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { Send } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY as COPY, type HouseholdSharingStatus } from '@chefer/types';
+import type { HouseholdSharingStatus } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { InviteSheet } from './InviteSheet';
@@ -33,6 +34,7 @@ export function MemberSharingLine({
   member: SharingMember;
   status: HouseholdSharingStatus;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -52,7 +54,9 @@ export function MemberSharingLine({
   if (status.role === 'PARTNER') {
     if (!claimed || member.isYou) return null;
     return (
-      <p className="mt-1 text-xs text-muted-foreground">{COPY.claimedProfileNote(member.name)}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t('household.sharing.claimedProfileNote', { name: member.name })}
+      </p>
     );
   }
 
@@ -61,19 +65,23 @@ export function MemberSharingLine({
     return (
       <div className="mt-2 flex flex-col gap-2" data-testid={`household-claimed-${member.id}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`${badgeCls} bg-emerald-50 text-emerald-800`}>{COPY.joinedBadge}</span>
+          <span className={`${badgeCls} bg-emerald-50 text-emerald-800`}>
+            {t('household.sharing.joinedBadge')}
+          </span>
           <span className="min-w-0 text-xs text-muted-foreground">
-            {COPY.claimedProfileNote(member.name)}
+            {t('household.sharing.claimedProfileNote', { name: member.name })}
           </span>
         </div>
         {link &&
           (confirmingRemove ? (
             <div
               role="group"
-              aria-label={COPY.remove}
+              aria-label={t('household.sharing.remove')}
               className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-3"
             >
-              <p className="text-sm text-red-900">{COPY.removeConfirm(member.name)}</p>
+              <p className="text-sm text-red-900">
+                {t('household.sharing.removeConfirm', { name: member.name })}
+              </p>
               {removePartner.error && (
                 <p role="alert" className="text-sm text-red-700">
                   {userFacingErrorMessage(removePartner.error)}
@@ -87,7 +95,7 @@ export function MemberSharingLine({
                   disabled={removePartner.isPending}
                   onClick={() => setConfirmingRemove(false)}
                 >
-                  {COPY.cancel}
+                  {t('household.sharing.cancel')}
                 </Button>
                 <Button
                   type="button"
@@ -96,7 +104,7 @@ export function MemberSharingLine({
                   loading={removePartner.isPending}
                   onClick={() => removePartner.mutate({ linkId: link.linkId })}
                 >
-                  {COPY.remove}
+                  {t('household.sharing.remove')}
                 </Button>
               </div>
             </div>
@@ -106,7 +114,7 @@ export function MemberSharingLine({
               onClick={() => setConfirmingRemove(true)}
               className="flex min-h-11 items-center self-start text-sm font-medium text-red-700 underline-offset-4 hover:underline"
             >
-              {COPY.remove}
+              {t('household.sharing.remove')}
             </button>
           ))}
       </div>
@@ -122,18 +130,18 @@ export function MemberSharingLine({
       <button
         type="button"
         onClick={() => setInviteOpen(true)}
-        aria-label={`${COPY.inviteButton}: ${member.name}`}
+        aria-label={t('household.sharing.inviteButtonLabel', { name: member.name })}
         className="flex min-h-11 items-center gap-1.5 rounded-lg border border-primary/40 px-3 text-sm font-medium text-primary hover:bg-primary/5"
       >
         <Send className="h-4 w-4" aria-hidden="true" />
-        {COPY.inviteButton}
+        {t('household.sharing.inviteButton')}
       </button>
       {pending && (
         <span
           className={`${badgeCls} bg-amber-50 text-amber-900`}
           data-testid="household-invite-pending"
         >
-          {COPY.invitePending}
+          {t('household.sharing.invitePending')}
         </span>
       )}
       {inviteOpen && (

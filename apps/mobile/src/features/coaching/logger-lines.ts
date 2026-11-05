@@ -1,11 +1,8 @@
-import {
-  editorLabel,
-  FALLBACK_TRAINER_NAME,
-  type GymBootstrap,
-  type ProgressionDto,
-  type SessionExerciseDoc,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { GymBootstrap, ProgressionDto, SessionExerciseDoc } from '@chefer/types';
 import { repBucket } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
+import { editorLabelT, trainerNameOrFallbackT } from './copy';
 
 // ─── Workout logger: the trainer's cue and "Set by Ana" (spec §2.6) ───────────
 // Both come from the cached bootstrap at render time, never from the session document: the document is
@@ -33,6 +30,7 @@ function overrideFor(
 export function buildTrainerLines(
   bootstrap: GymBootstrap | undefined,
   routineDayId: string | null,
+  t: Translator['t'] = getTranslator().t,
 ): TrainerLines | null {
   if (!bootstrap) return null;
   const day =
@@ -44,7 +42,7 @@ export function buildTrainerLines(
   if (!hasNotes && !hasSetBy) return null;
 
   return {
-    trainerName: bootstrap.coaching?.trainerName ?? FALLBACK_TRAINER_NAME,
+    trainerName: trainerNameOrFallbackT(bootstrap.coaching?.trainerName, t),
     noteFor: (se) => {
       if (se.routineExerciseId === null) return null;
       const row = day?.exercises.find((e) => e.id === se.routineExerciseId);
@@ -57,7 +55,7 @@ export function buildTrainerLines(
       const override = overrideFor(bootstrap.progressions, se)?.override;
       // Through the shared label, like every "Set by …" (PRD 2026-10 §4.3): "Ana (former trainer)".
       return override?.setByName
-        ? editorLabel({ name: override.setByName, former: override.setByFormer })
+        ? editorLabelT({ name: override.setByName, former: override.setByFormer }, t)
         : null;
     },
   };

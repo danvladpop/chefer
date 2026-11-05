@@ -6,6 +6,7 @@ import type {
   ShareCardDto,
   ShareCardLink,
   ShareCardPayload,
+  SupportedLocale,
 } from '@chefer/types';
 import { env } from '../../lib/env.js';
 import { gymStatsService, type GymStatsService } from '../gym/gym-stats.service.js';
@@ -66,6 +67,7 @@ export class ShareService {
   private async payloadFor(
     userId: string,
     input: CreateShareCardParsed,
+    locale: SupportedLocale,
   ): Promise<ShareCardPayload> {
     switch (input.kind) {
       case 'recipe':
@@ -90,10 +92,12 @@ export class ShareService {
         return { kind: 'workout', ...rest, ...(input.showPrs && prs.length > 0 && { prs }) };
       }
       case 'recap': {
-        const week = await this.deps.recap.week(userId, {
-          weekStart: input.weekStart,
-          localDate: input.localDate,
-        });
+        // The snapshot keeps the sharer's week label ("12–18 oct.").
+        const week = await this.deps.recap.week(
+          userId,
+          { weekStart: input.weekStart, localDate: input.localDate },
+          locale,
+        );
         return {
           kind: 'recap',
           label: week.label,
@@ -117,8 +121,13 @@ export class ShareService {
     }
   }
 
-  async create(userId: string, input: CreateShareCardParsed): Promise<ShareCardLink> {
-    const payload = await this.payloadFor(userId, input);
+  async create(
+    userId: string,
+    input: CreateShareCardParsed,
+    /** The sharer's language (`userLocale(ctx.user)`). */
+    locale: SupportedLocale = 'en',
+  ): Promise<ShareCardLink> {
+    const payload = await this.payloadFor(userId, input, locale);
     const id = this.deps.newId();
     await this.deps.repo.create({ id, userId, kind: input.kind, payload });
     const url = new URL(`/s/${id}`, this.deps.appUrl).toString();

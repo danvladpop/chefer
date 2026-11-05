@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Text } from '@chefer/ui-mobile';
-import { PLAN_MEAL_MENU_COPY } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
 
 // FB7-04: several dishes of one meal type on a day (a main + sides) read as ONE
@@ -26,12 +26,19 @@ export function PlanMealGroup({
   /** The compact side cards, indented under the main. */
   sides: ReactNode;
 }) {
+  const { t } = useT();
+  const groupTotal = t(
+    `plan.mealMenu.groupTotal.${
+      (['breakfast', 'lunch', 'dinner', 'snack'] as const).find((type) => type === mealType) ??
+      'meal'
+    }`,
+  );
   return (
     <View testID={testID} className="gap-2">
       <View className="min-w-0 flex-row items-center gap-2 px-1">
         <MealTypeBadge mealType={mealType} />
         <Text className="text-xs text-label-tertiary">
-          {PLAN_MEAL_MENU_COPY.dishCount(dishCount)}
+          {t('plan.mealMenu.dishCount', { count: dishCount })}
         </Text>
       </View>
       {main}
@@ -41,12 +48,10 @@ export function PlanMealGroup({
         <View
           testID={`${testID}-total`}
           accessible
-          accessibilityLabel={`${PLAN_MEAL_MENU_COPY.groupTotal(mealType)}: ${totalLine}`}
+          accessibilityLabel={`${groupTotal}: ${totalLine}`}
           className="min-w-0 flex-row flex-wrap items-center gap-x-2 rounded-xl bg-surface-sunken px-3 py-2"
         >
-          <Text className="text-xs font-semibold uppercase text-label-tertiary">
-            {PLAN_MEAL_MENU_COPY.groupTotal(mealType)}
-          </Text>
+          <Text className="text-xs font-semibold uppercase text-label-tertiary">{groupTotal}</Text>
           <Text className="min-w-0 flex-shrink text-xs text-label-secondary">{totalLine}</Text>
         </View>
       ) : null}

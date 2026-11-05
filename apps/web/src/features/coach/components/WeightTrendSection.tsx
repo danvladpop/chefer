@@ -1,20 +1,18 @@
 'use client';
 
-import { format } from 'date-fns';
+import { useT } from '@/lib/i18n';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   bodyWeightInUnit,
   bodyWeightUnit,
   formatBodyWeight,
-  STATS_RANGE_SPAN,
   summarizeWeightTrend,
-  TREND_WEIGHT_EXPLAINER,
-  trendChangeText,
   weightChangeTone,
   weightTrendSeries,
   type StatsRangeDays,
   type UnitSystem,
 } from '@chefer/utils';
+import { rangeSpan, trendChangeLine } from '../coach-copy';
 import { WeightEntriesList } from './WeightEntriesList';
 import { WeightLogForm } from './WeightLogForm';
 
@@ -41,12 +39,14 @@ export function WeightTrendSection({
   system: UnitSystem;
   goal: string | null | undefined;
 }) {
+  const tr = useT();
+  const { t } = tr;
   const unit = bodyWeightUnit(system);
   const series = weightTrendSeries(entries);
   const since = Date.now() - range * 86_400_000;
   const inRange = series.filter((p) => p.recordedAt.getTime() >= since);
   const chartData = inRange.map((p) => ({
-    date: format(p.recordedAt, 'dd MMM'),
+    date: tr.date(p.recordedAt, 'short'),
     weight: bodyWeightInUnit(p.weightKg, system),
     trend: bodyWeightInUnit(p.trendKg, system),
   }));
@@ -54,26 +54,27 @@ export function WeightTrendSection({
   const latest = entries.at(-1);
   const trendNow = series.at(-1)?.trendKg;
   const summary = summarizeWeightTrend(series, { windowDays: range });
-  const change = trendChangeText(summary, system, STATS_RANGE_SPAN[range]);
+  const span = rangeSpan(tr, range);
+  const change = trendChangeLine(tr, summary, system, span);
   const toward = summary ? weightChangeTone(summary.changeKg, goal) === 'positive' : false;
 
   return (
     <div id="weight" className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-        Weight Tracking
+        {t('today.progress.weight.heading')}
       </h2>
 
       {latest && (
         <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <div>
-            <span className="text-neutral-500">Last weigh-in: </span>
+            <span className="text-neutral-500">{t('today.progress.weight.lastWeighIn')} </span>
             <span data-testid="progress-weight-current" className="font-semibold">
               {formatBodyWeight(latest.weightKg, system)}
             </span>
           </div>
           {trendNow != null && series.length > 1 && (
             <div>
-              <span className="text-neutral-500">Trend: </span>
+              <span className="text-neutral-500">{t('today.progress.weight.trend')} </span>
               <span data-testid="progress-weight-trend" className="font-semibold">
                 {formatBodyWeight(trendNow, system)}
               </span>
@@ -122,7 +123,7 @@ export function WeightTrendSection({
                 dot={{ r: 3, fill: TREND_COLOR, strokeWidth: 0 }}
                 activeDot={{ r: 6 }}
                 isAnimationActive={false}
-                name="Weigh-in"
+                name={t('today.progress.weight.legendWeighIn')}
               />
               <Line
                 type="monotone"
@@ -131,22 +132,20 @@ export function WeightTrendSection({
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={{ r: 5 }}
-                name="Trend"
+                name={t('today.progress.weight.legendTrend')}
               />
             </LineChart>
           </ResponsiveContainer>
           <p data-testid="progress-weight-explainer" className="mt-2 text-xs text-neutral-500">
-            {TREND_WEIGHT_EXPLAINER}
+            {t('today.progress.weight.explainer')}
           </p>
         </>
       ) : entries.length > 0 ? (
         <p data-testid="progress-weight-few" className="mb-4 text-sm text-neutral-500">
-          Weigh in twice within {STATS_RANGE_SPAN[range]} to see your trend here.
+          {t('today.progress.weight.fewInRange', { span })}
         </p>
       ) : (
-        <p className="mb-4 text-sm text-neutral-500">
-          No weight entries yet. Log your first entry below.
-        </p>
+        <p className="mb-4 text-sm text-neutral-500">{t('today.progress.weight.empty')}</p>
       )}
 
       <div className="mt-4">

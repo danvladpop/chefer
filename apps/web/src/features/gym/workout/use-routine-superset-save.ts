@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import type { RoutineDoc, RoutineDto } from '@chefer/types';
 import { captureGymEvent } from '../analytics';
@@ -25,6 +26,7 @@ export function useRoutineSupersetSave(): (
   routine: RoutineDto,
   build: (routine: RoutineDto) => RoutineDoc | null,
 ) => Promise<boolean> {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const { mutateAsync } = trpc.gym.routine.save.useMutation({ meta: { silent: true } });
 
@@ -32,7 +34,7 @@ export function useRoutineSupersetSave(): (
     async (routine, build) => {
       const fail = () => {
         showGymToast({
-          message: "Couldn't change your routine. This workout keeps the change.",
+          message: t('gym.workout.view.routineSaveFailed'),
           type: 'error',
         });
         return false;
@@ -58,6 +60,6 @@ export function useRoutineSupersetSave(): (
       void utils.gym.routine.get.invalidate({ id: savedId });
       return true;
     },
-    [mutateAsync, utils],
+    [mutateAsync, utils, t],
   );
 }

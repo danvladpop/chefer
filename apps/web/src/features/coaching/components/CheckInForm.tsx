@@ -5,16 +5,12 @@ import { useEffect, useId, useState } from 'react';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import {
-  CHECK_IN_COPY,
-  CHECK_IN_LIMITS,
-  CHECK_IN_QUESTIONS,
-  type CheckInAnswers,
-  type CheckInQuestion,
-} from '@chefer/types';
+import { CHECK_IN_LIMITS, type CheckInAnswers, type CheckInQuestion } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { cn, isCompleteCheckIn, userFacingErrorMessage } from '@chefer/utils';
+import { trainerNameOrFallbackT } from '../lib/copy';
 
 // ─── /coaching/check-in (lane K3) ─────────────────────────────────────────────
 // The trainer's questions as 1–5 radio groups and an optional note. Sending
@@ -32,12 +28,13 @@ function ScaleRow({
   onChange: (value: number) => void;
   disabled: boolean;
 }) {
+  const { t } = useT();
   const id = useId();
-  const q = CHECK_IN_QUESTIONS[question];
+  const label = t(`coaching.checkIn.questions.${question}.label`);
   return (
     <fieldset className="flex flex-col gap-1.5" data-testid={`check-in-${question}`}>
       <legend id={`${id}-legend`} className="text-sm font-semibold text-gray-900">
-        {q.label}
+        {label}
       </legend>
       <div role="radiogroup" aria-labelledby={`${id}-legend`} className="flex gap-2">
         {[1, 2, 3, 4, 5].map((n) => (
@@ -46,7 +43,7 @@ function ScaleRow({
             type="button"
             role="radio"
             aria-checked={value === n}
-            aria-label={CHECK_IN_COPY.client.scaleLabel(q.label, n)}
+            aria-label={t('coaching.checkIn.client.scaleLabel', { question: label, value: n })}
             disabled={disabled}
             onClick={() => onChange(n)}
             className={cn(
@@ -61,15 +58,15 @@ function ScaleRow({
         ))}
       </div>
       <div className="flex justify-between text-xs text-gray-600">
-        <span>{q.low}</span>
-        <span>{q.high}</span>
+        <span>{t(`coaching.checkIn.questions.${question}.low`)}</span>
+        <span>{t(`coaching.checkIn.questions.${question}.high`)}</span>
       </div>
     </fieldset>
   );
 }
 
 export function CheckInForm() {
-  const copy = CHECK_IN_COPY.client;
+  const { t } = useT();
   const router = useRouter();
   const utils = trpc.useUtils();
   const noteId = useId();
@@ -92,14 +89,21 @@ export function CheckInForm() {
         edit: current.data?.answered != null,
       });
       void utils.coaching.checkIn.current.invalidate();
-      showAppToast({ message: copy.sent(sent.trainerName), type: 'success' });
+      showAppToast({
+        message: t('coaching.checkIn.client.sent', {
+          trainer: trainerNameOrFallbackT(sent.trainerName, t),
+        }),
+        type: 'success',
+      });
       router.push('/gym');
     },
   });
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-6 sm:px-6">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">
+        {t('coaching.checkIn.client.title')}
+      </h1>
       {current.isPending ? (
         <div className="h-64 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       ) : current.isError ? (
@@ -108,7 +112,7 @@ export function CheckInForm() {
         </p>
       ) : !current.data ? (
         <p className="text-sm text-gray-700" data-testid="check-in-closed">
-          {copy.closed}
+          {t('coaching.checkIn.client.closed')}
         </p>
       ) : (
         <form
@@ -126,7 +130,11 @@ export function CheckInForm() {
             });
           }}
         >
-          <p className="text-sm text-gray-700">{copy.intro(current.data.trainerName)}</p>
+          <p className="text-sm text-gray-700">
+            {t('coaching.checkIn.client.intro', {
+              trainer: trainerNameOrFallbackT(current.data.trainerName, t),
+            })}
+          </p>
           <div className="flex flex-col gap-5 rounded-2xl border bg-white p-4 shadow-sm">
             {current.data.questions.map((q) => (
               <ScaleRow
@@ -140,13 +148,13 @@ export function CheckInForm() {
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={noteId} className="text-sm font-semibold text-gray-900">
-              {copy.noteLabel}
+              {t('coaching.checkIn.client.noteLabel')}
             </label>
             <textarea
               id={noteId}
               value={note}
               maxLength={CHECK_IN_LIMITS.noteMaxChars}
-              placeholder={copy.notePlaceholder}
+              placeholder={t('coaching.checkIn.client.notePlaceholder')}
               onChange={(e) => setNote(e.target.value)}
               className="min-h-28 rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm"
             />
@@ -157,7 +165,7 @@ export function CheckInForm() {
             </p>
           )}
           {!isCompleteCheckIn(current.data.questions, answers) && (
-            <p className="text-xs text-gray-600">{copy.needsAll}</p>
+            <p className="text-xs text-gray-600">{t('coaching.checkIn.client.needsAll')}</p>
           )}
           <Button
             type="submit"
@@ -165,7 +173,9 @@ export function CheckInForm() {
             loading={submit.isPending}
             disabled={!isCompleteCheckIn(current.data.questions, answers)}
           >
-            {current.data.answered ? copy.edit : copy.send}
+            {current.data.answered
+              ? t('coaching.checkIn.client.edit')
+              : t('coaching.checkIn.client.send')}
           </Button>
         </form>
       )}

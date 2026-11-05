@@ -5,9 +5,7 @@ import type { OnboardingJob } from '@chefer/types';
 import { Input, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
-  ONBOARDING_V4_COPY as COPY,
   eatsEverything,
-  ENGAGEMENT_COPY,
   isQuickSafetyOn,
   ONBOARDING_V4_GOAL_TILES,
   ONBOARDING_V4_JOB_TILES,
@@ -15,6 +13,7 @@ import {
   type SafetyPickerValue,
 } from '@chefer/utils';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
+import { useT } from '../../lib/i18n';
 import { BiscuitStage, V4Caption, V4Chip, V4Heading, V4Tick, V4Tile, V4TileGrid } from './v4-ui';
 
 // Presentational V4 steps — no tRPC here; onboarding-v4.tsx owns the saves.
@@ -26,19 +25,23 @@ export function JobsStep({
   jobs: readonly OnboardingJob[];
   onToggle: (job: OnboardingJob) => void;
 }) {
+  const { t } = useT();
   return (
     <>
       <BiscuitStage loop="curious" size={170} />
-      <V4Heading title={COPY.jobsTitle} lede={COPY.jobsLede} />
+      <V4Heading
+        title={t('today.engagement.onboarding.jobs.title')}
+        lede={t('today.engagement.onboarding.jobs.lede')}
+      />
       <V4TileGrid>
-        {ONBOARDING_V4_JOB_TILES.map((t) => (
+        {ONBOARDING_V4_JOB_TILES.map((tile) => (
           <V4Tile
-            key={t.job}
-            icon={t.icon}
-            label={t.label}
-            selected={jobs.includes(t.job)}
-            onPress={() => onToggle(t.job)}
-            testID={`onb-v4-job-${t.job}`}
+            key={tile.job}
+            icon={tile.icon}
+            label={t(`today.engagement.onboarding.jobs.tiles.${tile.job}`)}
+            selected={jobs.includes(tile.job)}
+            onPress={() => onToggle(tile.job)}
+            testID={`onb-v4-job-${tile.job}`}
           />
         ))}
       </V4TileGrid>
@@ -54,21 +57,22 @@ export function GoalStep({
   choice: number | null;
   onChoose: (i: number) => void;
 }) {
+  const { t } = useT();
   const tile = choice === null ? null : ONBOARDING_V4_GOAL_TILES[choice];
   return (
     <>
       <BiscuitStage loop={tile?.loop ?? 'curious'} size={170} />
-      <V4Heading title={COPY.goalTitle} />
+      <V4Heading title={t('today.engagement.onboarding.goal.title')} />
       <V4TileGrid>
-        {ONBOARDING_V4_GOAL_TILES.map((t, i) => (
+        {ONBOARDING_V4_GOAL_TILES.map((goalTile, i) => (
           <V4Tile
-            key={t.label}
+            key={goalTile.label}
             role="radio"
-            icon={t.icon}
-            label={t.label}
+            icon={goalTile.icon}
+            label={t(`today.engagement.onboarding.goal.tiles.${goalTile.goal ?? 'GOOD_FOOD'}`)}
             selected={choice === i}
             onPress={() => onChoose(i)}
-            testID={`onb-v4-goal-${t.goal ?? 'GOOD_FOOD'}`}
+            testID={`onb-v4-goal-${goalTile.goal ?? 'GOOD_FOOD'}`}
           />
         ))}
       </V4TileGrid>
@@ -138,6 +142,8 @@ function NumberField({
   onChange: (v: string) => void;
   testID: string;
 }) {
+  const { t } = useT();
+  const name = label.trim() || t('today.engagement.onboarding.about.height');
   return (
     <View className="min-w-0 flex-1 gap-1.5">
       <Text className="text-subhead font-semibold text-label-secondary">{label}</Text>
@@ -150,7 +156,10 @@ function NumberField({
           keyboardType="decimal-pad"
           returnKeyType="done"
           onSubmitEditing={() => Keyboard.dismiss()}
-          accessibilityLabel={`${label.trim() || 'Height'}, ${unit}`}
+          accessibilityLabel={t('today.engagement.onboarding.about.fieldLabel', {
+            label: name,
+            unit,
+          })}
           testID={testID}
           className="min-h-[50px] rounded-control border-separator bg-surface pr-9 text-title3 font-semibold text-label"
         />
@@ -162,16 +171,23 @@ function NumberField({
   );
 }
 
-const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const WEEKDAY_NAMES = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
+/** The quick chips' keys (ONBOARDING_V4_QUICK_SAFETY), as catalog keys. */
+const QUICK_SAFETY_KEYS = [
+  'vegetarian',
+  'vegan',
+  'nuts',
+  'peanuts',
+  'dairy',
+  'gluten',
+  'eggs',
+  'fish',
+] as const;
+type QuickSafetyKey = (typeof QUICK_SAFETY_KEYS)[number];
+const isQuickSafetyKey = (key: string): key is QuickSafetyKey =>
+  (QUICK_SAFETY_KEYS as readonly string[]).includes(key);
+
+/** Monday first, as the plan's `dayOfWeek` (0 = Monday). */
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 export interface AboutYouValue {
   sex: 'FEMALE' | 'MALE' | null;
@@ -198,24 +214,25 @@ export function AboutYouStep({
   targetKcal: number | null;
   onChangeTarget: () => void;
 }) {
+  const { t, number } = useT();
   const set = (patch: Partial<AboutYouValue>) => onChange({ ...value, ...patch });
   return (
     <>
       <BiscuitStage loop="scale" size={120} />
-      <V4Heading title={COPY.aboutTitle} />
+      <V4Heading title={t('today.engagement.onboarding.about.title')} />
       <Segmented
-        label="Sex"
+        label={t('today.engagement.onboarding.about.sex')}
         value={value.sex}
         onChange={(sex) => set({ sex })}
         options={[
-          { value: 'FEMALE', label: 'Female' },
-          { value: 'MALE', label: 'Male' },
+          { value: 'FEMALE', label: t('today.engagement.onboarding.about.female') },
+          { value: 'MALE', label: t('today.engagement.onboarding.about.male') },
         ]}
       />
       <View className="flex-row gap-2">
         <NumberField
-          label="Age"
-          unit="yrs"
+          label={t('today.engagement.onboarding.about.age')}
+          unit={t('today.engagement.onboarding.about.ageUnit')}
           value={value.age}
           onChange={(age) => set({ age })}
           testID="onb-v4-age"
@@ -223,7 +240,7 @@ export function AboutYouStep({
         {imperial ? (
           <>
             <NumberField
-              label="Height"
+              label={t('today.engagement.onboarding.about.height')}
               unit="ft"
               value={value.height}
               onChange={(height) => set({ height })}
@@ -239,7 +256,7 @@ export function AboutYouStep({
           </>
         ) : (
           <NumberField
-            label="Height"
+            label={t('today.engagement.onboarding.about.height')}
             unit="cm"
             value={value.height}
             onChange={(height) => set({ height })}
@@ -247,7 +264,7 @@ export function AboutYouStep({
           />
         )}
         <NumberField
-          label="Weight"
+          label={t('today.engagement.onboarding.about.weight')}
           unit={imperial ? 'lb' : 'kg'}
           value={value.weight}
           onChange={(weight) => set({ weight })}
@@ -256,9 +273,9 @@ export function AboutYouStep({
       </View>
       {showTraining ? (
         <View className="gap-1.5">
-          <V4Caption>{COPY.aboutTrainOn}</V4Caption>
+          <V4Caption>{t('today.engagement.onboarding.about.trainOn')}</V4Caption>
           <View className="flex-row gap-1">
-            {WEEKDAY_LETTERS.map((letter, day) => {
+            {WEEKDAY_KEYS.map((key, day) => {
               const on = value.trainingWeekdays.includes(day);
               return (
                 <PressableScale
@@ -272,7 +289,7 @@ export function AboutYouStep({
                   }
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
-                  accessibilityLabel={WEEKDAY_NAMES[day]}
+                  accessibilityLabel={t(`common.weekdays.${key}`)}
                   testID={`onb-v4-day-${day}`}
                   className={cn(
                     'min-h-11 flex-1 items-center justify-center rounded-full border',
@@ -285,7 +302,7 @@ export function AboutYouStep({
                       on ? 'text-brand-on' : 'text-label',
                     )}
                   >
-                    {letter}
+                    {t(`today.engagement.onboarding.about.dayLetters.${key}`)}
                   </Text>
                 </PressableScale>
               );
@@ -300,21 +317,25 @@ export function AboutYouStep({
         >
           <View className="min-w-0 flex-1">
             <Text className="text-subhead font-semibold text-label-secondary">
-              {COPY.aboutTarget}
+              {t('today.engagement.onboarding.about.target')}
             </Text>
             <Text className="text-display font-bold text-brand">
-              {targetKcal.toLocaleString('en-GB')}{' '}
-              <Text className="text-headline font-semibold text-brand">kcal</Text>
+              {number(targetKcal)}{' '}
+              <Text className="text-headline font-semibold text-brand">
+                {t('today.engagement.onboarding.about.targetUnit.kcal')}
+              </Text>
             </Text>
           </View>
           <PressableScale
             onPress={onChangeTarget}
             accessibilityRole="button"
-            accessibilityLabel={`${COPY.aboutTargetChange} activity level`}
+            accessibilityLabel={t('today.engagement.onboarding.about.targetChangeLabel')}
             testID="onb-v4-target-change"
             className="min-h-11 justify-center rounded-control bg-surface px-3"
           >
-            <Text className="text-subhead font-semibold text-brand">{COPY.aboutTargetChange}</Text>
+            <Text className="text-subhead font-semibold text-brand">
+              {t('today.engagement.onboarding.about.targetChange')}
+            </Text>
           </PressableScale>
         </View>
       ) : null}
@@ -334,17 +355,23 @@ export function SafetyStep({
   onMore: () => void;
 }) {
   const c = useThemeColors();
+  const { t } = useT();
   const everything = eatsEverything(value);
+  const everythingLabel = t('today.engagement.onboarding.safety.everything');
+  const moreLabel = t('today.engagement.onboarding.safety.more');
   return (
     <>
       <BiscuitStage loop="sniff" size={140} />
-      <V4Heading title={COPY.safetyTitle} lede={COPY.safetyLede} />
+      <V4Heading
+        title={t('today.engagement.onboarding.safety.title')}
+        lede={t('today.engagement.onboarding.safety.lede')}
+      />
       <PressableScale
         pressScale="card"
         onPress={onEverything}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: everything }}
-        accessibilityLabel={COPY.safetyEverything}
+        accessibilityLabel={everythingLabel}
         testID="onb-v4-safety-everything"
         className={cn(
           'min-h-14 flex-row items-center gap-3 rounded-card px-3.5',
@@ -359,15 +386,19 @@ export function SafetyStep({
         >
           {everything ? <Ionicons name="checkmark" size={18} color={c.onBrand} /> : null}
         </View>
-        <Text className="text-headline font-semibold text-label">{COPY.safetyEverything}</Text>
+        <Text className="text-headline font-semibold text-label">{everythingLabel}</Text>
       </PressableScale>
       <View className="gap-2">
-        <V4Caption>{COPY.safetyOrPick}</V4Caption>
+        <V4Caption>{t('today.engagement.onboarding.safety.orPick')}</V4Caption>
         <View className="flex-row flex-wrap gap-2">
           {ONBOARDING_V4_QUICK_SAFETY.map((chip) => (
             <V4Chip
               key={chip.key}
-              label={chip.label}
+              label={
+                isQuickSafetyKey(chip.key)
+                  ? t(`today.engagement.onboarding.safety.chips.${chip.key}`)
+                  : chip.label
+              }
               selected={isQuickSafetyOn(value, chip.key)}
               onPress={() => onToggleQuick(chip.key)}
               testID={`onb-v4-safety-${chip.key}`}
@@ -378,11 +409,11 @@ export function SafetyStep({
       <PressableScale
         onPress={onMore}
         accessibilityRole="button"
-        accessibilityLabel={COPY.safetyMore}
+        accessibilityLabel={moreLabel}
         testID="onb-v4-safety-more"
         className="min-h-11 flex-row items-center gap-1.5 self-start"
       >
-        <Text className="text-callout font-semibold text-brand">{COPY.safetyMore}</Text>
+        <Text className="text-callout font-semibold text-brand">{moreLabel}</Text>
         <Ionicons name="chevron-forward" size={16} color={c.brand} />
       </PressableScale>
     </>
@@ -391,6 +422,7 @@ export function SafetyStep({
 
 /** The loader's checklist ticks one line at a time while the week builds. */
 export function BuildingStep({ kcal, failed }: { kcal: number | null; failed: string | null }) {
+  const { t, number } = useT();
   const [ticks, setTicks] = useState(0);
   useEffect(() => {
     if (failed) return;
@@ -404,21 +436,32 @@ export function BuildingStep({ kcal, failed }: { kcal: number | null; failed: st
   return (
     <>
       <BiscuitStage loop="cooking" size={230} />
-      <V4Heading title={failed ? COPY.buildingFailed : COPY.buildingTitle} />
+      <V4Heading
+        title={
+          failed
+            ? t('today.engagement.onboarding.building.failed')
+            : t('today.engagement.onboarding.building.title')
+        }
+      />
       {failed ? (
         <Text className="text-center text-callout text-label-secondary">{failed}</Text>
       ) : (
         <View className="gap-3 self-center" accessibilityLiveRegion="polite">
-          <V4Tick done={ticks >= 1} label={COPY.buildingMeals(kcal)} />
-          <V4Tick done={ticks >= 2} label={COPY.buildingDiet} />
-          <V4Tick done={false} label={COPY.buildingList} />
+          <V4Tick
+            done={ticks >= 1}
+            label={
+              kcal
+                ? t('today.engagement.onboarding.building.meals.kcal', { value: number(kcal) })
+                : t('today.engagement.onboarding.building.mealsNoTarget')
+            }
+          />
+          <V4Tick done={ticks >= 2} label={t('today.engagement.onboarding.building.diet')} />
+          <V4Tick done={false} label={t('today.engagement.onboarding.building.list')} />
         </View>
       )}
     </>
   );
 }
-
-const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function ReadyStep({
   dinners,
@@ -430,46 +473,55 @@ export function ReadyStep({
   onOpenList: () => void;
 }) {
   const c = useThemeColors();
+  const { t, number } = useT();
+  const listLabel =
+    listCount !== null ? t('today.engagement.onboarding.ready.list', { count: listCount }) : '';
   return (
     <>
       <BiscuitStage loop="ready" size={150} />
-      <V4Heading title={COPY.readyTitle} lede={COPY.readyLede} />
+      <V4Heading
+        title={t('today.engagement.onboarding.ready.title')}
+        lede={t('today.engagement.onboarding.ready.lede')}
+      />
       <View className="gap-1.5" testID="onb-v4-ready-days">
-        {dinners.map((d) => (
-          <View
-            key={d.day}
-            className="min-h-[52px] flex-row items-center gap-3 rounded-control border border-separator bg-surface px-3"
-          >
-            <Text
-              numberOfLines={1}
-              className="w-11 text-caption font-bold uppercase tracking-wide text-brand"
+        {dinners.map((d) => {
+          const dayKey = WEEKDAY_KEYS[d.day];
+          return (
+            <View
+              key={d.day}
+              className="min-h-[52px] flex-row items-center gap-3 rounded-control border border-separator bg-surface px-3"
             >
-              {DAY_SHORT[d.day] ?? ''}
-            </Text>
-            <Text
-              numberOfLines={1}
-              className="min-w-0 flex-1 text-callout font-semibold text-label"
-            >
-              {d.name}
-            </Text>
-            {d.kcal ? (
-              <Text className="text-caption text-label-tertiary">{d.kcal} kcal</Text>
-            ) : null}
-          </View>
-        ))}
+              <Text
+                numberOfLines={1}
+                className="w-11 text-caption font-bold uppercase tracking-wide text-brand"
+              >
+                {dayKey ? t(`common.weekdaysShort.${dayKey}`) : ''}
+              </Text>
+              <Text
+                numberOfLines={1}
+                className="min-w-0 flex-1 text-callout font-semibold text-label"
+              >
+                {d.name}
+              </Text>
+              {d.kcal ? (
+                <Text className="text-caption text-label-tertiary">
+                  {t('today.engagement.onboarding.ready.dinner.kcal', { value: number(d.kcal) })}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
       </View>
       {listCount !== null && listCount > 0 ? (
         <PressableScale
           onPress={onOpenList}
           accessibilityRole="button"
-          accessibilityLabel={COPY.readyList(listCount)}
+          accessibilityLabel={listLabel}
           testID="onb-v4-ready-list"
           className="min-h-[50px] flex-row items-center gap-2.5 rounded-control bg-brand-tint px-3.5"
         >
           <Ionicons name="cart-outline" size={22} color={c.brand} />
-          <Text className="flex-1 text-callout font-semibold text-brand">
-            {COPY.readyList(listCount)}
-          </Text>
+          <Text className="flex-1 text-callout font-semibold text-brand">{listLabel}</Text>
           <Ionicons name="chevron-forward" size={18} color={c.brand} />
         </PressableScale>
       ) : null}
@@ -483,17 +535,24 @@ const PERK_ICONS = [
   'play-circle-outline',
   'calendar-clear-outline',
 ] as const;
+/** In PERK_ICONS order. */
+const PERK_KEYS = ['chef', 'photo', 'import', 'weekly'] as const;
 
 export function PremiumStep({ on, error }: { on: boolean; error: string | null }) {
   const c = useThemeColors();
+  const { t } = useT();
   if (on) {
     return (
       <>
         <BiscuitStage loop="premium" size={200} />
-        <V4Heading title={COPY.premiumOnTitle} />
+        <V4Heading title={t('today.engagement.onboarding.premium.onTitle')} />
         <View className="gap-3 self-center">
-          {COPY.premiumOnTicks.map((t) => (
-            <V4Tick key={t} done label={t} />
+          {PERK_KEYS.map((key) => (
+            <V4Tick
+              key={key}
+              done
+              label={t(`today.engagement.onboarding.premium.onTicks.${key}`)}
+            />
           ))}
         </View>
       </>
@@ -504,16 +563,16 @@ export function PremiumStep({ on, error }: { on: boolean; error: string | null }
       <BiscuitStage loop="premium" size={150} />
       <View className="items-center gap-1.5">
         <Text className="text-caption font-bold tracking-widest text-brand">
-          {COPY.premiumEyebrow}
+          {t('today.engagement.onboarding.premium.eyebrow')}
         </Text>
         <Text accessibilityRole="header" className="text-center text-title1 font-bold text-label">
-          {COPY.premiumTitle}
+          {t('today.engagement.onboarding.premium.title')}
         </Text>
       </View>
       <View className="gap-2.5">
         {[0, 2].map((row) => (
           <View key={row} className="flex-row gap-2.5">
-            {COPY.premiumPerks.slice(row, row + 2).map((perk, i) => (
+            {PERK_KEYS.slice(row, row + 2).map((perk, i) => (
               <View
                 key={perk}
                 className="min-h-24 flex-1 justify-between gap-2.5 rounded-card border border-separator bg-surface p-3.5"
@@ -525,14 +584,16 @@ export function PremiumStep({ on, error }: { on: boolean; error: string | null }
                     color={c.brand}
                   />
                 </View>
-                <Text className="text-callout font-semibold text-label">{perk}</Text>
+                <Text className="text-callout font-semibold text-label">
+                  {t(`today.engagement.onboarding.premium.perks.${perk}`)}
+                </Text>
               </View>
             ))}
           </View>
         ))}
       </View>
       <Text className="text-center text-subhead text-label-secondary">
-        {error ?? COPY.premiumNote}
+        {error ?? t('today.engagement.onboarding.premium.note')}
       </Text>
     </>
   );
@@ -563,11 +624,12 @@ export function TrainStep({
   simple?: boolean;
 }) {
   const c = useThemeColors();
+  const { t } = useT();
   const row = (children: ReactNode) => <View className="flex-row flex-wrap gap-2">{children}</View>;
   return (
     <>
       <BiscuitStage loop="goalMuscle" size={150} />
-      <V4Heading title={COPY.trainTitle} />
+      <V4Heading title={t('today.engagement.onboarding.train.title')} />
       {styleQuestion ?? null}
       {simple ? null : (
         <TrainProgramFields
@@ -604,20 +666,21 @@ function TrainProgramFields({
   row: (children: ReactNode) => ReactNode;
   brand: string;
 }) {
+  const { t } = useT();
   return (
     <>
       <View className="gap-2">
-        <V4Caption>{COPY.trainExperience}</V4Caption>
+        <V4Caption>{t('today.engagement.onboarding.train.experience')}</V4Caption>
         {row(
           <>
             <V4Chip
-              label={COPY.trainExperienceNew}
+              label={t('today.engagement.onboarding.train.experienceNew')}
               selected={experience === 'BEGINNER'}
               onPress={() => onExperience('BEGINNER')}
               testID="onb-v4-exp-BEGINNER"
             />
             <V4Chip
-              label={COPY.trainExperienceExperienced}
+              label={t('today.engagement.onboarding.train.experienceExperienced')}
               selected={experience === 'INTERMEDIATE'}
               onPress={() => onExperience('INTERMEDIATE')}
               testID="onb-v4-exp-INTERMEDIATE"
@@ -626,23 +689,23 @@ function TrainProgramFields({
         )}
       </View>
       <View className="gap-2">
-        <V4Caption>{COPY.trainWhere}</V4Caption>
+        <V4Caption>{t('today.engagement.onboarding.train.where')}</V4Caption>
         {row(
           <>
             <V4Chip
-              label={COPY.trainWhereGym}
+              label={t('today.engagement.onboarding.train.whereGym')}
               selected={equipment === 'FULL_GYM'}
               onPress={() => onEquipment('FULL_GYM')}
               testID="onb-v4-eq-FULL_GYM"
             />
             <V4Chip
-              label={COPY.trainWhereDumbbells}
+              label={t('today.engagement.onboarding.train.whereDumbbells')}
               selected={equipment === 'DUMBBELLS'}
               onPress={() => onEquipment('DUMBBELLS')}
               testID="onb-v4-eq-DUMBBELLS"
             />
             <V4Chip
-              label={COPY.trainWhereBodyweight}
+              label={t('today.engagement.onboarding.train.whereBodyweight')}
               selected={equipment === 'BODYWEIGHT'}
               onPress={() => onEquipment('BODYWEIGHT')}
               testID="onb-v4-eq-BODYWEIGHT"
@@ -661,7 +724,7 @@ function TrainProgramFields({
           <Text className="text-headline font-semibold text-label">{program?.name ?? '…'}</Text>
           {program ? (
             <Text className="text-subhead text-label-secondary">
-              {COPY.trainFits(program.days)}
+              {t('today.engagement.onboarding.train.fits', { count: program.days })}
             </Text>
           ) : null}
         </View>
@@ -669,11 +732,13 @@ function TrainProgramFields({
           <PressableScale
             onPress={onChangeProgram}
             accessibilityRole="button"
-            accessibilityLabel={`${COPY.trainChange} program`}
+            accessibilityLabel={t('today.engagement.onboarding.train.changeLabel')}
             testID="onb-v4-program-change"
             className="min-h-11 justify-center rounded-control bg-brand-tint px-3"
           >
-            <Text className="text-subhead font-semibold text-brand">{COPY.trainChange}</Text>
+            <Text className="text-subhead font-semibold text-brand">
+              {t('today.engagement.onboarding.train.change')}
+            </Text>
           </PressableScale>
         ) : null}
       </View>
@@ -693,13 +758,11 @@ export function RemindersStep({
   rows: { slot: string; label: string; time: string }[];
   refused: boolean;
 }) {
+  const { t } = useT();
   return (
     <>
       <BiscuitStage loop="cooking" size={150} />
-      <V4Heading
-        title={ENGAGEMENT_COPY.remindersStepTitle}
-        lede={ENGAGEMENT_COPY.remindersStepBody}
-      />
+      <V4Heading title={t('today.reminders.stepTitle')} lede={t('today.reminders.stepBody')} />
       <View className="gap-1.5" testID="onb-v4-reminders-times">
         {rows.map((r) => (
           <View
@@ -717,9 +780,9 @@ export function RemindersStep({
         ))}
       </View>
       {refused ? (
-        <NotificationsOffRow testID="onb-v4-reminders-off" message={ENGAGEMENT_COPY.remindersOff} />
+        <NotificationsOffRow testID="onb-v4-reminders-off" message={t('today.reminders.off')} />
       ) : (
-        <V4Caption>{ENGAGEMENT_COPY.remindersStepLater}</V4Caption>
+        <V4Caption>{t('today.reminders.stepLater')}</V4Caption>
       )}
     </>
   );

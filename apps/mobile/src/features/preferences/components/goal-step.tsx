@@ -2,8 +2,8 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, WELLNESS_COPY } from '@chefer/utils';
+import { useT } from '../../../lib/i18n';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
-import { ONBOARDING_COPY } from '../../onboarding/copy';
 import { GOALS, type Goal } from '../types';
 import { OptionRow } from './option-row';
 
@@ -58,6 +58,10 @@ export function GoalStep({
   // Lane E3: the goal's kcal effect is a nutrition figure; protein-only and
   // "Hide numbers" users see the goal without it.
   const { show } = useNumbersMode();
+  const { t } = useT();
+  const label = (goal: Goal) => t(`today.settings.goal.goals.${goal}.label`);
+  const description = (goal: Goal) => t(`today.settings.goal.goals.${goal}.description`);
+  const calorieEffect = (goal: Goal) => t(`today.settings.goal.goals.${goal}.effect.kcal`);
   if (compact) {
     return (
       <View className="gap-2">
@@ -67,8 +71,8 @@ export function GoalStep({
             selected={goodFood}
             onPress={() => onGoodFood?.()}
             icon="restaurant-outline"
-            label={ONBOARDING_COPY.goodFoodTitle}
-            description={ONBOARDING_COPY.goodFoodDetail}
+            label={t('today.settings.goal.goodFood.title')}
+            description={t('today.settings.goal.goodFood.detail')}
           />
         )}
         {GOALS.map((g) => (
@@ -78,8 +82,12 @@ export function GoalStep({
             selected={!goodFood && value === g.value}
             onPress={() => onChange(g.value)}
             icon={g.icon}
-            label={g.label}
-            description={show.kcal ? `${g.description} · ${g.calorieEffect}` : g.description}
+            label={label(g.value)}
+            description={
+              show.kcal
+                ? `${description(g.value)} · ${calorieEffect(g.value)}`
+                : description(g.value)
+            }
           />
         ))}
         {showDisclaimer && <Disclaimer />}
@@ -117,10 +125,10 @@ export function GoalStep({
                 goodFood ? 'text-primary' : 'text-label',
               )}
             >
-              {ONBOARDING_COPY.goodFoodTitle}
+              {t('today.settings.goal.goodFood.title')}
             </Text>
             <Text variant="muted" className="text-center text-xs">
-              {ONBOARDING_COPY.goodFoodDetail}
+              {t('today.settings.goal.goodFood.detail')}
             </Text>
           </Pressable>
         )}
@@ -154,10 +162,10 @@ export function GoalStep({
                   selected ? 'text-primary' : 'text-label',
                 )}
               >
-                {g.label}
+                {label(g.value)}
               </Text>
               <Text variant="muted" className="text-center text-xs">
-                {g.description}
+                {description(g.value)}
               </Text>
               {show.kcal && (
                 <View
@@ -172,7 +180,7 @@ export function GoalStep({
                       selected ? 'text-primary' : 'text-label-secondary',
                     )}
                   >
-                    {g.calorieEffect}
+                    {calorieEffect(g.value)}
                   </Text>
                 </View>
               )}

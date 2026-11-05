@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type TrainerSummaryDto } from '@chefer/types';
+import type { TrainerSummaryDto } from '@chefer/types';
 import {
   Badge,
   ErrorState,
@@ -13,6 +13,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { TRAINER_SCREEN_CLASS, TrainerHeader } from '../../trainer/components/trainer-header';
 import { COACHING_EDGES, CoachingGate } from './coaching-gate';
@@ -26,12 +27,12 @@ export const FIND_MIN_CHARS = 2;
 
 function TrainerRow({ trainer }: { trainer: TrainerSummaryDto }) {
   const colors = useThemeColors();
-  const copy = COACHING_COPY.find;
+  const { t } = useT();
   const label = [
     trainer.name,
-    copy.badge,
+    t('coaching.find.badge'),
     trainer.gymLine,
-    trainer.acceptingClients ? null : copy.notTaking,
+    trainer.acceptingClients ? null : t('coaching.find.notTaking'),
   ]
     .filter(Boolean)
     .join(', ');
@@ -49,7 +50,7 @@ function TrainerRow({ trainer }: { trainer: TrainerSummaryDto }) {
           <Text className="min-w-0 shrink text-headline font-semibold text-label" numberOfLines={1}>
             {trainer.name}
           </Text>
-          <Badge variant="secondary">{copy.badge}</Badge>
+          <Badge variant="secondary">{t('coaching.find.badge')}</Badge>
         </View>
         {trainer.gymLine ? (
           <Text className="text-subhead text-label-secondary" numberOfLines={1}>
@@ -61,7 +62,7 @@ function TrainerRow({ trainer }: { trainer: TrainerSummaryDto }) {
             testID={`coaching-find-trainer-${trainer.trainerId}-not-taking`}
             className="text-subhead text-label-secondary"
           >
-            {copy.notTaking}
+            {t('coaching.find.notTaking')}
           </Text>
         )}
       </View>
@@ -71,7 +72,7 @@ function TrainerRow({ trainer }: { trainer: TrainerSummaryDto }) {
 }
 
 function FindTrainerBody() {
-  const copy = COACHING_COPY.find;
+  const { t } = useT();
   const [query, setQuery] = useState('');
   const q = query.trim();
   const searching = q.length >= FIND_MIN_CHARS;
@@ -84,7 +85,7 @@ function FindTrainerBody() {
   if (q.length > 0 && !searching) {
     status = (
       <Text testID="coaching-find-too-short" className="text-subhead text-label-secondary">
-        {copy.tooShort}
+        {t('coaching.find.tooShort')}
       </Text>
     );
   } else if (searching && results.isPending) {
@@ -98,19 +99,19 @@ function FindTrainerBody() {
   } else if (searching && results.data?.items.length === 0) {
     status = (
       <Text testID="coaching-find-empty" className="text-subhead text-label-secondary">
-        {copy.empty}
+        {t('coaching.find.empty')}
       </Text>
     );
   }
 
   return (
     <Screen edges={COACHING_EDGES} className={TRAINER_SCREEN_CLASS} testID="coaching-find">
-      <TrainerHeader testID="coaching-find-header" title={copy.title} />
+      <TrainerHeader testID="coaching-find-header" title={t('coaching.find.title')} />
       <View className="px-4 pb-2">
         <SearchField
           testID="coaching-find-search"
-          accessibilityLabel={copy.searchLabel}
-          placeholder={copy.searchPlaceholder}
+          accessibilityLabel={t('coaching.find.searchLabel')}
+          placeholder={t('coaching.find.searchPlaceholder')}
           autoCapitalize="words"
           onDebouncedChange={setQuery}
         />
@@ -118,7 +119,7 @@ function FindTrainerBody() {
       <FlatList
         testID="coaching-find-results"
         data={searching ? (results.data?.items ?? []) : []}
-        keyExtractor={(t) => t.trainerId}
+        keyExtractor={(row) => row.trainerId}
         renderItem={({ item }) => <TrainerRow trainer={item} />}
         contentContainerClassName="gap-2 px-4 pb-8 pt-2"
         ListHeaderComponent={status ? <View className="pb-2">{status}</View> : null}
@@ -129,8 +130,9 @@ function FindTrainerBody() {
 }
 
 export function FindTrainerScreen() {
+  const { t } = useT();
   return (
-    <CoachingGate testID="coaching-find" title={COACHING_COPY.find.title}>
+    <CoachingGate testID="coaching-find" title={t('coaching.find.title')}>
       <FindTrainerBody />
     </CoachingGate>
   );

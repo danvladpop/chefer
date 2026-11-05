@@ -1,7 +1,9 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Translator } from '@chefer/i18n';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
+import { getTranslator, useT } from '../../lib/i18n';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Day totals for the Plan tab — port of web's DayRecapBar. Each slot counts at
@@ -17,22 +19,25 @@ const TARGET_BAND = 0.15;
 type Meal = Parameters<typeof sumPlanDay>[0][number];
 
 /** The neutral one-line status for a day outside the band or short on protein, or null. */
-export function planDayStatus(input: {
-  kcal: number;
-  calorieTarget?: number | undefined;
-  proteinGapG?: number | undefined;
-}): string | null {
+export function planDayStatus(
+  input: {
+    kcal: number;
+    calorieTarget?: number | undefined;
+    proteinGapG?: number | undefined;
+  },
+  t: Translator['t'] = getTranslator().t,
+): string | null {
   const { kcal, calorieTarget, proteinGapG } = input;
   if (calorieTarget) {
     const delta = kcal - calorieTarget;
     if (Math.abs(delta) / calorieTarget > TARGET_BAND) {
       return delta < 0
-        ? `About ${formatKcal(Math.abs(delta))} kcal under this day’s target`
-        : `About ${formatKcal(delta)} kcal over this day’s target`;
+        ? t('plan.dayTotals.aboutUnderDayKcal', { kcal: formatKcal(Math.abs(delta)) })
+        : t('plan.dayTotals.aboutOverDayKcal', { kcal: formatKcal(delta) });
     }
   }
   if (proteinGapG !== undefined && proteinGapG > 0) {
-    return `About ${proteinGapG} g short on protein`;
+    return t('plan.dayTotals.proteinGap', { grams: proteinGapG });
   }
   return null;
 }
@@ -52,29 +57,35 @@ export function PlanDayTotals({
   testID?: string;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
   const { proteinOnly, noNumbers } = useNumbersMode();
   const totals = sumPlanDay(meals);
   // Lane E3 "Hide numbers": no day total and no shortfall line.
   if (noNumbers) return null;
-  const status = planDayStatus({
-    kcal: totals.kcal,
-    calorieTarget: proteinOnly ? undefined : calorieTarget,
-    proteinGapG,
-  });
+  const status = planDayStatus(
+    {
+      kcal: totals.kcal,
+      calorieTarget: proteinOnly ? undefined : calorieTarget,
+      proteinGapG,
+    },
+    t,
+  );
 
   return (
     <View testID={testID} className="gap-1 rounded-xl bg-surface-sunken px-3 py-2">
       <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
-        <Text className="text-xs font-semibold uppercase text-label-tertiary">Day total</Text>
+        <Text className="text-xs font-semibold uppercase text-label-tertiary">
+          {t('plan.dayTotals.title')}
+        </Text>
         {proteinOnly ? (
           <Text testID={`${testID}-protein`} className="text-sm font-bold text-primary">
-            {totals.protein} g protein
+            {t('plan.dayTotals.protein', { grams: totals.protein })}
           </Text>
         ) : (
           <>
             <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
-              {formatKcal(totals.kcal)} kcal
+              {t('plan.dayTotals.kcal', { kcal: formatKcal(totals.kcal) })}
             </Text>
             <Text className="text-xs text-label-tertiary">{formatMacroLine(totals)}</Text>
           </>
@@ -85,12 +96,14 @@ export function PlanDayTotals({
           <Pressable
             testID={`${testID}-status`}
             accessibilityRole="button"
-            accessibilityLabel={`${status}. See options`}
+            accessibilityLabel={t('plan.dayTotals.seeOptionsLabel', { status })}
             onPress={onOpenStatus}
             className="min-h-11 flex-row items-center gap-1.5"
           >
             <Text className="min-w-0 flex-shrink text-xs text-label-secondary">{status}</Text>
-            <Text className="text-xs font-semibold text-primary">See options</Text>
+            <Text className="text-xs font-semibold text-primary">
+              {t('plan.dayTotals.seeOptions')}
+            </Text>
             <Ionicons name="chevron-forward" size={12} color={colors.brand} />
           </Pressable>
         ) : (

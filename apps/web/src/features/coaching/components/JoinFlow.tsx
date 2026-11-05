@@ -4,15 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { trackSharingChosen } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import {
-  COACHING_COPY,
-  NO_COACHING_SHARE,
-  type CoachingShareChoice,
-  type InvitePreviewDto,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { NO_COACHING_SHARE, type CoachingShareChoice, type InvitePreviewDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
+import { trainerNameOrFallbackT } from '../lib/copy';
 import { appJoinUrl, isMobileUserAgent } from '../lib/open-in-app';
 import { clearPendingJoin, rememberPendingJoin } from '../lib/pending-join';
 import { ConsentScreen } from './ConsentScreen';
@@ -30,6 +28,7 @@ function Page({ children }: { children: React.ReactNode }) {
 }
 
 function Message({ title, body }: { title: string; body: string }) {
+  const { t } = useT();
   return (
     <Page>
       <h1 className="font-serif text-2xl font-bold text-gray-900">{title}</h1>
@@ -40,29 +39,31 @@ function Message({ title, body }: { title: string; body: string }) {
         href="/gym"
         className="mt-6 inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline underline-offset-4"
       >
-        Go to Gym
+        {t('coaching.join.goToGym')}
       </Link>
     </Page>
   );
 }
 
-function stateMessage(preview: InvitePreviewDto): string | null {
-  const copy = COACHING_COPY.inviteState;
+function stateMessage(preview: InvitePreviewDto, t: Translator['t']): string | null {
   switch (preview.state) {
     case 'OK':
       return null;
     case 'ALREADY_YOURS':
-      return copy.ALREADY_YOURS(preview.trainerName ?? COACHING_COPY.yourTrainer.title);
+      return t('coaching.inviteState.ALREADY_YOURS', {
+        trainer: preview.trainerName ?? t('coaching.yourTrainer.title'),
+      });
     case 'EXPIRED':
     case 'USED':
     case 'REVOKED':
     case 'SELF':
     case 'NOT_FOUND':
-      return copy[preview.state];
+      return t(`coaching.inviteState.${preview.state}`);
   }
 }
 
 export function JoinFlow({ code }: { code: string }) {
+  const { t } = useT();
   const router = useRouter();
   const utils = trpc.useUtils();
   // Always fresh: the answer changes while the page is away (gym setup done, link
@@ -90,7 +91,7 @@ export function JoinFlow({ code }: { code: string }) {
       void utils.gym.bootstrap.invalidate();
       void utils.gym.routine.get.invalidate();
       setJoined(
-        status.trainer?.name ?? preview.data?.trainerName ?? COACHING_COPY.yourTrainer.title,
+        status.trainer?.name ?? preview.data?.trainerName ?? t('coaching.yourTrainer.title'),
       );
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
@@ -100,15 +101,17 @@ export function JoinFlow({ code }: { code: string }) {
     return (
       <Page>
         <h1 className="font-serif text-2xl font-bold text-gray-900" data-testid="coaching-joined">
-          {COACHING_COPY.consent.joinedTitle(joined)}
+          {t('coaching.consent.joinedTitle', { trainer: joined })}
         </h1>
-        <p className="mt-3 text-sm text-gray-700">{COACHING_COPY.consent.oneTrainer(joined)}</p>
+        <p className="mt-3 text-sm text-gray-700">
+          {t('coaching.consent.oneTrainer', { trainer: joined })}
+        </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
           <Button asChild className="min-h-11">
-            <Link href="/gym/routine">Open my routine</Link>
+            <Link href="/gym/routine">{t('coaching.join.openMyRoutine')}</Link>
           </Button>
           <Button asChild variant="outline" className="min-h-11">
-            <Link href="/profile#your-trainer">{COACHING_COPY.yourTrainer.title}</Link>
+            <Link href="/profile#your-trainer">{t('coaching.yourTrainer.title')}</Link>
           </Button>
         </div>
       </Page>
@@ -118,7 +121,7 @@ export function JoinFlow({ code }: { code: string }) {
   if (preview.isLoading) {
     return (
       <Page>
-        <h1 className="sr-only">Coaching invite</h1>
+        <h1 className="sr-only">{t('coaching.join.inviteTitle')}</h1>
         <div className="h-64 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </Page>
     );
@@ -127,25 +130,29 @@ export function JoinFlow({ code }: { code: string }) {
   // A failed preview (flag off, malformed code, offline) reads like an unknown code:
   // the API answers an off flag with the same NOT_FOUND as a code that never existed.
   if (preview.isError || !preview.data) {
-    return <Message title="Coaching invite" body={COACHING_COPY.inviteState.NOT_FOUND} />;
+    return (
+      <Message title={t('coaching.join.inviteTitle')} body={t('coaching.inviteState.NOT_FOUND')} />
+    );
   }
 
   const data = preview.data;
-  const message = stateMessage(data);
-  if (message !== null) return <Message title="Coaching invite" body={message} />;
+  const message = stateMessage(data, t);
+  if (message !== null) return <Message title={t('coaching.join.inviteTitle')} body={message} />;
 
-  const trainerName = data.trainerName ?? COACHING_COPY.yourTrainer.title;
+  const trainerName = data.trainerName
+    ? trainerNameOrFallbackT(data.trainerName, t)
+    : t('coaching.yourTrainer.title');
 
   if (data.needsGymSetup) {
     return (
       <Page>
         <h1 className="font-serif text-2xl font-bold text-gray-900">
-          {COACHING_COPY.consent.title(trainerName)}
+          {t('coaching.consent.title', { trainer: trainerName })}
         </h1>
-        <p className="mt-3 text-sm text-gray-700">{COACHING_COPY.consent.needsSetup}</p>
+        <p className="mt-3 text-sm text-gray-700">{t('coaching.consent.needsSetup')}</p>
         <Button asChild className="mt-6 min-h-11">
           <Link href="/gym/setup" onClick={() => rememberPendingJoin(code)}>
-            Set up training
+            {t('coaching.join.setUpTraining')}
           </Link>
         </Button>
       </Page>
@@ -160,10 +167,10 @@ export function JoinFlow({ code }: { code: string }) {
           data-testid="coaching-open-in-app"
         >
           <p className="text-sm font-medium text-gray-900">
-            {COACHING_COPY.consent.title(trainerName)}
+            {t('coaching.consent.title', { trainer: trainerName })}
           </p>
           <Button asChild className="min-h-11">
-            <a href={appJoinUrl(code)}>{COACHING_COPY.consent.openInApp}</a>
+            <a href={appJoinUrl(code)}>{t('coaching.consent.openInApp')}</a>
           </Button>
           <Button
             type="button"
@@ -171,7 +178,7 @@ export function JoinFlow({ code }: { code: string }) {
             className="min-h-11"
             onClick={() => setChoice('web')}
           >
-            {COACHING_COPY.consent.continueOnWeb}
+            {t('coaching.consent.continueOnWeb')}
           </Button>
         </div>
       )}
@@ -191,7 +198,9 @@ export function JoinFlow({ code }: { code: string }) {
           onDecline={() => router.push('/gym')}
         />
       )}
-      {choice === 'ask' && <h1 className="sr-only">{COACHING_COPY.consent.title(trainerName)}</h1>}
+      {choice === 'ask' && (
+        <h1 className="sr-only">{t('coaching.consent.title', { trainer: trainerName })}</h1>
+      )}
     </Page>
   );
 }

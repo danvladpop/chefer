@@ -1,6 +1,7 @@
 import { Fragment, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { ActivityIndicator, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Translator } from '@chefer/i18n';
 import {
   findSafetyTaxonomyEntry,
   HOUSEHOLD_AGE_BANDS,
@@ -21,19 +22,17 @@ import {
   AGE_BAND_LABELS,
   ageBandLabel,
   ageBandPortionFactor,
-  allergiesAndDietForText,
   classifySafetyValue,
   cn,
   householdPortionSum,
-  memberSummaryLine,
   parseAgeBand,
-  tableSummaryLine,
   userFacingErrorMessage,
   type HouseholdGhostKind,
   type SafetyPickerValue,
 } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { useEntitlement } from '../../hooks/use-entitlement';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
@@ -98,29 +97,67 @@ function labelFor(id: string): string {
   return findSafetyTaxonomyEntry(id)?.label ?? id;
 }
 
+/** "A, B and C" in the UI language. */
+function joinList(t: Translator['t'], items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return t('household.editor.listAnd', {
+    list: items.slice(0, -1).join(', '),
+    last: items[items.length - 1] ?? '',
+  });
+}
+
+/** `{n} at the table · we'll check for tree nuts (Luca) and fish (Ana)` (UX-02, CI-41). */
+function tableSummaryText(
+  t: Translator['t'],
+  peopleCount: number,
+  rules: readonly { label: string; who: string }[],
+): string {
+  if (rules.length === 0) return t('household.editor.atTable', { people: peopleCount });
+  return t('household.editor.tableSummary', {
+    people: peopleCount,
+    list: joinList(
+      t,
+      rules.map((r) => t('household.editor.tableRule', { label: r.label, who: r.who })),
+    ),
+  });
+}
+
 /** `{portion} portion · allergic: … · {diet} · won't eat: …` (UX-02, CI-41). */
-function memberCardSummary(m: {
-  portionFactor: number;
-  allergies: string[];
-  dietaryRestrictions: string[];
-  dislikedIngredients: string[];
-}): string {
+function memberCardSummary(
+  t: Translator['t'],
+  m: {
+    portionFactor: number;
+    allergies: string[];
+    dietaryRestrictions: string[];
+    dislikedIngredients: string[];
+  },
+): string {
   const classified = classifySafetyValue(m);
   const dietParts = [
     ...(classified.dietBaseId ? [classified.dietBaseId] : []),
     ...classified.dietModifierIds,
   ].map(labelFor);
-  return memberSummaryLine({
-    portionLabel: PORTION_LABELS[m.portionFactor] ?? String(m.portionFactor),
-    allergies: classified.allergyIds.map(labelFor),
-    diet: dietParts.length > 0 ? dietParts.join(', ') : undefined,
-    dislikes: classified.dislikeIds.map(labelFor),
-  });
+  const allergies = classified.allergyIds.map(labelFor);
+  const dislikes = classified.dislikeIds.map(labelFor);
+  const segments = [
+    t('household.editor.portion', {
+      portion: PORTION_LABELS[m.portionFactor] ?? String(m.portionFactor),
+    }),
+  ];
+  if (allergies.length > 0) {
+    segments.push(t('household.editor.summaryAllergic', { list: allergies.join(', ') }));
+  }
+  if (dietParts.length > 0) segments.push(dietParts.join(', '));
+  if (dislikes.length > 0) {
+    segments.push(t('household.editor.summaryWontEat', { list: dislikes.join(', ') }));
+  }
+  return segments.join(' · ');
 }
 
 /** "You" card — always first (UX-01). Own safety, saved through preferences.updateSafety. */
 function YouCard() {
   const colors = useThemeColors();
+  const { t } = useT();
   const { data, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -157,17 +194,17 @@ function YouCard() {
         className="flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4"
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-headline font-semibold text-label">You</Text>
+          <Text className="text-headline font-semibold text-label">
+            {t('household.editor.you')}
+          </Text>
           <Text className="text-subhead text-label-secondary">
-            {isError
-              ? 'Couldn’t load your allergies and diet. Nothing has been changed.'
-              : 'Loading your allergies and diet…'}
+            {isError ? t('household.editor.youLoadError') : t('household.editor.youLoading')}
           </Text>
         </View>
         {isError && (
           <TrainButton
             testID="household-you-retry"
-            label="Retry"
+            label={t('household.editor.retry')}
             variant="tinted"
             onPress={() => void refetch()}
           />
@@ -181,7 +218,7 @@ function YouCard() {
       <PressableScale
         testID="household-you-card"
         accessibilityRole="button"
-        accessibilityLabel={allergiesAndDietForText('you')}
+        accessibilityLabel={t('household.editor.allergiesAndDietForYou')}
         onPress={() => {
           setDraft(ownSafety);
           setSheetOpen(true);
@@ -189,9 +226,11 @@ function YouCard() {
         className="min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-brand-tint p-4"
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-headline font-semibold text-label">You</Text>
+          <Text className="text-headline font-semibold text-label">
+            {t('household.editor.you')}
+          </Text>
           <Text className="text-subhead text-label-secondary">
-            {memberCardSummary({ portionFactor: 1, ...ownSafety })}
+            {memberCardSummary(t, { portionFactor: 1, ...ownSafety })}
           </Text>
         </View>
         <Icon name="chevronRight" size={18} color={colors.brand} />
@@ -199,12 +238,12 @@ function YouCard() {
       <Sheet
         visible={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        title={allergiesAndDietForText('you')}
+        title={t('household.editor.allergiesAndDietForYou')}
         testID="household-you-sheet"
         footer={
           <TrainButton
             testID="household-you-save"
-            label="Save changes"
+            label={t('household.editor.saveChanges')}
             loading={saveMutation.isPending}
             onPress={() => {
               // null = a typed term still needs a Keep/Remove choice: don't save yet.
@@ -272,6 +311,7 @@ export function HouseholdEditor({
   sharing?: HouseholdSharing;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { limit, isPremium } = useEntitlement('householdMembers');
   const list = trpc.household.list.useQuery();
   const members = list.data ?? [];
@@ -429,8 +469,12 @@ export function HouseholdEditor({
 
   // Table summary (UX-02, CI-41): "{n} at the table · we'll check for …".
   const peopleCount = members.length + 1; // + you
+  const safetyTitle = name.trim()
+    ? t('household.editor.allergiesAndDietFor', { name: name.trim() })
+    : t('household.editor.allergiesAndDietForSomeone');
   const tableSummary = table?.hasRules
-    ? tableSummaryLine(
+    ? tableSummaryText(
+        t,
         peopleCount,
         table.people.flatMap((p) => p.items.map((item) => ({ label: item.label, who: p.who }))),
       )
@@ -445,11 +489,13 @@ export function HouseholdEditor({
         accessibilityRole="header"
         className="text-headline font-semibold text-label"
       >
-        {editing ? `Edit ${editing.name}` : 'Add someone'}
+        {editing
+          ? t('household.editor.editTitle', { name: editing.name })
+          : t('household.editor.addSomeone')}
       </Text>
       {atCap ? (
         <Text className="text-subhead text-label-secondary">
-          You&apos;ve reached the limit of {limit} household members.
+          {t('household.editor.atCap', { count: limit })}
         </Text>
       ) : (
         <>
@@ -472,7 +518,9 @@ export function HouseholdEditor({
                     )}
                   >
                     <Text className="text-callout font-semibold text-brand">
-                      {kind === 'kid' ? '+ A kid' : '+ My partner'}
+                      {kind === 'kid'
+                        ? t('household.editor.presetKid')
+                        : t('household.editor.presetPartner')}
                     </Text>
                   </PressableScale>
                 );
@@ -483,19 +531,25 @@ export function HouseholdEditor({
             testID="household-name"
             value={name}
             onChangeText={setName}
-            placeholder={isKid ? 'Name — e.g. Sam' : 'Name — e.g. Maria'}
-            accessibilityLabel="Name"
+            placeholder={
+              isKid ? t('household.editor.nameHintKid') : t('household.editor.nameHintAdult')
+            }
+            accessibilityLabel={t('household.editor.name')}
             {...DONE_FIELD_PROPS}
           />
           <View className="gap-1">
-            <Text className="text-subhead font-semibold text-label-secondary">Portion size</Text>
+            <Text className="text-subhead font-semibold text-label-secondary">
+              {t('household.editor.portionSize')}
+            </Text>
             <View className="flex-row gap-2">
               {HOUSEHOLD_PORTION_OPTIONS.map((p) => (
                 <PressableScale
                   key={p}
                   testID={`household-portion-${p}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`${PORTION_LABELS[p] ?? p} portion`}
+                  accessibilityLabel={t('household.editor.portion', {
+                    portion: PORTION_LABELS[p] ?? String(p),
+                  })}
                   accessibilityState={{ selected: portionFactor === p }}
                   onPress={() => setPortionFactor(p)}
                   className={cn(
@@ -516,10 +570,12 @@ export function HouseholdEditor({
             </View>
           </View>
           <View className="min-h-11 flex-row items-center justify-between">
-            <Text className="min-w-0 flex-1 text-body text-label">Child (smaller portions)</Text>
+            <Text className="min-w-0 flex-1 text-body text-label">
+              {t('household.editor.childHint')}
+            </Text>
             <Switch
               testID="household-kid"
-              accessibilityLabel="Child"
+              accessibilityLabel={t('household.editor.child')}
               trackColor={{ true: colors.brand, false: colors.separator }}
               value={isKid}
               onValueChange={(v) => {
@@ -535,7 +591,7 @@ export function HouseholdEditor({
           {isKid && (
             <View testID="household-age-group" className="gap-1">
               <Text className="text-subhead font-semibold text-label-secondary">
-                Age (optional)
+                {t('household.editor.ageOptional')}
               </Text>
               <View className="flex-row gap-2">
                 {HOUSEHOLD_AGE_BANDS.map((band) => (
@@ -543,7 +599,9 @@ export function HouseholdEditor({
                     key={band}
                     testID={`household-age-${band}`}
                     accessibilityRole="button"
-                    accessibilityLabel={`Age ${AGE_BAND_LABELS[band]}`}
+                    accessibilityLabel={t('household.editor.ageLabel', {
+                      range: AGE_BAND_LABELS[band],
+                    })}
                     accessibilityState={{ selected: ageBand === band }}
                     onPress={() => {
                       if (ageBand === band) {
@@ -574,21 +632,19 @@ export function HouseholdEditor({
           <PressableScale
             testID="household-safety-open"
             accessibilityRole="button"
-            accessibilityLabel={allergiesAndDietForText(name.trim() || 'this person')}
+            accessibilityLabel={safetyTitle}
             onPress={() => setMemberSafetySheetOpen(true)}
             className="min-h-11 flex-row items-center justify-between gap-2 rounded-control border border-separator bg-surface px-3"
           >
-            <Text className="min-w-0 flex-1 text-callout text-label">
-              {allergiesAndDietForText(name.trim() || 'this person')}
-            </Text>
+            <Text className="min-w-0 flex-1 text-callout text-label">{safetyTitle}</Text>
             <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
           </PressableScale>
           <Text testID="household-safety-summary" className="text-subhead text-label-secondary">
-            {memberCardSummary({ portionFactor, ...memberSafety })}
+            {memberCardSummary(t, { portionFactor, ...memberSafety })}
           </Text>
           <TrainButton
             testID="household-add"
-            label={editing ? 'Save changes' : 'Add to my table'}
+            label={editing ? t('household.editor.saveChanges') : t('household.editor.addToTable')}
             loading={isSaving}
             disabled={!name.trim()}
             onPress={() => handleSave()}
@@ -596,7 +652,7 @@ export function HouseholdEditor({
           {editing && (
             <TrainButton
               testID="household-edit-cancel"
-              label="Cancel"
+              label={t('common.actions.cancel')}
               variant="ghost"
               onPress={resetForm}
             />
@@ -625,8 +681,8 @@ export function HouseholdEditor({
       ) : listFailed ? (
         <ErrorState
           testID="household-load-error"
-          title="Couldn’t load your household"
-          description="Nothing has been changed. Check your connection and try again."
+          title={t('household.editor.loadErrorTitle')}
+          description={t('household.editor.loadErrorBody')}
           icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void list.refetch()}
         />
@@ -637,10 +693,15 @@ export function HouseholdEditor({
         ) : (
           <BoardCard testID="household-empty" className="items-center border-dashed py-8">
             <Ionicons name="people-outline" size={36} color={colors.labelTertiary} />
-            <Text className="text-body text-label-secondary">Just you at the table for now.</Text>
+            <Text className="text-body text-label-secondary">
+              {t('household.editor.emptyTable')}
+            </Text>
             {showGhost && (
               <Text className="px-6 text-center text-subhead text-label-tertiary">
-                Tap “+ A kid” or “+ My partner” below to see your week with them.
+                {t('household.editor.emptyHint', {
+                  kid: t('household.editor.presetKid'),
+                  partner: t('household.editor.presetPartner'),
+                })}
               </Text>
             )}
           </BoardCard>
@@ -657,18 +718,18 @@ export function HouseholdEditor({
                 className="gap-3 rounded-card border border-separator bg-surface p-4"
               >
                 <Text className="text-body text-label">
-                  Remove {m.name}? Their allergies stop applying to your plans.
+                  {t('household.editor.removeConfirm', { name: m.name })}
                 </Text>
                 <View className="flex-row gap-2">
                   <TrainButton
-                    label="Keep"
+                    label={t('household.editor.keep')}
                     variant="outline"
                     className="flex-1"
                     onPress={() => setConfirmingId(null)}
                   />
                   <TrainButton
                     testID={`household-confirm-remove-${m.id}`}
-                    label="Remove"
+                    label={t('household.editor.remove')}
                     variant="danger"
                     className="flex-1 border border-separator bg-surface"
                     loading={removeMutation.isPending}
@@ -691,7 +752,11 @@ export function HouseholdEditor({
                       </Text>
                       {m.isKid && (
                         <Text className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand">
-                          {ageBandLabel(m.ageBand) ? `Kid · ${ageBandLabel(m.ageBand)}` : 'Kid'}
+                          {ageBandLabel(m.ageBand)
+                            ? t('household.editor.kidBadgeAge', {
+                                age: ageBandLabel(m.ageBand) ?? '',
+                              })
+                            : t('household.editor.kidBadge')}
                         </Text>
                       )}
                     </View>
@@ -699,14 +764,14 @@ export function HouseholdEditor({
                       testID={`household-summary-${m.id}`}
                       className="text-subhead text-label-secondary"
                     >
-                      {memberCardSummary(m)}
+                      {memberCardSummary(t, m)}
                     </Text>
                   </View>
                   {/* ADR 0003: a partner edits only the profile they claimed, and removes none. */}
                   {!partnerView || m.isYou ? (
                     <IconButton
                       testID={`household-edit-${m.id}`}
-                      accessibilityLabel={`Edit ${m.name}`}
+                      accessibilityLabel={t('household.editor.editLabel', { name: m.name })}
                       icon={<Icon name="edit" size={20} color={colors.labelSecondary} />}
                       onPress={() => startEdit(m)}
                     />
@@ -714,7 +779,7 @@ export function HouseholdEditor({
                   {!partnerView ? (
                     <IconButton
                       testID={`household-remove-${m.id}`}
-                      accessibilityLabel={`Remove ${m.name}`}
+                      accessibilityLabel={t('household.editor.removeLabel', { name: m.name })}
                       icon={<Icon name="trash" size={20} color={colors.danger} />}
                       onPress={() => {
                         // Removing the member in the form drops the edit too.
@@ -748,15 +813,14 @@ export function HouseholdEditor({
       {variant === 'screen' && isPremium === false && members.length > 0 && !partnerView && (
         <BoardCard testID="household-upsell" className="bg-brand-tint">
           <Text className="text-headline font-semibold text-label">
-            Everyone&apos;s allergies apply to every plan — free.
+            {t('household.editor.upsellTitle')}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            Your shopping list and servings are still sized for one portion. Premium scales them for
-            your table ({tablePortions} portions), kids at half portions included.
+            {t('household.editor.upsellBody', { count: tablePortions ?? 0 })}
           </Text>
           <TrainButton
             testID="household-upsell-upgrade"
-            label="See what Premium adds"
+            label={t('household.editor.upsellCta')}
             variant="onBrand"
             onPress={() => openPremium('household')}
           />
@@ -786,12 +850,12 @@ export function HouseholdEditor({
       <Sheet
         visible={memberSafetySheetOpen}
         onClose={closeMemberSafetySheet}
-        title={allergiesAndDietForText(name.trim() || 'this person')}
+        title={safetyTitle}
         testID="household-member-safety-sheet"
         footer={
           <TrainButton
             testID="household-member-safety-done"
-            label="Done"
+            label={t('common.actions.done')}
             onPress={closeMemberSafetySheet}
           />
         }

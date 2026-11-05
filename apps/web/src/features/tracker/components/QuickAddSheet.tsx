@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import {
   AlertTriangle,
@@ -16,13 +18,8 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import {
-  FOOD_TEXT_COPY,
-  PACKAGED_PRODUCT_COPY,
-  SAVED_MEALS_COPY,
-  type PackagedProductView,
-  type ProductAllergenWarning,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { PackagedProductView, ProductAllergenWarning } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
@@ -38,7 +35,7 @@ import {
   proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
-  savedMealSummary,
+  savedMealTotals,
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
@@ -110,10 +107,7 @@ interface QuickAddSheetProps {
     | undefined;
 }
 
-const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
-  value: v,
-  label: v.charAt(0).toUpperCase() + v.slice(1),
-}));
+const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({ value: v }));
 const GRAM_CHIPS = [50, 100, 150, 200];
 const SEARCH_DEBOUNCE_MS = 250;
 // UX-FOOD-12: the ingredient group asks for the server's default page first,
@@ -126,6 +120,40 @@ function toQuickAddMealType(mealType: string): QuickAddMealType {
   return (QUICK_ADD_MEAL_TYPES as readonly string[]).includes(mealType)
     ? (mealType as QuickAddMealType)
     : 'snack';
+}
+
+/** "3 items · 540 kcal" (or "… · 32 g protein" in protein-only mode). */
+function savedMealSummaryText(
+  t: Translator['t'],
+  items: Parameters<typeof savedMealTotals>[0],
+  proteinOnly: boolean,
+): string {
+  const totals = savedMealTotals(items);
+  return proteinOnly
+    ? t('tracker.savedMeals.summaryProtein', {
+        count: items.length,
+        protein: formatNumber(totals.protein),
+      })
+    : t('tracker.savedMeals.summaryKcal', { count: items.length, kcal: formatNumber(totals.kcal) });
+}
+
+/** A packaged-product search row's second line. */
+function productRowLine(
+  t: Translator['t'],
+  product: PackagedProductView,
+  proteinOnly: boolean,
+): string {
+  const line =
+    product.per100g.kcal === null
+      ? t('tracker.quickAdd.product.noKcal')
+      : proteinOnly
+        ? product.per100g.protein === null
+          ? t('tracker.quickAdd.product.proteinNotStated')
+          : t('tracker.quickAdd.product.proteinPer100g', {
+              value: Math.round(product.per100g.protein),
+            })
+        : t('tracker.quickAdd.product.kcalPer100g', { value: Math.round(product.per100g.kcal) });
+  return product.isOwn ? t('tracker.quickAdd.product.yours', { line }) : line;
 }
 
 function scaleFromPer100g(
@@ -152,6 +180,7 @@ export function QuickAddSheet({
   onLoggedEntry,
   onLoggedEntries,
 }: QuickAddSheetProps) {
+  const { t } = useT();
   // WP-08: protein-only mode asks protein first and shows no calorie figure.
   const { proteinOnly } = useNumbersMode();
   const [innerOpen, setInnerOpen] = useState(false);
@@ -321,7 +350,7 @@ export function QuickAddSheet({
       onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
       onLoggedEntries?.({
         entryIds: data.entryIds,
-        name: meal?.name ?? 'saved meal',
+        name: meal?.name ?? t('tracker.quickAdd.savedMealFallback'),
         dayFit: data.dayFit,
       });
     },
@@ -472,7 +501,7 @@ export function QuickAddSheet({
     if (proteinOnly && !proteinOk) {
       const rest: QuickAddErrors = parsedNow.ok ? {} : { ...parsedNow.errors };
       delete rest.kcal; // protein-only has no calories field to show it on
-      setErrors({ ...rest, protein: 'Enter the protein in grams.' });
+      setErrors({ ...rest, protein: t('tracker.quickAdd.manual.proteinRequired') });
       return;
     }
     if (!parsedNow.ok) {
@@ -513,7 +542,7 @@ export function QuickAddSheet({
           className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50"
         >
           <Plus className="h-4 w-4" />
-          Log something
+          {t('tracker.quickAdd.trigger')}
         </button>
       )}
 
@@ -523,15 +552,15 @@ export function QuickAddSheet({
         title={
           view === 'manual'
             ? proteinOnly
-              ? 'Enter protein yourself'
-              : 'Enter calories yourself'
+              ? t('tracker.quickAdd.titleManualProtein')
+              : t('tracker.quickAdd.titleManualKcal')
             : view === 'product'
-              ? PACKAGED_PRODUCT_COPY.scanBarcode
+              ? t('tracker.packaged.scanBarcode')
               : view === 'text'
-                ? FOOD_TEXT_COPY.entry
+                ? t('tracker.foodText.entry')
                 : replacesSlot
-                  ? 'Ate something else'
-                  : 'Log something'
+                  ? t('tracker.quickAdd.titleAteElse')
+                  : t('tracker.quickAdd.title')
         }
         size="sm"
         footer={
@@ -550,7 +579,7 @@ export function QuickAddSheet({
                       onClick={() => kcalRef.current?.focus()}
                       className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-semibold"
                     >
-                      Fix
+                      {t('tracker.quickAdd.manual.fix')}
                     </button>
                     <button
                       type="button"
@@ -558,7 +587,7 @@ export function QuickAddSheet({
                       onClick={() => setSanityOverridden(true)}
                       className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-semibold"
                     >
-                      Log anyway
+                      {t('tracker.quickAdd.manual.logAnyway')}
                     </button>
                   </div>
                 </div>
@@ -570,7 +599,9 @@ export function QuickAddSheet({
                 disabled={!!sanity?.message || logCustomMutation.isPending}
                 className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
               >
-                {logCustomMutation.isPending ? 'Logging…' : 'Log'}
+                {logCustomMutation.isPending
+                  ? t('tracker.quickAdd.logging')
+                  : t('tracker.quickAdd.log')}
               </button>
             </div>
           ) : undefined
@@ -579,7 +610,11 @@ export function QuickAddSheet({
         {view === 'search' ? (
           <div className="space-y-4 px-5 pb-4">
             {!replacesSlot && (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label={t('tracker.quickAdd.meal')}
+              >
                 {MEAL_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -588,7 +623,7 @@ export function QuickAddSheet({
                     onClick={() => setMealType(o.value)}
                     className={chipBtn(mealType === o.value)}
                   >
-                    {o.label}
+                    {t(`tracker.meals.${o.value}`)}
                   </button>
                 ))}
               </div>
@@ -606,8 +641,8 @@ export function QuickAddSheet({
                   setIngredientLimit(INGREDIENT_PAGE);
                   setExpandedKey(null);
                 }}
-                placeholder="What did you eat?"
-                aria-label="What did you eat?"
+                placeholder={t('tracker.quickAdd.searchPlaceholder')}
+                aria-label={t('tracker.quickAdd.searchPlaceholder')}
                 className="min-h-11 w-full rounded-xl border border-neutral-200 py-2 pl-9 pr-3 text-sm text-neutral-900"
               />
             </label>
@@ -624,7 +659,7 @@ export function QuickAddSheet({
                 className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
               >
                 <Barcode className="h-4 w-4" aria-hidden />
-                {PACKAGED_PRODUCT_COPY.scanBarcode}
+                {t('tracker.packaged.scanBarcode')}
               </button>
               {/* Lane A4: not when replacing a slot — a slot takes one entry. */}
               {!replacesSlot && (
@@ -635,30 +670,33 @@ export function QuickAddSheet({
                   className="flex min-h-11 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-[#944a00] hover:bg-neutral-50"
                 >
                   <PencilLine className="h-4 w-4" aria-hidden />
-                  {FOOD_TEXT_COPY.entry}
+                  {t('tracker.foodText.entry')}
                 </button>
               )}
             </div>
 
             {(logRecipeMutation.isError || logCustomMutation.isError) && (
               <p data-testid="log-sheet-api-error" role="alert" className="text-sm text-red-600">
-                Couldn&apos;t log that:{' '}
-                {userFacingErrorMessage(
-                  logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
-                )}
+                {t('tracker.quickAdd.logError', {
+                  error: userFacingErrorMessage(
+                    logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
+                  ),
+                })}
               </p>
             )}
 
             {logSavedMutation.isError && (
               <p data-testid="log-sheet-saved-error" role="alert" className="text-sm text-red-600">
-                Couldn&apos;t log that: {userFacingErrorMessage(logSavedMutation.error)}
+                {t('tracker.quickAdd.logError', {
+                  error: userFacingErrorMessage(logSavedMutation.error),
+                })}
               </p>
             )}
 
             {savedMeals.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  {SAVED_MEALS_COPY.groupTitle}
+                  {t('tracker.savedMeals.groupTitle')}
                 </p>
                 {savedMeals.map((meal) => (
                   <div
@@ -669,13 +707,16 @@ export function QuickAddSheet({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-neutral-800">{meal.name}</p>
                       <p className="truncate text-xs text-neutral-500">
-                        {savedMealSummary(meal.items, proteinOnly)}
+                        {savedMealSummaryText(t, meal.items, proteinOnly)}
                       </p>
                     </div>
                     <button
                       type="button"
                       data-testid={`log-sheet-saved-add-${meal.id}`}
-                      aria-label={`Log ${meal.name} to ${mealType}`}
+                      aria-label={t('tracker.quickAdd.logSavedTo', {
+                        name: meal.name,
+                        meal: t(`tracker.mealInSentence.${mealType}`),
+                      })}
                       disabled={isPending}
                       onClick={() =>
                         logSavedMutation.mutate({
@@ -697,7 +738,7 @@ export function QuickAddSheet({
             {recents.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  Recent
+                  {t('tracker.quickAdd.groups.recent')}
                 </p>
                 {recents.map((r) => (
                   <div
@@ -713,8 +754,14 @@ export function QuickAddSheet({
                       data-testid={`log-sheet-recent-add-${r.key}`}
                       aria-label={
                         proteinOnly
-                          ? `Log ${r.name} again, ${proteinLabel(r.protein)}`
-                          : `Log ${r.name} again, ${Math.round(r.kcal)} kilocalories`
+                          ? t('tracker.quickAdd.logAgainProtein', {
+                              name: r.name,
+                              protein: proteinLabel(r.protein),
+                            })
+                          : t('tracker.quickAdd.logAgainKcal', {
+                              name: r.name,
+                              kcal: Math.round(r.kcal),
+                            })
                       }
                       disabled={isPending}
                       onClick={() => logRecentAgain(r)}
@@ -730,7 +777,7 @@ export function QuickAddSheet({
             {planRows.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  This week&apos;s plan
+                  {t('tracker.quickAdd.groups.plan')}
                 </p>
                 {planRows.map((m) => {
                   const key = `plan:${m.slotIndex ?? m.recipeId}`;
@@ -753,7 +800,9 @@ export function QuickAddSheet({
                             {m.recipeName}
                           </p>
                           <p className="text-xs text-neutral-500">
-                            1 portion · {nutritionLabel(m, proteinOnly)}
+                            {t('tracker.quickAdd.onePortionNutrition', {
+                              nutrition: nutritionLabel(m, proteinOnly),
+                            })}
                           </p>
                         </div>
                         {isOpen ? (
@@ -767,7 +816,7 @@ export function QuickAddSheet({
                           <div
                             className="flex flex-wrap gap-1.5"
                             role="group"
-                            aria-label={`Portion for ${m.recipeName}`}
+                            aria-label={t('tracker.quickAdd.portionFor', { name: m.recipeName })}
                           >
                             {RECIPE_PORTIONS.map((p) => (
                               <button
@@ -787,11 +836,12 @@ export function QuickAddSheet({
                             onClick={() => logPlannedRow(m, portion)}
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white"
                           >
-                            Log{' '}
-                            {nutritionLabel(
-                              { kcal: m.kcal * portion, protein: m.protein * portion },
-                              proteinOnly,
-                            )}
+                            {t('tracker.quickAdd.logNutrition', {
+                              nutrition: nutritionLabel(
+                                { kcal: m.kcal * portion, protein: m.protein * portion },
+                                proteinOnly,
+                              ),
+                            })}
                           </button>
                         </div>
                       )}
@@ -804,7 +854,7 @@ export function QuickAddSheet({
             {searching && (recipesQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  Your recipes
+                  {t('tracker.quickAdd.groups.recipes')}
                 </p>
                 {(recipesQuery.data ?? []).map((recipe) => {
                   const key = `recipe:${recipe.id}`;
@@ -834,11 +884,12 @@ export function QuickAddSheet({
                             {recipe.name}
                           </p>
                           <p className="text-xs text-neutral-500">
-                            1 portion ·{' '}
-                            {nutritionLabel(
-                              { kcal: kcalPerServing, protein: nutrition?.protein ?? 0 },
-                              proteinOnly,
-                            )}
+                            {t('tracker.quickAdd.onePortionNutrition', {
+                              nutrition: nutritionLabel(
+                                { kcal: kcalPerServing, protein: nutrition?.protein ?? 0 },
+                                proteinOnly,
+                              ),
+                            })}
                           </p>
                         </div>
                         {isOpen ? (
@@ -852,7 +903,7 @@ export function QuickAddSheet({
                           <div
                             className="flex flex-wrap gap-1.5"
                             role="group"
-                            aria-label={`Portion for ${recipe.name}`}
+                            aria-label={t('tracker.quickAdd.portionFor', { name: recipe.name })}
                           >
                             {RECIPE_PORTIONS.map((p) => (
                               <button
@@ -883,14 +934,15 @@ export function QuickAddSheet({
                             }
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white"
                           >
-                            Log{' '}
-                            {nutritionLabel(
-                              {
-                                kcal: kcalPerServing * portion,
-                                protein: (nutrition?.protein ?? 0) * portion,
-                              },
-                              proteinOnly,
-                            )}
+                            {t('tracker.quickAdd.logNutrition', {
+                              nutrition: nutritionLabel(
+                                {
+                                  kcal: kcalPerServing * portion,
+                                  protein: (nutrition?.protein ?? 0) * portion,
+                                },
+                                proteinOnly,
+                              ),
+                            })}
                           </button>
                         </div>
                       )}
@@ -903,14 +955,20 @@ export function QuickAddSheet({
             {searching && (productsQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  {PACKAGED_PRODUCT_COPY.packagedGroup}
+                  {t('tracker.packaged.group')}
                 </p>
                 {(productsQuery.data ?? []).map(({ product, warnings }) => (
                   <button
                     key={product.id}
                     type="button"
                     data-testid={`log-sheet-product-${product.id}`}
-                    aria-label={`${productDisplayName(product)}${warnings.length > 0 ? ', allergen warning' : ''}`}
+                    aria-label={
+                      warnings.length > 0
+                        ? t('tracker.quickAdd.product.allergenWarning', {
+                            name: productDisplayName(product),
+                          })
+                        : productDisplayName(product)
+                    }
                     onClick={() => {
                       setProductStart({ product, warnings });
                       setView('product');
@@ -922,14 +980,7 @@ export function QuickAddSheet({
                         {productDisplayName(product)}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {product.per100g.kcal === null
-                          ? 'No calories yet'
-                          : proteinOnly
-                            ? product.per100g.protein === null
-                              ? 'Protein not stated'
-                              : `${Math.round(product.per100g.protein)} g protein / 100 g`
-                            : `${Math.round(product.per100g.kcal)} kcal / 100 g`}
-                        {product.isOwn ? ' · yours' : ''}
+                        {productRowLine(t, product, proteinOnly)}
                       </p>
                     </div>
                     {warnings.length > 0 && (
@@ -944,7 +995,7 @@ export function QuickAddSheet({
             {searching && (ingredientsQuery.data?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  Ingredients (per 100 g)
+                  {t('tracker.quickAdd.groups.ingredients')}
                 </p>
                 {(ingredientsQuery.data ?? []).map((ingredient) => {
                   const key = ingredient.name;
@@ -971,9 +1022,13 @@ export function QuickAddSheet({
                           <p className="text-xs text-neutral-500">
                             {ingredient.per100g
                               ? proteinOnly
-                                ? `${Math.round(ingredient.per100g.protein)} g protein / 100 g`
-                                : `${Math.round(ingredient.per100g.calories)} kcal / 100 g`
-                              : 'No nutrition data yet'}
+                                ? t('tracker.quickAdd.ingredient.proteinPer100g', {
+                                    value: Math.round(ingredient.per100g.protein),
+                                  })
+                                : t('tracker.quickAdd.ingredient.kcalPer100g', {
+                                    value: Math.round(ingredient.per100g.calories),
+                                  })
+                              : t('tracker.quickAdd.ingredient.noData')}
                           </p>
                         </div>
                         {ingredient.per100g &&
@@ -997,7 +1052,7 @@ export function QuickAddSheet({
                                 }}
                                 className={chipBtn(gramsNumber === g)}
                               >
-                                {g} g
+                                {t('tracker.quickAdd.ingredient.grams', { value: g })}
                               </button>
                             ))}
                           </div>
@@ -1005,7 +1060,9 @@ export function QuickAddSheet({
                             <input
                               type="number"
                               data-testid={`log-sheet-grams-input-${key}`}
-                              aria-label={`Grams of ${ingredient.displayName}`}
+                              aria-label={t('tracker.quickAdd.ingredient.gramsOf', {
+                                name: ingredient.displayName,
+                              })}
                               value={gramsText}
                               onChange={(e) => {
                                 if (ingredient.per100g) {
@@ -1014,7 +1071,9 @@ export function QuickAddSheet({
                               }}
                               className="min-h-11 w-full min-w-0 rounded-lg border border-neutral-200 px-3 text-sm"
                             />
-                            <span className="shrink-0 text-sm text-neutral-400">g</span>
+                            <span className="shrink-0 text-sm text-neutral-400">
+                              {t('tracker.quickAdd.ingredient.gramsUnit')}
+                            </span>
                           </div>
                           <p
                             data-testid={`log-sheet-grams-live-kcal-${key}`}
@@ -1023,8 +1082,13 @@ export function QuickAddSheet({
                           >
                             {expandedIngredient === ingredient && expandedLive
                               ? proteinOnly
-                                ? `${expandedLive.protein} g protein`
-                                : `${expandedLive.kcal} kcal · ${expandedLive.protein}g P`
+                                ? t('tracker.quickAdd.ingredient.liveProtein', {
+                                    protein: expandedLive.protein,
+                                  })
+                                : t('tracker.quickAdd.ingredient.liveKcalProtein', {
+                                    kcal: String(expandedLive.kcal),
+                                    protein: expandedLive.protein,
+                                  })
                               : '—'}
                           </p>
                           {gramsCapped && gramsInfo && (
@@ -1032,7 +1096,9 @@ export function QuickAddSheet({
                               data-testid={`log-sheet-grams-max-${key}`}
                               className="text-xs text-amber-700"
                             >
-                              One entry holds up to {formatNumber(gramsInfo.max)} g.
+                              {t('tracker.quickAdd.ingredient.maxGrams', {
+                                max: formatNumber(gramsInfo.max),
+                              })}
                             </p>
                           )}
                           <button
@@ -1042,7 +1108,7 @@ export function QuickAddSheet({
                             onClick={() => logIngredientRow(ingredient, gramsNumber)}
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white disabled:opacity-50"
                           >
-                            Log
+                            {t('tracker.quickAdd.log')}
                           </button>
                         </div>
                       )}
@@ -1057,7 +1123,7 @@ export function QuickAddSheet({
                       onClick={() => setIngredientLimit(INGREDIENT_PAGE_MAX)}
                       className="min-h-11 w-full text-sm font-semibold text-[#944a00] hover:underline"
                     >
-                      Show more
+                      {t('tracker.quickAdd.ingredient.showMore')}
                     </button>
                   )}
               </div>
@@ -1069,7 +1135,7 @@ export function QuickAddSheet({
                 role="alert"
                 className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"
               >
-                <p>Couldn&apos;t search just now. Check your connection and try again.</p>
+                <p>{t('tracker.quickAdd.searchError')}</p>
                 <button
                   type="button"
                   data-testid="log-sheet-search-retry"
@@ -1079,13 +1145,13 @@ export function QuickAddSheet({
                   }}
                   className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
                 >
-                  Retry
+                  {t('tracker.quickAdd.retry')}
                 </button>
               </div>
             )}
             {searching && !searchFailed && !hasSearchResults && searchSettling && (
               <p data-testid="log-sheet-searching" className="py-2 text-sm text-neutral-500">
-                Searching…
+                {t('tracker.quickAdd.searching')}
               </p>
             )}
             {searching && !searchFailed && !hasSearchResults && !searchSettling && (
@@ -1098,10 +1164,15 @@ export function QuickAddSheet({
                 }}
                 className="min-h-11 py-2 text-left text-sm text-neutral-600"
               >
-                No matches —{' '}
-                <span className="font-semibold text-[#944a00]">
-                  {proteinOnly ? 'enter protein yourself' : 'enter calories yourself'}
-                </span>
+                {rich(t, 'tracker.quickAdd.noMatches', {
+                  action: (
+                    <span className="font-semibold text-[#944a00]">
+                      {proteinOnly
+                        ? t('tracker.quickAdd.noMatchesProteinAction')
+                        : t('tracker.quickAdd.noMatchesKcalAction')}
+                    </span>
+                  ),
+                })}
               </button>
             )}
 
@@ -1115,7 +1186,9 @@ export function QuickAddSheet({
                 }}
                 className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
               >
-                {proteinOnly ? 'Enter protein yourself' : 'Enter calories yourself'}
+                {proteinOnly
+                  ? t('tracker.quickAdd.manualProtein')
+                  : t('tracker.quickAdd.manualKcal')}
               </button>
             </div>
           </div>
@@ -1127,9 +1200,13 @@ export function QuickAddSheet({
               onClick={() => setView('search')}
               className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
             >
-              ← Back to search
+              {t('tracker.quickAdd.backToSearchArrow')}
             </button>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="group"
+              aria-label={t('tracker.quickAdd.meal')}
+            >
               {MEAL_OPTIONS.map((o) => (
                 <button
                   key={o.value}
@@ -1138,7 +1215,7 @@ export function QuickAddSheet({
                   onClick={() => setMealType(o.value)}
                   className={chipBtn(mealType === o.value)}
                 >
-                  {o.label}
+                  {t(`tracker.meals.${o.value}`)}
                 </button>
               ))}
             </div>
@@ -1151,7 +1228,7 @@ export function QuickAddSheet({
                 onLoggedCommon(data, { announceDayFit: !onLoggedEntries });
                 onLoggedEntries?.({
                   entryIds: data.entryIds,
-                  name: `${count} ${count === 1 ? 'item' : 'items'}`,
+                  name: t('tracker.items', { count }),
                   dayFit: data.dayFit,
                 });
               }}
@@ -1165,10 +1242,14 @@ export function QuickAddSheet({
               onClick={() => setView('search')}
               className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
             >
-              ← Back to search
+              {t('tracker.quickAdd.backToSearchArrow')}
             </button>
             {!replacesSlot && (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label={t('tracker.quickAdd.meal')}
+              >
                 {MEAL_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -1177,7 +1258,7 @@ export function QuickAddSheet({
                     onClick={() => setMealType(o.value)}
                     className={chipBtn(mealType === o.value)}
                   >
-                    {o.label}
+                    {t(`tracker.meals.${o.value}`)}
                   </button>
                 ))}
               </div>
@@ -1215,21 +1296,21 @@ export function QuickAddSheet({
               onClick={() => setView('search')}
               className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
             >
-              ← Back to search
+              {t('tracker.quickAdd.backToSearchArrow')}
             </button>
             <p className="text-sm text-neutral-500">
               {proteinOnly
-                ? 'Name and protein are enough — a rough guess is fine.'
-                : 'Name and calories are enough — a rough guess is fine.'}
+                ? t('tracker.quickAdd.manual.hintProtein')
+                : t('tracker.quickAdd.manual.hintKcal')}
             </p>
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-              What did you eat?
+              {t('tracker.quickAdd.manual.nameLabel')}
               <input
                 type="text"
                 data-testid="quick-add-name"
                 value={name}
                 maxLength={QUICK_ADD_LIMITS.nameMaxLength}
-                placeholder="e.g. Slice of birthday cake"
+                placeholder={t('tracker.quickAdd.manual.namePlaceholder')}
                 onChange={(e) => {
                   setName(e.target.value);
                   clearError('name');
@@ -1244,7 +1325,11 @@ export function QuickAddSheet({
               )}
             </label>
             {!replacesSlot && (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label={t('tracker.quickAdd.meal')}
+              >
                 {MEAL_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -1253,14 +1338,14 @@ export function QuickAddSheet({
                     onClick={() => setMealType(o.value)}
                     className={chipBtn(mealType === o.value)}
                   >
-                    {o.label}
+                    {t(`tracker.meals.${o.value}`)}
                   </button>
                 ))}
               </div>
             )}
             {proteinOnly ? (
               <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-                Roughly how many grams of protein?
+                {t('tracker.quickAdd.manual.proteinQuestion')}
                 <span className="flex items-center gap-1">
                   <input
                     type="number"
@@ -1274,7 +1359,9 @@ export function QuickAddSheet({
                     }}
                     className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
                   />
-                  <span className="shrink-0 text-neutral-400">g</span>
+                  <span className="shrink-0 text-neutral-400">
+                    {t('tracker.quickAdd.manual.gramsUnit')}
+                  </span>
                 </span>
                 {errors.protein && (
                   <span data-testid="quick-add-protein-error" className="text-xs text-red-600">
@@ -1285,7 +1372,7 @@ export function QuickAddSheet({
             ) : (
               <>
                 <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-                  Roughly how many calories?
+                  {t('tracker.quickAdd.manual.kcalQuestion')}
                   <span className="flex items-center gap-1">
                     <input
                       type="number"
@@ -1301,7 +1388,9 @@ export function QuickAddSheet({
                       }}
                       className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
                     />
-                    <span className="shrink-0 text-neutral-400">kcal</span>
+                    <span className="shrink-0 text-neutral-400">
+                      {t('tracker.quickAdd.manual.kcalUnit')}
+                    </span>
                   </span>
                   {errors.kcal && (
                     <span data-testid="quick-add-kcal-error" className="text-xs text-red-600">
@@ -1315,7 +1404,9 @@ export function QuickAddSheet({
                       key={k}
                       className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
                     >
-                      {k.charAt(0).toUpperCase() + k.slice(1)} (g)
+                      {t('tracker.quickAdd.manual.macroField', {
+                        macro: t(`tracker.quickAdd.manual.macroNames.${k}`),
+                      })}
                       <input
                         type="number"
                         inputMode="decimal"

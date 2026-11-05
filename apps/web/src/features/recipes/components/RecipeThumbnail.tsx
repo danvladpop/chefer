@@ -49,7 +49,7 @@ export function RecipeThumbnail({
       <RecipeImagePlaceholder
         recipeName={recipeName}
         cuisineType={cuisineType}
-        label={placeholderLabel(imageStatus)}
+        kind={placeholderLabel(imageStatus)}
         className={cn('absolute inset-0', className)}
       />
     );

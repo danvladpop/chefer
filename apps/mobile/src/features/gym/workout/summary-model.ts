@@ -1,3 +1,4 @@
+import type { Translator } from '@chefer/i18n';
 import {
   editorLabel,
   type ExerciseBest,
@@ -5,6 +6,7 @@ import {
   type PersonalRecord,
   type ProgressionDto,
   type SessionSummaryDto,
+  type StreakInfo,
   type WorkoutSessionDoc,
 } from '@chefer/types';
 import { collectPrs, explain, repBucket, toSessionSummary } from '@chefer/utils';
@@ -130,4 +132,22 @@ export function nextTimeRows(
     });
   }
   return rows;
+}
+
+/**
+ * The summary's streak line: "3-week streak · 1 flex week saved", or, with no
+ * streak yet, how far this week's goal is (both summaries show it).
+ */
+export function streakLineText(streak: StreakInfo, t: Translator['t']): string {
+  if (streak.current > 0) {
+    const weeks = t('gym.summary.streakWeeks', { count: streak.current });
+    return streak.flexTokens > 0
+      ? `${weeks} · ${t('gym.summary.flexSaved', { count: streak.flexTokens })}`
+      : weeks;
+  }
+  const goal = streak.thisWeekGoal;
+  const sessions = streak.thisWeekSessions;
+  return sessions >= goal && goal > 0
+    ? t('gym.summary.goalMet')
+    : t('gym.summary.moreToGo', { count: Math.max(0, goal - sessions) });
 }

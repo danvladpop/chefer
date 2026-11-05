@@ -12,6 +12,7 @@ import {
 import { PROGRESS_COPY } from '@chefer/utils';
 import { Icon, type IconName } from '../../components/icon';
 import { track } from '../../lib/analytics';
+import { getTranslator, useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { AppearanceRow } from '../appearance/appearance-screen';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
@@ -42,7 +43,27 @@ import { YouHelpSection, YouSignOutFooter } from './you/you-footer';
 // who may be a trainer but hasn't turned the tools on keeps "Trainer tools":
 // it leads to the turn-on screen.
 
-type Row = { title: string; subtitle?: string; href: Href; icon: IconName; testID: string };
+/** The row titles and subtitles this screen translates (catalog keys). */
+type RowKey =
+  | 'nav.items.stats'
+  | 'nav.items.myWeeks'
+  | 'today.shell.you.meals'
+  | 'today.shell.you.mealsDetail'
+  | 'today.shell.you.training'
+  | 'today.shell.you.trainingDetail'
+  | 'today.shell.you.notifications'
+  | 'today.shell.you.account'
+  | 'today.shell.you.accountDetail';
+
+// `title` is literal text (the gamification rows' PROGRESS_COPY), `titleKey` a catalog key.
+type Row = {
+  title?: string;
+  titleKey?: RowKey;
+  subtitleKey?: RowKey;
+  href: Href;
+  icon: IconName;
+  testID: string;
+};
 
 // Kitchen progress rows (shown only when it is on): Achievements leads "Your
 // progress", Rewards & motivation leads "Settings".
@@ -60,8 +81,8 @@ const REWARDS_ROW: Row = {
 };
 
 const PROGRESS_ROWS: readonly Row[] = [
-  { title: 'Stats', href: '/progress', icon: 'progress', testID: 'you-progress' },
-  { title: 'My weeks', href: '/my-weeks', icon: 'weeks', testID: 'you-my-weeks' },
+  { titleKey: 'nav.items.stats', href: '/progress', icon: 'progress', testID: 'you-progress' },
+  { titleKey: 'nav.items.myWeeks', href: '/my-weeks', icon: 'weeks', testID: 'you-my-weeks' },
 ];
 
 // Meal settings (`/settings/meals`) and Training settings (`/gym/settings`)
@@ -69,28 +90,28 @@ const PROGRESS_ROWS: readonly Row[] = [
 // (`/settings`) keeps goal, targets, Premium and privacy.
 const SETTINGS_ROWS: readonly Row[] = [
   {
-    title: 'Meals',
-    subtitle: 'Meals, days, allergies, budget',
+    titleKey: 'today.shell.you.meals',
+    subtitleKey: 'today.shell.you.mealsDetail',
     href: '/settings/meals',
     icon: 'meals',
     testID: 'you-meal-settings',
   },
   {
-    title: 'Training',
-    subtitle: 'Units, equipment, reminders',
+    titleKey: 'today.shell.you.training',
+    subtitleKey: 'today.shell.you.trainingDetail',
     href: '/gym/settings',
     icon: 'barbell',
     testID: 'you-training-settings',
   },
   {
-    title: 'Notifications',
+    titleKey: 'today.shell.you.notifications',
     href: '/settings/notifications',
     icon: 'notifications',
     testID: 'you-notifications',
   },
   {
-    title: 'Account',
-    subtitle: 'Goal, targets, Premium, privacy',
+    titleKey: 'today.shell.you.account',
+    subtitleKey: 'today.shell.you.accountDetail',
     href: '/settings',
     icon: 'account',
     testID: 'you-account',
@@ -100,11 +121,13 @@ const SETTINGS_ROWS: readonly Row[] = [
 /** "You + Ana", "You + Ana, Ben", "You + 3"; nothing while it's just you. */
 export function householdSummary(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
-  if (names.length <= 2) return `You + ${names.join(', ')}`;
-  return `You + ${names.length}`;
+  const { t } = getTranslator();
+  if (names.length <= 2) return t('today.shell.you.householdNames', { names: names.join(', ') });
+  return t('today.shell.you.householdCount', { count: names.length });
 }
 
 export function YouScreen() {
+  const { t } = useT();
   const colors = useThemeColors();
   // MO-03: the sections rise in on the first visit of the session only.
   const firstEntrance = useFirstEntrance('you');
@@ -126,8 +149,8 @@ export function YouScreen() {
     <ListRow
       key={item.testID}
       testID={item.testID}
-      title={item.title}
-      {...(item.subtitle ? { subtitle: item.subtitle } : {})}
+      title={item.titleKey ? t(item.titleKey) : (item.title ?? '')}
+      {...(item.subtitleKey ? { subtitle: t(item.subtitleKey) } : {})}
       icon={<Icon name={item.icon} color={colors.brand} />}
       onPress={() => router.push(item.href)}
     />
@@ -151,11 +174,11 @@ export function YouScreen() {
 
           <TierRow />
 
-          <ListSection title="Your progress">
+          <ListSection title={t('today.shell.you.progressSection')}>
             {(progressOn ? [ACHIEVEMENTS_ROW, ...PROGRESS_ROWS] : PROGRESS_ROWS).map(row)}
           </ListSection>
 
-          <ListSection title="Settings">
+          <ListSection title={t('today.shell.you.settingsSection')}>
             {(progressOn ? [REWARDS_ROW, ...SETTINGS_ROWS] : SETTINGS_ROWS)
               .filter((r) => r.testID !== 'you-account')
               .map(row)}
@@ -164,10 +187,10 @@ export function YouScreen() {
             {SETTINGS_ROWS.filter((r) => r.testID === 'you-account').map(row)}
           </ListSection>
 
-          <ListSection title="People">
+          <ListSection title={t('today.shell.you.peopleSection')}>
             <ListRow
               testID="you-household"
-              title="Household"
+              title={t('today.shell.you.household')}
               {...(household ? { value: household } : {})}
               {...(latestNotice ? { subtitle: noticeText(latestNotice) } : {})}
               badge={
@@ -212,7 +235,7 @@ export function YouScreen() {
             ) : null}
           </ListSection>
 
-          <ShellPreviewSection footer="Admins and test builds only." />
+          <ShellPreviewSection footer={t('today.shell.you.previewFooter')} />
 
           <YouHelpSection feedback={<YouFeedbackRow />} />
 

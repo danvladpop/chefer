@@ -8,7 +8,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, type ProfileVisibility, type Relation } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ProfileVisibility, Relation } from '@chefer/types';
 import {
   Button,
   DENSE_MAX_FONT_SCALE,
@@ -22,9 +23,10 @@ import {
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { useIsOnline } from '../api/use-is-online';
 import { useRelationActions } from '../api/use-relation-actions';
-import { FRIENDS_CONFIRMS, FriendsConfirmSheet } from '../safety/confirm-copy';
+import { FriendsConfirmSheet, useFriendsConfirms } from '../safety/confirm-copy';
 
 // ─── RelationButton: the one follow control (UX §3.3, §13, §14) ───────────────
 // The same states and words in search, lists, suggestions, Activity and
@@ -79,20 +81,44 @@ type RelationView = {
 };
 
 /** The label, variant and accessibility label of each state (UX §3.3). */
-export function relationView(relation: Relation, followsYou: boolean, name: string): RelationView {
-  const copy = FRIENDS_COPY.relation;
+export function relationView(
+  relation: Relation,
+  followsYou: boolean,
+  name: string,
+  t: Translator['t'],
+): RelationView {
   switch (relation) {
     case 'self':
-      return { label: copy.editSharing, variant: 'outline', a11yLabel: copy.a11y.self };
+      return {
+        label: t('friends.relation.editSharing'),
+        variant: 'outline',
+        a11yLabel: t('friends.relation.a11y.self'),
+      };
     case 'requested':
-      return { label: copy.requested, variant: 'outline', a11yLabel: copy.a11y.requested(name) };
+      return {
+        label: t('friends.relation.requested'),
+        variant: 'outline',
+        a11yLabel: t('friends.relation.a11y.requested', { name }),
+      };
     case 'following':
-      return { label: copy.following, variant: 'secondary', a11yLabel: copy.a11y.following(name) };
+      return {
+        label: t('friends.relation.following'),
+        variant: 'secondary',
+        a11yLabel: t('friends.relation.a11y.following', { name }),
+      };
     case 'none':
     default:
       return followsYou
-        ? { label: copy.followBack, variant: 'default', a11yLabel: copy.a11y.followBack(name) }
-        : { label: copy.follow, variant: 'default', a11yLabel: copy.a11y.follow(name) };
+        ? {
+            label: t('friends.relation.followBack'),
+            variant: 'default',
+            a11yLabel: t('friends.relation.a11y.followBack', { name }),
+          }
+        : {
+            label: t('friends.relation.follow'),
+            variant: 'default',
+            a11yLabel: t('friends.relation.a11y.follow', { name }),
+          };
   }
 }
 
@@ -122,6 +148,8 @@ export function RelationButton({
   onRelationChange,
   testID = `friends-relation-${userId}`,
 }: RelationButtonProps) {
+  const { t } = useT();
+  const confirms = useFriendsConfirms();
   const actions = useRelationActions();
   const snackbar = useSnackbar();
   const online = useIsOnline();
@@ -162,7 +190,7 @@ export function RelationButton({
   };
 
   const first = firstName ?? name.split(/\s+/)[0] ?? name;
-  const view = relationView(shown, followsYou, name);
+  const view = relationView(shown, followsYou, name, t);
 
   const run = async (kind: 'follow' | 'unfollow') => {
     if (inFlight.current) return;
@@ -183,8 +211,8 @@ export function RelationButton({
       setShown(before);
       shake();
       snackbar.show({
-        message: FRIENDS_COPY.relation.error,
-        actionLabel: FRIENDS_COPY.relation.errorAction,
+        message: t('friends.relation.error'),
+        actionLabel: t('friends.relation.errorAction'),
         onAction: () => void run(kind),
       });
       return;
@@ -197,8 +225,8 @@ export function RelationButton({
       track('friend_follow', { source, outcome });
       announce(
         outcome === 'following'
-          ? FRIENDS_COPY.announce.nowFollowing(name)
-          : FRIENDS_COPY.announce.requestSent(name),
+          ? t('friends.announce.nowFollowing', { name })
+          : t('friends.announce.requestSent', { name }),
       );
     } else if (before === 'following') {
       track('friend_unfollowed', { wasMutual: followsYou });
@@ -241,7 +269,7 @@ export function RelationButton({
           className="w-full px-2"
           disabled={disabled || offline}
           accessibilityLabel={view.a11yLabel}
-          accessibilityHint={offline ? FRIENDS_COPY.offline.needsConnection : undefined}
+          accessibilityHint={offline ? t('friends.offline.needsConnection') : undefined}
           onPress={onPress}
         >
           <Animated.View
@@ -268,8 +296,8 @@ export function RelationButton({
           visible={confirm !== null}
           copy={
             sheetKind === 'cancelRequest'
-              ? FRIENDS_CONFIRMS.cancelRequest()
-              : FRIENDS_CONFIRMS.unfollow(first, visibility)
+              ? confirms.cancelRequest()
+              : confirms.unfollow(first, visibility)
           }
           onClose={() => setConfirm(null)}
           onConfirm={() => {

@@ -12,8 +12,8 @@ import type { SafetyResult } from './use-block';
 // ─── Following: remove a follower (UX §11.4) ──────────────────────────────────
 // Optimistic: the row leaves `friends.followers` (MO-04) and `Follows you`
 // disappears wherever the person is cached; a failure restores both. The
-// caller confirms first (`FRIENDS_CONFIRMS.removeFollower`) and shows
-// `FRIENDS_COPY.remove.done(first)`. They aren't told.
+// caller confirms first (`friendsConfirms.removeFollower`) and shows
+// `t('friends.remove.done', { first })`. They aren't told.
 
 export function useRemoveFollower(): {
   removeFollower: (userId: string) => Promise<SafetyResult>;

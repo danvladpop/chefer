@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { FeedbackNavButton } from '@/features/feedback/components/FeedbackDialog';
 import { PlanFooterCard } from '@/features/premium/components/PlanFooterCard';
+import { useT } from '@/lib/i18n';
 import { X } from 'lucide-react';
 import { Drawer, pressControl } from '@chefer/ui';
 import { cn } from '@chefer/utils';
@@ -23,6 +24,7 @@ interface MobileNavDrawerProps {
 }
 
 export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
+  const { t } = useT();
   const pathname = usePathname();
   const { mode, nav, trainerModeAvailable } = useAppMode();
 
@@ -34,7 +36,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
   }, [pathname]);
 
   return (
-    <Drawer open={open} onClose={onClose} label="More navigation">
+    <Drawer open={open} onClose={onClose} label={t('nav.moreNavigation')}>
       {/* Header */}
       <div className="flex h-16 shrink-0 items-center justify-between border-b px-4">
         <div className="flex items-center gap-2">
@@ -46,7 +48,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close menu"
+          aria-label={t('nav.closeMenu')}
           className={cn(
             '-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-600',
             pressControl,
@@ -62,10 +64,13 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
       </div>
 
       {/* Secondary nav links */}
-      <nav aria-label="More" className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+      <nav
+        aria-label={t('nav.more')}
+        className="flex-1 overflow-y-auto overscroll-contain px-3 py-4"
+      >
         <ul key={mode} className={cn('space-y-0.5', modeSwapFade(trainerModeAvailable))}>
           {nav.secondary.map((item) => {
-            const { href, label, icon: Icon } = item;
+            const { href, labelKey, icon: Icon } = item;
             const active = isItemActive(pathname, item);
             return (
               <li key={href}>
@@ -89,7 +94,7 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
                     className={cn('h-5 w-5 shrink-0', active ? 'text-[#944a00]' : 'text-gray-500')}
                     aria-hidden="true"
                   />
-                  {label}
+                  {t(labelKey)}
                 </Link>
               </li>
             );

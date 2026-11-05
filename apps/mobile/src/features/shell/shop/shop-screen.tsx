@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, View, type TextInput } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { router, useIsFocused } from 'expo-router';
-import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
+import type { ListPersonDto } from '@chefer/types';
 import {
   AnimatedCheck,
   Button,
@@ -34,9 +34,7 @@ import {
   formatPriceRange,
   getWeekStartDate,
   isConvertedCurrency,
-  labelCaveatCompactText,
   parseCustomItemInput,
-  shoppingWindowLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
@@ -46,6 +44,7 @@ import { useIsOnline } from '../../../hooks/use-is-online';
 import { useIsPremium } from '../../../hooks/use-is-premium';
 import { useUnits } from '../../../hooks/use-units';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { PartnerBanner } from '../../household/sharing/partner-banner';
 import { useHouseholdSharing } from '../../household/sharing/use-household-sharing';
@@ -63,11 +62,17 @@ import {
   type ShopListItem,
 } from '../../shopping-list/pending-item';
 import { ShareListSheet } from '../../shopping-list/share-list-sheet';
+import {
+  addedByText,
+  checkedByText,
+  shellAisleLabel,
+  shopWindowText,
+} from '../../shopping-list/shop-copy';
 import { useSharedListSync } from '../../shopping-list/use-shared-list-sync';
 import { useCheckedWithPending, useShopToggle } from '../../shopping-list/use-shop-toggle';
 import { AskChefAction } from '../add-action';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
-import { shopGroups, shopGroupStatus, type ShopGroup } from './shop-groups';
+import { shopGroups, type ShopGroup } from './shop-groups';
 
 // ─── Shop (10 Oct redesign, board "Shop") ──────────────────────────────────
 // The old Shop tab (`app/(food)/shopping-list.tsx`, kept for the old shell)
@@ -89,13 +94,13 @@ type WeekOffset = 0 | 1;
 /** A finished aisle folds shut after its last strike has had time to play. */
 const AISLE_FOLD_DELAY_MS = duration.deliberate;
 
-const WEEK_OPTIONS = [
-  { value: '0' as const, label: 'This week', testID: 'shop-week-0' },
-  { value: '1' as const, label: 'Next week', testID: 'shop-week-1' },
-];
-
 export function ShopScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
+  const weekOptions = [
+    { value: '0' as const, label: t('plan.shopping.weeks.thisWeek'), testID: 'shop-week-0' },
+    { value: '1' as const, label: t('plan.shopping.weeks.nextWeek'), testID: 'shop-week-1' },
+  ];
   // T-08.1: the same default as Meals — next week from Friday 15:00 to Sunday.
   const [weekOffset, setWeekOffset] = useState<WeekOffset>(() => defaultWeekOffset(new Date()));
   // UX-SHOP-02: aisles are open by default and the choice is remembered.
@@ -170,7 +175,9 @@ export function ShopScreen() {
     meta: { silent: true },
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
     onError: (err) =>
-      snackbar.show({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+      snackbar.show({
+        message: t('plan.shopping.undoFailed', { reason: userFacingErrorMessage(err) }),
+      }),
   });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
@@ -182,8 +189,8 @@ export function ShopScreen() {
       {
         onSuccess: () =>
           snackbar.show({
-            message: `Removed ${item.ingredientName}`,
-            actionLabel: 'Undo',
+            message: t('plan.shopping.removed', { name: item.ingredientName }),
+            actionLabel: t('plan.shopping.undo'),
             onAction: () =>
               undoRemoveMutation.mutate({
                 planId,
@@ -268,15 +275,19 @@ export function ShopScreen() {
   };
 
   const estimate = weekList?.estimatedTotalEur;
-  const windowLabel = shoppingWindowLabel(weekList?.fromDayOfWeek);
+  const windowLabel = shopWindowText(t, weekList?.fromDayOfWeek);
   // UX-08 §7: a range, never one precise number; the window when the list is part of a week.
   const range = estimate != null ? formatPriceRange(estimate, currency, deviceLocale()) : null;
-  const priceText =
+  const price =
     estimate != null
-      ? `${range ? `≈ ${range}` : formatApproxPriceHint(estimate, currency)}${
-          windowLabel ? ` · ${windowLabel}` : ''
-        }`
+      ? range
+        ? t('plan.shopping.priceApprox', { range })
+        : formatApproxPriceHint(estimate, currency)
       : null;
+  const priceText =
+    price != null && windowLabel
+      ? t('plan.shopping.withWindow', { text: price, window: windowLabel })
+      : price;
 
   const quantityLabel = (item: ShopListItem) =>
     Number.isFinite(Number(item.quantity))
@@ -287,15 +298,19 @@ export function ShopScreen() {
   const whoLine = (item: ShopListItem, checked: boolean): string | null => {
     if (checked) {
       const by: ListPersonDto | undefined = checkedBy[item.key] ?? item.checkedBy;
-      if (by) return HOUSEHOLD_SHARING_COPY.checkedBy(by);
+      if (by) return checkedByText(t, by);
     }
-    return item.addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(item.addedBy) : null;
+    return item.addedBy ? addedByText(t, item.addedBy) : null;
   };
 
   const renderGroup = (group: ShopGroup<ShopListItem>) => {
     // A search shows every aisle with a match, open.
     const expanded = searching || isAisleExpanded(expandedAisles, group.category);
-    const status = shopGroupStatus(group);
+    const label = shellAisleLabel(t, group.category);
+    const status =
+      group.left === 0
+        ? t('plan.shopping.aisleFinished')
+        : t('plan.shopping.aisleLeft', { left: group.left, total: group.total });
     return (
       <Animated.View
         key={group.category}
@@ -306,13 +321,13 @@ export function ShopScreen() {
         <Pressable
           testID={`shop-group-${group.category}-header`}
           accessibilityRole="button"
-          accessibilityLabel={`${group.label}, ${status}`}
+          accessibilityLabel={t('plan.shopping.aisleLabel', { label, status })}
           accessibilityState={{ expanded }}
           onPress={() => toggleGroup(group.category)}
           className="min-h-12 flex-row items-center gap-2 px-4 py-2.5"
         >
           <Text numberOfLines={1} className="min-w-0 flex-1 text-headline font-bold text-label">
-            {group.label}
+            {label}
           </Text>
           <Text
             testID={`shop-group-${group.category}-status`}
@@ -345,7 +360,10 @@ export function ShopScreen() {
                   <Pressable
                     testID={`shop-item-${item.key}`}
                     accessibilityRole="checkbox"
-                    accessibilityLabel={`${item.ingredientName}, ${quantity}`}
+                    accessibilityLabel={t('plan.shopping.itemLabel', {
+                      name: item.ingredientName,
+                      quantity,
+                    })}
                     accessibilityState={{ checked, disabled: pending }}
                     disabled={pending}
                     onPress={() => toggleItem(item.key)}
@@ -380,7 +398,7 @@ export function ShopScreen() {
                         {item.labelCheck && item.labelCheck.length > 0 ? (
                           <LabelCaveat
                             testID={`shop-item-${item.key}-label`}
-                            text={labelCaveatCompactText()}
+                            text={t('plan.shopping.labelCaveat')}
                             compact
                           />
                         ) : null}
@@ -401,13 +419,19 @@ export function ShopScreen() {
                       numberOfLines={1}
                       className="text-subhead text-label-secondary"
                     >
-                      {pending ? (online ? 'Saving…' : 'Not saved yet') : quantity}
+                      {pending
+                        ? online
+                          ? t('common.states.saving')
+                          : t('plan.shopping.notSavedYet')
+                        : quantity}
                     </Text>
                   </Pressable>
                   {item.isCustom && !pending ? (
                     <IconButton
                       testID={`shop-item-${item.key}-remove`}
-                      accessibilityLabel={`Remove ${item.ingredientName}`}
+                      accessibilityLabel={t('plan.shopping.removeItem', {
+                        name: item.ingredientName,
+                      })}
                       disabled={removeItemMutation.isPending}
                       icon={<Icon name="close" color={colors.labelTertiary} size={18} />}
                       onPress={() => {
@@ -429,12 +453,12 @@ export function ShopScreen() {
       <ShellChromeProvider
         value={{
           kind: 'tab-root',
-          title: 'Shop',
+          title: t('plan.shopping.title'),
           actions: (
             <>
               <IconButton
                 testID="shop-share"
-                accessibilityLabel="Share the list"
+                accessibilityLabel={t('plan.shopping.shareList')}
                 variant="tinted"
                 disabled={items.length === 0}
                 icon={<Icon name="share" color={colors.brand} />}
@@ -454,8 +478,8 @@ export function ShopScreen() {
       >
         <SegmentedControl
           testID="shop-week"
-          accessibilityLabel="Week"
-          options={WEEK_OPTIONS}
+          accessibilityLabel={t('plan.shopping.weekPicker')}
+          options={weekOptions}
           value={String(weekOffset) as '0' | '1'}
           onChange={(value) => setWeekOffset(Number(value) as WeekOffset)}
         />
@@ -466,7 +490,7 @@ export function ShopScreen() {
           </View>
         ) : isError && !weekList ? (
           // A failed load is not an empty list (F-X-3-1).
-          <ErrorState title="Couldn't load your shopping list" onRetry={() => void refetch()} />
+          <ErrorState title={t('plan.shopping.loadError')} onRetry={() => void refetch()} />
         ) : !weekList?.hasPlan ? (
           <View
             testID="shop-empty"
@@ -474,13 +498,13 @@ export function ShopScreen() {
           >
             <Icon name="cart" color={colors.labelTertiary} size={36} />
             <Text className="text-center text-headline font-semibold text-label">
-              No meal plan for this week
+              {t('plan.shopping.empty.title')}
             </Text>
             <Text className="text-center text-subhead text-label-secondary">
-              Plan your meals to get a shopping list.
+              {t('plan.shopping.empty.shellBody')}
             </Text>
             <Button testID="shop-empty-plan" onPress={() => router.navigate('/plan')}>
-              Go to Meals
+              {t('plan.shopping.empty.shellCta')}
             </Button>
           </View>
         ) : (
@@ -491,8 +515,10 @@ export function ShopScreen() {
                   testID="shop-total"
                   accessibilityLabel={
                     isConvertedCurrency(currency) && estimate != null
-                      ? `Estimated total about ${formatMoney(estimate, currency)}, converted from euros at an approximate rate`
-                      : `Estimated total ${priceText}`
+                      ? t('plan.shopping.estTotalLabelConverted', {
+                          price: formatMoney(estimate, currency),
+                        })
+                      : t('plan.shopping.estTotalLabel', { price: priceText })
                   }
                   className="rounded-full border border-separator bg-surface px-3 py-1 text-subhead font-semibold text-label"
                 >
@@ -504,7 +530,10 @@ export function ShopScreen() {
                   testID="shop-done-count"
                   className="rounded-full border border-separator bg-surface px-3 py-1 text-subhead font-semibold text-label"
                 >
-                  {checkedCount} of {items.length} done
+                  {t('plan.shopping.doneOfTotal', {
+                    checked: String(checkedCount),
+                    total: String(items.length),
+                  })}
                 </Text>
               ) : null}
             </View>
@@ -520,7 +549,7 @@ export function ShopScreen() {
                 accessibilityLiveRegion="polite"
                 className="self-start rounded-full bg-brand-tint px-3 py-1 text-caption font-semibold text-attention"
               >
-                Offline · changes sync when you&apos;re back
+                {t('plan.shopping.offline')}
               </Text>
             ) : null}
 
@@ -535,8 +564,8 @@ export function ShopScreen() {
                 compact
                 job={
                   tablePortions != null && tablePortions > 1
-                    ? `Keep portions for your table of ${tablePortions}`
-                    : 'Keep portions right for your table'
+                    ? t('plan.shopping.lockedJobTable', { count: tablePortions })
+                    : t('plan.shopping.lockedJob')
                 }
               />
             ) : null}
@@ -545,8 +574,8 @@ export function ShopScreen() {
               <SearchField
                 ref={fieldRef}
                 testID="shop-field"
-                accessibilityLabel="Search or add an item"
-                placeholder="Search or add an item"
+                accessibilityLabel={t('plan.shopping.add.searchOrAdd')}
+                placeholder={t('plan.shopping.add.searchOrAdd')}
                 value={text}
                 onChangeText={setText}
                 onFocus={() => scrollFieldIntoView(fieldRef.current)}
@@ -558,9 +587,11 @@ export function ShopScreen() {
               />
               <IconButton
                 testID="shop-add"
-                accessibilityLabel="Add item"
+                accessibilityLabel={t('plan.shopping.add.buttonLabelShort')}
                 accessibilityHint={
-                  searching ? `Adds ${text.trim()} to your list` : 'Type an item to add'
+                  searching
+                    ? t('plan.shopping.add.addsHint', { item: text.trim() })
+                    : t('plan.shopping.add.typeHint')
                 }
                 variant="filled"
                 icon={<Icon name="add" color={colors.onBrand} size={26} />}
@@ -570,7 +601,7 @@ export function ShopScreen() {
 
             {searching && groups.length === 0 ? (
               <Text testID="shop-no-match" className="px-1 text-subhead text-label-secondary">
-                Not on your list. Tap + to add “{text.trim()}”.
+                {t('plan.shopping.add.noMatch', { item: text.trim() })}
               </Text>
             ) : null}
 

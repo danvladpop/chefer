@@ -1,6 +1,5 @@
 import { ActivityIndicator, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY } from '@chefer/types';
 import {
   Button,
   EmptyState,
@@ -11,6 +10,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { ClientRow } from '../components/client-row';
@@ -34,6 +34,7 @@ import { useTurnOffTrainerTools } from './use-turn-off-trainer-tools';
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 export function TrainerHome() {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() });
@@ -45,7 +46,7 @@ export function TrainerHome() {
 
   return (
     <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-home">
-      <TrainerHeader testID="trainer-home-header" title={COACHING_COPY.trainer.clients} />
+      <TrainerHeader testID="trainer-home-header" title={t('coaching.trainer.clients')} />
       <KeyboardAwareScrollView
         testID="trainer-home-scroll"
         contentContainerClassName="gap-3 px-4 pb-8 pt-2"
@@ -66,7 +67,7 @@ export function TrainerHome() {
         <RequestsSection />
 
         <Button testID="trainer-home-invite" onPress={() => router.push('/trainer/invite')}>
-          {COACHING_COPY.trainer.invite}
+          {t('coaching.trainer.invite')}
         </Button>
 
         {clients.isPending ? (
@@ -79,8 +80,8 @@ export function TrainerHome() {
           <EmptyState
             testID="trainer-home-empty"
             icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
-            title={COACHING_COPY.trainer.clientsEmpty}
-            description={COACHING_COPY.trainer.turnOnBody}
+            title={t('coaching.trainer.clientsEmpty')}
+            description={t('coaching.trainer.turnOnBody')}
           />
         ) : (
           clients.data.map((row) => <ClientRow key={row.clientId} row={row} />)
@@ -95,7 +96,7 @@ export function TrainerHome() {
             {turnOff.body}
           </Text>
           <Button testID="trainer-home-turn-off" variant="outline" onPress={turnOff.request}>
-            {COACHING_COPY.trainer.turnOff}
+            {t('coaching.trainer.turnOff')}
           </Button>
         </CoachingCard>
         <TrainerFeedbackLink />

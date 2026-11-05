@@ -4,55 +4,59 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { GymSync } from '@/features/gym/workout/gym-sync';
 import { PostUpgradeActivation } from '@/features/premium/components/PostUpgradeActivation';
+import { useT } from '@/lib/i18n';
+import type { Catalog } from '@chefer/i18n';
 import { cn } from '@chefer/utils';
 import { ModeProvider } from '../mode-context';
-import { isFocusRoute, type AppMode } from '../nav-items';
+import { isFocusRoute, type AppMode, type NavLabelKey } from '../nav-items';
 import { BottomNav } from './bottom-nav';
 import { MobileNavDrawer } from './mobile-nav-drawer';
 import { SideBar } from './side-bar';
 import { TopHeader } from './top-header';
 
-// Map route prefixes to page titles (first match wins — specific before general)
-const TITLE_MAP: [string, string][] = [
-  ['/gym/workout', 'Workout'],
-  ['/gym/summary', 'Workout summary'],
-  ['/gym/setup', 'Gym setup'],
-  ['/gym/settings', 'Gym settings'],
-  ['/gym/my-week', 'My week'],
-  ['/gym/routine', 'Routine'],
-  ['/gym/exercises', 'Exercises'],
-  ['/gym/stats', 'Stats'],
-  ['/gym', 'Gym'],
-  ['/meal-plan', 'Meal Planner'],
-  ['/recipes', 'Cookbook'],
-  ['/ingredients', 'Ingredients'],
-  ['/shopping-list', 'Shop'],
-  ['/pantry', 'Shop'],
-  ['/tracker', 'Tracker'],
-  ['/progress', 'Progress'],
-  ['/my-weeks', 'My weeks'],
-  ['/history', 'My weeks'],
-  ['/profile', 'Profile'],
-  ['/preferences', 'Preferences'],
-  ['/premium', 'Premium'],
-  ['/admin', 'Admin'],
+type TitleKey = NavLabelKey | `nav.titles.${keyof Catalog['nav']['titles']}` | 'common.appName';
+
+// Map route prefixes to page title keys (first match wins — specific before general)
+const TITLE_MAP: [string, TitleKey][] = [
+  ['/gym/workout', 'nav.titles.workout'],
+  ['/gym/summary', 'nav.titles.workoutSummary'],
+  ['/gym/setup', 'nav.titles.gymSetup'],
+  ['/gym/settings', 'nav.items.gymSettings'],
+  ['/gym/my-week', 'nav.titles.myWeek'],
+  ['/gym/routine', 'nav.items.routine'],
+  ['/gym/exercises', 'nav.items.exercises'],
+  ['/gym/stats', 'nav.items.stats'],
+  ['/gym', 'nav.titles.gym'],
+  ['/meal-plan', 'nav.items.mealPlanner'],
+  ['/recipes', 'nav.items.cookbook'],
+  ['/ingredients', 'nav.titles.ingredients'],
+  ['/shopping-list', 'nav.items.shop'],
+  ['/pantry', 'nav.items.shop'],
+  ['/tracker', 'nav.titles.tracker'],
+  ['/progress', 'nav.items.progress'],
+  ['/my-weeks', 'nav.items.myWeeks'],
+  ['/history', 'nav.items.myWeeks'],
+  ['/profile', 'nav.items.profile'],
+  ['/preferences', 'nav.items.preferences'],
+  ['/premium', 'nav.titles.premium'],
+  ['/admin', 'nav.titles.admin'],
   // Trainer mode (trainer-mode.md §5.3); /trainer and a client's pages keep "Chefer".
-  ['/trainer/today', 'Today'],
-  ['/trainer/schedule', 'Schedule'],
-  ['/trainer/clients', 'Clients'],
-  ['/trainer/workouts', 'Workouts'],
-  ['/trainer/settings', 'Trainer settings'],
-  ['/coaching/find', 'Find a trainer'],
-  ['/coaching/trainers', 'Find a trainer'],
-  ['/onboarding', 'Get Started'],
-  ['/dashboard', 'Today'],
+  ['/trainer/today', 'nav.items.today'],
+  ['/trainer/schedule', 'nav.items.schedule'],
+  ['/trainer/clients', 'nav.items.clients'],
+  ['/trainer/workouts', 'nav.items.workouts'],
+  ['/trainer/settings', 'nav.items.trainerSettings'],
+  ['/coaching/find', 'nav.titles.findTrainer'],
+  ['/coaching/trainers', 'nav.titles.findTrainer'],
+  ['/onboarding', 'nav.titles.getStarted'],
+  ['/dashboard', 'nav.items.today'],
 ];
 
-function getTitle(pathname: string): string {
-  for (const [prefix, label] of TITLE_MAP) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return label;
+function getTitleKey(pathname: string): TitleKey {
+  for (const [prefix, key] of TITLE_MAP) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return key;
   }
-  return 'Chefer';
+  return 'common.appName';
 }
 
 interface DashboardShellProps {
@@ -70,8 +74,9 @@ export function DashboardShell({ children, initialMode = 'food' }: DashboardShel
 }
 
 function ShellFrame({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   const pathname = usePathname();
-  const title = getTitle(pathname);
+  const title = t(getTitleKey(pathname));
   const focus = isFocusRoute(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
 

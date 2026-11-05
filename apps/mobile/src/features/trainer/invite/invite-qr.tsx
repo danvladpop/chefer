@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import qrcode from 'qrcode-generator';
 import { colorsFor } from '@chefer/tokens';
-import { COACHING_COPY } from '@chefer/types';
+import { useT } from '../../../lib/i18n';
 
 // ─── The invite as a QR code (PRD 2026-10 §4.1, S5) ───────────────────────────
 // For in-person sign-ups: the client points their phone camera at it and the invite link opens. Encoded
@@ -40,13 +40,14 @@ export function InviteQr({
   size?: number;
   testID?: string;
 }) {
+  const { t } = useT();
   const { d, size: modules } = useMemo(() => qrPath(url), [url]);
   return (
     <View
       testID={testID}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={COACHING_COPY.trainer.qr.label}
+      accessibilityLabel={t('coaching.trainer.qr.label')}
       className="self-center overflow-hidden rounded-inner"
     >
       <Svg width={size} height={size} viewBox={`0 0 ${modules} ${modules}`}>

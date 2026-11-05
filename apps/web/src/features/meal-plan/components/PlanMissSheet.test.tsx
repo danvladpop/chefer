@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setFormatLocale } from '@chefer/utils';
+import { DayRecapBar } from './DayRecapBar';
 import { PlanMissSheet } from './PlanMissSheet';
 
 // T-11.3: neutral under/over-target sheet — Bigger portions (preview then apply),
@@ -159,5 +162,48 @@ describe('PlanMissSheet', () => {
       expect(m.mutate).toHaveBeenCalledWith(expect.objectContaining({ factor: 1.25 }));
       expect(screen.getByRole('button', { name: /^Bigger portions/ })).toBeTruthy();
     });
+  });
+});
+
+describe('PlanMissSheet in Romanian (Lane J)', () => {
+  afterEach(() => setFormatLocale(null));
+
+  it('says the miss, the options and the applied toast in Romanian', () => {
+    const onApplied = vi.fn();
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <PlanMissSheet {...base} dayName="Miercuri" goal="MAINTAIN" onApplied={onApplied} />
+      </I18nProvider>,
+    );
+    const text = screen.getByRole('dialog').textContent ?? '';
+    expect(text).toContain('Cu aproximativ 400 kcal sub țintă');
+    expect(text).toContain('Porții mai mari');
+    expect(text).toContain('2.010 kcal · 120 g proteine');
+    expect(text).toContain('Las-o așa');
+    fireEvent.click(screen.getByTestId('plan-miss-portions'));
+    expect(onApplied).toHaveBeenCalledWith('Miercuri: porții mărite.');
+  });
+
+  it('labels the day totals in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <DayRecapBar
+          meals={[
+            {
+              type: 'lunch',
+              recipe: {
+                nutritionInfo: { calories: 900, protein: 40, carbs: 90, fat: 30, fiber: 5 },
+              },
+            },
+          ]}
+          calorieTarget={2000}
+          onOpenMiss={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('Totalul zilei')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Cu aproximativ 1.100 kcal sub țintă. Vezi opțiunile' }),
+    ).toBeTruthy();
   });
 });

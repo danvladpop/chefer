@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { FRIENDS_COPY } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { BlockConfirmSheet, RemoveFollowerConfirmSheet } from '../safety/safety-confirm-sheets';
 
 // ─── The Followers row `…` (UX §5.1, §11.4) ───────────────────────────────────
@@ -25,6 +25,7 @@ export type FollowerActions = {
 };
 
 export function useFollowerActions(): FollowerActions {
+  const { t } = useT();
   const [state, setState] = useState<State | null>(null);
 
   const close = () => setState((s) => (s ? { ...s, open: false } : s));
@@ -54,7 +55,7 @@ export function useFollowerActions(): FollowerActions {
               variant="outline"
               onPress={() => pick('remove')}
             >
-              {FRIENDS_COPY.remove.cta}
+              {t('friends.remove.cta')}
             </Button>
             <Button
               testID="friends-follower-menu-block"
@@ -62,7 +63,7 @@ export function useFollowerActions(): FollowerActions {
               variant="outline"
               onPress={() => pick('block')}
             >
-              {FRIENDS_COPY.block.cta}
+              {t('friends.block.cta')}
             </Button>
           </View>
         </Sheet>

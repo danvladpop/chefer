@@ -46,6 +46,8 @@ export async function resolveUserFromSession(token: string): Promise<UserProfile
             role: true,
             planTier: true,
             image: true,
+            locale: true,
+            deviceLocale: true,
           },
         },
       },
@@ -63,6 +65,8 @@ export async function resolveUserFromSession(token: string): Promise<UserProfile
       role: session.user.role,
       planTier: session.user.planTier,
       image: session.user.image,
+      locale: session.user.locale,
+      deviceLocale: session.user.deviceLocale,
     };
   } catch {
     return null;

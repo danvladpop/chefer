@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createTranslator } from '@chefer/i18n';
 import {
   deriveMode,
   FOOD_EXTRA_ROUTES,
@@ -21,7 +22,12 @@ import {
   SECONDARY_NAV_ITEMS,
   TRAINER_MODE_NAV_ITEMS,
   TRAINER_NAV_ITEM,
+  type NavLabelKey,
 } from './nav-items';
+
+// The English text of an item, as a user reads it.
+const { t } = createTranslator('en');
+const labelOf = (item: { labelKey: NavLabelKey }) => t(item.labelKey);
 
 describe('isNavItemActive', () => {
   it('matches the exact route', () => {
@@ -59,7 +65,7 @@ describe('nav item partitions', () => {
 
   it('every item has a label and an icon', () => {
     for (const item of [...NAV_ITEMS, ...GYM_NAV_ITEMS]) {
-      expect(item.label.length).toBeGreaterThan(0);
+      expect(labelOf(item).length).toBeGreaterThan(0);
       expect(item.icon).toBeDefined();
     }
   });
@@ -69,7 +75,7 @@ describe('food IA (P2-2 / P2-8)', () => {
   const item = (href: string) => FOOD_NAV_ITEMS.find((i) => i.href === href)!;
 
   it('the sidebar lists Today · Plan · Shop · Cookbook first', () => {
-    expect(PRIMARY_NAV_ITEMS.map((i) => i.shortLabel ?? i.label)).toEqual([
+    expect(PRIMARY_NAV_ITEMS.map((i) => t(i.shortLabelKey ?? i.labelKey))).toEqual([
       'Today',
       'Plan',
       'Shop',
@@ -194,7 +200,8 @@ describe('trainer nav item (WP-18)', () => {
       expect(nav.all).toContain(TRAINER_NAV_ITEM);
       expect(nav.primary).not.toContain(TRAINER_NAV_ITEM);
     }
-    expect(TRAINER_NAV_ITEM).toMatchObject({ href: '/trainer', label: 'Clients' });
+    expect(TRAINER_NAV_ITEM).toMatchObject({ href: '/trainer', labelKey: 'nav.items.clients' });
+    expect(labelOf(TRAINER_NAV_ITEM)).toBe('Clients');
   });
 
   it('does not change which mode a trainer route belongs to', () => {
@@ -205,7 +212,7 @@ describe('trainer nav item (WP-18)', () => {
 
 describe('trainer mode (trainer-mode.md §5.3)', () => {
   const on = { trainerMode: true };
-  const labels = (items: readonly { label: string }[]) => items.map((i) => i.label);
+  const labels = (items: readonly { labelKey: NavLabelKey }[]) => items.map(labelOf);
 
   it('the sidebar lists Today · Schedule · Clients · Workouts, then Trainer settings and Profile', () => {
     const nav = navFor('trainer', { trainer: true, ...on });

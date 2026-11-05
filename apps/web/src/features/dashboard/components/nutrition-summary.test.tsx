@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrainingDayNutrition } from '@chefer/types';
+import { setFormatLocale } from '@chefer/utils';
 import { NutritionSummary } from './nutrition-summary';
 
 vi.mock('@/features/premium/components/UpgradeButton', () => ({
@@ -151,5 +153,25 @@ describe('NutritionSummary — status pill (UX-FOOD-05)', () => {
       />,
     );
     expect(screen.getByTestId('nutrition-status')).toHaveTextContent('On track');
+  });
+});
+
+describe('NutritionSummary — Romanian (lane J)', () => {
+  afterEach(() => setFormatLocale(null));
+
+  it('renders the ring, pill and macro bars in Romanian', () => {
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={['ro-RO']}>
+        <NutritionSummary nutrition={{ ...base, plannedKcal: 1800 }} targetMode="OWN" />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('Azi')).toBeTruthy();
+    expect(screen.getByText('din 2.500 kcal mâncate')).toBeTruthy();
+    expect(screen.getByText('1.800 planificate · 1.500 rămase')).toBeTruthy();
+    expect(screen.getByText('Obiectivul tău')).toBeTruthy();
+    expect(screen.getByText('Carbohidrați')).toBeTruthy();
+    expect(
+      screen.getByRole('progressbar', { name: '1000 din 2500 kcal mâncate azi' }),
+    ).toBeTruthy();
   });
 });

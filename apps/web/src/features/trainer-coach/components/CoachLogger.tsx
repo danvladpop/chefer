@@ -16,6 +16,7 @@ import {
   type WorkoutActionInput,
 } from '@/features/gym/workout/workout-model';
 import { ActionItem, NoteSheet, SetMenuSheet } from '@/features/gym/workout/workout-view';
+import { useT } from '@/lib/i18n';
 import { CircleSlash, Minus, Plus, StickyNote } from 'lucide-react';
 import {
   EXERCISE_BY_ID,
@@ -46,6 +47,7 @@ export function CoachLogger({
     supersets: ReadonlyMap<string, SessionSupersetSlot>,
   ) => void;
 }) {
+  const { t } = useT();
   const session = entry.doc;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [actionsFor, setActionsFor] = useState<string | null>(null);
@@ -174,7 +176,7 @@ export function CoachLogger({
                 unit={entry.unit}
                 lastTime={lastTimeByExercise.get(se.exerciseId) ?? NO_SETS}
                 trainerNote={cueByRowId.get(se.routineExerciseId ?? '') ?? null}
-                trainerName="You"
+                trainerName={t('coaching.trainer.coach.you')}
                 prSetId={null}
                 prKind={null}
                 onEditSet={onEditSet}
@@ -192,15 +194,23 @@ export function CoachLogger({
       <Sheet
         open={actionsSe !== null}
         onClose={() => setActionsFor(null)}
-        title={actionsSe ? (lookup(actionsSe.exerciseId)?.name ?? 'Exercise') : 'Exercise'}
-        description="Changes apply to this workout only."
+        title={
+          actionsSe
+            ? (lookup(actionsSe.exerciseId)?.name ?? t('gym.workout.exerciseCard.fallbackName'))
+            : t('gym.workout.exerciseCard.fallbackName')
+        }
+        description={t('gym.workout.view.changesThisWorkout')}
         size="sm"
       >
         {actionsSe && (
           <ul className="px-3 pb-4" data-testid="coach-exercise-actions">
             <ActionItem
               icon={CircleSlash}
-              label={actionsSe.skipped ? 'Un-skip exercise' : 'Skip exercise'}
+              label={
+                actionsSe.skipped
+                  ? t('gym.workout.view.unskipExercise')
+                  : t('gym.workout.view.skipExercise')
+              }
               onClick={() => {
                 act({ type: 'skipExercise', seId: actionsSe.id, skipped: !actionsSe.skipped });
                 setActionsFor(null);
@@ -208,7 +218,7 @@ export function CoachLogger({
             />
             <ActionItem
               icon={Plus}
-              label="Add set"
+              label={t('gym.workout.view.addSet')}
               disabled={actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE}
               onClick={() => {
                 act({ type: 'addSet', seId: actionsSe.id, newSetId: newId() });
@@ -217,7 +227,7 @@ export function CoachLogger({
             />
             <ActionItem
               icon={Minus}
-              label="Remove last set"
+              label={t('gym.workout.view.removeLastSet')}
               disabled={workingSets(actionsSe).length === 0}
               onClick={() => {
                 const last = workingSets(actionsSe).at(-1);
@@ -227,7 +237,9 @@ export function CoachLogger({
             />
             <ActionItem
               icon={StickyNote}
-              label={actionsSe.notes ? 'Edit note' : 'Add note'}
+              label={
+                actionsSe.notes ? t('gym.workout.view.editNote') : t('gym.workout.view.addNote')
+              }
               onClick={() => {
                 setNoteFor(actionsSe.id);
                 setActionsFor(null);
@@ -240,7 +252,7 @@ export function CoachLogger({
       <NoteSheet
         key={noteFor ?? 'none'}
         open={noteSe !== null}
-        title="Exercise note"
+        title={t('gym.workout.view.exerciseNote')}
         initial={noteSe?.notes ?? ''}
         max={500}
         onClose={() => setNoteFor(null)}
@@ -252,8 +264,12 @@ export function CoachLogger({
       />
 
       <SetMenuSheet
-        label={setMenu && menuSe ? setLabelOf(menuSe, setMenu.setId) : null}
-        exerciseName={menuSe ? (lookup(menuSe.exerciseId)?.name ?? 'Exercise') : ''}
+        label={setMenu && menuSe ? setLabelOf(menuSe, setMenu.setId, t) : null}
+        exerciseName={
+          menuSe
+            ? (lookup(menuSe.exerciseId)?.name ?? t('gym.workout.exerciseCard.fallbackName'))
+            : ''
+        }
         onClose={() => setSetMenu(null)}
         onRemove={() => {
           const set = menuSe?.sets.find((s) => s.id === setMenu?.setId);
@@ -263,7 +279,7 @@ export function CoachLogger({
               seId: menuSe.id,
               set,
               index: set.position,
-              label: setLabelOf(menuSe, set.id) ?? 'set',
+              label: setLabelOf(menuSe, set.id, t) ?? t('gym.workout.view.setFallback'),
             });
           }
           setSetMenu(null);
@@ -272,11 +288,11 @@ export function CoachLogger({
 
       {undoRemove && (
         <Toast
-          message={`Removed ${undoRemove.label.toLowerCase()}`}
+          message={t('gym.workout.view.removedSet', { label: undoRemove.label.toLowerCase() })}
           onClose={() => setUndoRemove(null)}
           duration={8000}
           action={{
-            label: 'Undo',
+            label: t('gym.workout.view.undo'),
             onClick: () => {
               act({
                 type: 'restoreSet',

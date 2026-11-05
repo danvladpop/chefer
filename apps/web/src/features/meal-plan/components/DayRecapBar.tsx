@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import { ChevronRight } from 'lucide-react';
 import { cn, formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
 
@@ -44,9 +45,9 @@ interface DayRecapBarProps {
 /** Matches the API's PLAN_KCAL_TOLERANCE — one band, every surface. */
 const TARGET_BAND = 0.15;
 
-/** "About 300 kcal" — rounded to 10 so the status never reads falsely precise. */
-export function aboutKcal(n: number): string {
-  return `About ${formatKcal(Math.round(Math.abs(n) / 10) * 10)} kcal`;
+/** "300" for "About 300 kcal" — rounded to 10 so the status never reads falsely precise. */
+export function aboutKcalAmount(n: number): string {
+  return formatKcal(Math.round(Math.abs(n) / 10) * 10);
 }
 
 function StatusLine({
@@ -58,6 +59,7 @@ function StatusLine({
   text: string;
   onOpenMiss?: (() => void) | undefined;
 }) {
+  const { t } = useT();
   const cls = 'mt-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700';
   if (!onOpenMiss) {
     return (
@@ -71,7 +73,7 @@ function StatusLine({
       type="button"
       data-testid={testId}
       onClick={onOpenMiss}
-      aria-label={`${text}. See options`}
+      aria-label={t('plan.dayTotals.seeOptionsLabel', { status: text })}
       className={cn(
         cls,
         'flex min-h-11 w-full items-center justify-between gap-1 text-left hover:bg-gray-200 sm:min-h-0',
@@ -95,6 +97,7 @@ export function DayRecapBar({
   const totals = { calories: kcal, protein, carbs, fat };
   // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
   const { proteinOnly, noNumbers } = useNumbersMode();
+  const { t } = useT();
   const judgedTarget = proteinOnly ? undefined : calorieTarget;
 
   const delta = judgedTarget ? totals.calories - judgedTarget : 0;
@@ -105,18 +108,24 @@ export function DayRecapBar({
   if (noNumbers) return null;
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Day total</p>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        {t('plan.dayTotals.title')}
+      </p>
       {proteinOnly ? (
         <p data-testid="day-total-protein" className="text-sm font-bold text-[#944a00]">
-          {totals.protein} g protein
+          {t('plan.dayTotals.protein', { grams: totals.protein })}
         </p>
       ) : (
-        <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
+        <p className="text-sm font-bold text-[#944a00]">
+          {t('plan.dayTotals.kcal', { kcal: String(totals.calories) })}
+        </p>
       )}
       {offTarget && (
         <StatusLine
           testId="day-target-status"
-          text={`${aboutKcal(delta)} ${delta < 0 ? 'under' : 'over'} target`}
+          text={t(delta < 0 ? 'plan.dayTotals.aboutUnderKcal' : 'plan.dayTotals.aboutOverKcal', {
+            kcal: aboutKcalAmount(delta),
+          })}
           onOpenMiss={onOpenMiss}
         />
       )}
@@ -129,7 +138,7 @@ export function DayRecapBar({
       {proteinShort && !offTarget && (
         <StatusLine
           testId="day-protein-gap"
-          text={`About ${proteinGapG} g short on protein`}
+          text={t('plan.dayTotals.proteinGap', { grams: proteinGapG })}
           onOpenMiss={onOpenMiss}
         />
       )}
