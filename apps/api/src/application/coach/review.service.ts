@@ -2,7 +2,15 @@
 // Pure functions over already-loaded inputs — no I/O, fully unit-tested.
 // CoachService (coach.service.ts) does the loading and persistence.
 
-import { calorieFloor, isMinorAge } from '@chefer/utils';
+import type { CoachExplanation, CoachReason } from '@chefer/types';
+import {
+  calorieFloor,
+  dateOnlyKey,
+  isMinorAge,
+  summarizeWeightTrend,
+  weightTrendSeries,
+  type WeightTrendSummary,
+} from '@chefer/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,21 +27,30 @@ export interface ReviewDayLog {
   totalProtein?: number;
   /** Number of logged meal entries that day (planned or custom). */
   mealCount: number;
+  /** Lane D2: the user marked the day as partly logged. */
+  incomplete?: boolean;
 }
 
 export interface ReviewMetrics {
   /** Days with ≥1 logged meal / 7, as a rounded percentage. */
   adherencePct: number;
-  /** Mean kcal over the days that were actually logged (0 when none). */
+  /** Logged days the user didn't mark as partly logged (lane D2). */
+  completeDays: number;
+  /** Logged days the user marked as partly logged — left out of the averages. */
+  incompleteDays: number;
+  /** Mean kcal over the complete logged days (0 when none). */
   avgDailyKcal: number;
-  /** Mean protein (g) over the days that were actually logged (0 when none). */
+  /** Mean protein (g) over the complete logged days (0 when none). */
   avgDailyProteinG: number;
-  /** EWMA weight trend in kg/week, or null without enough data. */
+  /** Trend-weight rate in kg/week, or null without enough data. */
   weightTrendKg: number | null;
+  /** How the trend weight moved over the window (null without enough data). */
+  weightTrend: WeightTrendSummary | null;
 }
 
 export interface AdjustmentInput {
   goal: string | null;
+  /** Complete days / 7, as a percentage (lane D2: partly logged days don't count). */
   adherencePct: number;
   /** This review's trend (kg/week), null when unknown. */
   trendKgPerWeek: number | null;
@@ -52,11 +69,12 @@ export interface AdjustmentInput {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const EWMA_ALPHA = 0.25;
-/** Minimum weight points for a trend. */
+/** Minimum weigh-in days inside the window for a trend. */
 const MIN_TREND_POINTS = 5;
-/** Minimum span (days, first→last point) for a trend. */
+/** Minimum span (days, first→last weigh-in) for a trend. */
 const MIN_TREND_SPAN_DAYS = 10;
+/** The window the coach reads the trend over (older weigh-ins only warm it up). */
+export const TREND_WINDOW_DAYS = 28;
 /** Below this adherence the coach fixes the habit, not the numbers. */
 const MIN_ADHERENCE_PCT = 50;
 /** One conservative step per review. */
@@ -70,58 +88,28 @@ const FLOOR_BMR_FACTOR = 1.1;
 /** Safe ceiling above TDEE for upward adjustments. */
 const CEILING_OVER_TDEE_KCAL = 500;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+// ─── Weight trend (shared trend weight, @chefer/utils weight-trend.ts) ──────
 
-// ─── Weight trend (EWMA, MacroFactor-style smoothing) ────────────────────────
-
-/**
- * Exponentially-weighted moving average trend over raw weigh-ins, expressed
- * in kg/week. Returns null unless there are ≥5 points spanning ≥10 days —
- * anything less is scale noise, not a trend.
- */
-/** Faster than this between two weigh-ins is a typo, not physiology. */
-const MAX_PLAUSIBLE_KG_PER_DAY = 3;
+// The review runs in the Sunday server sweep (no client localDate) and its
+// weeks are UTC, so weigh-ins are grouped into the same UTC calendar days.
+const utcDay = (d: Date) => dateOnlyKey(d);
 
 /**
- * Drops weigh-ins that jump more than 3 kg/day from the last kept point
- * (a 1000 kg or 8 kg typo), so one bad entry can't flip the coach's read of
- * a plateau (audit F-DASH-3-1). Input must be sorted oldest first.
+ * How the trend weight moved over the 28 days up to `asOf`, from the same
+ * smoothing the charts draw. Null unless ≥5 weigh-in days span ≥10 days —
+ * anything less is scale noise, not a trend. Typo readings (more than 3 kg a
+ * day) are dropped, so one bad entry can't flip a plateau (audit F-DASH-3-1).
  */
-export function dropWeightOutliers(sorted: WeightPoint[]): WeightPoint[] {
-  const kept: WeightPoint[] = [];
-  for (const point of sorted) {
-    const prev = kept[kept.length - 1];
-    if (prev) {
-      const days = Math.max(1, (point.recordedAt.getTime() - prev.recordedAt.getTime()) / DAY_MS);
-      if (Math.abs(point.weightKg - prev.weightKg) > MAX_PLAUSIBLE_KG_PER_DAY * days) continue;
-    }
-    kept.push(point);
-  }
-  return kept;
-}
-
-export function computeEwmaTrendKgPerWeek(
+export function computeWeightTrend(
   points: WeightPoint[],
-  alpha: number = EWMA_ALPHA,
-): number | null {
-  const sorted = dropWeightOutliers(
-    [...points].sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime()),
-  );
-  if (sorted.length < MIN_TREND_POINTS) return null;
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-  if (!first || !last) return null;
-  const spanDays = (last.recordedAt.getTime() - first.recordedAt.getTime()) / DAY_MS;
-  if (spanDays < MIN_TREND_SPAN_DAYS) return null;
-
-  let ewma = first.weightKg;
-  for (const point of sorted.slice(1)) {
-    ewma = alpha * point.weightKg + (1 - alpha) * ewma;
-  }
-
-  const deltaKg = ewma - first.weightKg;
-  const perWeek = (deltaKg / spanDays) * 7;
-  return Math.round(perWeek * 1000) / 1000;
+  asOf: Date = new Date(),
+): WeightTrendSummary | null {
+  return summarizeWeightTrend(weightTrendSeries(points, { dayKey: utcDay }), {
+    windowDays: TREND_WINDOW_DAYS,
+    asOf: utcDay(asOf),
+    minWeighIns: MIN_TREND_POINTS,
+    minSpanDays: MIN_TREND_SPAN_DAYS,
+  });
 }
 
 // ─── Week metrics ─────────────────────────────────────────────────────────────
@@ -129,65 +117,131 @@ export function computeEwmaTrendKgPerWeek(
 export function computeReviewMetrics(
   weekLogs: ReviewDayLog[],
   weightPoints: WeightPoint[],
+  asOf: Date = new Date(),
 ): ReviewMetrics {
   const loggedDays = weekLogs.filter((l) => l.mealCount > 0);
+  // Lane D2: a day the user marked as partly logged still counts as logged,
+  // but it would drag the averages down, so they read complete days only.
+  const completeDays = loggedDays.filter((l) => !l.incomplete);
   const adherencePct = Math.round((loggedDays.length / 7) * 100);
   const avgOf = (pick: (l: ReviewDayLog) => number) =>
-    loggedDays.length > 0
-      ? Math.round(loggedDays.reduce((s, l) => s + pick(l), 0) / loggedDays.length)
+    completeDays.length > 0
+      ? Math.round(completeDays.reduce((s, l) => s + pick(l), 0) / completeDays.length)
       : 0;
+  const weightTrend = computeWeightTrend(weightPoints, asOf);
   return {
     adherencePct,
+    completeDays: completeDays.length,
+    incompleteDays: loggedDays.length - completeDays.length,
     avgDailyKcal: avgOf((l) => l.totalKcal),
     avgDailyProteinG: avgOf((l) => l.totalProtein ?? 0),
-    weightTrendKg: computeEwmaTrendKgPerWeek(weightPoints),
+    weightTrendKg: weightTrend?.kgPerWeek ?? null,
+    weightTrend,
   };
 }
 
 // ─── Adjustment policy (deterministic, conservative) ─────────────────────────
 
+export interface AdjustmentDecision {
+  /** The suggested daily change (kcal); 0 = keep. */
+  kcal: number;
+  /** Which rule decided — the explanation's backbone (lane D2). */
+  reason: CoachReason;
+}
+
 /**
- * Decides this review's calorie-dial delta. Rules (premium_plan.md W1-A):
- *  - adherence < 50% → adjust nothing; the review text coaches the habit.
+ * Decides this review's calorie-dial delta and why. Rules (premium_plan.md
+ * W1-A; lane D2 added the reasons and the complete-days reading):
+ *  - a goal without a direction (maintain, eat healthier…) → nothing.
+ *  - under 18 and LOSE_WEIGHT → nothing (maintenance, R-02).
+ *  - complete days < 50 % of the week → nothing; the review coaches the habit.
  *  - no trend (or no safe bounds from body metrics) → nothing.
  *  - LOSE_WEIGHT plateau (trend ≥ −0.1 kg/wk) for 2 CONSECUTIVE reviews →
- *    −100 kcal, floored so the resulting target never drops below BMR×1.1.
+ *    −100 kcal, floored so the resulting target never drops below BMR×1.1
+ *    (or the sex-specific minimum); a first plateau week only watches.
  *  - GAIN_MUSCLE stall (trend ≤ +0.05 kg/wk) → +100 kcal, ceilinged at
  *    TDEE+500.
  * The clamp is partial: if only −40 kcal of headroom remains above the
  * floor, the adjustment is −40, not 0.
  */
-export function decideAdjustmentKcal(input: AdjustmentInput): number {
+export function decideAdjustment(input: AdjustmentInput): AdjustmentDecision {
   const { goal, adherencePct, trendKgPerWeek, prevTrendKgPerWeek, currentTargetKcal, bmr, tdee } =
     input;
+  const keep = (reason: CoachReason): AdjustmentDecision => ({ kcal: 0, reason });
 
-  if (adherencePct < MIN_ADHERENCE_PCT) return 0;
-  if (trendKgPerWeek === null) return 0;
-  if (bmr === null || tdee === null) return 0;
+  if (goal !== 'LOSE_WEIGHT' && goal !== 'GAIN_MUSCLE') return keep('no_direction');
+  // R-02: never trim calories for someone under 18 (their target is
+  // maintenance — see calorie-target.ts).
+  if (goal === 'LOSE_WEIGHT' && isMinorAge(input.age)) return keep('under_18');
+  if (adherencePct < MIN_ADHERENCE_PCT) return keep('few_complete_days');
+  if (trendKgPerWeek === null) return keep('no_trend');
+  if (bmr === null || tdee === null) return keep('no_body_metrics');
 
   if (goal === 'LOSE_WEIGHT') {
-    // R-02: never trim calories for someone under 18 (their target is
-    // maintenance — see calorie-target.ts).
-    if (isMinorAge(input.age)) return 0;
     const plateauNow = trendKgPerWeek >= LOSE_PLATEAU_KG_PER_WEEK;
     const plateauPrev =
       prevTrendKgPerWeek !== null && prevTrendKgPerWeek >= LOSE_PLATEAU_KG_PER_WEEK;
-    if (!plateauNow || !plateauPrev) return 0;
+    if (!plateauNow) return keep('on_track');
+    if (!plateauPrev) return keep('plateau_watch');
     const floor = Math.max(Math.round(bmr * FLOOR_BMR_FACTOR), calorieFloor(input.biologicalSex));
     const headroom = currentTargetKcal - floor; // kcal available above the floor
-    if (headroom <= 0) return 0;
-    return -Math.min(STEP_KCAL, headroom);
+    if (headroom <= 0) return keep('at_floor');
+    return { kcal: -Math.min(STEP_KCAL, headroom), reason: 'plateau' };
   }
 
-  if (goal === 'GAIN_MUSCLE') {
-    if (trendKgPerWeek > GAIN_STALL_KG_PER_WEEK) return 0;
-    const ceiling = tdee + CEILING_OVER_TDEE_KCAL;
-    const headroom = ceiling - currentTargetKcal;
-    if (headroom <= 0) return 0;
-    return Math.min(STEP_KCAL, headroom);
-  }
+  if (trendKgPerWeek > GAIN_STALL_KG_PER_WEEK) return keep('on_track');
+  const ceiling = tdee + CEILING_OVER_TDEE_KCAL;
+  const headroom = ceiling - currentTargetKcal;
+  if (headroom <= 0) return keep('at_ceiling');
+  return { kcal: Math.min(STEP_KCAL, headroom), reason: 'gain_stall' };
+}
 
-  return 0;
+/** The suggested daily change alone (see decideAdjustment). */
+export function decideAdjustmentKcal(input: AdjustmentInput): number {
+  return decideAdjustment(input).kcal;
+}
+
+// ─── The "why" (lane D2) ──────────────────────────────────────────────────────
+
+/**
+ * The structured explanation stored with the review. `suggestedKcal` is null
+ * when the suggestion is withheld (free tier): the reasoning is shown to
+ * everyone, acting on it is Premium.
+ */
+export function buildCoachExplanation(input: {
+  decision: AdjustmentDecision;
+  withholdSuggestion: boolean;
+  goal: string | null;
+  metrics: ReviewMetrics;
+  prevTrendKgPerWeek: number | null;
+  targetKcal: number;
+}): CoachExplanation {
+  const { decision, metrics } = input;
+  const trend = metrics.weightTrend;
+  return {
+    version: 1,
+    reason: decision.reason,
+    suggestedKcal: input.withholdSuggestion ? null : decision.kcal,
+    goal: input.goal,
+    trend: trend
+      ? {
+          fromDate: trend.fromDate,
+          toDate: trend.toDate,
+          fromKg: trend.fromTrendKg,
+          toKg: trend.toTrendKg,
+          spanDays: trend.spanDays,
+          weighIns: trend.weighIns,
+          kgPerWeek: trend.kgPerWeek,
+        }
+      : null,
+    prevKgPerWeek: input.prevTrendKgPerWeek,
+    intake: {
+      avgKcal: metrics.avgDailyKcal,
+      completeDays: metrics.completeDays,
+      incompleteDays: metrics.incompleteDays,
+      targetKcal: input.targetKcal,
+    },
+  };
 }
 
 // ─── Template review text (mock AI + live-failure fallback) ──────────────────
@@ -286,10 +340,10 @@ export function buildTemplateReviewText(input: ReviewTextInput): string {
   if (weightTrendKg !== null) {
     const abs = Math.abs(weightTrendKg).toFixed(1);
     if (Math.abs(weightTrendKg) < 0.05) {
-      lines.push('Your weight is holding steady.');
+      lines.push('Your trend weight is holding steady.');
     } else {
       lines.push(
-        `Your weight is trending ${weightTrendKg < 0 ? 'down' : 'up'} about ${abs} kg a week.`,
+        `Your trend weight is moving ${weightTrendKg < 0 ? 'down' : 'up'} about ${abs} kg a week.`,
       );
     }
   } else {

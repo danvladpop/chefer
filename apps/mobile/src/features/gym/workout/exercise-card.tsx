@@ -4,6 +4,7 @@ import Animated from 'react-native-reanimated';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
+  type DistanceUnit,
   type EquipmentProfile,
   type ExerciseBest,
   type ExerciseDto,
@@ -55,6 +56,8 @@ export type WorkoutSheetRequest =
 /** Everything a card needs that isn't the exercise itself — one memoised object. */
 export interface WorkoutContext {
   unit: WeightUnit;
+  /** G3: the user's distance unit for cardio (`profileDistanceUnit`); omitted = from `unit`. */
+  distanceUnit?: DistanceUnit | undefined;
   profile: EquipmentProfile;
   lookup: (exerciseId: string) => ExerciseDto;
   /** Completed sessions before this one (last-time column, PRs, history). */
@@ -292,6 +295,7 @@ function ExerciseCardImpl({
             se={se}
             meta={meta}
             unit={ctx.unit}
+            distanceUnit={ctx.distanceUnit}
             prior={ctx.prior}
             testID={`${base}-cardio`}
             onLogIt={(fields) => {

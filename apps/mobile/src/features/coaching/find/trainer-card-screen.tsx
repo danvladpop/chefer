@@ -19,6 +19,7 @@ import {
 } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { track } from '../../../lib/analytics';
 import { trackSharingChosen } from '../../../lib/analytics-events';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
@@ -126,6 +127,7 @@ function TrainerCardBody({ trainerId }: { trainerId: string }) {
   const send = trpc.coaching.requestCoaching.useMutation({
     meta: { silent: true },
     onSuccess: (_request, vars) => {
+      track('coaching_requested', {});
       trackSharingChosen(vars.share, 'request');
       setAsking(false);
       snackbar.show({ message: COACHING_COPY.request.sent(card.data?.name ?? '') });

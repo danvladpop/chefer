@@ -19,7 +19,13 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { isSimpleTraining, pauseSummaryLine, weekStartOf, WELLNESS_COPY } from '@chefer/utils';
+import {
+  isSimpleTraining,
+  pauseSummaryLine,
+  profileDistanceUnit,
+  weekStartOf,
+  WELLNESS_COPY,
+} from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
@@ -178,7 +184,7 @@ function TrainingSettingsBody() {
   const { profile } = bootstrap;
   const unit = profile.unit;
   // T-42.3: null/absent derives from `unit` — MI when LB, else KM.
-  const distanceUnit = profile.distanceUnit ?? (unit === 'LB' ? 'MI' : 'KM');
+  const distanceUnit = profileDistanceUnit({ unit, distanceUnit: profile.distanceUnit });
   const weeklyGoal = profile.weeklyGoal;
   const today = localDate();
   const liftWeekdays = new Set(

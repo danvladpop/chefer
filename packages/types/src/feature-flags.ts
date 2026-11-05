@@ -58,6 +58,10 @@ export const featureFlagsSchema = z
      *  mobile and web. Off by default; GAMIFICATION_ALLOWLIST (emails, or `*`)
      *  sees it while it is off. The ledger records for everyone either way (D1). */
     gamification: z.boolean(),
+    /** Apple Health / Health Connect sync (C2): the "Connect health" screen and
+     *  every read/write. Needs a binary with the native modules; off by
+     *  default (dark launch). */
+    healthSync: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

@@ -108,7 +108,11 @@ export function extractJsonLdRecipe(html: string): string | null {
   for (const field of RECIPE_FIELDS) {
     if (first[field] !== undefined) trimmed[field] = first[field];
   }
-  const json = JSON.stringify(trimmed);
+  // Some sites HTML-escape the strings inside their JSON-LD ("Basil &amp;
+  // Parmesan", "doesn&apos;t"); decode them so the model sees plain text.
+  const json = JSON.stringify(trimmed, (_key, value: unknown) =>
+    typeof value === 'string' ? decodeEntities(value) : value,
+  );
   return json.length > MAX_JSONLD_CHARS ? json.slice(0, MAX_JSONLD_CHARS) : json;
 }
 

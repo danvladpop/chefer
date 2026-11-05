@@ -10,3 +10,4 @@ export * from './exercise-catalog';
 export * from './exercise-content';
 export * from './exercise-photos';
 export * from './templates';
+export * from './workout-import';

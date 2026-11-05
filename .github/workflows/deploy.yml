@@ -338,6 +338,14 @@ jobs:
       # SECRET) only uploads this update's source maps to Sentry.
       SENTRY_DSN_VARIABLE: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      # Usage analytics (market review 2026-10, Q18 reversed) — both optional
+      # repo VARIABLES, neither part of the runtime fingerprint. Inlined into the
+      # JS bundle: without both, OTA updates ship with analytics off and the
+      # in-app "Usage analytics" card hidden. The project key is PostHog's
+      # public, write-only key (like the DSN). Exported in the publish step
+      # only when both are set and the host is the EU one (see there).
+      POSTHOG_KEY_VARIABLE: ${{ vars.EXPO_PUBLIC_POSTHOG_KEY }}
+      POSTHOG_HOST_VARIABLE: ${{ vars.EXPO_PUBLIC_POSTHOG_HOST }}
     steps:
       - name: Check credentials
         id: creds
@@ -380,6 +388,20 @@ jobs:
             export EXPO_PUBLIC_SENTRY_DSN="$SENTRY_DSN_VARIABLE"
           else
             echo "::notice::EXPO_PUBLIC_SENTRY_DSN repo variable not set — this update reports no crashes unless the EAS production environment provides the DSN"
+          fi
+          # Same rule for analytics, plus the EU-only host (rev 2 D24). The app
+          # also treats any other host as "off", so a bad value never crashes
+          # installed apps; this check makes the mistake visible here instead.
+          if [ -n "$POSTHOG_KEY_VARIABLE" ] && [ -n "$POSTHOG_HOST_VARIABLE" ]; then
+            if [ "${POSTHOG_HOST_VARIABLE%/}" = "https://eu.i.posthog.com" ]; then
+              export EXPO_PUBLIC_POSTHOG_KEY="$POSTHOG_KEY_VARIABLE"
+              export EXPO_PUBLIC_POSTHOG_HOST="https://eu.i.posthog.com"
+              echo "::notice::Usage analytics ON in this update (PostHog EU)"
+            else
+              echo "::error::EXPO_PUBLIC_POSTHOG_HOST must be exactly https://eu.i.posthog.com — this update ships with usage analytics OFF"
+            fi
+          else
+            echo "::notice::EXPO_PUBLIC_POSTHOG_KEY / EXPO_PUBLIC_POSTHOG_HOST repo variables not both set — this update ships with usage analytics off"
           fi
           pnpm mobile:update "$(git log -1 --format='%h %s')"
 

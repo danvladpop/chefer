@@ -1,4 +1,4 @@
-import type { DistanceUnit, ExerciseMeta, GymProfileDto, SessionSetDoc } from '@chefer/types';
+import type { DistanceUnit, ExerciseMeta, SessionSetDoc } from '@chefer/types';
 import {
   distanceUnitFor,
   effortLabelForRpe,
@@ -17,13 +17,8 @@ export function isCardioExercise(meta: ExerciseMeta | undefined): boolean {
   return meta !== undefined && !isStrengthTrackingType(trackingTypeOf(meta));
 }
 
-/** The profile's distance unit, else km/mi from the weight unit (mirrors the phone). */
-export function profileDistanceUnit(
-  profile: Pick<GymProfileDto, 'unit' | 'distanceUnit'> | null | undefined,
-): DistanceUnit {
-  if (profile?.distanceUnit) return profile.distanceUnit;
-  return profile?.unit === 'LB' ? 'MI' : 'KM';
-}
+/** The user's distance unit — the shared rule, same as the phone (`@chefer/utils`, G3). */
+export { profileDistanceUnit } from '@chefer/utils';
 
 type CardioSetFields = Pick<
   SessionSetDoc,

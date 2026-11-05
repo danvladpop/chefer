@@ -166,7 +166,7 @@ export function proteinOnlyTrainingExplain(input: {
   }
   const sentence =
     first && first.proteinBonus > 0
-      ? `You train on ${names}. On those days your protein goes up by about ${first.proteinBonus} g, mostly around your workout, to help you recover and build muscle.`
+      ? `You train on ${names}. On those days your protein goes up by about ${first.proteinBonus} g, mostly around your workout, to help you recover from the session.`
       : first
         ? `You train on ${names}.`
         : 'Your training days do not change your protein target.';
