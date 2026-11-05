@@ -31,6 +31,7 @@ import { CoachingCard } from '../components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { AdherenceTab } from './adherence-tab';
 import { BookingsTab } from './bookings-tab';
+import { CheckInsCard } from './check-ins-card';
 import { FoodTab } from './food-tab';
 import { ExerciseHistorySheet } from './history-sheet';
 import { NotesTab } from './notes-tab';
@@ -183,6 +184,7 @@ export function ClientScreen({
         </CoachingCard>
 
         <WeekSummaryCard clientId={clientId} firstName={firstName} />
+        <CheckInsCard clientId={clientId} firstName={firstName} />
 
         <SegmentedControl<Tab>
           testID="trainer-client-tabs"

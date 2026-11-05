@@ -1,6 +1,7 @@
 import {
   clearNextTargetInputSchema,
   clientBookingsInputSchema,
+  clientCheckInsInputSchema,
   clientExerciseHistoryInputSchema,
   clientFoodInputSchema,
   clientIdInputSchema,
@@ -15,6 +16,7 @@ import {
   setNextTargetInputSchema,
 } from '@chefer/types';
 import { bookingService } from '../../application/coaching/booking.service.js';
+import { coachingCheckInService } from '../../application/coaching/coaching-check-in.service.js';
 import { coachingContentService } from '../../application/coaching/coaching-content.service.js';
 import { coachingDataService } from '../../application/coaching/coaching-data.service.js';
 import { coachingNoteService } from '../../application/coaching/coaching-note.service.js';
@@ -99,6 +101,10 @@ export const trainerClientRouter = router({
   weight: weightProcedure
     .input(clientWeightInputSchema)
     .query(({ ctx, input }) => coachingDataService.weight(ctx.coachingAccess, input.today)),
+  /** Lane K3: the client's answered weekly check-ins (newest first) and this week's state. */
+  checkIns: readProcedure
+    .input(clientCheckInsInputSchema)
+    .query(({ ctx, input }) => coachingCheckInService.forClient(ctx.coachingAccess, input.today)),
   note: noteProcedure
     .input(clientIdInputSchema)
     .query(({ ctx }) => coachingNoteService.get(ctx.coachingAccess)),

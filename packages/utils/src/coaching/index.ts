@@ -6,3 +6,4 @@ export * from './templates';
 export * from './booking-time';
 export * from './bookings';
 export * from './food-share';
+export * from './check-ins';

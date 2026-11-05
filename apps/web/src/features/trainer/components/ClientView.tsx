@@ -13,6 +13,7 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { firstName } from '../format';
 import { isClientUnavailable, useClientOverview } from '../use-client-overview';
 import { AdherenceView } from './AdherenceTab';
+import { CheckInsCard } from './CheckInsCard';
 import { ClientHeader } from './ClientHeader';
 import { ClientUnavailable } from './ClientUnavailable';
 import { FoodTab } from './FoodTab';
@@ -91,6 +92,7 @@ export function ClientView({
         }
       />
       <WeekSummaryCard clientId={clientId} firstName={firstName(name)} />
+      <CheckInsCard clientId={clientId} firstName={firstName(name)} />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="min-w-0">
           {active === 'food' ? (
