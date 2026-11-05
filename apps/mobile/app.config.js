@@ -183,6 +183,9 @@ const config = {
         'UIInterfaceOrientationPortrait',
         'UIInterfaceOrientationPortraitUpsideDown',
       ],
+      // C1: the gym rest countdown runs as a Live Activity (lock screen +
+      // Dynamic Island), drawn by the widget extension in targets/widgets.
+      NSSupportsLiveActivities: true,
     },
     // Apple team for signing local device builds (set in .env — the repo is
     // public). Unset is fine: simulator builds don't sign, and EAS cloud
@@ -246,6 +249,10 @@ const config = {
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
     withPhonePortraitAtLaunch,
+    // C1: iOS app extensions live in targets/ (the WidgetKit extension with the
+    // rest Live Activity). The plugin also registers the extension's bundle id
+    // (<app id>.widgets) for EAS credentials.
+    '@bacons/apple-targets',
     // M1-6 crash reporting. Writes sentry.properties and the source-map /
     // debug-symbol upload steps into the native projects. The arguments are
     // part of the runtime fingerprint, so they are LITERALS — never read them

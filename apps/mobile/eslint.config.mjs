@@ -8,6 +8,8 @@ export default [
       '.expo-export-check/**',
       'dist/**',
       '*.config.{js,mjs,ts}',
+      // @bacons/apple-targets target configs (CommonJS, read by the config plugin).
+      'targets/**/*.config.js',
       'expo-env.d.ts',
       // Plain-JS jest setup (mocks); not part of the TS project.
       'tests/setup/**',
