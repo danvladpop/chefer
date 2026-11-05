@@ -24,6 +24,8 @@ export interface WeeklyEmailRecipient {
 export interface WeeklyEmailPreferences {
   weeklyEmailReady: boolean;
   weeklyEmailRecap: boolean;
+  /** Lane K3: the trainer's weekly check-in emails. */
+  coachingCheckInEmail: boolean;
   emailVerified: Date | null;
   email: string;
   /** ADR 0004: the confirmation email's language. */
@@ -62,7 +64,11 @@ export interface IWeeklyEmailRepository {
   getPreferences(userId: string): Promise<WeeklyEmailPreferences | null>;
   setPreferences(
     userId: string,
-    data: { weeklyEmailReady?: boolean; weeklyEmailRecap?: boolean },
+    data: {
+      weeklyEmailReady?: boolean;
+      weeklyEmailRecap?: boolean;
+      coachingCheckInEmail?: boolean;
+    },
   ): Promise<WeeklyEmailPreferences | null>;
   /** Marks the address confirmed (keeps the first confirmation date). */
   markEmailVerified(userId: string, email: string): Promise<boolean>;
@@ -82,6 +88,7 @@ export interface IWeeklyEmailRepository {
 const PREFERENCE_SELECT = {
   weeklyEmailReady: true,
   weeklyEmailRecap: true,
+  coachingCheckInEmail: true,
   emailVerified: true,
   email: true,
   locale: true,
@@ -142,7 +149,11 @@ export class WeeklyEmailRepository implements IWeeklyEmailRepository {
 
   async setPreferences(
     userId: string,
-    data: { weeklyEmailReady?: boolean; weeklyEmailRecap?: boolean },
+    data: {
+      weeklyEmailReady?: boolean;
+      weeklyEmailRecap?: boolean;
+      coachingCheckInEmail?: boolean;
+    },
   ): Promise<WeeklyEmailPreferences | null> {
     const { count } = await prisma.user.updateMany({ where: { id: userId }, data });
     if (count === 0) return null;

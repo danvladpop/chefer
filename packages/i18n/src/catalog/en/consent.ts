@@ -98,6 +98,10 @@ export const consent = {
         action: 'fill in the nutrition for your ingredient',
         line1: 'The ingredient name you typed',
       },
+      'food-text': {
+        action: 'turn what you typed into food entries',
+        line1: 'The words you type or dictate about what you ate',
+      },
     },
   },
   aiGenerated: {

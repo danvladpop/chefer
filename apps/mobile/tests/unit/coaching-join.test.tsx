@@ -103,7 +103,11 @@ describe('join: consent screen', () => {
     await settle();
     await user.press(screen.getByTestId('coaching-consent-allow'));
     await settle();
-    expect(joined).toEqual({ code: 'ABCD234567', localDate: localDateStr() });
+    expect(joined).toEqual({
+      code: 'ABCD234567',
+      localDate: localDateStr(),
+      share: { food: false, weight: false },
+    });
     expect(screen.getByTestId('coaching-joined-title')).toHaveTextContent('You’re coached by Ana');
     expect(readPendingJoin()).toBeNull();
     // The client's own caches refresh: status and the bootstrap that carries the trainer's name.

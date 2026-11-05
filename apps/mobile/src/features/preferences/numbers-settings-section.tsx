@@ -17,7 +17,7 @@ export function NumbersSettingsSection({
   initialMode,
   initialShowNutrition,
 }: {
-  /** `preferences.get().numbersMode`; unknown / NONE read as FULL. */
+  /** `preferences.get().numbersMode`; unknown values read as FULL. */
   initialMode: string | null | undefined;
   /** The resolved "show nutrition on Today" (explicit choice, else goal-derived). */
   initialShowNutrition: boolean;
@@ -60,25 +60,28 @@ export function NumbersSettingsSection({
         }}
         testIDPrefix="prefs-numbers-mode"
       />
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="min-w-0 flex-1">
-          <Text className="text-body text-label">Show calories and macros on Today</Text>
-          <Text className="mt-0.5 text-subhead text-label-secondary">
-            Off: Today shows your meals and workouts, without numbers.
-          </Text>
+      {/* With numbers hidden there is nothing for this switch to show. */}
+      {mode === 'NONE' ? null : (
+        <View className="flex-row items-center justify-between gap-3">
+          <View className="min-w-0 flex-1">
+            <Text className="text-body text-label">Show calories and macros on Today</Text>
+            <Text className="mt-0.5 text-subhead text-label-secondary">
+              Off: Today shows your meals and workouts, without numbers.
+            </Text>
+          </View>
+          <Switch
+            testID="prefs-home-display-switch"
+            accessibilityLabel="Show calories and macros on Today"
+            value={showNutrition}
+            disabled={homeMutation.isPending}
+            onValueChange={(next) => {
+              setShowNutrition(next);
+              homeMutation.mutate({ showNutritionOnToday: next });
+            }}
+            trackColor={{ true: colors.brand, false: colors.separator }}
+          />
         </View>
-        <Switch
-          testID="prefs-home-display-switch"
-          accessibilityLabel="Show calories and macros on Today"
-          value={showNutrition}
-          disabled={homeMutation.isPending}
-          onValueChange={(next) => {
-            setShowNutrition(next);
-            homeMutation.mutate({ showNutritionOnToday: next });
-          }}
-          trackColor={{ true: colors.brand, false: colors.separator }}
-        />
-      </View>
+      )}
       {failed && (
         <Text testID="prefs-numbers-error" className="text-caption text-danger">
           {userFacingErrorMessage(modeMutation.error ?? homeMutation.error) ||

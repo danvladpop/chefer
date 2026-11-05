@@ -66,6 +66,7 @@ export const recipes: Catalog['recipes'] = {
     protein: 'P {value} g',
     carbs: 'C {value} g',
     fat: 'G {value} g',
+    proteinGrams: '{value} g proteine',
   },
   mealTypes: {
     breakfast: 'Mic dejun',
@@ -133,6 +134,7 @@ export const recipes: Catalog['recipes'] = {
     portionLabel: 'porție de {portion}',
     portionNote:
       'Planul tău are aici o {portion} — {kcal} kcal · {protein} g proteine. Cantitățile pornesc de la ea.',
+    portionNoteNoNumbers: 'Planul tău are aici o {portion}. Cantitățile pornesc de la ea.',
     ingredients: 'Ingrediente',
     instructions: 'Instrucțiuni',
     decreaseServings: 'Scade porțiile',

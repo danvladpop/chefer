@@ -1,5 +1,6 @@
 import type { PlanTrainingBasis, PlanTrainingDay } from '@chefer/types';
 import { formatNumber } from './format';
+import { formatPortion } from './meal-portion';
 import { joinDayNames, trainingKindLabel, weekdayShortName } from './plan-training';
 import {
   describeRebalanceSwap,
@@ -12,8 +13,8 @@ import {
 
 /**
  * "What do you want to keep an eye on?" (onboarding's goal step and Preferences →
- * Your targets), the same words on web and mobile. NONE is reserved for WP-16
- * and is not offered.
+ * Your targets), the same words on web and mobile. "Hide numbers" (NONE, lane
+ * E3) is offered as an equal option: the ED-safe choice, free for every tier.
  */
 export const NUMBERS_MODE_COPY = {
   question: 'What do you want to keep an eye on?',
@@ -21,6 +22,9 @@ export const NUMBERS_MODE_COPY = {
   fullDetail: 'Calories, protein, carbs and fat on Today and in the tracker.',
   proteinTitle: 'Just protein',
   proteinDetail: 'One number: protein. Your week still balances the rest in the background.',
+  noneTitle: 'Hide numbers',
+  noneDetail:
+    'No calories or macros anywhere: portions and ticks instead. Your week still balances in the background.',
 } as const;
 
 /** How many kcal one gram of protein stands for when only protein was entered. */
@@ -42,12 +46,28 @@ export function proteinLabel(proteinG: number): string {
   return `${formatNumber(Math.round(proteinG))} g protein`;
 }
 
-/** "520 kcal" in full mode, "32 g protein" in protein-only mode. */
+/**
+ * "520 kcal" in full mode, "32 g protein" in protein-only mode, and "" in
+ * "Hide numbers" (lane E3) — join it with `metaLine` so nothing dangles.
+ */
 export function nutritionLabel(
   entry: { kcal: number; protein: number },
   proteinOnly: boolean,
+  noNumbers = false,
 ): string {
+  if (noNumbers) return '';
   return proteinOnly ? proteinLabel(entry.protein) : `${Math.round(entry.kcal)} kcal`;
+}
+
+/** "1 portion", "½ portion", "1½ portions" — what "Hide numbers" shows instead of kcal. */
+export function portionLabel(portion: number): string {
+  const amount = formatPortion(portion).replace(/×$/, '');
+  return `${amount} ${portion > 1 ? 'portions' : 'portion'}`;
+}
+
+/** Joins the meta parts of a row with " · ", dropping empty ones. */
+export function metaLine(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter((p): p is string => typeof p === 'string' && p.length > 0).join(' · ');
 }
 
 /** "This week you averaged 112 g protein a day" (protein-only weekly average line). */

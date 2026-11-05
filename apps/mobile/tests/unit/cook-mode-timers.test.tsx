@@ -5,6 +5,11 @@ import * as Notifications from 'expo-notifications';
 import CookModeScreen from '../../app/cook/[id]';
 import { resetCookSessionsForTests } from '../../src/features/recipes/cook-session-store';
 
+// Lane E2: the cook-finish share button has its own suite (share-card.test.ts).
+jest.mock('../../src/features/share/share-card', () => ({
+  useShareCard: () => ({ share: jest.fn(), sharing: null }),
+}));
+
 // UX-COOK-01 / 04 / 05 (WP-11): step timers survive step changes, show in the
 // header, buzz and notify at zero; each step lists its scaled ingredient
 // amounts; the recipe page's servings arrive; "Log this meal" has a slot

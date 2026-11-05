@@ -99,6 +99,10 @@ export const consent: Catalog['consent'] = {
         action: 'completezi valorile nutriționale ale ingredientului',
         line1: 'Denumirea ingredientului pe care ai scris-o',
       },
+      'food-text': {
+        action: 'transformi ce ai scris în alimente înregistrate',
+        line1: 'Cuvintele pe care le scrii sau le dictezi despre ce ai mâncat',
+      },
     },
   },
   aiGenerated: {

@@ -79,6 +79,16 @@ export function createTrpcGymMock() {
         acknowledgeConsentUpdate: {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false })),
         },
+        // Lane K3: the weekly check-in card. None open by default.
+        checkIn: {
+          current: {
+            useQuery: jest.fn((): { data: unknown; isError: boolean; isPending: boolean } => ({
+              data: null,
+              isError: false,
+              isPending: false,
+            })),
+          },
+        },
       },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
