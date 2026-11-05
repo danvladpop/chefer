@@ -28,8 +28,10 @@ import {
   formatBodyWeight,
   formatDate,
   formatNumber,
+  HIDE_NUMBERS_COPY,
   localDateStr,
   MEASUREMENTS_COPY,
+  PROGRESS_PHOTOS_COPY,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
@@ -47,6 +49,7 @@ import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 import { BodyMeasurements } from '../../body/body-measurements';
+import { ProgressPhotos } from '../../body/progress-photos';
 import { CoachWhy } from '../../coach/coach-why';
 import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
@@ -243,7 +246,7 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
   const colors = useThemeColors();
   const [logOpen, setLogOpen] = useState(false);
   const [entriesOpen, setEntriesOpen] = useState(false);
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const system = useUnitSystem();
   const {
     data: monthly,
@@ -338,7 +341,8 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
 
   return (
     <>
-      <WeeklyReviewLine proteinOnly={proteinOnly} />
+      {/* Lane E3 "Hide numbers": the review is calories and protein — not shown. */}
+      {noNumbers ? null : <WeeklyReviewLine proteinOnly={proteinOnly} />}
 
       {/* Eating */}
       <View testID="stats-eating" className="gap-3">
@@ -355,6 +359,22 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
             icon={<Icon name="refresh" color={colors.labelTertiary} size={40} />}
             onRetry={() => void refetch()}
           />
+        ) : noNumbers ? (
+          // Lane E3 "Hide numbers": how often you logged, never how much.
+          <BoardCard testID="stats-eating-no-numbers">
+            <StatTiles>
+              <StatTile
+                testID="stats-days"
+                icon={<Icon name="checkmark" color={colors.brand} size={18} />}
+                value={monthly ? String(eat.daysLogged) : '—'}
+                {...(monthly && { count: eat.daysLogged })}
+                label="days logged"
+              />
+            </StatTiles>
+            <Text className="text-caption text-label-secondary">
+              {HIDE_NUMBERS_COPY.recipeNutritionHidden}
+            </Text>
+          </BoardCard>
         ) : (
           <BoardCard>
             <StatTiles>
@@ -561,6 +581,14 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
         <SectionTitle>{MEASUREMENTS_COPY.title}</SectionTitle>
         <BoardCard>
           <BodyMeasurements />
+        </BoardCard>
+      </View>
+
+      {/* Progress photos: on this phone only (lane D4) */}
+      <View className="gap-3">
+        <SectionTitle>{PROGRESS_PHOTOS_COPY.title}</SectionTitle>
+        <BoardCard>
+          <ProgressPhotos />
         </BoardCard>
       </View>
     </>

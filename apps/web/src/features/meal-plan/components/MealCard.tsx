@@ -149,7 +149,7 @@ export function MealCard({
   onRemove,
 }: MealCardProps) {
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   // A side dish shares its meal type with the main: ids carry the slot too.
   const slotKey = side && slotIndex !== undefined ? `${mealType}-${slotIndex}` : mealType;
   // Cards are Links — the swap button and the "…" menu live inside, so stop navigation.
@@ -325,7 +325,13 @@ export function MealCard({
               >
                 <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium text-gray-800">
-                  {planMealMetaLine(totalTime, recipe.nutritionInfo, portion, proteinOnly)}
+                  {planMealMetaLine(
+                    totalTime,
+                    recipe.nutritionInfo,
+                    portion,
+                    proteinOnly,
+                    noNumbers,
+                  )}
                 </span>
               </span>
             </div>
@@ -464,7 +470,7 @@ export function MealCard({
           </div>
 
           {/* Macros stacked — compact, right-aligned (WP-08: protein only in protein-only mode) */}
-          {!side && (
+          {!side && !noNumbers && (
             <div className="space-y-px text-right text-xs leading-tight">
               <div>
                 <span className="text-blue-500">P </span>

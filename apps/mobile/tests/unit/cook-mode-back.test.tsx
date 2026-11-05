@@ -4,6 +4,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import CookModeScreen from '../../app/cook/[id]';
 import { resetCookSessionsForTests } from '../../src/features/recipes/cook-session-store';
 
+// Lane E2: the cook-finish share button has its own suite (share-card.test.ts).
+jest.mock('../../src/features/share/share-card', () => ({
+  useShareCard: () => ({ share: jest.fn(), sharing: null }),
+}));
+
 // UX-COOK-02 (WP-03): BACK closes the ingredients panel first, then confirms
 // when cooking has started (step > 0); the step and the ticks survive leaving.
 // The navigation layer is mocked: the mock records the latest

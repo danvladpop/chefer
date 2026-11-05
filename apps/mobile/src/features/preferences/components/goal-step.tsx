@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, WELLNESS_COPY } from '@chefer/utils';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { ONBOARDING_COPY } from '../../onboarding/copy';
 import { GOALS, type Goal } from '../types';
 import { OptionRow } from './option-row';
@@ -54,6 +55,9 @@ export function GoalStep({
   onGoodFood,
 }: GoalStepProps) {
   const colors = useThemeColors();
+  // Lane E3: the goal's kcal effect is a nutrition figure; protein-only and
+  // "Hide numbers" users see the goal without it.
+  const { show } = useNumbersMode();
   if (compact) {
     return (
       <View className="gap-2">
@@ -75,7 +79,7 @@ export function GoalStep({
             onPress={() => onChange(g.value)}
             icon={g.icon}
             label={g.label}
-            description={`${g.description} · ${g.calorieEffect}`}
+            description={show.kcal ? `${g.description} · ${g.calorieEffect}` : g.description}
           />
         ))}
         {showDisclaimer && <Disclaimer />}
@@ -155,21 +159,23 @@ export function GoalStep({
               <Text variant="muted" className="text-center text-xs">
                 {g.description}
               </Text>
-              <View
-                className={cn(
-                  'rounded-full px-2 py-0.5',
-                  selected ? 'bg-primary/10' : 'bg-surface-sunken',
-                )}
-              >
-                <Text
+              {show.kcal && (
+                <View
                   className={cn(
-                    'text-xs font-medium',
-                    selected ? 'text-primary' : 'text-label-secondary',
+                    'rounded-full px-2 py-0.5',
+                    selected ? 'bg-primary/10' : 'bg-surface-sunken',
                   )}
                 >
-                  {g.calorieEffect}
-                </Text>
-              </View>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium',
+                      selected ? 'text-primary' : 'text-label-secondary',
+                    )}
+                  >
+                    {g.calorieEffect}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           );
         })}

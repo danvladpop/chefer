@@ -50,6 +50,7 @@ jest.mock('../../src/lib/trpc', () => ({
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 // Lane D3's card has its own test (body-measurements.test.tsx).
 jest.mock('../../src/features/body/body-measurements', () => ({ BodyMeasurements: () => null }));
+jest.mock('../../src/features/body/progress-photos', () => ({ ProgressPhotos: () => null }));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 

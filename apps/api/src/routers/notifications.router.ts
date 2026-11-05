@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { setMealRemindersInputSchema } from '@chefer/types';
 import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
+import { mealRemindersService } from '../application/notifications/meal-reminders.service.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
@@ -20,6 +22,21 @@ export const notificationsRouter = router({
     .input(z.object({ weekReady: z.boolean().optional(), weeklyRecap: z.boolean().optional() }))
     .mutation(({ ctx, input }) => {
       return emailPreferencesService.set(ctx.user.id, input, ctx.isMobileClient ? 'mobile' : 'web');
+    }),
+
+  /**
+   * Lane E1: meal-time reminders — `{ enabled, times }` plus the planned meals
+   * the defaults cover. Every tier. Only the phone schedules them (local
+   * notifications); web shows and edits the same value.
+   */
+  getMealReminders: protectedProcedure.query(({ ctx }) => {
+    return mealRemindersService.get(ctx.user.id);
+  }),
+
+  setMealReminders: protectedProcedure
+    .input(setMealRemindersInputSchema)
+    .mutation(({ ctx, input }) => {
+      return mealRemindersService.set(ctx.user.id, input);
     }),
 
   /** Re-sends the confirmation link (Preferences: "Send confirmation link"). */

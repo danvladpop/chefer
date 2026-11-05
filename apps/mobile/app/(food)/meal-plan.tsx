@@ -53,6 +53,8 @@ import {
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { PartnerBanner } from '../../src/features/household/sharing/partner-banner';
+import { useSharedWeek } from '../../src/features/household/sharing/use-shared-week';
 import { CompareWeeksSheet } from '../../src/features/meal-plan/compare-weeks-sheet';
 import { dismissPlan, isPlanDismissed } from '../../src/features/meal-plan/dismissals';
 import { DAY_LABELS, PlanDayChips } from '../../src/features/meal-plan/plan-day-chips';
@@ -241,6 +243,9 @@ export default function MealPlanScreen() {
   // working AND this tab is on screen; React Query also pauses it while the
   // app is backgrounded (focusManager ← AppState, app/_layout.tsx).
   const isFocused = useIsFocused();
+  // ADR 0003: the shared week (polling, partner view, slot conflicts).
+  const sharedWeek = useSharedWeek();
+  const isPartner = sharedWeek.isPartner;
   const {
     data: plan,
     isLoading,
@@ -251,10 +256,13 @@ export default function MealPlanScreen() {
     { weekOffset },
     {
       retry: false,
+      // ADR 0003: a shared week also refetches every 15 s while on screen.
       refetchInterval: (query) =>
-        isFocused && isTailoringRunning(query.state.data?.tailoring)
-          ? PLAN_TAILORING_POLL_MS
-          : false,
+        !isFocused
+          ? false
+          : isTailoringRunning(query.state.data?.tailoring)
+            ? PLAN_TAILORING_POLL_MS
+            : sharedWeek.pollMs,
     },
   );
 
@@ -418,9 +426,19 @@ export default function MealPlanScreen() {
     meta: { silent: true },
     onSuccess: () => void refetch(),
     // UX-PLAN-14: a failed pin must not look like nothing happened.
-    onError: (err) =>
-      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` }),
+    onError: (err) => {
+      if (sharedWeek.handleSlotConflict(err, refetch)) return;
+      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` });
+    },
   });
+
+  // ADR 0003: a swap that lost a race closes the picker and shows the latest week.
+  const onSlotSwapError = (err: unknown) => {
+    if (!sharedWeek.handleSlotConflict(err, refetch)) return;
+    setPickerTarget(null);
+    swapMutation.reset();
+    replaceMutation.reset();
+  };
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
     meta: { silent: true },
@@ -429,6 +447,7 @@ export default function MealPlanScreen() {
       void refetch();
       invalidateDerived();
     },
+    onError: (err) => onSlotSwapError(err),
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
@@ -438,6 +457,7 @@ export default function MealPlanScreen() {
       void refetch();
       invalidateDerived();
     },
+    onError: (err) => onSlotSwapError(err),
   });
 
   // FB7-04: a side dish is a second slot of the same meal type on that day
@@ -463,8 +483,10 @@ export default function MealPlanScreen() {
       void refetch();
       invalidateDerived();
     },
-    onError: (err) =>
-      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
+    onError: (err) => {
+      if (sharedWeek.handleSlotConflict(err, refetch)) return;
+      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` });
+    },
   });
 
   // wave-1 L-PLAN (UX-07 "Plan this day"): fills just the tapped unplanned
@@ -558,7 +580,7 @@ export default function MealPlanScreen() {
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
   // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
 
   const planShapeSummaryText = shape ? planShapeSummary(shape) : '';
 
@@ -636,7 +658,13 @@ export default function MealPlanScreen() {
   const removeSide = (meal: (typeof meals)[number], slotIndex: number) => {
     if (!plan) return;
     removeSlotMutation.mutate(
-      { planId: plan.planId, dayOfWeek: selectedDay, mealType: meal.type, slotIndex },
+      {
+        planId: plan.planId,
+        dayOfWeek: selectedDay,
+        mealType: meal.type,
+        slotIndex,
+        expectedRecipeId: meal.recipe.id,
+      },
       {
         onSuccess: () =>
           showSnackbar({
@@ -685,7 +713,7 @@ export default function MealPlanScreen() {
           slotState?.status === 'replaced' ? (
             <SlotStatusLine
               testID={`plan-slot-replaced-${slotIndex}`}
-              text={youHadText(slotState.entry, proteinOnly)}
+              text={youHadText(slotState.entry, proteinOnly, noNumbers)}
               actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
               onAction={() => {
                 const entry = slotState.entry;
@@ -749,6 +777,7 @@ export default function MealPlanScreen() {
                           mealType: meal.type,
                           slotIndex,
                           pinned: meal.pinned !== true,
+                          expectedRecipeId: meal.recipe.id,
                         }),
                     },
                     onAddSide: () =>
@@ -915,7 +944,16 @@ export default function MealPlanScreen() {
                   : 'Generate a plan from our curated collection.'}
               </Text>
             )}
-            {!isPast && (
+            {/* ADR 0003: planning a week is the owner's. */}
+            {isPartner && sharedWeek.ownerName ? (
+              <PartnerBanner
+                testID="plan-partner-banner"
+                ownerName={sharedWeek.ownerName}
+                ownerOnly
+                className="mt-2 self-stretch"
+              />
+            ) : null}
+            {!isPast && !isPartner && (
               <Button
                 testID="plan-generate"
                 loading={generateMutation.isPending}
@@ -928,7 +966,7 @@ export default function MealPlanScreen() {
                     : 'Generate Plan'}
               </Button>
             )}
-            {!isPast && (
+            {!isPast && !isPartner && (
               <Pressable
                 testID="plan-change-shape"
                 accessibilityRole="button"
@@ -938,7 +976,7 @@ export default function MealPlanScreen() {
                 <Text className="text-xs font-semibold text-primary">Change what we plan</Text>
               </Pressable>
             )}
-            {isPremium === true && !isPast && (
+            {isPremium === true && !isPast && !isPartner && (
               <View className="mt-4 flex-row items-center gap-2">
                 <Switch value={leftovers} onValueChange={setLeftovers} />
                 <Text variant="muted" className="text-xs">
@@ -990,7 +1028,16 @@ export default function MealPlanScreen() {
           {/* UX-07 §2: compact "how you cook" summary + settings entry point.
               FB7-11: "Week options" sits here and replaces the Regenerate and
               "Rebalance my week" buttons (and the price line) of the old row. */}
-          {(shape !== undefined || !isPast) && (
+          {/* ADR 0003: a partner reads the owner's week; Week options and Plan settings are the owner's. */}
+          {isPartner && sharedWeek.ownerName ? (
+            <PartnerBanner
+              testID="plan-partner-banner"
+              ownerName={sharedWeek.ownerName}
+              ownerOnly
+              className="mx-4 mb-2"
+            />
+          ) : null}
+          {(shape !== undefined || !isPast) && !isPartner && (
             <View className="flex-row items-center justify-between gap-2 px-4 pb-2">
               <Text
                 testID="plan-shape-summary"
@@ -1040,7 +1087,9 @@ export default function MealPlanScreen() {
               tailoring={plan.tailoring}
               sawRunning={sawRunning}
               onResume={
-                isPremium === true && plan.tailoring?.canResume ? resumeTailoring : undefined
+                isPremium === true && plan.tailoring?.canResume && !isPartner
+                  ? resumeTailoring
+                  : undefined
               }
               resuming={resumeTailoringMutation.isPending}
             />
@@ -1100,7 +1149,7 @@ export default function MealPlanScreen() {
             )}
 
             {/* T-11.3: the target moved since this week was planned. */}
-            {replanNeeded && (
+            {replanNeeded && !isPartner && (
               <View
                 testID="plan-replan-banner"
                 className="gap-1 rounded-xl bg-brand-tint px-3 py-2"
@@ -1214,7 +1263,7 @@ export default function MealPlanScreen() {
                     >
                       Not planned — you cook {shape ? planShapeSummary(shape) : 'some days'}.
                     </Text>
-                    {!isPast && (
+                    {!isPast && !isPartner && (
                       <Pressable
                         testID="plan-day-add"
                         accessibilityRole="button"
@@ -1275,6 +1324,7 @@ export default function MealPlanScreen() {
                           return (eaten.length > 0 ? eaten : group.entries).map((e) => e.meal);
                         })(),
                         proteinOnly,
+                        noNumbers,
                       )}
                       main={renderSlot(group.main, 'main')}
                       sides={group.sides.map((entry) => renderSlot(entry, 'side'))}
@@ -1288,7 +1338,7 @@ export default function MealPlanScreen() {
                 meals={plannedMealsOfDay}
                 calorieTarget={targetForDay(selectedDay)}
                 proteinGapG={day?.proteinGapG}
-                onOpenStatus={isPast ? undefined : () => openMiss(selectedDay)}
+                onOpenStatus={isPast || isPartner ? undefined : () => openMiss(selectedDay)}
               />
             )}
             {/* Advisory disclaimer (2026-10-02): the plan is suggestions, and
@@ -1374,6 +1424,7 @@ export default function MealPlanScreen() {
                   slotIndex: target.slotIndex,
                   recipeId,
                   ...(acknowledgeConflict && { acknowledgeConflict }),
+                  expectedRecipeId: target.recipeId,
                 },
                 {
                   onSuccess: (data) => {
@@ -1401,6 +1452,7 @@ export default function MealPlanScreen() {
                           dayOfWeek: selectedDay,
                           mealType: target.mealType,
                           slotIndex: target.slotIndex,
+                          expectedRecipeId: target.recipeId,
                         },
                         {
                           // T-08.6 (Q-6): commit + Undo, no preview.

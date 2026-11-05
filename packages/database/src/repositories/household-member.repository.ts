@@ -1,5 +1,6 @@
 import type { HouseholdMember, Prisma } from '@prisma/client';
 import { prisma } from '../client';
+import { unionSafetyTerms } from './household-sharing.repository';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,8 @@ export type UpdateHouseholdMemberData = {
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface IHouseholdMemberRepository {
-  findByUserId(userId: string): Promise<HouseholdMember[]>;
+  /** With claimed profiles' safety terms overlaid by the partner's own (ADR 0003). */
+  findByUserId(userId: string): Promise<(HouseholdMember & { claimedBy: string | null })[]>;
   countByUserId(userId: string): Promise<number>;
   create(userId: string, data: CreateHouseholdMemberData): Promise<HouseholdMember>;
   /** Ownership-scoped — returns null when the row is not the user's. */
@@ -66,10 +68,53 @@ export interface IHouseholdMemberRepository {
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 export class HouseholdMemberRepository implements IHouseholdMemberRepository {
-  async findByUserId(userId: string): Promise<HouseholdMember[]> {
-    return prisma.householdMember.findMany({
+  /**
+   * ADR 0003: a profile claimed by a partner reads its safety terms as the union
+   * of the profile and the partner's OWN preferences, so a change the partner
+   * makes in their own allergies reaches the shared plan with no sync step. Every
+   * caller (safety filter, generation, allergen warnings, the editor) gets it.
+   * The union only adds terms. `claimedBy` is the partner's user id, else null.
+   */
+  async findByUserId(userId: string): Promise<(HouseholdMember & { claimedBy: string | null })[]> {
+    const rows = await prisma.householdMember.findMany({
       where: { userId },
       orderBy: { name: 'asc' },
+      include: {
+        links: {
+          where: { status: 'ACTIVE' },
+          select: {
+            partnerId: true,
+            partner: {
+              select: {
+                dietaryPreferences: {
+                  select: { allergies: true, dietaryRestrictions: true, dislikedIngredients: true },
+                },
+              },
+            },
+          },
+          take: 1,
+        },
+      },
+    });
+    return rows.map(({ links, ...member }) => {
+      const link = links[0];
+      const own = link?.partner.dietaryPreferences;
+      if (!link) return { ...member, claimedBy: null };
+      return {
+        ...member,
+        claimedBy: link.partnerId,
+        ...(own && {
+          allergies: unionSafetyTerms(member.allergies, own.allergies),
+          dietaryRestrictions: unionSafetyTerms(
+            member.dietaryRestrictions,
+            own.dietaryRestrictions,
+          ),
+          dislikedIngredients: unionSafetyTerms(
+            member.dislikedIngredients,
+            own.dislikedIngredients,
+          ),
+        }),
+      };
     });
   }
 

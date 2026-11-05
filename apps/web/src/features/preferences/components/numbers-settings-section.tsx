@@ -64,26 +64,29 @@ export function NumbersSettingsSection({
         }}
         testIdPrefix="prefs-numbers-mode"
       />
-      <div data-testid="prefs-home-display" className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p id="home-display-label" className="text-sm font-semibold text-foreground">
-            Show calories and macros on Today
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Off: Today shows your meals and workouts, without numbers.
-          </p>
+      {/* With numbers hidden there is nothing for this switch to show. */}
+      {mode !== 'NONE' && (
+        <div data-testid="prefs-home-display" className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p id="home-display-label" className="text-sm font-semibold text-foreground">
+              Show calories and macros on Today
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Off: Today shows your meals and workouts, without numbers.
+            </p>
+          </div>
+          <Switch
+            data-testid="prefs-home-display-switch"
+            checked={showNutrition}
+            onCheckedChange={(next) => {
+              setShowNutrition(next);
+              homeMutation.mutate({ showNutritionOnToday: next });
+            }}
+            aria-labelledby="home-display-label"
+            disabled={homeMutation.isPending}
+          />
         </div>
-        <Switch
-          data-testid="prefs-home-display-switch"
-          checked={showNutrition}
-          onCheckedChange={(next) => {
-            setShowNutrition(next);
-            homeMutation.mutate({ showNutritionOnToday: next });
-          }}
-          aria-labelledby="home-display-label"
-          disabled={homeMutation.isPending}
-        />
-      </div>
+      )}
       {failed && (
         <p role="alert" data-testid="prefs-numbers-error" className="text-xs text-red-600">
           {userFacingErrorMessage(modeMutation.error ?? homeMutation.error) ||
