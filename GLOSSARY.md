@@ -268,3 +268,7 @@ _Avoid_: missed day, bad day, incomplete day (in user copy)
 **Complete day**:
 A logged day not marked as partly logged; what the weekly review averages over.
 _Avoid_: full day, good day
+
+**Body measurement**:
+One day's entry of waist, hips, chest, upper arm, thigh and/or body fat, each optional; free for everyone.
+_Avoid_: body metrics (that is height, age, sex and activity on the profile), measurement (alone, in code)

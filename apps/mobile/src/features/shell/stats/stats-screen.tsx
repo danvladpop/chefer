@@ -29,6 +29,7 @@ import {
   formatDate,
   formatNumber,
   localDateStr,
+  MEASUREMENTS_COPY,
   STATS_RANGE_LABELS,
   STATS_RANGE_SPAN,
   STATS_RANGES,
@@ -45,6 +46,7 @@ import { AiGeneratedChip } from '../../../components/ai-generated-chip';
 import { Icon } from '../../../components/icon';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
+import { BodyMeasurements } from '../../body/body-measurements';
 import { CoachWhy } from '../../coach/coach-why';
 import { WeightEntriesList } from '../../coach/weight-entries-list';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
@@ -551,6 +553,14 @@ function EatingTab({ range }: { range: StatsRangeDays }) {
               />
             </>
           ) : null}
+        </BoardCard>
+      </View>
+
+      {/* Body measurements: free, one chart per measure (lane D3) */}
+      <View className="gap-3">
+        <SectionTitle>{MEASUREMENTS_COPY.title}</SectionTitle>
+        <BoardCard>
+          <BodyMeasurements />
         </BoardCard>
       </View>
     </>

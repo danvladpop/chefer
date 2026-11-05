@@ -25,6 +25,7 @@ import {
   formatNumber,
   isLoggedDay,
   localDateStr,
+  MEASUREMENTS_COPY,
   PROGRESS_RANGES,
   summarizeWeightTrend,
   TREND_WEIGHT_EXPLAINER,
@@ -33,6 +34,7 @@ import {
   type ProgressRange,
   type WeightChangeTone,
 } from '@chefer/utils';
+import { BodyMeasurements } from '../src/features/body/body-measurements';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
 import { useShellV2 } from '../src/features/shell/shell-store';
@@ -440,6 +442,12 @@ function LegacyProgressScreen() {
             />
           </View>
           {weights.length > 0 && <WeightEntriesList entries={weights} />}
+        </Card>
+
+        {/* Body measurements: free, one chart per measure (lane D3) */}
+        <Card>
+          <SectionLabel>{MEASUREMENTS_COPY.title}</SectionLabel>
+          <BodyMeasurements />
         </Card>
       </KeyboardAwareScrollView>
     </Screen>
