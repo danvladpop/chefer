@@ -2230,7 +2230,7 @@ All five cascade from `User`, so `deleteAccount` needs no explicit step (`accoun
 
 ### Coaching data: the client's food and weight sharing (lane K1, 2026-10-22, additive)
 
-Migration `20261024120300_coaching_data_sharing`. Owner decision: opt-in **per coaching**, both off by default.
+Migration `20261026100000_coaching_data_sharing`. Owner decision: opt-in **per coaching**, both off by default.
 
 | Model / change                                                      | Meaning                                                                                                                                                                                                            |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -2244,7 +2244,7 @@ decided in `coaching-access.service.ts` (scopes `food` / `weight`, rule 3b): the
 
 ### Coaching data: weekly check-ins (lane K3, 2026-10-23, additive)
 
-Migration `20261024120900_coaching_check_ins`.
+Migration `20261026110000_coaching_check_ins`.
 
 | Model / change                                                                                      | Meaning                                                                                                                                                                                                                                                                                                                                                            |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -2254,7 +2254,7 @@ Migration `20261024120900_coaching_check_ins`.
 
 ### Coaching data: "client went quiet" (lane K4, 2026-10-23, additive)
 
-Migration `20261024121000_coaching_quiet_alert`: `TrainerProfile` + `quietAfterDays` (default 3, 1–14),
+Migration `20261026120000_coaching_quiet_alert`: `TrainerProfile` + `quietAfterDays` (default 3, 1–14),
 `quietDigestEmail` (false), `quietSeenAt?`. "Quiet" = nothing logged for `quietAfterDays` days: the later of the last
 completed workout and, ONLY while the client shares their food log, the last day with a logged entry
 (`dailyLogRepository.lastLoggedDates`, 60-day window); with neither, counted from the coaching's start day
