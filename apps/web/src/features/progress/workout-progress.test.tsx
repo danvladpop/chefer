@@ -89,7 +89,7 @@ describe('LivePrBanner', () => {
     unmount();
 
     resetProgressMock();
-    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: false };
     const second = render(<LivePrBanner prs={NO_PRS} {...props} />);
     second.rerender(<LivePrBanner prs={PR} {...props} />);
     expect(screen.queryByTestId('live-pr-banner')).toBeNull();
@@ -116,7 +116,7 @@ describe('WorkoutReceipt', () => {
     unmount();
 
     progressMock.receiptFor = receiptFixture();
-    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: false };
     progressMock.queries = {};
     const second = render(<WorkoutReceipt doc={doc} />);
     expect(second.container.innerHTML).toBe('');

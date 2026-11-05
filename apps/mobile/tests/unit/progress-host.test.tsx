@@ -181,18 +181,26 @@ describe('ProgressHost', () => {
     expect(screen.queryByTestId('level-up-modal')).toBeNull();
   });
 
-  it('reads nothing and shows nothing with the feature off', async () => {
+  it('reads nothing and shows nothing when the server says the feature is off', async () => {
     const { paths } = await renderWithTrpc(<ProgressHost signedIn />, {
       ...progressOnHandlers(),
-      'profile.flags': () => ({ gamification: false }),
+      'progress.availability': () => ({ enabled: false }),
     });
-    await waitFor(() => expect(paths()).toContain('profile.flags'));
+    await waitFor(() => expect(paths()).toContain('progress.availability'));
     await act(async () => {
       await Promise.resolve();
     });
     expect(paths().filter((p) => p.startsWith('progress.') && p !== 'progress.finishCook')).toEqual(
-      [],
+      ['progress.availability'],
     );
+  });
+
+  it('works for an allowlisted user while the global flag is off (dogfood)', async () => {
+    const { paths } = await renderWithTrpc(<ProgressHost signedIn />, {
+      ...progressOnHandlers(),
+      'profile.flags': () => ({ gamification: false }),
+    });
+    await waitFor(() => expect(paths()).toContain('progress.inbox'));
   });
 
   it('renders nothing while signed out', async () => {
