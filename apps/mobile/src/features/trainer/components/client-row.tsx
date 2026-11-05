@@ -1,8 +1,14 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
+import { COACHING_COPY, type ClientRowDto } from '@chefer/types';
 import { Badge, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
-import { clientRowNextBooking, deviceTimeZone, todayIn } from '@chefer/utils';
+import {
+  clientRowNextBooking,
+  deviceTimeZone,
+  isQuietClient,
+  quietDaysOf,
+  todayIn,
+} from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { formatStampDate } from '../../gym/routine/attribution';
 import { firstNameOf, formatWeekdayDate } from '../format';
@@ -26,8 +32,8 @@ export function clientRowLabel(row: ClientRowDto): string {
       : COACHING_COPY.trainer.noWorkoutYet,
     COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal),
   ];
-  if (row.inactiveDays >= COACHING_LIMITS.inactiveDays) {
-    parts.push(COACHING_COPY.trainer.quiet(row.inactiveDays));
+  if (isQuietClient(row)) {
+    parts.push(COACHING_COPY.trainer.quiet(quietDaysOf(row)));
   }
   if (row.keepItSimple) parts.push(COACHING_COPY.trainerProfile.keepItSimple);
   const next = nextBookingLine(row);
@@ -37,7 +43,8 @@ export function clientRowLabel(row: ClientRowDto): string {
 
 export function ClientRow({ row }: { row: ClientRowDto }) {
   const colors = useThemeColors();
-  const quiet = row.inactiveDays >= COACHING_LIMITS.inactiveDays;
+  // Lane K4: the server's verdict by the trainer's own threshold (food included while shared).
+  const quiet = isQuietClient(row);
   return (
     // MO-01: a card-sized tap target scales on press.
     <PressableScale
@@ -78,7 +85,7 @@ export function ClientRow({ row }: { row: ClientRowDto }) {
         <View className="flex-row flex-wrap gap-1.5">
           {quiet ? (
             <Badge testID={`trainer-client-${row.clientId}-quiet`} variant="warning">
-              {COACHING_COPY.trainer.quiet(row.inactiveDays)}
+              {COACHING_COPY.trainer.quiet(quietDaysOf(row))}
             </Badge>
           ) : null}
           {row.keepItSimple ? (

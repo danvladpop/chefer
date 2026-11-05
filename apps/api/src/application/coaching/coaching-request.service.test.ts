@@ -22,6 +22,9 @@ const trainer = (userId: string, displayName: string): TrainerProfile => ({
   checkInEnabled: false,
   checkInDay: 6,
   checkInQuestions: [],
+  quietAfterDays: 3,
+  quietDigestEmail: false,
+  quietSeenAt: null,
 });
 
 const link = (trainerId: string): CoachingLink => ({

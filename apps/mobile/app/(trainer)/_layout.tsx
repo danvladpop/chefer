@@ -32,7 +32,7 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 export default function TrainerTabsLayout() {
   const colors = useThemeColors();
   const available = useTrainerModeAvailability();
-  const { requests } = useTrainerBadges();
+  const { requests, quiet } = useTrainerBadges();
   const { badgeCount: personalWaiting } = useFriendsMe();
   const onboardingPending = usePendingOnboarding();
   const onboardingUnfinished = useOnboardingGate();
@@ -44,8 +44,9 @@ export default function TrainerTabsLayout() {
   // §5.1 "Losing trainer status": tools off, allowlist or flag gone — personal mode.
   if (!available) return <Redirect href={personalHomeHref()} />;
 
+  // Lane K4: Today's badge = clients who went quiet since the trainer last opened Today.
   const badgeFor = (name: string) =>
-    name === 'clients' ? requests : name === 'you' ? personalWaiting : 0;
+    name === 'clients' ? requests : name === 'you' ? personalWaiting : name === 'today' ? quiet : 0;
 
   return (
     <ShellCrossfade>

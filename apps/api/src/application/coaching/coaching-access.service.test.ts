@@ -48,6 +48,9 @@ function setup(world: World) {
     checkInEnabled: false,
     checkInDay: 6,
     checkInQuestions: [],
+    quietAfterDays: 3,
+    quietDigestEmail: false,
+    quietSeenAt: null,
   };
   const link: CoachingLink = {
     id: 'link1',

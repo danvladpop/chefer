@@ -80,6 +80,15 @@ describe('EmailPreferencesService', () => {
       expect(result).toEqual({ scope: 'COACHING_CHECK_IN', weekReady: true, weeklyRecap: true });
     });
 
+    it('a quiet-digest link (lane K4) turns off only the trainer digest', async () => {
+      const setQuietDigest = vi.fn(async () => true);
+      const own = new EmailPreferencesService(repo, { send: makeSend() }, () => '', setQuietDigest);
+      const result = await own.unsubscribe(createUnsubscribeToken('u1', 'COACHING_QUIET_DIGEST'));
+      expect(setQuietDigest).toHaveBeenCalledWith('u1', false);
+      expect(repo.setPreferences).not.toHaveBeenCalled();
+      expect(result.scope).toBe('COACHING_QUIET_DIGEST');
+    });
+
     it('resubscribe undoes it with the same link', async () => {
       await service.unsubscribe(createUnsubscribeToken('u1', 'WEEK_READY'), true);
       expect(repo.setPreferences).toHaveBeenCalledWith('u1', { weeklyEmailReady: true });

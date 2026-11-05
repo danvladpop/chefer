@@ -87,6 +87,14 @@ export interface ClientRowDto {
   nextBookingAt?: string | null;
   /** Additive (lane K1): what the client shares with this trainer besides training. */
   sharing?: ClientSharingDto;
+  /**
+   * Additive (lane K4): the last device-local date the client logged anything the trainer may know
+   * about (a workout; a food log only while shared), whole days since it, and whether that is at
+   * least the trainer's `quietAfterDays`. Older APIs send none: fall back to `inactiveDays` ≥ 7.
+   */
+  lastActivityDate?: string | null;
+  quietDays?: number;
+  quiet?: boolean;
 }
 
 // ─── Workouts and adherence ───────────────────────────────────────────────────

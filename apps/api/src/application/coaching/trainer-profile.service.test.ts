@@ -36,6 +36,9 @@ function setup(
         checkInEnabled: false,
         checkInDay: 6,
         checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       };
       return profile;
     }),
@@ -46,6 +49,10 @@ function setup(
     }),
     deactivate: vi.fn(async () => ({ endedClientIds: ['c1', 'c2'], declinedClientIds: ['c3'] })),
     saveCheckInConfig: vi.fn(),
+    saveAlertsConfig: vi.fn(),
+    markQuietSeen: vi.fn(),
+    setQuietDigestEmail: vi.fn(),
+    listDigestRecipients: vi.fn(),
   };
   let following = opts.following ?? true;
   const socialProfiles = {
@@ -87,6 +94,9 @@ describe('TrainerProfileService', () => {
         checkInEnabled: false,
         checkInDay: 6,
         checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
       clients: 3,
     });
@@ -170,6 +180,9 @@ describe('TrainerProfileService', () => {
         checkInEnabled: false,
         checkInDay: 6,
         checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
     });
     expect((await on.service.updateProfile(ME, { displayName: 'Ana P.' })).displayName).toBe(
@@ -211,6 +224,9 @@ describe('TrainerProfileService', () => {
         checkInEnabled: false,
         checkInDay: 6,
         checkInQuestions: [],
+        quietAfterDays: 3,
+        quietDigestEmail: false,
+        quietSeenAt: null,
       },
     });
     await service.deactivate(ME.id, 'web', { accountDeleted: true });
@@ -230,6 +246,9 @@ describe('TrainerProfileService', () => {
       checkInEnabled: false,
       checkInDay: 6,
       checkInQuestions: [],
+      quietAfterDays: 3,
+      quietDigestEmail: false,
+      quietSeenAt: null,
     };
 
     it('turns trainer tools off for an active trainer who is no longer listed', async () => {

@@ -33,6 +33,9 @@ const profile = (over: Partial<TrainerProfile> = {}): TrainerProfile => ({
   checkInEnabled: true,
   checkInDay: 6,
   checkInQuestions: ['ENERGY', 'SLEEP'],
+  quietAfterDays: 3,
+  quietDigestEmail: false,
+  quietSeenAt: null,
   ...over,
 });
 
@@ -73,7 +76,14 @@ function setup(opts: { profile?: TrainerProfile | null; existing?: CoachingCheck
       find: vi.fn(async () => (opts.profile === undefined ? profile() : opts.profile)),
       findActive: vi.fn(async () => (opts.profile === undefined ? profile() : opts.profile)),
       saveCheckInConfig: vi.fn(async (_id, d) =>
-        profile({ checkInEnabled: d.enabled, checkInDay: d.day, checkInQuestions: d.questions }),
+        profile({
+          checkInEnabled: d.enabled,
+          checkInDay: d.day,
+          checkInQuestions: d.questions,
+          quietAfterDays: 3,
+          quietDigestEmail: false,
+          quietSeenAt: null,
+        }),
       ),
     },
     email: { send: vi.fn(async () => undefined) },
