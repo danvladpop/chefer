@@ -301,7 +301,9 @@ jobs:
       # The whole suite runs against one API from one IP; the default
       # 100 requests/min limiter returns 429s once the suite grows.
       RATE_LIMIT_MAX: '3000'
-      AUTH_RATE_LIMIT_MAX: '200'
+      # Every contract file registers its own users from that one IP; the
+      # 2026-11 lane batch (A, E, I, K) took the suite past 200 sign-ups.
+      AUTH_RATE_LIMIT_MAX: '1000'
       # Following and trainer coaching ship dark; turn them on so friends.* and
       # coaching/trainer contract suites run (they skip themselves when off).
       # Kitchen progress likewise (progress.contract.test.ts).

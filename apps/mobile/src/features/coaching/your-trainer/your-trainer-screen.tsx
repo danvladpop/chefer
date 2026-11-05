@@ -22,6 +22,7 @@ import { TrainerHeader } from '../../trainer/components/trainer-header';
 import { UpcomingBookingsList } from '../bookings/upcoming-booking';
 import { COACHING_MOBILE_COPY } from '../copy';
 import { ConsentUpdateNotice } from '../notices/consent-update-notice';
+import { SharingCard } from '../sharing/sharing-card';
 
 // ─── Profile → Your trainer (spec §2.3 step 5, §2.6) ──────────────────────────
 // Who coaches you, since when, what they see and can do, and Leave; a pending coaching request (Cancel
@@ -241,6 +242,8 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
             </View>
           )}
         </CoachingCard>
+
+        {trainer ? <SharingCard trainerName={trainer.name} sharing={trainer.sharing} /> : null}
 
         {trainer ? <UpcomingBookingsList /> : null}
 

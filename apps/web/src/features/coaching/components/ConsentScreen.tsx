@@ -1,5 +1,6 @@
-import { COACHING_COPY } from '@chefer/types';
+import { COACHING_COPY, COACHING_SHARING_COPY, type CoachingShareChoice } from '@chefer/types';
 import { Button } from '@chefer/ui';
+import { SharingSwitches } from './SharingSwitches';
 
 // ─── Consent screen (spec §2.3) ───────────────────────────────────────────────
 // The legal text of the COACHING_SHARING consent: every line comes from the
@@ -21,6 +22,9 @@ export interface ConsentScreenProps {
   switchNote?: string | null;
   /** One more line under the consent text ("Asking doesn't follow them …"). */
   footnote?: string | null;
+  /** Lane K1: the food / weight switches (both off until turned on). Omitted = no switches. */
+  share?: CoachingShareChoice;
+  onShareChange?: (next: Partial<CoachingShareChoice>) => void;
 }
 
 export function ConsentScreen({
@@ -34,6 +38,8 @@ export function ConsentScreen({
   allowLabel,
   switchNote = null,
   footnote = null,
+  share,
+  onShareChange,
 }: ConsentScreenProps) {
   const copy = COACHING_COPY.consent;
   return (
@@ -89,6 +95,19 @@ export function ConsentScreen({
         )}
         {footnote && <p className="text-sm text-gray-700">{footnote}</p>}
       </div>
+
+      {share && onShareChange && (
+        <div className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="text-sm font-semibold text-gray-900">{COACHING_SHARING_COPY.heading}</h2>
+          <SharingSwitches
+            testId="coaching-consent-share"
+            trainerName={trainerName}
+            value={share}
+            onChange={onShareChange}
+            disabled={busy}
+          />
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="text-sm text-red-700">

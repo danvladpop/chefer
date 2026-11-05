@@ -102,6 +102,22 @@ export {
   type UpdateHouseholdMemberData,
 } from './household-member.repository';
 
+// Household sharing (ADR 0003)
+export {
+  HouseholdSharingRepository,
+  householdSharingRepository,
+  householdDisplayName,
+  unionSafetyTerms,
+  type IHouseholdSharingRepository,
+  type ActiveHouseholdLink,
+  type ConfirmedSafety,
+  type CreateHouseholdInviteData,
+  type EndedBy as HouseholdEndedByValue,
+  type HouseholdInviteWithMember,
+  type JoinHouseholdData,
+  type JoinHouseholdResult,
+} from './household-sharing.repository';
+
 export {
   PantryItemRepository,
   pantryItemRepository,
@@ -297,6 +313,10 @@ export {
   type CoachingNotificationKindDb,
   SOCIAL_NOTIFICATION_KINDS,
   COACHING_NOTIFICATION_KINDS,
+  HOUSEHOLD_NOTIFICATION_KINDS,
+  HouseholdNoticeRepository,
+  householdNoticeRepository,
+  type HouseholdNotificationKindDb,
 } from './notification.repository';
 
 export {
@@ -339,6 +359,15 @@ export {
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
 
+// Lane K3: weekly check-ins
+export {
+  CoachingCheckInRepository,
+  coachingCheckInRepository,
+  type ICoachingCheckInRepository,
+  type UpsertCheckInData,
+  type CheckInEmailRecipient,
+} from './coaching-check-in.repository';
+
 // Trainer coaching (docs/trainer-platform/spec.md §5)
 export {
   TrainerProfileRepository,
@@ -363,6 +392,9 @@ export {
   type JoinLinkData,
   type JoinLinkResult,
   type EndLinkData,
+  type SetSharingData,
+  type ShareChoice,
+  endSharingTx,
   type CoachingTx,
   type StartLinkData,
   startLinkTx,
@@ -482,6 +514,29 @@ export {
   type PurgeResult,
 } from './upload-reference.repository';
 
+// Packaged products (ADR 0006): the Open Food Facts cache + users' own products
+export {
+  PackagedProductRepository,
+  packagedProductRepository,
+  type IPackagedProductRepository,
+  type PackagedProductData,
+  type BarcodeRows,
+} from './packaged-product.repository';
+
+// Saved meals (lane A2)
+export {
+  SavedMealRepository,
+  savedMealRepository,
+  SavedMealNameTakenError,
+  type ISavedMealRepository,
+} from './saved-meal.repository';
+// Lane E2 (market review 2026-10): share-card snapshots
+export {
+  ShareCardRepository,
+  shareCardRepository,
+  type IShareCardRepository,
+  type CreateShareCardData,
+} from './share-card.repository';
 // Kitchen progress (docs/gamification-2026-10/tech-plan.md §2, §4)
 export {
   ProgressEventRepository,

@@ -169,6 +169,14 @@ export const saveNoteInputSchema = z.object({
 export const previewInviteInputSchema = z.object({ code: inviteCodeSchema });
 
 /**
+ * Lane K1: what the client chose to share on the consent screen, besides the
+ * coaching itself. Both off unless the client turns them on. Optional on join
+ * and request: older clients send nothing, which means "share nothing".
+ */
+export const coachingShareChoiceSchema = z.object({ food: z.boolean(), weight: z.boolean() });
+export type CoachingShareChoice = z.infer<typeof coachingShareChoiceSchema>;
+
+/**
  * `source` is accepted for parity with other consent writers; the API derives
  * it from the `x-chefer-client` header and ignores this value.
  */
@@ -182,6 +190,8 @@ export const joinInputSchema = z.object({
    * zone is further off); omitted = the UTC day of the join.
    */
   localDate: localDateSchema.optional(),
+  /** Additive (lane K1): the food / weight switches on the consent screen. */
+  share: coachingShareChoiceSchema.optional(),
 });
 export const leaveInputSchema = z.object({ source: coachingSourceSchema.optional() }).optional();
 
@@ -202,6 +212,8 @@ export const requestCoachingInputSchema = z.object({
   source: coachingSourceSchema.optional(),
   /** The client's device-local date when asking: anchors the coaching's start if the trainer accepts. */
   localDate: localDateSchema.optional(),
+  /** Additive (lane K1): the food / weight switches; they apply when the trainer accepts. */
+  share: coachingShareChoiceSchema.optional(),
 });
 
 export const cancelCoachingRequestInputSchema = z

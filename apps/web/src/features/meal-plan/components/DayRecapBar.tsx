@@ -94,13 +94,15 @@ export function DayRecapBar({
   const { kcal, protein, carbs, fat } = sumPlanDay(meals);
   const totals = { calories: kcal, protein, carbs, fat };
   // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
-  const { proteinOnly } = useNumbersMode();
+  const { proteinOnly, noNumbers } = useNumbersMode();
   const judgedTarget = proteinOnly ? undefined : calorieTarget;
 
   const delta = judgedTarget ? totals.calories - judgedTarget : 0;
   const offTarget = judgedTarget ? Math.abs(delta) / judgedTarget > TARGET_BAND : false;
   const proteinShort = proteinGapG !== undefined && proteinGapG > 0;
 
+  // Lane E3 "Hide numbers": no day total and no shortfall line.
+  if (noNumbers) return null;
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Day total</p>

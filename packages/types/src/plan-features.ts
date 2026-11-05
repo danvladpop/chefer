@@ -179,6 +179,16 @@ export const PLAN_FEATURES = {
     description: 'How many meal photos can be analysed per day. Resets at midnight UTC.',
     upsell: false,
   },
+  foodTextPerDay: {
+    // Lane A4 (owner decision 2026-10-22): typed "I ate…" logging outside the
+    // chat. Free with a daily cap, unlimited on premium. Enforced via
+    // AiCallLog type FOOD_TEXT (reserveFoodText, lib/quotas.ts).
+    free: 10,
+    premium: true,
+    label: 'Typed food logging',
+    description: 'Type what you ate and the chef turns it into entries. Resets at midnight UTC.',
+    upsell: false,
+  },
   recipeImportsPerDay: {
     // Enforced via AiCallLog type RECIPE_IMPORT (F5). Premium-only since
     // 2026-09-25 (per-user AI is premium): free users see a canned example.
@@ -196,6 +206,17 @@ export const PLAN_FEATURES = {
     premium: 5,
     label: 'Household members',
     description: 'How many household members can share your plan.',
+    upsell: false,
+  },
+  householdPartners: {
+    // Household sharing (ADR 0003): how many partners — people with their own
+    // account — may join one household. Billing is on hold, so both tiers get
+    // the same number; paid seats would be an edit to THIS entry, read only
+    // through householdAccess.canInvite. 4 partners + the owner = 5 profiles.
+    free: 4,
+    premium: 4,
+    label: 'People who share your plan',
+    description: 'How many people with their own Chefer account can join your household.',
     upsell: false,
   },
   gymTraining: {

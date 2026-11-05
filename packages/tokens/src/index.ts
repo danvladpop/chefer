@@ -5,7 +5,6 @@ export {
   easing,
   exit,
   haptic,
-  overTargetColor,
   pressScale,
   spring,
   stagger,

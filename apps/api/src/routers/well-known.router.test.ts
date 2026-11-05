@@ -40,7 +40,10 @@ describe('/.well-known association files', () => {
         details: [
           {
             appIDs: ['45TS85YK89.com.popdan.chefer'],
-            components: [{ '/': '/coaching/join/*', comment: 'Coaching invite links' }],
+            components: [
+              { '/': '/coaching/join/*', comment: 'Coaching invite links' },
+              { '/': '/household/join/*', comment: 'Household invite links' },
+            ],
           },
         ],
       },

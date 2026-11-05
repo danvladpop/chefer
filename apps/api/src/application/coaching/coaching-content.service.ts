@@ -57,6 +57,7 @@ import {
 } from '../gym/progression.service.js';
 import type { CoachingAccess } from './coaching-access.service.js';
 import {
+  clientSharingOf,
   linkStartDay,
   toCoachedWorkoutDto,
   toRoutineDtoForTrainer,
@@ -158,6 +159,7 @@ export class CoachingContentService {
         name: displayNameOf(client),
         since: link.startedAt.toISOString(),
         keepItSimple: keepItSimple(profile),
+        sharing: clientSharingOf(link),
       },
       adherence: buildAdherence({
         today,

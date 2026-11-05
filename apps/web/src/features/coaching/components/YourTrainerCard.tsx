@@ -12,6 +12,7 @@ import { formatShortDay } from '../lib/dates';
 import { useCoachingAvailability } from '../use-coaching-availability';
 import { UpcomingBookingsList } from './ClientBookings';
 import { ConsentUpdateNotice } from './ConsentUpdateNotice';
+import { SharingCard } from './SharingCard';
 
 // ─── Profile → Your trainer (spec §2.3 step 5, §2.6; PRD 2026-10 §4.1) ────────
 
@@ -153,6 +154,7 @@ export function YourTrainerCard() {
               {COACHING_COPY.consent.privateNotes(trainer.name)}
             </p>
           </div>
+          <SharingCard trainerName={trainer.name} sharing={trainer.sharing} />
           <Button
             id="your-trainer-leave"
             type="button"

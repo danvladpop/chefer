@@ -1,11 +1,17 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
+import {
+  COACHING_COPY,
+  NO_COACHING_SHARE as NO_SHARE,
+  type CoachingShareChoice,
+  type InvitePreviewDto,
+} from '@chefer/types';
 import { Button, ErrorState, IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
+import { trackSharingChosen } from '../../../lib/analytics-events';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
@@ -135,12 +141,15 @@ function JoinFlow({ code }: { code: string }) {
     { retry: false, staleTime: 0, gcTime: 0, refetchOnMount: 'always' },
   );
   const [error, setError] = useState<string | null>(null);
+  // Lane K1: both off until the client turns them on on the consent screen.
+  const [share, setShare] = useState<CoachingShareChoice>(NO_SHARE);
   const [joined, setJoined] = useState<string | null>(null);
   const join = trpc.coaching.join.useMutation({
     meta: { silent: true },
-    onSuccess: (status) => {
+    onSuccess: (status, vars) => {
       track('coaching_joined', {});
       clearPendingJoin();
+      trackSharingChosen(vars.share, 'join');
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();
       setJoined(
@@ -270,8 +279,10 @@ function JoinFlow({ code }: { code: string }) {
         onAllow={() => {
           setError(null);
           // The device-local day anchors the trainer's 4-week window (not the server's UTC day).
-          join.mutate({ code, localDate: localDateStr() });
+          join.mutate({ code, localDate: localDateStr(), share });
         }}
+        share={share}
+        onShareChange={(next) => setShare((cur) => ({ ...cur, ...next }))}
         onDecline={() => {
           clearPendingJoin();
           goBackOrHome();
