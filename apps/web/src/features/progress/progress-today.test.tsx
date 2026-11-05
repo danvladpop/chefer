@@ -115,19 +115,19 @@ describe("ProgressToday: Today's three", () => {
 });
 
 describe('ProgressToday: the gate', () => {
-  it('renders nothing and makes no progress call when the flag is off', () => {
-    progressMock.flags = { gamification: false };
-    const { container } = render(<ProgressToday />);
-    expect(container.innerHTML).toBe('');
-    expect(progressMock.queries['availability']).toBeUndefined();
-    expect(progressMock.queries['summary']).toBeUndefined();
-  });
-
-  it("renders nothing when the account isn't on the allowlist", () => {
+  it('renders nothing and makes no other progress call when the server says the gate is off', () => {
     progressMock.availability = { enabled: false };
     const { container } = render(<ProgressToday />);
     expect(container.innerHTML).toBe('');
+    expect(progressMock.queries['availability']).toBe(1);
     expect(progressMock.queries['summary']).toBeUndefined();
+  });
+
+  it('renders for an allowlisted account while the global flag is off (dogfood)', () => {
+    progressMock.flags = { gamification: false };
+    progressMock.availability = { enabled: true };
+    render(<ProgressToday />);
+    expect(screen.getByTestId('progress-strip')).toBeTruthy();
   });
 });
 
