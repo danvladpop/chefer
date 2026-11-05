@@ -26,7 +26,7 @@ export const todayShell: Catalog['today']['shell'] = {
   },
 
   chrome: {
-    askChef: 'Întreabă bucătarul',
+    askChef: 'Întreabă',
     askChefLabel: 'Întreabă bucătarul',
     addLabel: 'Adaugă mâncare',
   },

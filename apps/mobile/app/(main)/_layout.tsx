@@ -32,14 +32,14 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 const TABS: {
   name: ShellTab;
-  titleKey: `nav.items.${'shop' | 'meals' | 'today' | 'train' | 'you'}`;
+  titleKey: `nav.items.${'meals' | 'today' | 'you'}` | `nav.tabs.${'shop' | 'train'}`;
   icon: IconName;
   activeIcon: IconName;
 }[] = [
-  { name: 'shop', titleKey: 'nav.items.shop', icon: 'shop', activeIcon: 'shopActive' },
+  { name: 'shop', titleKey: 'nav.tabs.shop', icon: 'shop', activeIcon: 'shopActive' },
   { name: 'plan', titleKey: 'nav.items.meals', icon: 'plan', activeIcon: 'planActive' },
   { name: 'home', titleKey: 'nav.items.today', icon: 'today', activeIcon: 'todayActive' },
-  { name: 'train', titleKey: 'nav.items.train', icon: 'train', activeIcon: 'trainActive' },
+  { name: 'train', titleKey: 'nav.tabs.train', icon: 'train', activeIcon: 'trainActive' },
   { name: 'you', titleKey: 'nav.items.you', icon: 'you', activeIcon: 'youActive' },
 ];
 

@@ -27,6 +27,11 @@ export const nav = {
     you: 'You',
     more: 'More',
   },
+  /** Mobile tab-bar labels where the full name does not fit five tabs ("Cumpărături"). */
+  tabs: {
+    shop: 'Shop',
+    train: 'Train',
+  },
   titles: {
     workout: 'Workout',
     workoutSummary: 'Workout summary',

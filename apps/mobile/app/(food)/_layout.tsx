@@ -104,7 +104,7 @@ export default function FoodTabsLayout() {
       <Tabs.Screen
         name="shopping-list"
         options={{
-          title: t('nav.items.shop'),
+          title: t('nav.tabs.shop'),
           tabBarAccessibilityLabel: tabAccessibilityLabel(t('nav.items.shop'), 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cart-outline" color={color} size={size + 2} />

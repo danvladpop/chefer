@@ -84,20 +84,14 @@ describe('shell chrome in Romanian', () => {
 
   it('names the new shell’s tabs in Romanian', async () => {
     const tabs = await tabsOf(MainTabsLayout, true);
-    expect(tabs.map((tab) => tab.title)).toEqual([
-      'Cumpărături',
-      'Mese',
-      'Azi',
-      'Antrenament',
-      'Tu',
-    ]);
+    expect(tabs.map((tab) => tab.title)).toEqual(['Listă', 'Mese', 'Azi', 'Sală', 'Tu']);
   });
 
   it('names the old Food and Gym tabs in Romanian', async () => {
     expect((await tabsOf(FoodTabsLayout, false)).map((tab) => tab.title)).toEqual([
       'Azi',
       'Plan',
-      'Cumpărături',
+      'Listă',
       'Rețete',
       'Mai mult',
     ]);
@@ -123,7 +117,7 @@ describe('shell chrome in Romanian', () => {
 
   it('labels the Ask Chef pill in Romanian', async () => {
     await render(<AskChefAction />);
-    expect(screen.getByText('Întreabă bucătarul')).toBeOnTheScreen();
+    expect(screen.getByText('Întreabă')).toBeOnTheScreen();
     expect(screen.getByLabelText('Întreabă bucătarul')).toBeOnTheScreen();
   });
 

@@ -10,17 +10,18 @@ import {
   type TargetChange,
 } from '@chefer/database';
 import { createTranslator } from '@chefer/i18n';
-import { parseStoredNumbersMode, type SupportedLocale } from '@chefer/types';
-import type {
-  NumbersMode,
-  NutritionTargets,
-  OnboardingJob,
-  ProteinGuide,
-  RefuelSnackDto,
-  SafetyChecks,
-  TrainingDayNutrition,
-  UserProfile,
-  WeekGlanceDay,
+import {
+  parseStoredNumbersMode,
+  type NumbersMode,
+  type NutritionTargets,
+  type OnboardingJob,
+  type ProteinGuide,
+  type RefuelSnackDto,
+  type SafetyChecks,
+  type SupportedLocale,
+  type TrainingDayNutrition,
+  type UserProfile,
+  type WeekGlanceDay,
 } from '@chefer/types';
 import {
   buildProteinGuide,

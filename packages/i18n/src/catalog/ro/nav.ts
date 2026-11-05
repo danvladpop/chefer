@@ -24,6 +24,10 @@ export const nav: Catalog['nav'] = {
     you: 'Tu',
     more: 'Mai mult',
   },
+  tabs: {
+    shop: 'Listă',
+    train: 'Sală',
+  },
   titles: {
     workout: 'Antrenament',
     workoutSummary: 'Rezumatul antrenamentului',
