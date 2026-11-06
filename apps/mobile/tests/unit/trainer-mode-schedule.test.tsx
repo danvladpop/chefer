@@ -55,7 +55,9 @@ const { askBookingReminderPermissionOnce } = jest.requireMock<{
 }>('../../src/features/notifications/booking-reminders');
 
 const ZONE = deviceTimeZone();
-const TODAY = todayIn(ZONE);
+// A Wednesday mid-morning: the next full hour is still today, and Monday is another day this week.
+const NOW = new Date(2026, 9, 21, 10, 30, 0);
+const TODAY = todayIn(ZONE, NOW);
 /** An instant at `time` today in the device zone (the zone these screens lay out in). */
 const todayAt = (time: string, date = TODAY) => zonedToUtc(date, time, ZONE).toISOString();
 
@@ -95,6 +97,7 @@ function scheduleHandlers(bookings: TrainerBookingDto[], overrides: Handlers = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   resetShellModeStoreForTests();
   resetSnackbarForTests();
@@ -102,7 +105,10 @@ beforeEach(() => {
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 describe('Schedule', () => {
   it('asks one range for the visible week and draws each booking as a labelled button', async () => {
@@ -130,8 +136,7 @@ describe('Schedule', () => {
     const r = await renderWithTrpc(<ScheduleScreen />, scheduleHandlers([]));
     await settle();
     expect(screen.getByTestId('schedule-empty')).toHaveTextContent('Nothing booked');
-    const other = addDaysLocal(weekStartOf(TODAY), TODAY === weekStartOf(TODAY) ? 1 : 0);
-    await user.press(screen.getByTestId(`schedule-days-${other}`));
+    await user.press(screen.getByTestId(`schedule-days-${weekStartOf(TODAY)}`));
     await settle();
     expect(r.calls.filter((c) => c.path === 'trainer.bookings.range')).toHaveLength(1);
     await user.press(screen.getByTestId('schedule-next-week'));
@@ -177,6 +182,7 @@ describe('Schedule', () => {
     expect(created).toMatchObject({
       kind: 'BOOKING',
       date: TODAY,
+      time: '11:00',
       timeZone: ZONE,
       durationMin: 60,
       clients: [{ clientId: MARIA }, { clientId: ION }],
