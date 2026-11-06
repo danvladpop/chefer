@@ -13,6 +13,7 @@ module.exports = {
     '^@chefer/ui-mobile$': '<rootDir>/../../packages/ui-mobile/src/index.ts',
     '^@chefer/types$': '<rootDir>/../../packages/types/src/index.ts',
     '^@chefer/utils$': '<rootDir>/../../packages/utils/src/index.ts',
+    '^@chefer/i18n$': '<rootDir>/../../packages/i18n/src/index.ts',
     '^@chefer/tokens$': '<rootDir>/../../packages/tokens/src/index.ts',
     // @chefer/ui-mobile imports these from its own node_modules; pin them to
     // the app's copy so the global mocks in tests/setup apply to both.

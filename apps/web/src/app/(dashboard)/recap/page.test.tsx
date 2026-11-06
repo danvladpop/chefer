@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WeeklyRecapDto } from '@chefer/types';
@@ -60,5 +61,19 @@ describe('Recap page (lane E2)', () => {
     render(<RecapPage />);
     expect(screen.getByTestId('recap-quiet').textContent).toContain('A quiet week');
     expect(screen.queryByRole('button', { name: 'Share your week' })).toBeNull();
+  });
+
+  it('speaks Romanian when the UI is in Romanian (plurals with „de”)', () => {
+    m.data = { ...RECAP, food: { ...RECAP.food, cookedFromPlan: 21 } };
+    render(
+      <I18nProvider initialChoice="ro" deviceTags={[]}>
+        <RecapPage />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Săptămâna ta pe scurt' })).toBeTruthy();
+    expect(screen.getByText('21 de mese gătite din plan')).toBeTruthy();
+    expect(screen.getByText('1 rețetă nouă încercată')).toBeTruthy();
+    expect(screen.getByText('2 antrenamente')).toBeTruthy();
+    expect(screen.getByText('3 săptămâni la rând')).toBeTruthy();
   });
 });

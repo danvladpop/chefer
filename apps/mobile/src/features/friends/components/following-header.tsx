@@ -1,8 +1,8 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import { CountPill, useThemeColors } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { FriendsScreenHeader } from './friends-screen-header';
 
 // ─── Following home header (UX §3.2, §5.1) ────────────────────────────────────
@@ -23,17 +23,22 @@ export function FollowingHeader({
   testID = 'friends-header',
 }: FollowingHeaderProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   return (
     <FriendsScreenHeader
       testID={testID}
-      title={FRIENDS_COPY.home.title}
+      title={t('friends.home.title')}
       {...(onBack ? { onBack } : {})}
       right={
         <>
           <Pressable
             testID={`${testID}-activity`}
             accessibilityRole="button"
-            accessibilityLabel={FRIENDS_COPY.home.activityLabel(unread)}
+            accessibilityLabel={
+              unread > 0
+                ? t('friends.home.activityLabelNew', { unread })
+                : t('friends.home.activityLabel')
+            }
             onPress={() => router.push('/friends/activity')}
             className="h-11 w-11 items-center justify-center"
           >
@@ -51,7 +56,7 @@ export function FollowingHeader({
           <Pressable
             testID={`${testID}-settings`}
             accessibilityRole="button"
-            accessibilityLabel={FRIENDS_COPY.home.settingsLabel}
+            accessibilityLabel={t('friends.home.settingsLabel')}
             onPress={() => router.push('/friends/settings')}
             className="h-11 w-11 items-center justify-center"
           >

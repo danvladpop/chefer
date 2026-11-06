@@ -8,7 +8,7 @@ import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
 import { ItemThumb } from '@/features/shopping-list/components/ItemThumb';
 import { ShareListDialog } from '@/features/shopping-list/components/ShareListDialog';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/features/shopping-list/share-list';
+import { CATEGORY_ORDER } from '@/features/shopping-list/share-list';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useHousehold } from '@/hooks/useHousehold';
@@ -16,6 +16,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnits } from '@/hooks/useUnits';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
@@ -30,10 +31,10 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
-import { HOUSEHOLD_SHARING_COPY, type ListPersonDto } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import type { ListPersonDto } from '@chefer/types';
 import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } from '@chefer/ui';
 import {
-  checkedForListHeaderText,
   defaultWeekOffset,
   deviceLocale,
   formatApproxPriceHint,
@@ -41,11 +42,8 @@ import {
   formatPriceRange,
   getWeekStartDate,
   isConvertedCurrency,
-  labelCaveatCompactText,
   parseCustomItemInput,
   perPortionCost,
-  shoppingProvenanceText,
-  shoppingWindowLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
 
@@ -61,16 +59,52 @@ const PRINT_STYLES = `
 .shopping-list-print-header { display: none; }
 `;
 
+type T = Translator['t'];
+
 /** "Added by Maria · Ticked by you" under an item of a shared list (ADR 0003). */
 function listPeopleLine(
+  t: T,
   addedBy: ListPersonDto | undefined,
   checkedBy: ListPersonDto | undefined,
 ): string | null {
-  const parts = [
-    addedBy ? HOUSEHOLD_SHARING_COPY.addedBy(addedBy) : null,
-    checkedBy ? HOUSEHOLD_SHARING_COPY.checkedBy(checkedBy) : null,
-  ].filter((part): part is string => part !== null);
-  return parts.length > 0 ? parts.join(' · ') : null;
+  const added = addedBy
+    ? addedBy.isYou
+      ? t('household.sharing.addedByYou')
+      : t('household.sharing.addedBy', { name: addedBy.name })
+    : null;
+  const checked = checkedBy
+    ? checkedBy.isYou
+      ? t('household.sharing.checkedByYou')
+      : t('household.sharing.checkedBy', { name: checkedBy.name })
+    : null;
+  if (added && checked) return t('plan.shopping.whoBoth', { added, checked });
+  return added ?? checked;
+}
+
+const SHORT_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+/** null for a whole-week list; otherwise "Fri–Sun" or "Sun only" (shoppingWindowLabel). */
+function windowText(t: T, fromDayOfWeek: number | null | undefined): string | null {
+  if (fromDayOfWeek == null || fromDayOfWeek <= 0) return null;
+  const from = t(`common.weekdaysShort.${SHORT_DAYS[Math.min(6, fromDayOfWeek)] ?? 'sun'}`);
+  return fromDayOfWeek >= 6
+    ? t('plan.shopping.windowOnly', { day: from })
+    : t('plan.shopping.windowRange', { from, to: t('common.weekdaysShort.sun') });
+}
+
+// The API's `other` aisle is the catalog's `misc` key (an `other` key reads as a plural).
+const AISLE_KEYS = {
+  produce: 'produce',
+  proteins: 'proteins',
+  dairy: 'dairy',
+  grains: 'grains',
+  frozen: 'frozen',
+  other: 'misc',
+} as const;
+
+function aisleLabel(t: T, category: string): string {
+  if (!Object.prototype.hasOwnProperty.call(AISLE_KEYS, category)) return category;
+  return t(`plan.shopping.categories.${AISLE_KEYS[category as keyof typeof AISLE_KEYS]}`);
 }
 
 const EXPANDED_STORAGE_KEY = 'chefer.shopping-expanded.v2';
@@ -78,6 +112,7 @@ const EXPANDED_STORAGE_KEY = 'chefer.shopping-expanded.v2';
 const PENDING_KEY_PREFIX = 'pending:';
 
 export default function ShoppingListPage() {
+  const { t } = useT();
   // FB7-10: the list is always the one computed from the plan's recipes — no AI
   // tidy-up, no "In my kitchen" pantry (both retired).
   // T-08.9 (UX-08 AC1, bug B-13): defaults to the SAME week as Plan — next
@@ -163,7 +198,7 @@ export default function ShoppingListPage() {
   const items = weekList?.items ?? [];
   const grouped = CATEGORY_ORDER.map((cat) => ({
     category: cat,
-    label: CATEGORY_LABELS[cat],
+    label: aisleLabel(t, cat),
     items: items.filter((i) => i.category === cat),
   })).filter((g) => g.items.length > 0);
 
@@ -282,7 +317,9 @@ export default function ShoppingListPage() {
     meta: { silent: true },
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
     onError: (err) =>
-      showAppToast({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+      showAppToast({
+        message: t('plan.shopping.undoFailed', { reason: userFacingErrorMessage(err) }),
+      }),
   });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
@@ -297,10 +334,10 @@ export default function ShoppingListPage() {
       {
         onSuccess: () =>
           showAppToast({
-            message: `Removed ${item.ingredientName}`,
+            message: t('plan.shopping.removed', { name: item.ingredientName }),
             type: 'success',
             action: {
-              label: 'Undo',
+              label: t('plan.shopping.undo'),
               onClick: () =>
                 undoRemoveMutation.mutate({
                   planId,
@@ -349,7 +386,7 @@ export default function ShoppingListPage() {
     return (
       <div className="mx-auto max-w-3xl p-4 lg:p-6">
         <ErrorState
-          title="Couldn't load your shopping list"
+          title={t('plan.shopping.loadError')}
           onRetry={() => void refetchList()}
           retrying={listRefetching}
         />
@@ -378,16 +415,18 @@ export default function ShoppingListPage() {
 
       {/* Print-only header */}
       <div className="shopping-list-print-header">
-        Chefer Shopping List — Week of {formatDate(weekStart, 'full')}
+        {t('plan.shopping.printHeader', { date: formatDate(weekStart, 'full') })}
       </div>
 
       {/* Page header */}
       <div className="mb-4" data-print-hide>
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          THIS WEEK
+          {t('plan.shopping.weeks.thisWeek')}
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Shop</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            {t('plan.shopping.title')}
+          </h1>
 
           {/* Print and Share live in an overflow menu — printing from a phone
               is a rare intent, and three buttons do not fit a phone header. */}
@@ -395,7 +434,7 @@ export default function ShoppingListPage() {
             <div ref={listMenu.rootRef} className="relative shrink-0">
               <button
                 {...listMenu.triggerProps}
-                aria-label="More list actions"
+                aria-label={t('plan.shopping.menu.moreActions')}
                 className="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 transition hover:bg-neutral-50 sm:h-9 sm:w-9"
               >
                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -417,7 +456,8 @@ export default function ShoppingListPage() {
                     }}
                     className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50 disabled:text-neutral-400 disabled:hover:bg-transparent"
                   >
-                    <Share2 className="h-4 w-4 text-neutral-500" aria-hidden="true" /> Share
+                    <Share2 className="h-4 w-4 text-neutral-500" aria-hidden="true" />{' '}
+                    {t('plan.shopping.menu.share')}
                   </button>
                   <button
                     type="button"
@@ -429,18 +469,20 @@ export default function ShoppingListPage() {
                     }}
                     className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-700 hover:bg-neutral-50"
                   >
-                    <Printer className="h-4 w-4 text-neutral-500" /> Print
+                    <Printer className="h-4 w-4 text-neutral-500" /> {t('plan.shopping.menu.print')}
                   </button>
                   <button
                     type="button"
                     role="menuitem"
                     tabIndex={-1}
                     disabled
-                    title="Coming soon"
+                    title={t('plan.shopping.menu.comingSoon')}
                     className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-neutral-500"
                   >
-                    <Smartphone className="h-4 w-4" /> Send to Mobile
-                    <span className="ml-auto text-xs uppercase">Soon</span>
+                    <Smartphone className="h-4 w-4" /> {t('plan.shopping.menu.sendToMobile')}
+                    <span className="ml-auto text-xs uppercase">
+                      {t('plan.shopping.menu.soon')}
+                    </span>
                   </button>
                 </div>
               )}
@@ -450,7 +492,14 @@ export default function ShoppingListPage() {
         {/* FB7-10: where the list comes from and which days it covers (a plan
             made mid-week lists only the remaining days, audit F-PM-3). */}
         <p data-testid="shop-provenance" className="mt-1 text-xs text-neutral-500">
-          {shoppingProvenanceText(weekList?.fromDayOfWeek)}
+          {t('plan.shopping.provenance', {
+            window:
+              windowText(t, weekList?.fromDayOfWeek) ??
+              t('plan.shopping.windowRange', {
+                from: t('common.weekdaysShort.mon'),
+                to: t('common.weekdaysShort.sun'),
+              }),
+          })}
         </p>
       </div>
 
@@ -478,7 +527,10 @@ export default function ShoppingListPage() {
               />
             </div>
             <span className="whitespace-nowrap text-xs text-neutral-500">
-              {checkedCount}/{totalItems} checked
+              {t('plan.shopping.progressChecked', {
+                checked: String(checkedCount),
+                total: String(totalItems),
+              })}
             </span>
           </div>
         )}
@@ -490,18 +542,21 @@ export default function ShoppingListPage() {
           <span
             title={
               isConvertedCurrency(currency)
-                ? 'Baseline estimate from typical supermarket prices, converted from EUR at an approximate rate'
-                : 'Baseline estimate from typical supermarket prices'
+                ? t('plan.shopping.totalHintConverted')
+                : t('plan.shopping.totalHint')
             }
             className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
           >
-            Est. total{' '}
-            {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
-              formatApproxPriceHint(weekList.estimatedTotalEur, currency)}
             {/* UX-PLAN-07: the total covers the same days as the list. */}
-            {shoppingWindowLabel(weekList.fromDayOfWeek)
-              ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
-              : ''}
+            {(() => {
+              const total = t('plan.shopping.estTotal', {
+                price:
+                  formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
+                  formatApproxPriceHint(weekList.estimatedTotalEur, currency),
+              });
+              const window = windowText(t, weekList.fromDayOfWeek);
+              return window ? t('plan.shopping.withWindow', { text: total, window }) : total;
+            })()}
           </span>
         )}
 
@@ -509,7 +564,7 @@ export default function ShoppingListPage() {
             checked against this week's list. */}
         {weekList?.tableSafety?.hasRules && (
           <span className="whitespace-nowrap rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]">
-            {checkedForListHeaderText(weekList.items.length)}
+            {t('plan.shopping.checkedForTable', { count: weekList.items.length })}
           </span>
         )}
 
@@ -518,25 +573,28 @@ export default function ShoppingListPage() {
             recipes as written (one portion) and says so. */}
         {weekList?.portions != null ? (
           <span
-            title="Quantities and total are scaled to everyone at your table"
+            title={t('plan.shopping.portionsHint')}
             className="whitespace-nowrap rounded-full border border-[#944a00]/20 bg-[#fff3e8] px-3 py-1 text-xs font-medium text-[#944a00]"
           >
-            For {weekList.portions} portions
-            {weekList.estimatedTotalEur != null &&
-              ` · ${formatApproxPriceHint(
-                perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
-                currency,
-              )} each`}
+            {weekList.estimatedTotalEur != null
+              ? t('plan.shopping.forPortionsEach', {
+                  count: weekList.portions,
+                  price: formatApproxPriceHint(
+                    perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
+                    currency,
+                  ),
+                })
+              : t('plan.shopping.forPortions', { count: weekList.portions })}
           </span>
         ) : (
           weekList?.hasPlan &&
           memberCount > 0 && (
             <Link
               href="/preferences#household"
-              title="Premium scales the list to your whole table"
+              title={t('plan.shopping.sizedForOneHint')}
               className="flex min-h-11 items-center whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600 sm:min-h-0"
             >
-              Sized for 1 portion
+              {t('plan.shopping.sizedForOne')}
             </Link>
           )
         )}
@@ -544,9 +602,9 @@ export default function ShoppingListPage() {
         {/* T-10.4: the free household's sized first week says so */}
         {firstScaledWeek && (
           <p data-testid="shop-first-scaled-week" className="basis-full text-xs text-neutral-600">
-            Sized for your table of{' '}
-            {weekList?.portions ?? weekPlan.estimatedCost?.portions ?? memberCount} — free for your
-            first week
+            {t('plan.shopping.firstScaledWeek', {
+              count: weekList?.portions ?? weekPlan.estimatedCost?.portions ?? memberCount,
+            })}
           </p>
         )}
       </div>
@@ -555,15 +613,13 @@ export default function ShoppingListPage() {
       {!weekList?.hasPlan ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 py-16 text-center">
           <ShoppingCart className="mb-4 h-10 w-10 text-neutral-300" />
-          <h2 className="mb-2 font-semibold text-neutral-700">No meal plan for this week</h2>
-          <p className="mb-6 max-w-xs text-sm text-neutral-500">
-            Generate a meal plan to get a personalised shopping list.
-          </p>
+          <h2 className="mb-2 font-semibold text-neutral-700">{t('plan.shopping.empty.title')}</h2>
+          <p className="mb-6 max-w-xs text-sm text-neutral-500">{t('plan.shopping.empty.body')}</p>
           <Link
             href="/meal-plan"
             className="inline-flex min-h-11 items-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90"
           >
-            Go to Meal Planner
+            {t('plan.shopping.empty.cta')}
           </Link>
         </div>
       ) : (
@@ -581,14 +637,14 @@ export default function ShoppingListPage() {
                 }
               }}
               placeholder={units.addItemPlaceholder}
-              aria-label="Add an item to the shopping list"
+              aria-label={t('plan.shopping.add.inputLabel')}
               className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
             />
             <button
               type="button"
               onClick={handleAddItem}
               disabled={!newItemText.trim()}
-              aria-label="Add item to shopping list"
+              aria-label={t('plan.shopping.add.buttonLabel')}
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 ${pressControl}`}
             >
               <Plus className="h-4 w-4" />
@@ -609,14 +665,18 @@ export default function ShoppingListPage() {
                   <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
                     {label}
                     <span className="ml-2 font-normal normal-case tracking-normal">
-                      {catItems.length} item{catItems.length !== 1 ? 's' : ''}
-                      {catDone > 0 ? ` · ${catDone} done` : ''}
+                      {catDone > 0
+                        ? t('plan.shopping.aisleItemsDone', {
+                            count: catItems.length,
+                            done: String(catDone),
+                          })
+                        : t('plan.shopping.aisleItems', { count: catItems.length })}
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
                     {catDone === catItems.length && catItems.length > 0 && (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                        ✓ all
+                        {t('plan.shopping.aisleAllDone')}
                       </span>
                     )}
                     <ChevronDown
@@ -632,6 +692,7 @@ export default function ShoppingListPage() {
                       const itemImageUrl = item.imageUrl;
                       const whoLine = isShared
                         ? listPeopleLine(
+                            t,
                             item.addedBy,
                             isChecked
                               ? (listSync.checkedBy[item.key] ?? item.checkedBy)
@@ -671,7 +732,7 @@ export default function ShoppingListPage() {
                                 {/* T-01.9: this ingredient needs a certified product for the
                                     table's diet labels (e.g. certified gluten-free oats). */}
                                 {item.labelCheck && item.labelCheck.length > 0 && (
-                                  <LabelCaveat text={labelCaveatCompactText()} compact />
+                                  <LabelCaveat text={t('plan.shopping.labelCaveat')} compact />
                                 )}
                               </p>
                               {/* Quantity and price share a line — as separate
@@ -684,7 +745,9 @@ export default function ShoppingListPage() {
                                   </span>
                                 )}
                                 {item.key.startsWith(PENDING_KEY_PREFIX) && (
-                                  <span className="ml-2 text-neutral-400">Saving…</span>
+                                  <span className="ml-2 text-neutral-400">
+                                    {t('common.states.saving')}
+                                  </span>
                                 )}
                               </p>
                               {whoLine && (
@@ -716,8 +779,10 @@ export default function ShoppingListPage() {
                                 weekList?.planId && removeCustomItem(weekList.planId, item)
                               }
                               disabled={removeItemMutation.isPending}
-                              aria-label={`Remove ${item.ingredientName} from the list`}
-                              title="Added by you — remove"
+                              aria-label={t('plan.shopping.removeFromList', {
+                                name: item.ingredientName,
+                              })}
+                              title={t('plan.shopping.removeHint')}
                               className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 ${pressControl}`}
                               data-print-hide
                             >
@@ -733,7 +798,7 @@ export default function ShoppingListPage() {
                                   category: item.category,
                                 })
                               }
-                              aria-label={`Details for ${item.ingredientName}`}
+                              aria-label={t('plan.shopping.details', { name: item.ingredientName })}
                               className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500 ${pressControl}`}
                               data-print-hide
                             >
@@ -754,11 +819,11 @@ export default function ShoppingListPage() {
             <div className="flex gap-2">
               <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
               <div>
-                <h3 className="mb-1 text-xs font-semibold text-amber-800">Chef&apos;s Tip</h3>
+                <h3 className="mb-1 text-xs font-semibold text-amber-800">
+                  {t('plan.shopping.tip.title')}
+                </h3>
                 <p className="text-xs leading-relaxed text-amber-700">
-                  Buy ingredients for meal prep on Sunday to save time during the week. Check your
-                  pantry for spices, oils, and condiments before shopping — they often last several
-                  weeks.
+                  {t('plan.shopping.tip.body')}
                 </p>
               </div>
             </div>

@@ -4,9 +4,11 @@ import { QueryClientContext } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto, StreakInfo } from '@chefer/types';
 import { ConfirmSheet, haptics, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { sessionDeletePreview, weekdayDateLabel } from '@chefer/utils';
+import { sessionDeletePreview } from '@chefer/utils';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { localDate } from '../offline/ids';
 import { deleteSessionWithUndo, type DeleteSource } from '../offline/session-corrections';
+import { weekdayDateLabelT } from '../workout/session-when-fields';
 
 // Correct a past workout from wherever it is listed (UX-44, T-44.1): Gym Today
 // `Recent`, Stats › History and the session detail all share this hook. It owns
@@ -35,8 +37,6 @@ const NO_STREAK: StreakInfo = {
   thisWeekGoal: 1,
 };
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 /**
  * The confirm's body — only the lines that change (AC4): the workout and its
  * sets, this week's count, the streak, and that targets are worked out again.
@@ -53,20 +53,28 @@ export function deleteConfirmBody(
     setsCount: completedWorkingSets(session),
     today: localDate(),
   });
+  const { t } = getTranslator();
   const lines = [
-    `${session.name} on ${weekdayDateLabel(session.localDate)}: ${plural(preview.setsCount, 'set', 'sets')}.`,
+    t('gym.session.delete.first', {
+      name: session.name,
+      date: weekdayDateLabelT(session.localDate, t),
+      count: preview.setsCount,
+    }),
   ];
   if (preview.weekChanged) {
     lines.push(
-      `This week goes from ${preview.thisWeekBefore} to ${plural(preview.thisWeekAfter, 'session', 'sessions')}.`,
+      t('gym.session.delete.week', {
+        before: preview.thisWeekBefore,
+        count: preview.thisWeekAfter,
+      }),
     );
   }
   if (preview.streakChanged) {
     lines.push(
-      `Your streak goes from ${plural(preview.streakBefore, 'week', 'weeks')} to ${preview.streakAfter}.`,
+      t('gym.session.delete.streak', { count: preview.streakBefore, after: preview.streakAfter }),
     );
   }
-  lines.push('Next time targets for its exercises are worked out again.');
+  lines.push(t('gym.session.delete.targets'));
   return lines.join('\n');
 }
 
@@ -80,11 +88,14 @@ export function SessionOptionsButton({
   onPress: () => void;
   testID: string;
 }) {
+  const { t } = useT();
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`Options for ${session.name}, ${weekdayDateLabel(session.localDate)}`}
+      accessibilityLabel={t('gym.session.optionsFor', {
+        label: `${session.name}, ${weekdayDateLabelT(session.localDate, t)}`,
+      })}
       onPress={onPress}
       className="h-11 w-11 items-center justify-center rounded-full active:bg-muted"
     >
@@ -101,8 +112,8 @@ export function sessionRowAccessibilityActions(
   return {
     accessibilityActions: [
       { name: 'activate' as const },
-      { name: 'edit', label: 'Edit' },
-      { name: 'delete', label: 'Delete' },
+      { name: 'edit', label: getTranslator().t('common.actions.edit') },
+      { name: 'delete', label: getTranslator().t('common.actions.delete') },
     ],
     onAccessibilityAction: (event: { nativeEvent: { actionName: string } }) => {
       if (event.nativeEvent.actionName === 'edit') actions.edit(session);
@@ -133,6 +144,7 @@ export function useSessionActions(input: {
   // Optional on purpose: list components render in isolation in unit tests
   // with no QueryClientProvider; the app always has one (root layout).
   const queryClient = useContext(QueryClientContext);
+  const { t } = useT();
   const snackbar = useSnackbar();
   const [menuFor, setMenuFor] = useState<SessionSummaryDto | null>(null);
   const [confirmFor, setConfirmFor] = useState<SessionSummaryDto | null>(null);
@@ -202,8 +214,8 @@ export function useSessionActions(input: {
         <Sheet
           visible={menuFor !== null}
           onClose={() => setMenuFor(null)}
-          title={shown?.name ?? 'Workout'}
-          eyebrow={shown ? weekdayDateLabel(shown.localDate) : undefined}
+          title={shown?.name ?? t('gym.session.workoutFallback')}
+          eyebrow={shown ? weekdayDateLabelT(shown.localDate, t) : undefined}
           testID={`${testIDPrefix}-menu`}
         >
           <Pressable
@@ -214,7 +226,7 @@ export function useSessionActions(input: {
             }}
             className="min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted"
           >
-            <Text className="text-base font-medium">Edit workout</Text>
+            <Text className="text-base font-medium">{t('gym.session.editWorkout')}</Text>
           </Pressable>
           <Pressable
             testID={`${testIDPrefix}-menu-delete`}
@@ -222,17 +234,19 @@ export function useSessionActions(input: {
             onPress={onMenuDelete}
             className="min-h-12 justify-center px-1 py-2 active:bg-muted"
           >
-            <Text className="text-base font-medium text-destructive">Delete workout</Text>
+            <Text className="text-base font-medium text-destructive">
+              {t('gym.session.deleteWorkout')}
+            </Text>
           </Pressable>
         </Sheet>
         <ConfirmSheet
           visible={confirmFor !== null}
           onClose={() => setConfirmFor(null)}
           testID={`${testIDPrefix}-delete-confirm`}
-          title="Delete this workout?"
+          title={t('gym.session.deleteTitle')}
           body={shown ? deleteConfirmBody(shown, bootstrap) : ''}
-          confirmLabel="Delete workout"
-          cancelLabel="Keep it"
+          confirmLabel={t('gym.session.deleteWorkout')}
+          cancelLabel={t('gym.workout.view.keepIt')}
           destructive
           onConfirm={onConfirmDelete}
         />

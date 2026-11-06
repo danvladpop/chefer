@@ -6,6 +6,7 @@ import {
   mealReminderNotificationUrl,
   syncMealReminders,
 } from '../../src/features/notifications/meal-reminders';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 
 // Lane E1: meal-time reminders are LOCAL one-shot notifications for the next
 // few days, skipped for a meal that is already logged or ticked today.
@@ -70,6 +71,25 @@ describe('syncMealReminders', () => {
       data: { app: MEAL_REMINDER_APP_TAG, slot: 'lunch' },
     });
     for (const call of calls) expect(call.content.body).not.toMatch(/missed|forgot/i);
+  });
+
+  it('writes the reminder in the UI language at scheduling time', async () => {
+    resetLocaleForTests(['ro-RO']);
+    try {
+      await syncMealReminders({
+        reminders: ON,
+        planDays: EVERY_DAY,
+        doneToday: new Set(),
+        now: WED_10AM,
+      });
+      expect(scheduled()[0]?.content).toMatchObject({
+        title: 'E ora prânzului',
+        body: 'E timpul pentru o pauză de prânz. Atinge ca să vezi mesele de azi.',
+        data: { app: MEAL_REMINDER_APP_TAG, slot: 'lunch' },
+      });
+    } finally {
+      resetLocaleForTests(['en-US']);
+    }
   });
 
   it('skips today’s reminder for a meal that is already logged or ticked', async () => {

@@ -2,25 +2,32 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import type { Translator } from '@chefer/i18n';
 import { userFacingErrorMessage } from '@chefer/utils';
 
-const loginSchema = z.object({
-  // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
-  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
-  password: z
-    .string()
-    .min(1, 'Password is required')
-    .min(8, 'Password must be at least 8 characters'),
-  rememberMe: z.boolean().default(false),
-});
+const makeLoginSchema = (t: Translator['t']) =>
+  z.object({
+    // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
+    email: z
+      .string()
+      .trim()
+      .min(1, t('auth.validation.emailRequired'))
+      .email(t('auth.validation.emailInvalid')),
+    password: z
+      .string()
+      .min(1, t('auth.validation.passwordRequired'))
+      .min(8, t('auth.validation.passwordMin', { min: 8 })),
+    rememberMe: z.boolean().default(false),
+  });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type LoginFormValues = z.infer<ReturnType<typeof makeLoginSchema>>;
 
 export function LoginForm({
   sessionExpired = false,
@@ -32,6 +39,8 @@ export function LoginForm({
   /** A validated coaching join path to return to after signing in (WP-18). */
   next?: string | null;
 }) {
+  const { t } = useT();
+  const loginSchema = useMemo(() => makeLoginSchema(t), [t]);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -54,7 +63,7 @@ export function LoginForm({
       router.refresh();
     },
     onError: (err) => {
-      setServerError(userFacingErrorMessage(err, 'Invalid email or password'));
+      setServerError(userFacingErrorMessage(err, t('auth.login.failed')));
       // UX-ACC-08: a wrong password must not stay in the field for the browser
       // or a password manager to offer saving.
       setValue('password', '');
@@ -88,7 +97,7 @@ export function LoginForm({
           role="status"
           className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
         >
-          Your account and data have been deleted.
+          {t('auth.login.accountDeleted')}
         </div>
       )}
 
@@ -99,7 +108,7 @@ export function LoginForm({
           role="status"
           className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
         >
-          Your session expired, so we signed you out. Sign in to pick up where you left off.
+          {t('auth.login.sessionExpired')}
         </div>
       )}
 
@@ -116,7 +125,7 @@ export function LoginForm({
       {/* Email Field */}
       <div className="space-y-1.5">
         <label htmlFor="email" className="block text-sm font-medium">
-          Email address
+          {t('auth.fields.email')}
           <span className="ml-1 text-destructive" aria-hidden="true">
             *
           </span>
@@ -128,7 +137,7 @@ export function LoginForm({
           autoFocus
           disabled={loginMutation.isPending}
           className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="you@example.com"
+          placeholder={t('auth.placeholders.email')}
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
           {...register('email', { onChange: () => setServerError(null) })}
@@ -144,7 +153,7 @@ export function LoginForm({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label htmlFor="password" className="block text-sm font-medium">
-            Password
+            {t('auth.fields.password')}
             <span className="ml-1 text-destructive" aria-hidden="true">
               *
             </span>
@@ -153,7 +162,7 @@ export function LoginForm({
             href="/forgot-password"
             className="-my-2 inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline"
           >
-            Forgot password?
+            {t('auth.login.forgot')}
           </Link>
         </div>
         <div className="relative">
@@ -172,7 +181,7 @@ export function LoginForm({
             type="button"
             className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? t('auth.password.hide') : t('auth.password.show')}
           >
             {showPassword ? (
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -220,7 +229,7 @@ export function LoginForm({
           htmlFor="rememberMe"
           className="flex min-h-11 flex-1 items-center text-sm text-muted-foreground"
         >
-          Keep me signed in for 30 days
+          {t('auth.login.remember')}
         </label>
       </div>
 
@@ -254,10 +263,10 @@ export function LoginForm({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            Signing in...
+            {t('auth.login.submitting')}
           </>
         ) : (
-          'Sign in'
+          t('auth.login.submit')
         )}
       </button>
     </form>

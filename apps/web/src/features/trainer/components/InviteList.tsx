@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { formatShortDay } from '@/features/coaching/lib/dates';
+import { formatShortDayT } from '@/features/coaching/lib/dates';
 import { showAppToast } from '@/lib/app-toast';
-import { COACHING_COPY, type InviteDto } from '@chefer/types';
+import { useT } from '@/lib/i18n';
+import type { InviteDto } from '@chefer/types';
 import { Badge, Button, Sheet } from '@chefer/ui';
 import { InviteQrCode } from './InviteQrCode';
 
@@ -31,7 +32,7 @@ export function InviteActions({
   invite: InviteDto;
   compact?: boolean;
 }) {
-  const copy = COACHING_COPY.common;
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   const size = compact ? 'sm' : 'default';
   return (
@@ -51,7 +52,7 @@ export function InviteActions({
           }
         }}
       >
-        {copied ? copy.copied : copy.copy}
+        {copied ? t('coaching.common.copied') : t('coaching.common.copy')}
       </Button>
       {canShare() && (
         <Button
@@ -61,11 +62,11 @@ export function InviteActions({
           className="min-h-11"
           onClick={() => {
             void navigator
-              .share({ title: 'Chefer coaching invite', url: invite.url })
+              .share({ title: t('coaching.trainer.invites.shareTitle'), url: invite.url })
               .catch(() => undefined);
           }}
         >
-          {copy.share}
+          {t('coaching.common.share')}
         </Button>
       )}
     </div>
@@ -74,9 +75,9 @@ export function InviteActions({
 
 /** "Show QR code" on an open invite: the same link, scannable on the gym floor. */
 function InviteQrButton({ invite }: { invite: InviteDto }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   const [open, setOpen] = useState(false);
-  const name = invite.label ?? 'invite link';
+  const name = invite.label ?? t('coaching.trainer.invites.linkNameLower');
   return (
     <>
       <Button
@@ -84,20 +85,20 @@ function InviteQrButton({ invite }: { invite: InviteDto }) {
         variant="outline"
         size="sm"
         className="min-h-11"
-        aria-label={`${copy.qr.show}: ${name}`}
+        aria-label={t('coaching.trainer.invites.qrShowFor', { name })}
         onClick={() => setOpen(true)}
       >
-        {copy.qr.show}
+        {t('coaching.trainer.qr.show')}
       </Button>
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
-        title={copy.qr.title}
+        title={t('coaching.trainer.qr.title')}
         size="sm"
         footer={
           <div className="flex justify-end">
             <Button type="button" onClick={() => setOpen(false)}>
-              Done
+              {t('common.actions.done')}
             </Button>
           </div>
         }
@@ -105,9 +106,9 @@ function InviteQrButton({ invite }: { invite: InviteDto }) {
         <div className="flex flex-col items-center gap-3 px-5 py-4">
           {invite.label && <p className="text-sm font-medium text-gray-900">{invite.label}</p>}
           <InviteQrCode url={invite.url} />
-          <p className="text-center text-sm text-gray-600">{copy.qr.hint}</p>
+          <p className="text-center text-sm text-gray-600">{t('coaching.trainer.qr.hint')}</p>
           <p className="text-xs text-gray-500">
-            {copy.inviteExpires(formatShortDay(invite.expiresAt))}
+            {t('coaching.trainer.inviteExpires', { date: formatShortDayT(invite.expiresAt, t) })}
           </p>
         </div>
       </Sheet>
@@ -124,10 +125,10 @@ export function InviteList({
   onRevoke: (code: string) => void;
   revoking: boolean;
 }) {
-  const copy = COACHING_COPY.trainer;
+  const { t } = useT();
   if (invites.length === 0) return null;
   return (
-    <ul className="flex flex-col gap-2" aria-label="Invites">
+    <ul className="flex flex-col gap-2" aria-label={t('coaching.trainer.invites.heading')}>
       {invites.map((invite) => (
         <li
           key={invite.code}
@@ -137,15 +138,17 @@ export function InviteList({
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="min-w-0 break-words font-medium text-gray-900">
-                {invite.label ?? 'Invite link'}
+                {invite.label ?? t('coaching.trainer.invites.linkName')}
               </span>
               <Badge variant={invite.state === 'OPEN' ? 'info' : 'secondary'}>
-                {copy.inviteStates[invite.state]}
+                {t(`coaching.trainer.inviteStates.${invite.state}`)}
               </Badge>
             </div>
             {invite.state === 'OPEN' && (
               <p className="text-xs text-gray-500">
-                {copy.inviteExpires(formatShortDay(invite.expiresAt))}
+                {t('coaching.trainer.inviteExpires', {
+                  date: formatShortDayT(invite.expiresAt, t),
+                })}
               </p>
             )}
           </div>
@@ -159,10 +162,12 @@ export function InviteList({
                 size="sm"
                 className="min-h-11 text-red-700"
                 disabled={revoking}
-                aria-label={`${copy.revoke}: ${invite.label ?? 'invite link'}`}
+                aria-label={t('coaching.trainer.invites.revokeFor', {
+                  name: invite.label ?? t('coaching.trainer.invites.linkNameLower'),
+                })}
                 onClick={() => onRevoke(invite.code)}
               >
-                {copy.revoke}
+                {t('coaching.trainer.revoke')}
               </Button>
             </div>
           )}

@@ -12,6 +12,7 @@ import {
   setShellMode,
 } from '../../src/features/trainer-mode/mode-store';
 import { TrainerYouScreen } from '../../src/features/trainer-mode/you/trainer-you-screen';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc } from './friends-core-harness';
 import { clientRow, invite, settle, trainerHandlers } from './trainer-fixtures';
 import { trainerModeHandlers } from './trainer-mode-fixtures';
@@ -70,7 +71,10 @@ beforeEach(() => {
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+  resetLocaleForTests();
+});
 
 describe('Clients tab', () => {
   it('names itself, shows the capacity line and the requests, and sorts by name', async () => {
@@ -219,6 +223,45 @@ describe('Trainer You', () => {
     expect(r.paths()).toContain('trainer.deactivate');
     expect(getShellMode()).toBe('personal');
     expect(router.replace).toHaveBeenCalledWith('/');
+  });
+});
+
+describe('in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+
+  it('Clients: the title, the capacity line with „de” and the sorts', async () => {
+    await renderWithTrpc(
+      <ClientsScreen />,
+      trainerModeHandlers({ 'trainer.clients.list': () => clients(3) }),
+    );
+    await settle();
+    expect(screen.getByRole('header', { name: 'Clienți' })).toBeTruthy();
+    expect(screen.getByTestId('trainer-clients-capacity')).toHaveTextContent('3 din 50 de clienți');
+    expect(screen.getByTestId('trainer-clients-sort')).toHaveAccessibleName(/Sortează după/);
+  });
+
+  it('You: the mode switch speaks its count, availability is translated', async () => {
+    await renderWithTrpc(
+      <TrainerYouScreen />,
+      trainerModeHandlers({
+        'friends.availability': () => ({ enabled: true }),
+        'friends.me': () => ({ activated: true, badgeCount: 3 }),
+        'trainer.status': () => ({
+          canActivate: true,
+          active: true,
+          displayName: 'Ana',
+          gymLine: 'Iron Gym',
+          activeClients: 50,
+        }),
+      }),
+    );
+    await settle();
+    expect(screen.getByTestId('trainer-you-switch-to-personal')).toHaveAccessibleName(
+      'Treci la modul personal, 3 lucruri te așteaptă',
+    );
+    expect(screen.getByTestId('trainer-you-availability')).toHaveAccessibleName(
+      'Disponibilitate, Nu accepți clienți noi (limita este 50)',
+    );
   });
 });
 

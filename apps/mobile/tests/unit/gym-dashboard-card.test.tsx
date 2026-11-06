@@ -10,6 +10,7 @@ import { resetRestTimerForTests, skipRest, startRest } from '../../src/features/
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
 import { saveForLater, startWorkout } from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { makeBootstrap } from './gym-fixtures';
 
 // `TodaysWorkoutCard` (imported above) transitively imports
@@ -157,7 +158,9 @@ describe('TodaysWorkoutCard', () => {
     await renderCard(queryClient);
 
     expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent('Upper A');
-    expect(screen.getByTestId('todays-workout-card')).toHaveTextContent(/~40 min · 1 exercises/);
+    expect(screen.getByTestId('todays-workout-card')).toHaveTextContent(
+      /~40 min · 1 exercise(?!s)/,
+    );
 
     await user.press(screen.getByTestId('todays-workout-card-start'));
     expect(getMode()).toBe('gym');
@@ -285,7 +288,7 @@ describe('TodaysWorkoutCard', () => {
       await renderCard(queryClient);
 
       expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
-        'Workout in progress · 0 of 1 exercises',
+        'Workout in progress · 0 of 1 exercise',
       );
       await user.press(screen.getByTestId('todays-workout-card-resume-button'));
       expect(getMode()).toBe('gym');
@@ -329,8 +332,41 @@ describe('TodaysWorkoutCard', () => {
       await renderCard(queryClient);
 
       expect(screen.getByTestId('todays-workout-card-resume-label')).toHaveTextContent(
-        'Workout paused · 0 of 1 exercises',
+        'Workout paused · 0 of 1 exercise',
       );
     });
+  });
+});
+
+// Lane J phase 4: the card follows the UI language (`gym.todaysWorkout.*`).
+describe('TodaysWorkoutCard in Romanian', () => {
+  beforeEach(() => resetLocaleForTests(['ro-RO']));
+  afterAll(() => resetLocaleForTests(['en-US']));
+
+  it('words the setup invite in Romanian', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ profile: null }));
+    await renderCard(queryClient);
+    expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent(
+      'Începe să te antrenezi — configurare în 90 de secunde',
+    );
+  });
+
+  it('words the planned day with the Romanian plural and a Romanian Start button', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({
+        activeRoutine: routineFor(weekdayOf(localDate())),
+        nextWorkout: NEXT_WORKOUT,
+      }),
+    );
+    await renderCard(queryClient);
+    const card = screen.getByTestId('todays-workout-card');
+    expect(card).toHaveTextContent(/ANTRENAMENT AZI/);
+    expect(card).toHaveTextContent(/~40 min · 1 exercițiu/);
+    expect(screen.getByTestId('todays-workout-card-start')).toHaveTextContent(
+      'Începe antrenamentul',
+    );
   });
 });

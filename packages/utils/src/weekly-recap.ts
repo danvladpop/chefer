@@ -83,18 +83,19 @@ export function recapFoodCounts(input: {
 
 // A fixed table, not Intl: ICU versions disagree on "Sep" vs "Sept".
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthOf = (date: Date): string => MONTHS[date.getUTCMonth()] ?? '';
+const monthOf = (date: Date, months: readonly string[]): string => months[date.getUTCMonth()] ?? '';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * "22–28 Sep", or "29 Sep – 5 Oct" across a month boundary. `monday` is UTC
  * midnight. Shared by the weekly emails and the recap (moved from the API's
- * weekly-email.service.ts).
+ * weekly-email.service.ts). `months` is the twelve short month names in the
+ * reader's language (the `common.monthsShort` keys); English by default.
  */
-export function weekLabel(monday: Date): string {
+export function weekLabel(monday: Date, months: readonly string[] = MONTHS): string {
   const sunday = new Date(monday.getTime() + 6 * DAY_MS);
-  const startMonth = monthOf(monday);
-  const endMonth = monthOf(sunday);
+  const startMonth = monthOf(monday, months);
+  const endMonth = monthOf(sunday, months);
   return startMonth === endMonth
     ? `${monday.getUTCDate()}–${sunday.getUTCDate()} ${endMonth}`
     : `${monday.getUTCDate()} ${startMonth} – ${sunday.getUTCDate()} ${endMonth}`;

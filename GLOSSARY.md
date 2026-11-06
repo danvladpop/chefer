@@ -258,6 +258,25 @@ _Avoid_: Trainer session
 A booking the trainer marked attended for a given client. It is the unit trainers bill by.
 _Avoid_: Credit, paid session
 
+## Language
+
+**Language**:
+Which language Chefer's screens and emails are in: English or Romanian. Users choose it in Settings › Language.
+_Avoid_: locale (in user copy), translation, region
+
+**Same as my phone**:
+The default language setting: Chefer follows the phone's (or browser's) language and falls back to English.
+_Avoid_: automatic, system default, auto-detect
+
+**Machine draft**:
+Romanian copy an agent wrote that a native speaker has not reviewed yet (`roReviewStatus`).
+_Avoid_: auto-translation, temporary copy
+
+**Recipe translation**:
+A curated recipe's name, description, steps and ingredient names in another language, drafted by the AI and then
+reviewed. Readers whose recipe has none, or whose recipe changed since it was translated, see the English.
+_Avoid_: localized recipe, Romanian recipe (that is a dish, e.g. the Romanian pool)
+
 ## Your data
 
 **Data export**:

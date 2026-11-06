@@ -36,6 +36,7 @@ export {
   formatKcal,
   formatNumber,
   formatQty,
+  setFormatLocale,
   type DateStyle,
   type FormatDateOptions,
 } from './format';
@@ -992,4 +993,8 @@ export {
 export { shareCardLines, type ShareCardLines } from './share-card-lines';
 // ─── Shared shopping list reconcile (ADR 0003, household sharing) ──────────────
 export { mergeSyncedChecks, type CheckedKeysState, type MergedChecks } from './shared-list';
-export { householdPortionPhrase } from './household-sharing';
+export {
+  householdPortionPhrase,
+  householdPortionWords,
+  type HouseholdPortionWords,
+} from './household-sharing';

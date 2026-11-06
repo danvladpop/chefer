@@ -7,8 +7,10 @@ import {
   type UnitSystem,
 } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { useHealthConsent } from '../privacy/use-health-consent';
+import { weightErrorText } from './coach-copy';
 
 // The weigh-in write behind every weight field — the dashboard card, Progress
 // and the 10 Oct redesign's Today "Weigh in" card. Extracted from
@@ -52,6 +54,8 @@ export interface WeightLog {
 
 export function useWeightLog(lastEntry: WeightLogEntry | null | undefined): WeightLog {
   const system = useUnitSystem();
+  const tr = useT();
+  const { t } = tr;
   const [value, setValue] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -76,8 +80,10 @@ export function useWeightLog(lastEntry: WeightLogEntry | null | undefined): Weig
       };
       refresh();
       showSnackbar({
-        message: `Logged ${formatBodyWeight(variables.weightKg, system)}`,
-        actionLabel: 'Undo',
+        message: t('today.progress.form.logged', {
+          weight: formatBodyWeight(variables.weightKg, system),
+        }),
+        actionLabel: t('today.progress.form.undo'),
         tone: 'success',
         onAction: () => {
           // Imperative client: the card may be gone by the time Undo is tapped.
@@ -94,7 +100,7 @@ export function useWeightLog(lastEntry: WeightLogEntry | null | undefined): Weig
     if (logWeight.isPending) return false;
     const parsed = parseBodyWeight(value, system);
     if (!parsed.ok) {
-      setInputError(parsed.error);
+      setInputError(weightErrorText(tr, parsed.error));
       return false;
     }
     setInputError(null);
@@ -105,7 +111,11 @@ export function useWeightLog(lastEntry: WeightLogEntry | null | undefined): Weig
       Math.abs(lastEntry.weightKg - parsed.kg) < SAME_WEIGHT_KG
     ) {
       setValue('');
-      showSnackbar({ message: `Already logged ${formatBodyWeight(parsed.kg, system)} today` });
+      showSnackbar({
+        message: t('today.progress.form.alreadyLogged', {
+          weight: formatBodyWeight(parsed.kg, system),
+        }),
+      });
       return true;
     }
     // "Don't save it": nothing is stored; the typed value stays in the field.

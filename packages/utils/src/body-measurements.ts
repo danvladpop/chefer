@@ -9,6 +9,7 @@ import {
   type BodyMeasurementDto,
   type BodyMeasurementValues,
 } from '@chefer/types';
+import { deviceLocale, formatNumber } from './format';
 import { CM_PER_IN } from './locale';
 import type { UnitSystem } from './units';
 
@@ -45,14 +46,36 @@ export function formatMeasure(
   const shown = measureInUnit(measure, value, system);
   const unit = measureUnit(measure, system);
   if (options.signed) {
-    return `${shown > 0 ? '+' : shown < 0 ? '−' : ''}${Math.abs(shown).toFixed(1)} ${unit}`;
+    return `${shown > 0 ? '+' : shown < 0 ? '−' : ''}${oneDecimal(Math.abs(shown))} ${unit}`;
   }
-  return `${shown} ${unit}`;
+  return `${formatNumber(shown, { maximumFractionDigits: 1 })} ${unit}`;
 }
+
+/** "2.0" / "2,0": always one decimal, in the UI language. */
+function oneDecimal(value: number): string {
+  try {
+    return new Intl.NumberFormat(deviceLocale(), {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+      useGrouping: false,
+    }).format(value);
+  } catch {
+    return value.toFixed(1);
+  }
+}
+
+/**
+ * Why a typed measure was rejected, for the translated message
+ * (`today.measurements.errors.*` in @chefer/i18n). `error` keeps the English.
+ */
+export type MeasureIssue =
+  | { code: 'format' }
+  | { code: 'bodyFatRange'; min: number; max: number }
+  | { code: 'lengthRange'; min: number; max: number; unit: 'cm' | 'in' };
 
 export type MeasureParseResult =
   | { ok: true; value: number | undefined }
-  | { ok: false; error: string };
+  | { ok: false; error: string; issue: MeasureIssue };
 
 /**
  * Parses one typed measure in the user's unit and returns what the API takes
@@ -66,13 +89,16 @@ export function parseMeasure(
 ): MeasureParseResult {
   const text = input.trim().replace(',', '.');
   if (text === '') return { ok: true, value: undefined };
-  if (!/^\d+(\.\d+)?$/.test(text)) return { ok: false, error: 'Use a number like 82.5.' };
+  if (!/^\d+(\.\d+)?$/.test(text)) {
+    return { ok: false, error: 'Use a number like 82.5.', issue: { code: 'format' } };
+  }
   const typed = Number(text);
   if (measure === 'bodyFat') {
     if (typed < BODY_FAT_PCT_MIN || typed > BODY_FAT_PCT_MAX) {
       return {
         ok: false,
         error: `Body fat must be between ${BODY_FAT_PCT_MIN} and ${BODY_FAT_PCT_MAX} %.`,
+        issue: { code: 'bodyFatRange', min: BODY_FAT_PCT_MIN, max: BODY_FAT_PCT_MAX },
       };
     }
     return { ok: true, value: Math.round(typed * 10) / 10 };
@@ -84,14 +110,26 @@ export function parseMeasure(
       system === 'IMPERIAL'
         ? [Math.ceil(BODY_LENGTH_CM_MIN / CM_PER_IN), Math.floor(BODY_LENGTH_CM_MAX / CM_PER_IN)]
         : [BODY_LENGTH_CM_MIN, BODY_LENGTH_CM_MAX];
-    return { ok: false, error: `Must be between ${min} and ${max} ${unit}.` };
+    return {
+      ok: false,
+      error: `Must be between ${min} and ${max} ${unit}.`,
+      issue: { code: 'lengthRange', min, max, unit },
+    };
   }
   return { ok: true, value: Math.round(cm * 10) / 10 };
 }
 
 export type MeasurementFormResult =
   | { ok: true; values: BodyMeasurementValues }
-  | { ok: false; errors: Partial<Record<BodyMeasure, string>>; formError?: string };
+  | {
+      ok: false;
+      errors: Partial<Record<BodyMeasure, string>>;
+      /** The same rejections as codes, for translated messages. */
+      issues: Partial<Record<BodyMeasure, MeasureIssue>>;
+      formError?: string;
+      /** Set with `formError`: nothing was filled in. */
+      formIssue?: 'empty';
+    };
 
 /**
  * Parses a whole measurement form (one text per measure). Every filled field
@@ -103,14 +141,23 @@ export function parseMeasurementForm(
 ): MeasurementFormResult {
   const values: BodyMeasurementValues = {};
   const errors: Partial<Record<BodyMeasure, string>> = {};
+  const issues: Partial<Record<BodyMeasure, MeasureIssue>> = {};
   for (const measure of BODY_MEASURES) {
     const result = parseMeasure(measure, texts[measure] ?? '', system);
-    if (!result.ok) errors[measure] = result.error;
-    else if (result.value !== undefined) values[BODY_MEASURE_FIELDS[measure]] = result.value;
+    if (!result.ok) {
+      errors[measure] = result.error;
+      issues[measure] = result.issue;
+    } else if (result.value !== undefined) values[BODY_MEASURE_FIELDS[measure]] = result.value;
   }
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (Object.keys(errors).length > 0) return { ok: false, errors, issues };
   if (Object.keys(values).length === 0) {
-    return { ok: false, errors: {}, formError: 'Enter at least one measurement.' };
+    return {
+      ok: false,
+      errors: {},
+      issues: {},
+      formError: 'Enter at least one measurement.',
+      formIssue: 'empty',
+    };
   }
   return { ok: true, values };
 }

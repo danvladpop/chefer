@@ -10,12 +10,7 @@ import {
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  FRIENDS_COPY,
-  FRIENDS_LIMITS,
-  type FriendsMeDto,
-  type FriendUserSummary,
-} from '@chefer/types';
+import { FRIENDS_LIMITS, type FriendsMeDto, type FriendUserSummary } from '@chefer/types';
 import {
   duration,
   EmptyState,
@@ -28,6 +23,7 @@ import {
   useReducedMotion,
   useThemeColors,
 } from '@chefer/ui-mobile';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { isFriendsNotActivatedError, isFriendsUnavailableError } from '../api/friends-errors';
 import { useIsOnline } from '../api/use-is-online';
@@ -108,6 +104,7 @@ export type FriendsHomeProps = {
 
 export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
   const colors = useThemeColors();
+  const { t } = useT();
   const reduced = useReducedMotion();
   const online = useIsOnline();
   const utils = trpc.useUtils();
@@ -214,7 +211,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
       case 'requestsHeader':
         return (
           <SectionHeading testID="friends-requests-heading">
-            {FRIENDS_COPY.home.requests(row.count)}
+            {t('friends.home.requests', { n: row.count })}
           </SectionHeading>
         );
       case 'request':
@@ -232,12 +229,12 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           <Pressable
             testID="friends-requests-see-all"
             accessibilityRole="button"
-            accessibilityLabel={FRIENDS_COPY.home.seeAllRequests(row.count)}
+            accessibilityLabel={t('friends.home.seeAllRequests', { n: row.count })}
             onPress={() => router.push('/friends/requests')}
             className="min-h-11 flex-row items-center gap-1 px-4"
           >
             <Text className="text-sm font-medium text-primary">
-              {FRIENDS_COPY.home.seeAllRequests(row.count)}
+              {t('friends.home.seeAllRequests', { n: row.count })}
             </Text>
             <Ionicons name="chevron-forward" size={14} color={colors.brand} />
           </Pressable>
@@ -247,7 +244,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           <ErrorState
             testID="friends-requests-section-error"
             className="py-4"
-            title={FRIENDS_COPY.home.sectionError('requests')}
+            title={t('friends.home.sectionError.requests')}
             description=""
             onRetry={() => void requests.query.refetch()}
           />
@@ -263,12 +260,12 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
               options={[
                 {
                   value: 'following',
-                  label: FRIENDS_COPY.home.youFollow(me.counts.following),
+                  label: t('friends.home.youFollow', { n: me.counts.following }),
                   testID: 'friends-segment-following',
                 },
                 {
                   value: 'followers',
-                  label: FRIENDS_COPY.home.followers(me.counts.followers),
+                  label: t('friends.home.followers', { n: me.counts.followers }),
                   testID: 'friends-segment-followers',
                 },
               ]}
@@ -282,7 +279,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           <ErrorState
             testID="friends-list-error"
             className="py-4"
-            title={FRIENDS_COPY.home.sectionError('list')}
+            title={t('friends.home.sectionError.list')}
             description=""
             onRetry={() => void list.query.refetch()}
           />
@@ -292,17 +289,17 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           <EmptyState
             testID="friends-empty-following"
             icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
-            title={FRIENDS_COPY.empty.youFollow.title}
-            description={FRIENDS_COPY.empty.youFollow.body}
+            title={t('friends.empty.youFollow.title')}
+            description={t('friends.empty.youFollow.body')}
           />
         ) : (
           <EmptyState
             testID="friends-empty-followers"
             icon={<Ionicons name="people-outline" size={40} color={colors.labelTertiary} />}
-            title={FRIENDS_COPY.empty.followers.title}
-            description={FRIENDS_COPY.empty.followers.body}
+            title={t('friends.empty.followers.title')}
+            description={t('friends.empty.followers.body')}
             action={{
-              label: FRIENDS_COPY.invite.cta,
+              label: t('friends.invite.cta'),
               testID: 'friends-empty-followers-invite',
               onPress: () => void invite(),
             }}
@@ -315,7 +312,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
             person={row.person}
             secondary={
               row.segment === 'following' && row.person.followsYou
-                ? FRIENDS_COPY.reason.followsYou
+                ? t('friends.reason.followsYou')
                 : null
             }
             trailing={
@@ -333,7 +330,9 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
                   <Pressable
                     testID={`friends-followers-${row.person.id}-more`}
                     accessibilityRole="button"
-                    accessibilityLabel={FRIENDS_COPY.profile.moreOptions(row.person.displayName)}
+                    accessibilityLabel={t('friends.profile.moreOptions', {
+                      name: row.person.displayName,
+                    })}
                     onPress={() =>
                       followerActions.open({
                         id: row.person.id,
@@ -360,17 +359,17 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
         return (
           <View className="flex-row items-end justify-between pr-2">
             <SectionHeading testID="friends-suggestions-heading">
-              {FRIENDS_COPY.home.suggested}
+              {t('friends.home.suggested')}
             </SectionHeading>
             {row.showAll ? (
               <Pressable
                 testID="friends-suggestions-see-all"
                 accessibilityRole="button"
-                accessibilityLabel={FRIENDS_COPY.home.seeAll}
+                accessibilityLabel={t('friends.home.seeAll')}
                 onPress={() => router.push('/friends/suggestions')}
                 className="min-h-11 flex-row items-center gap-1 px-2"
               >
-                <Text className="text-sm font-medium text-primary">{FRIENDS_COPY.home.seeAll}</Text>
+                <Text className="text-sm font-medium text-primary">{t('friends.home.seeAll')}</Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.brand} />
               </Pressable>
             ) : null}
@@ -389,7 +388,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           <ErrorState
             testID="friends-suggestions-section-error"
             className="py-4"
-            title={FRIENDS_COPY.home.sectionError('suggestions')}
+            title={t('friends.home.sectionError.suggestions')}
             description=""
             onRetry={() => void suggestions.refetch()}
           />
@@ -403,8 +402,8 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
       <View className="px-4 pb-2 pt-1">
         <SearchField
           testID="friends-search"
-          accessibilityLabel={FRIENDS_COPY.home.searchLabel}
-          placeholder={online ? FRIENDS_COPY.home.searchPlaceholder : FRIENDS_COPY.search.offline}
+          accessibilityLabel={t('friends.home.searchLabel')}
+          placeholder={online ? t('friends.home.searchPlaceholder') : t('friends.search.offline')}
           editable={online}
           onChangeText={setRaw}
           onDebouncedChange={setQuery}
@@ -412,7 +411,9 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
       </View>
       {!online ? (
         <Text testID="friends-offline-line" variant="muted" className="px-4 pb-2 text-xs">
-          {FRIENDS_COPY.offline.line(formatSavedTime(savedAt ? new Date(savedAt) : new Date()))}
+          {t('friends.offline.line', {
+            time: formatSavedTime(savedAt ? new Date(savedAt) : new Date()),
+          })}
         </Text>
       ) : null}
 

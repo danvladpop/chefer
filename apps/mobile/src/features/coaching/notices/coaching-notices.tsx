@@ -1,19 +1,16 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import {
-  BOOKING_COPY,
-  COACHING_COPY,
-  routineChangesLine,
-  type CoachingNoticeDto,
-} from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { BOOKING_COPY, type CoachingNoticeDto } from '@chefer/types';
 import { IconButton, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { bookingWhen, deviceTimeZone } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { clientBookingHref } from '../../trainer-mode/open-booking';
 import { useCoachingNotices } from '../api/use-coaching-notices';
 import { UpcomingBookingCard } from '../bookings/upcoming-booking';
 import { CheckInPrompt } from '../check-in/check-in-prompt';
-import { COACHING_MOBILE_COPY } from '../copy';
+import { routineChangesLineT, trainerNameOrFallbackT } from '../copy';
 import { clearPendingJoin, joinHref, usePendingJoin } from '../pending-join';
 import { routineHref } from '../routes';
 import { useCoachingStatus } from '../use-coaching-status';
@@ -38,19 +35,24 @@ import { NoticeCard } from './notice-card';
 // Mirrors apps/web/src/features/coaching/components/CoachingNotices.tsx.
 
 /** The line a client-side notice reads, or null for one this side never shows. */
-export function clientNoticeTitle(notice: CoachingNoticeDto): string | null {
-  const copy = COACHING_COPY.notices;
+export function clientNoticeTitle(
+  notice: CoachingNoticeDto,
+  t: Translator['t'] = getTranslator().t,
+): string | null {
+  const name = trainerNameOrFallbackT(notice.other.name, t);
   switch (notice.kind) {
     case 'ROUTINE_UPDATED':
-      return copy.routineUpdated(notice.other.name);
+      return t('coaching.notices.routineUpdated', { name });
     case 'COACHING_ENDED':
       if (notice.endedBy === 'CLIENT') return null; // the client ended it themselves
-      if (notice.endedBy === 'SYSTEM' && notice.other.id === null) return copy.trainerGone;
-      return copy.endedByTrainer(notice.other.name);
+      if (notice.endedBy === 'SYSTEM' && notice.other.id === null) {
+        return t('coaching.notices.trainerGone');
+      }
+      return t('coaching.notices.endedByTrainer', { trainer: name });
     case 'REQUEST_ACCEPTED':
-      return copy.requestAccepted(notice.other.name);
+      return t('coaching.notices.requestAccepted', { trainer: name });
     case 'REQUEST_DECLINED':
-      return copy.requestDeclined(notice.other.name);
+      return t('coaching.notices.requestDeclined', { trainer: name });
     case 'REQUEST_RECEIVED':
       return null; // trainer side only
     case 'BOOKING_CREATED':
@@ -80,6 +82,7 @@ function noticeTarget(notice: CoachingNoticeDto): string | null {
 }
 
 export function CoachingNotices() {
+  const { t } = useT();
   const colors = useThemeColors();
   const { enabled, data: status } = useCoachingStatus();
   const { notices, dismiss } = useCoachingNotices('TRAINER');
@@ -87,7 +90,7 @@ export function CoachingNotices() {
   const joiningCode = enabled && status?.trainer === null ? pending : null;
 
   const cards = notices.flatMap((notice) => {
-    const title = clientNoticeTitle(notice);
+    const title = clientNoticeTitle(notice, t);
     return title === null ? [] : [{ notice, title }];
   });
   const upcoming = (
@@ -110,7 +113,7 @@ export function CoachingNotices() {
               testID="coaching-routine-updated"
               tone="brand"
               title={title}
-              detail={notice.changes?.length ? routineChangesLine(notice.changes) : null}
+              detail={notice.changes?.length ? routineChangesLineT(notice.changes, t) : null}
               onView={() => {
                 dismiss(notice.id);
                 router.push(routineHref());
@@ -148,12 +151,12 @@ export function CoachingNotices() {
               className="min-h-11 min-w-0 flex-1 justify-center"
             >
               <Text className="text-subhead font-semibold text-brand">
-                {COACHING_MOBILE_COPY.carryOn}
+                {t('coaching.join.carryOn')}
               </Text>
             </PressableScale>
             <IconButton
               testID="coaching-carry-on-dismiss"
-              accessibilityLabel={COACHING_MOBILE_COPY.dismiss}
+              accessibilityLabel={t('coaching.join.dismiss')}
               icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
               onPress={clearPendingJoin}
             />

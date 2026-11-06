@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import type { ProteinWhy, TargetsView } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
@@ -25,6 +26,7 @@ export interface TargetExplainSheetProps {
 
 export function TargetExplainSheet({ open, onClose, view }: TargetExplainSheetProps) {
   const { proteinOnly, noNumbers } = useNumbersMode();
+  const { t, number } = useT();
   // Lane E3 "Hide numbers": targets are never explained in figures.
   if (noNumbers) return null;
   // WP-08: protein-only mode explains the one number it shows — no calories, carbs or fat.
@@ -40,16 +42,30 @@ export function TargetExplainSheet({ open, onClose, view }: TargetExplainSheetPr
   }
   const rows = view
     ? [
-        { label: 'Calories', value: `${view.effective.dailyCalorieTarget.toLocaleString()} kcal` },
-        { label: 'Protein', value: `${view.effective.proteinG} g` },
-        { label: 'Carbs', value: `${view.effective.carbsG} g` },
-        { label: 'Fat', value: `${view.effective.fatG} g` },
+        {
+          label: t('today.settings.targetExplain.calories'),
+          value: t('today.settings.targetExplain.value.kcal', {
+            value: number(view.effective.dailyCalorieTarget),
+          }),
+        },
+        {
+          label: t('today.settings.targetExplain.protein'),
+          value: t('today.settings.grams.protein', { value: view.effective.proteinG }),
+        },
+        {
+          label: t('today.settings.targetExplain.carbs'),
+          value: t('today.settings.grams.macros', { value: view.effective.carbsG }),
+        },
+        {
+          label: t('today.settings.targetExplain.fat'),
+          value: t('today.settings.grams.macros', { value: view.effective.fatG }),
+        },
       ]
     : [];
 
   const sentence = view
     ? view.source === 'own'
-      ? 'You set this target yourself.'
+      ? t('today.settings.targetExplain.own')
       : explainKcalSentence(view.inputs)
     : null;
 
@@ -61,8 +77,8 @@ export function TargetExplainSheet({ open, onClose, view }: TargetExplainSheetPr
     <Sheet
       open={open}
       onClose={onClose}
-      title="Why this number"
-      description="Your target"
+      title={t('today.settings.targetExplain.title')}
+      description={t('today.settings.targetExplain.eyebrow')}
       size="sm"
       footer={
         <Link
@@ -70,7 +86,9 @@ export function TargetExplainSheet({ open, onClose, view }: TargetExplainSheetPr
           onClick={onClose}
           className="inline-flex h-10 w-full items-center justify-center rounded-md border border-neutral-300 text-sm font-medium hover:bg-neutral-50"
         >
-          {view?.source === 'own' ? 'Use the suggested target' : 'Set your own target'}
+          {view?.source === 'own'
+            ? t('today.settings.targetExplain.useSuggested')
+            : t('today.settings.targetExplain.setOwn')}
         </Link>
       }
     >

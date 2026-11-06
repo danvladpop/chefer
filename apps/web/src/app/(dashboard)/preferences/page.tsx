@@ -11,15 +11,16 @@ import {
 } from '@/features/preferences/components/weekly-email-toggles';
 import type { ChefProfileData, DietaryPreferencesData } from '@/features/preferences/types';
 import { RewardsSettingsCard } from '@/features/progress/rewards-settings-card';
+import { getServerTranslator } from '@/lib/i18n/server';
 import { createServerClient } from '@/lib/trpc-server';
 import { Users } from 'lucide-react';
 import type { OnboardingJob } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
 
-export const metadata: Metadata = {
-  title: 'Preferences',
-  description: 'Manage your personal chef preferences',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return { title: t('nav.items.preferences'), description: t('nav.titles.preferencesDescription') };
+}
 
 // ─── Preferences Page ─────────────────────────────────────────────────────────
 // Server component — fetches ChefProfile + DietaryPreferences via tRPC and

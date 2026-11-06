@@ -5,6 +5,7 @@ import { resetEntrancesForTests, resetSnackbarForTests } from '@chefer/ui-mobile
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { resetShellModeStoreForTests } from '../../src/features/trainer-mode/mode-store';
 import { TrainerTodayScreen } from '../../src/features/trainer-mode/today/trainer-today-screen';
+import { resetLocaleForTests } from '../../src/lib/i18n';
 import { renderWithTrpc, trpcError } from './friends-core-harness';
 import { MARIA, settle } from './trainer-fixtures';
 import { badges, summary, trainerModeHandlers } from './trainer-mode-fixtures';
@@ -42,8 +43,11 @@ beforeEach(() => {
   resetEntrancesForTests();
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
+  // Dates follow the UI language (Lane J): pin English to day-month order.
+  resetLocaleForTests(['en-GB']);
 });
 afterEach(() => jest.restoreAllMocks());
+afterAll(() => resetLocaleForTests());
 
 describe('Trainer Today', () => {
   it('asks for the summary with the device date and shows This week', async () => {
@@ -99,6 +103,28 @@ describe('Trainer Today', () => {
     expect(screen.getByTestId('trainer-today-requests-text')).toHaveTextContent(
       '1 person asked you to coach them',
     );
+  });
+
+  it('reads in Romanian: stats, requests card and a quiet client (weekday lowercase)', async () => {
+    resetLocaleForTests(['ro-RO']);
+    await renderWithTrpc(
+      <TrainerTodayScreen />,
+      trainerModeHandlers({
+        'trainer.badges': () => badges({ requests: 2 }),
+        'trainer.dashboard.summary': () => summary({ requestsWaiting: 2 }),
+      }),
+    );
+    await settle();
+    expect(screen.getByTestId('trainer-today-requests-text')).toHaveTextContent(
+      '2 persoane ți-au cerut să le antrenezi',
+    );
+    expect(screen.getByTestId('trainer-today-stat-clients')).toHaveAccessibleName(
+      'Clienți activi: 23 din 50',
+    );
+    expect(screen.getByTestId(`trainer-today-quiet-${MARIA}`)).toHaveAccessibleName(
+      /^Maria Pop\. Ultimul antrenament: vin\., 9 oct\. 9 zile fără antrenament$/,
+    );
+    expect(screen.getByText('Săptămâna aceasta')).toBeTruthy();
   });
 
   it('Needs attention lists quiet clients; a tap opens the client', async () => {

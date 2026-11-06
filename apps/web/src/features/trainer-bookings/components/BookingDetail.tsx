@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useId, useMemo, useState } from 'react';
 import { QueryError } from '@/features/trainer-mode/components/QueryError';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import {
-  BOOKING_COPY,
   TRAINER_MODE_LIMITS,
   type BookingAttendance,
   type BookingScope,
@@ -18,16 +19,14 @@ import {
 import { Badge, Button, pressControl, Sheet } from '@chefer/ui';
 import {
   bookingTimeRange,
-  bookingWho,
-  bookingZoneHint,
   canChangeBooking,
   canMarkAttendance,
   cn,
   deviceTimeZone,
-  formatDayWithWeekday,
   userFacingErrorMessage,
   utcToZoned,
 } from '@chefer/utils';
+import { bookingWhoText, bookingZoneHintText, dayLabel } from '../lib/schedule-layout';
 import { useInvalidateBookings, useNow, useOnline } from '../use-bookings';
 import { BookingEditor, type EditorTarget } from './BookingEditor';
 import { StartButton } from './StartButton';
@@ -38,14 +37,12 @@ import { StartButton } from './StartButton';
 // editor; Cancel asks the scope and an optional reason the clients see.
 // A cancelled booking stays, greyed, with its reason (never hard-deleted).
 
-const copy = BOOKING_COPY.detail;
-
-const ATTENDANCE_TEXT: Record<BookingAttendance, string> = {
-  SCHEDULED: copy.scheduled,
-  ATTENDED: copy.attended,
-  NO_SHOW: copy.noShow,
-  CANCELLED: BOOKING_COPY.schedule.cancelled,
-};
+function attendanceText({ t }: Translator, attendance: BookingAttendance): string {
+  if (attendance === 'ATTENDED') return t('trainer.bookings.detail.attended');
+  if (attendance === 'NO_SHOW') return t('trainer.bookings.detail.noShow');
+  if (attendance === 'CANCELLED') return t('trainer.bookings.schedule.cancelled');
+  return t('trainer.bookings.detail.scheduled');
+}
 
 function AttendanceRow({
   booking,
@@ -60,7 +57,9 @@ function AttendanceRow({
   busy: boolean;
   onMark: (attendance: 'ATTENDED' | 'NO_SHOW' | 'SCHEDULED') => void;
 }) {
-  const workout = client.workout.name ?? BOOKING_COPY.editor.nextDay;
+  const tr = useT();
+  const { t } = tr;
+  const workout = client.workout.name ?? t('trainer.bookings.editor.nextDay');
   return (
     <li
       className="flex min-w-0 flex-col gap-2 rounded-xl border bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -75,13 +74,15 @@ function AttendanceRow({
         </Link>
         <p className="min-w-0 break-words text-sm text-gray-600">{workout}</p>
         {client.workoutSessionId && (
-          <p className="text-xs font-medium text-emerald-800">{copy.loggedByYou}</p>
+          <p className="text-xs font-medium text-emerald-800">
+            {t('trainer.bookings.detail.loggedByYou')}
+          </p>
         )}
       </div>
       {markable && client.attendance !== 'CANCELLED' ? (
         <div
           role="group"
-          aria-label={`${copy.attendance}: ${client.name}`}
+          aria-label={t('trainer.bookings.detail.attendanceGroup', { name: client.name })}
           className="flex shrink-0 gap-2"
         >
           {(['ATTENDED', 'NO_SHOW'] as const).map((status) => {
@@ -104,7 +105,7 @@ function AttendanceRow({
                   pressControl,
                 )}
               >
-                {ATTENDANCE_TEXT[status]}
+                {attendanceText(tr, status)}
               </button>
             );
           })}
@@ -115,7 +116,7 @@ function AttendanceRow({
           className="self-start sm:self-auto"
           data-testid="booking-attendance"
         >
-          {ATTENDANCE_TEXT[client.attendance]}
+          {attendanceText(tr, client.attendance)}
         </Badge>
       )}
     </li>
@@ -131,6 +132,7 @@ function CancelSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const reasonId = useId();
   const [scope, setScope] = useState<BookingScope>('THIS');
   const [reason, setReason] = useState('');
@@ -149,7 +151,7 @@ function CancelSheet({
   const submit = () => {
     setError(null);
     if (!online) {
-      setError(BOOKING_COPY.schedule.offline);
+      setError(t('trainer.bookings.schedule.offline'));
       return;
     }
     cancel.mutate({
@@ -162,7 +164,7 @@ function CancelSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={copy.cancelTitle}
+      title={t('trainer.bookings.detail.cancelTitle')}
       size="sm"
       footer={
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
@@ -173,7 +175,7 @@ function CancelSheet({
             loading={cancel.isPending}
             onClick={submit}
           >
-            {copy.cancelConfirm}
+            {t('trainer.bookings.detail.cancelConfirm')}
           </Button>
           <Button
             type="button"
@@ -182,7 +184,7 @@ function CancelSheet({
             disabled={cancel.isPending}
             onClick={onClose}
           >
-            {copy.keep}
+            {t('trainer.bookings.detail.keep')}
           </Button>
         </div>
       }
@@ -191,7 +193,7 @@ function CancelSheet({
         {booking.seriesId && (
           <fieldset className="flex flex-col gap-1">
             <legend className="text-sm font-medium text-gray-800">
-              {BOOKING_COPY.editor.scopeTitle}
+              {t('trainer.bookings.editor.scopeTitle')}
             </legend>
             {(['THIS', 'FOLLOWING'] as const).map((s) => (
               <label key={s} className="flex min-h-11 items-center gap-2 text-sm text-gray-800">
@@ -202,7 +204,9 @@ function CancelSheet({
                   checked={scope === s}
                   onChange={() => setScope(s)}
                 />
-                {s === 'THIS' ? BOOKING_COPY.editor.thisOnly : BOOKING_COPY.editor.following}
+                {s === 'THIS'
+                  ? t('trainer.bookings.editor.thisOnly')
+                  : t('trainer.bookings.editor.following')}
               </label>
             ))}
           </fieldset>
@@ -210,7 +214,7 @@ function CancelSheet({
         {booking.kind === 'BOOKING' && (
           <div className="flex flex-col gap-1">
             <label htmlFor={reasonId} className="text-sm font-medium text-gray-800">
-              {copy.cancelReason}
+              {t('trainer.bookings.detail.cancelReason')}
             </label>
             <textarea
               id={reasonId}
@@ -234,6 +238,8 @@ function CancelSheet({
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
   const router = useRouter();
+  const tr = useT();
+  const { t } = tr;
   const timeZone = useMemo(deviceTimeZone, []);
   const now = useNow();
   const utils = trpc.useUtils();
@@ -257,7 +263,9 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
   if (query.isError) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="mb-3 font-serif text-2xl font-bold text-gray-900">{copy.title}</h1>
+        <h1 className="mb-3 font-serif text-2xl font-bold text-gray-900">
+          {t('trainer.bookings.detail.title')}
+        </h1>
         <QueryError error={query.error} onRetry={() => void query.refetch()} />
       </div>
     );
@@ -265,7 +273,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
   if (!booking) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="sr-only">{copy.title}</h1>
+        <h1 className="sr-only">{t('trainer.bookings.detail.title')}</h1>
         <div className="h-48 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />
       </div>
     );
@@ -273,7 +281,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
 
   const cancelled = booking.cancelledAt !== null;
   const start = utcToZoned(booking.startsAt, timeZone);
-  const zone = bookingZoneHint(booking, timeZone);
+  const zone = bookingZoneHintText(tr, booking, timeZone);
   const markable = canMarkAttendance(booking, now);
   const changeable = canChangeBooking(booking, now);
   const isBooking = booking.kind === 'BOOKING';
@@ -290,7 +298,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Link
           href="/trainer/schedule"
-          aria-label={BOOKING_COPY.schedule.title}
+          aria-label={t('trainer.bookings.schedule.title')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -301,18 +309,18 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
             cancelled ? 'text-gray-500 line-through' : 'text-gray-900',
           )}
         >
-          {bookingWho(booking)}
+          {bookingWhoText(tr, booking)}
         </h1>
         {cancelled && (
           <Badge variant="secondary" data-testid="booking-cancelled">
-            {BOOKING_COPY.schedule.cancelled}
+            {t('trainer.bookings.schedule.cancelled')}
           </Badge>
         )}
       </div>
 
       <div className="flex flex-col gap-1">
         <p className="text-base font-medium text-gray-900" data-testid="booking-when">
-          {formatDayWithWeekday(start.date)} · {bookingTimeRange(booking, timeZone)}
+          {dayLabel(tr, start.date)} · {bookingTimeRange(booking, timeZone)}
         </p>
         {zone && <p className="text-sm italic text-gray-600">{zone}</p>}
         {cancelled && booking.cancelReason && (
@@ -336,7 +344,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                 className="min-h-11"
                 onClick={() => setEditor({ mode: 'edit', booking })}
               >
-                {copy.edit}
+                {t('trainer.bookings.detail.edit')}
               </Button>
               <Button
                 type="button"
@@ -344,7 +352,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                 className="min-h-11"
                 onClick={() => setCancelling(true)}
               >
-                {copy.cancel}
+                {t('trainer.bookings.detail.cancel')}
               </Button>
             </>
           )}
@@ -354,7 +362,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
       {isBooking && booking.clients.length > 0 && (
         <section aria-labelledby="booking-attendance-title" className="flex flex-col gap-2">
           <h2 id="booking-attendance-title" className="font-semibold text-gray-900">
-            {copy.attendance}
+            {t('trainer.bookings.detail.attendance')}
           </h2>
           <ul className="flex flex-col gap-2">
             {booking.clients.map((c) => (
@@ -383,13 +391,13 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         <dl className="grid grid-cols-1 gap-3 rounded-2xl border bg-white p-4 text-sm sm:grid-cols-[8rem_1fr]">
           {booking.location && (
             <>
-              <dt className="font-medium text-gray-600">{BOOKING_COPY.editor.location}</dt>
+              <dt className="font-medium text-gray-600">{t('trainer.bookings.editor.location')}</dt>
               <dd className="min-w-0 break-words text-gray-900">{booking.location}</dd>
             </>
           )}
           {booking.note && (
             <>
-              <dt className="font-medium text-gray-600">{BOOKING_COPY.editor.note}</dt>
+              <dt className="font-medium text-gray-600">{t('trainer.bookings.editor.note')}</dt>
               <dd className="min-w-0 break-words text-gray-900">{booking.note}</dd>
             </>
           )}

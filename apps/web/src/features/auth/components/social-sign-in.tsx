@@ -4,8 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { capture } from '@/lib/analytics';
+import { useT } from '@/lib/i18n';
+import { rich } from '@/lib/i18n/rich';
 import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
+import { deviceSupportedLocale } from '@chefer/i18n';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { useWebSocialProviders } from '../hooks/use-web-social-providers';
@@ -22,9 +25,6 @@ import { GoogleSignInButton } from './google-sign-in-button';
 // provider IS the consent for a new account: the line under the buttons says
 // so, and `acceptLegal: true` is what the API records (TERMS + PRIVACY + AGE).
 
-export const SOCIAL_SDK_ERROR_COPY =
-  'We couldn’t reach the sign-in service. Check your connection and try again.';
-
 export function SocialSignIn({
   mode,
   hideDivider = false,
@@ -33,6 +33,7 @@ export function SocialSignIn({
   /** Onboarding V4 puts the providers first, so there is nothing to divide. */
   hideDivider?: boolean;
 }) {
+  const { t } = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
   const providers = useWebSocialProviders();
@@ -47,7 +48,7 @@ export function SocialSignIn({
       router.push(result.isNewUser ? '/onboarding' : '/dashboard');
       router.refresh();
     },
-    onError: (err) => setError(userFacingErrorMessage(err, SOCIAL_SDK_ERROR_COPY)),
+    onError: (err) => setError(userFacingErrorMessage(err, t('auth.social.sdkErrorWeb'))),
   });
 
   const submit = useCallback(
@@ -55,20 +56,25 @@ export function SocialSignIn({
       setError(null);
       // Location defaults, as on the register form.
       const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
+      const deviceLocale = deviceSupportedLocale();
       signIn.mutate({
         ...payload,
         acceptLegal: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         ...(region && { region }),
+        ...(deviceLocale && { deviceLocale }),
       });
     },
     [signIn],
   );
 
-  const onSdkError = useCallback((err: Error) => {
-    if (err instanceof SocialCancelledError) return;
-    setError(SOCIAL_SDK_ERROR_COPY);
-  }, []);
+  const onSdkError = useCallback(
+    (err: Error) => {
+      if (err instanceof SocialCancelledError) return;
+      setError(t('auth.social.sdkErrorWeb'));
+    },
+    [t],
+  );
 
   const apple = providers.apple;
   const startApple = useCallback(() => {
@@ -84,7 +90,7 @@ export function SocialSignIn({
       {!hideDivider && (
         <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
           <span className="h-px flex-1 bg-border" />
-          <span>or</span>
+          <span>{t('auth.social.or')}</span>
           <span className="h-px flex-1 bg-border" />
         </div>
       )}
@@ -112,23 +118,26 @@ export function SocialSignIn({
       </div>
 
       <p className="text-center text-xs text-muted-foreground" data-testid="social-consent">
-        By continuing you agree to the{' '}
-        <Link
-          href="/terms"
-          target="_blank"
-          className="touch-target relative underline underline-offset-4 hover:text-foreground"
-        >
-          Terms
-        </Link>{' '}
-        and{' '}
-        <Link
-          href="/privacy"
-          target="_blank"
-          className="touch-target relative underline underline-offset-4 hover:text-foreground"
-        >
-          Privacy Policy
-        </Link>{' '}
-        and confirm you are 16 or older.
+        {rich(t, 'auth.social.consent', {
+          terms: (
+            <Link
+              href="/terms"
+              target="_blank"
+              className="touch-target relative underline underline-offset-4 hover:text-foreground"
+            >
+              {t('auth.links.terms')}
+            </Link>
+          ),
+          privacy: (
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="touch-target relative underline underline-offset-4 hover:text-foreground"
+            >
+              {t('auth.links.privacy')}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );

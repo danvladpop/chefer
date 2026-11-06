@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
-import { localDateStr, RECAP_COPY } from '@chefer/utils';
+import { localDateStr } from '@chefer/utils';
 import { Icon } from '../../components/icon';
 import { useFlags } from '../../hooks/use-flags';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 
 // Lane E2: Today's Monday door into "Your week in review". Monday only, and
@@ -12,6 +13,7 @@ import { trpc } from '../../lib/trpc';
 
 export function RecapTodayCard({ isMonday }: { isMonday: boolean }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const { gamification } = useFlags();
   const show = isMonday && !gamification;
   const { data } = trpc.recap.week.useQuery(
@@ -24,15 +26,20 @@ export function RecapTodayCard({ isMonday }: { isMonday: boolean }) {
     <PressableScale
       testID="today-recap"
       accessibilityRole="button"
-      accessibilityLabel={`${RECAP_COPY.todayCardTitle}, ${data.label}`}
+      accessibilityLabel={t('today.engagement.recapScreen.todayCardLabel', {
+        title: t('today.recap.todayCardTitle'),
+        week: data.label,
+      })}
       onPress={() => router.push('/recap?from=today')}
       className="min-h-14 flex-row items-center gap-3 rounded-card border border-separator bg-surface px-4 py-3"
     >
       <Icon name="calendar" color={colors.brand} size={22} />
       <Text className="min-w-0 flex-1">
-        <Text className="text-callout font-semibold text-label">{RECAP_COPY.todayCardTitle}</Text>
+        <Text className="text-callout font-semibold text-label">
+          {t('today.recap.todayCardTitle')}
+        </Text>
         {'\n'}
-        <Text className="text-subhead text-label-secondary">{RECAP_COPY.todayCardBody}</Text>
+        <Text className="text-subhead text-label-secondary">{t('today.recap.todayCardBody')}</Text>
       </Text>
       <Icon name="chevronRight" color={colors.labelTertiary} size={18} />
     </PressableScale>

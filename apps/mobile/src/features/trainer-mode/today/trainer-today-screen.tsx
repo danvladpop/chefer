@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { TRAINER_MODE_COPY } from '@chefer/types';
 import {
   EmptyState,
   ErrorState,
@@ -16,6 +15,7 @@ import {
 } from '@chefer/ui-mobile';
 import { deviceTimeZone, todayIn } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useCoachingNotices } from '../../coaching/api/use-coaching-notices';
 import { localDate } from '../../gym/offline/ids';
@@ -47,10 +47,9 @@ import { clockTime, QuietClientRow, RequestsCard, WeekStats } from './today-part
 // first steps instead (Invite a client, Build a template, Add a booking). Pull to refresh asks for everything again; offline,
 // the last answer stays with a "Last updated" line (§12).
 
-const COPY = TRAINER_MODE_COPY.today;
-
 export function TrainerTodayScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   const utils = trpc.useUtils();
   // MO-03: the sections rise in on the first visit of the session only.
   const firstEntrance = useFirstEntrance('trainer-today');
@@ -149,7 +148,7 @@ export function TrainerTodayScreen() {
 
           {stale ? (
             <Text testID="trainer-today-last-updated" className="text-caption text-label-secondary">
-              {COPY.lastUpdated(clockTime(summary.dataUpdatedAt))}
+              {t('trainer.today.lastUpdated', { time: clockTime(summary.dataUpdatedAt) })}
             </Text>
           ) : null}
 
@@ -159,8 +158,8 @@ export function TrainerTodayScreen() {
             <View testID="trainer-today-welcome" className="gap-4">
               <EmptyState
                 icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
-                title={COPY.emptyTitle}
-                description={COPY.emptyBody}
+                title={t('trainer.today.emptyTitle')}
+                description={t('trainer.today.emptyBody')}
                 className="py-4"
               />
               {/* §6.1 empty state. "Add a booking" joins with bookings (M3); "Build a
@@ -168,19 +167,19 @@ export function TrainerTodayScreen() {
               <ListSection>
                 <ListRow
                   testID="trainer-today-invite"
-                  title={COPY.inviteClient}
+                  title={t('trainer.today.inviteClient')}
                   icon={<Icon name="invite" color={colors.brand} />}
                   onPress={() => setInviteOpen(true)}
                 />
                 <ListRow
                   testID="trainer-today-build-template"
-                  title={COPY.buildTemplate}
+                  title={t('trainer.today.buildTemplate')}
                   icon={<Icon name="workouts" color={colors.brand} />}
                   onPress={() => router.push(NEW_TEMPLATE_HREF)}
                 />
                 <ListRow
                   testID="trainer-today-welcome-add-booking"
-                  title={COPY.addBooking}
+                  title={t('trainer.today.addBooking')}
                   icon={<Icon name="schedule" color={colors.brand} />}
                   onPress={addBooking}
                 />
@@ -212,7 +211,7 @@ export function TrainerTodayScreen() {
           {brandNew ? null : (
             <View testID="trainer-today-attention" className="gap-2">
               <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-                {COPY.needsAttention}
+                {t('trainer.today.needsAttention')}
               </Text>
               <UnmarkedAttendance bookings={d.unmarkedAttendance ?? []} zone={zone} today={today} />
               {d.quietClients.map((client) => (
@@ -230,7 +229,7 @@ export function TrainerTodayScreen() {
                   testID="trainer-today-caught-up"
                   className="text-subhead text-label-secondary"
                 >
-                  {COPY.allCaughtUp}
+                  {t('trainer.today.allCaughtUp')}
                 </Text>
               ) : null}
             </View>

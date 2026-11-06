@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import {
   BarChart,
   Card,
@@ -20,16 +21,11 @@ import {
   DEFAULT_PROGRESS_RANGE,
   evenLabelIndices,
   formatBodyWeight,
-  formatDate,
-  formatKcal,
   formatNumber,
   isLoggedDay,
   localDateStr,
-  MEASUREMENTS_COPY,
-  PROGRESS_PHOTOS_COPY,
   PROGRESS_RANGES,
   summarizeWeightTrend,
-  TREND_WEIGHT_EXPLAINER,
   weightChangeTone,
   weightTrendSeries,
   type ProgressRange,
@@ -42,6 +38,7 @@ import { WeightLogForm } from '../src/features/coach/weight-log-form';
 import { useNumbersMode } from '../src/features/numbers-mode/numbers-mode';
 import { useShellV2 } from '../src/features/shell/shell-store';
 import { StatsScreen } from '../src/features/shell/stats/stats-screen';
+import { useT } from '../src/lib/i18n';
 import { trpc } from '../src/lib/trpc';
 
 // Progress — port of apps/web (dashboard)/progress/page.tsx (audit TRK-4).
@@ -54,11 +51,6 @@ import { trpc } from '../src/lib/trpc';
 const DAY_MS = 86_400_000;
 /** T-11.6: an average or a percentage needs at least this many logged days to mean anything. */
 const MIN_LOGGED_DAYS = 3;
-const RANGE_OPTIONS = PROGRESS_RANGES.map((n) => ({
-  value: String(n),
-  label: `${n} days`,
-  testID: `progress-range-${n}`,
-}));
 
 const TONE_CLASS: Record<WeightChangeTone, string> = {
   positive: 'text-positive',
@@ -67,16 +59,10 @@ const TONE_CLASS: Record<WeightChangeTone, string> = {
   neutral: 'text-label',
 };
 
-const TONE_SUFFIX: Record<WeightChangeTone, string> = {
-  positive: ', in line with your goal',
-  negative: '',
-  neutral: '',
-};
-
 /** "2026-09-26" → "26 Sep", read as a local calendar day (no UTC shift). */
-function shortDate(value: string | Date): string {
+function shortDate(tr: Translator, value: string | Date): string {
   const date = typeof value === 'string' ? new Date(`${value}T00:00:00`) : value;
-  return formatDate(date, 'short');
+  return tr.date(date, 'short');
 }
 
 function SectionLabel({ children }: { children: string }) {
@@ -118,6 +104,13 @@ function StatTile({
 /** Legacy (Food|Gym shell) Progress — unchanged. */
 function LegacyProgressScreen() {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
+  const rangeOptions = PROGRESS_RANGES.map((n) => ({
+    value: String(n),
+    label: t('common.counts.days', { count: n }),
+    testID: `progress-range-${n}`,
+  }));
   const macroColors = { protein: colors.info, carbs: colors.positive, fat: colors.attention };
   const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
   const {
@@ -160,8 +153,10 @@ function LegacyProgressScreen() {
     weekPct == null
       ? null
       : Math.abs(weekPct) < 2
-        ? 'About on your target this week'
-        : `About ${Math.abs(weekPct)} % ${weekPct < 0 ? 'under' : 'over'} your target this week`;
+        ? t('today.progress.page.week.onTarget')
+        : weekPct < 0
+          ? t('today.progress.page.week.under', { pct: Math.abs(weekPct) })
+          : t('today.progress.page.week.over', { pct: Math.abs(weekPct) });
 
   // x = day index, so unlogged days leave a gap on the axis instead of
   // collapsing the month.
@@ -169,11 +164,11 @@ function LegacyProgressScreen() {
   // Evenly spaced labels, first and last included (no "21, 27" pair at the end).
   const calorieLabels = evenLabelIndices(days.length).map((i) => ({
     x: i,
-    label: shortDate(days[i]?.date ?? ''),
+    label: shortDate(tr, days[i]?.date ?? ''),
   }));
 
   const macroData = days.map((d) => ({
-    label: shortDate(d.date),
+    label: shortDate(tr, d.date),
     segments: isLoggedDay(d)
       ? [
           { key: 'protein', value: Math.round(d.totalProtein) },
@@ -208,7 +203,7 @@ function LegacyProgressScreen() {
     if (firstX == null || lastX == null || lastX - firstX < 1) return undefined;
     return [0, 1 / 3, 2 / 3, 1].map((f) => {
       const x = firstX + (lastX - firstX) * f;
-      return { x, label: shortDate(new Date(x * DAY_MS)) };
+      return { x, label: shortDate(tr, new Date(x * DAY_MS)) };
     });
   })();
 
@@ -217,7 +212,7 @@ function LegacyProgressScreen() {
       <View className="flex-row items-center gap-3 px-4 py-3">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           onPress={() => router.back()}
           className="h-11 w-11 items-center justify-center"
         >
@@ -225,10 +220,10 @@ function LegacyProgressScreen() {
         </Pressable>
         <View>
           <Text className="text-xs font-semibold uppercase tracking-widest text-label-tertiary">
-            Insights
+            {t('today.progress.page.eyebrow')}
           </Text>
           <Text testID="progress-title" variant="title">
-            Progress
+            {t('today.progress.page.title')}
           </Text>
         </View>
       </View>
@@ -240,36 +235,36 @@ function LegacyProgressScreen() {
             testID="progress-stat-days"
             icon="flame-outline"
             iconColor={colors.brand}
-            label="Days logged"
+            label={t('today.progress.page.daysLogged')}
             value={monthly ? String(daysLogged) : '—'}
           />
           <StatTile
             testID="progress-stat-avg"
             icon="trending-up-outline"
             iconColor={colors.info}
-            label="Avg kcal"
-            value={avgKcal > 0 ? formatKcal(avgKcal) : '—'}
+            label={t('today.progress.page.avg.kcal')}
+            value={avgKcal > 0 ? tr.number(avgKcal) : '—'}
           />
           <StatTile
             testID="progress-stat-vs-target"
             icon="scale-outline"
             iconColor={colors.positive}
-            label="vs target"
+            label={t('today.progress.page.vsTarget')}
             value={avgKcal > 0 ? `${diffPct > 0 ? '+' : ''}${diffPct}%` : '—'}
           />
         </View>
 
         <SegmentedControl
           testID="progress-range"
-          accessibilityLabel="Time range"
-          options={RANGE_OPTIONS}
+          accessibilityLabel={t('today.progress.page.timeRange')}
+          options={rangeOptions}
           value={String(range)}
           onChange={(v) => setRange(Number(v) as ProgressRange)}
         />
 
         {monthly && !enoughDays && (
           <Text testID="progress-more-days" variant="muted" className="text-sm">
-            Log {daysToGo} more {daysToGo === 1 ? 'day' : 'days'} to see your average
+            {t('today.progress.page.moreDays', { count: daysToGo })}
           </Text>
         )}
         {weekLine && (
@@ -286,7 +281,7 @@ function LegacyProgressScreen() {
           // A failed load is not an empty history (audit F-X-3-1).
           <ErrorState
             testID="progress-error"
-            title="Couldn't load your progress"
+            title={t('today.progress.page.loadError')}
             icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
@@ -294,11 +289,13 @@ function LegacyProgressScreen() {
           <>
             {/* Calories vs target */}
             <Card testID="progress-calories">
-              <SectionLabel>{`Calories — last ${windowDays} days`}</SectionLabel>
+              <SectionLabel>
+                {t('today.progress.page.calories.titleDays', { count: windowDays })}
+              </SectionLabel>
               {daysLogged === 0 ? (
                 <View className="h-40 items-center justify-center gap-1">
                   <Text variant="muted" className="text-center text-sm">
-                    No log data yet — start tracking in the Tracker.
+                    {t('today.progress.page.noDataApp')}
                   </Text>
                   <Pressable
                     testID="progress-open-tracker"
@@ -306,17 +303,24 @@ function LegacyProgressScreen() {
                     onPress={() => router.push('/tracker')}
                     className="min-h-11 justify-center px-3"
                   >
-                    <Text className="text-sm font-medium text-primary">Open Tracker</Text>
+                    <Text className="text-sm font-medium text-primary">
+                      {t('today.progress.page.openTracker')}
+                    </Text>
                   </Pressable>
                 </View>
               ) : (
                 <LineChart
                   testID="progress-calories-chart"
-                  accessibilityLabel={`Calories logged on ${daysLogged} of the last ${windowDays} days, average ${avgKcal} against a target of ${target}`}
+                  accessibilityLabel={t('today.progress.page.calories.chartA11y.kcal', {
+                    count: windowDays,
+                    logged: daysLogged,
+                    avg: avgKcal,
+                    target,
+                  })}
                   data={calorieData}
                   xLabels={calorieLabels}
                   xDomain={{ min: 0, max: Math.max(days.length - 1, 1) }}
-                  reference={{ y: target, label: 'Target' }}
+                  reference={{ y: target, label: t('today.progress.page.calories.target') }}
                   yFloor={0}
                   niceTicks
                   formatY={(v) => formatNumber(v)}
@@ -327,14 +331,16 @@ function LegacyProgressScreen() {
 
             {/* Macro breakdown */}
             <Card testID="progress-macros">
-              <SectionLabel>{`Macros — last ${windowDays} days (g)`}</SectionLabel>
+              <SectionLabel>
+                {t('today.progress.page.macros.titleDays', { count: windowDays })}
+              </SectionLabel>
               {daysLogged === 0 ? (
                 <View
                   testID="progress-macros-empty"
                   className="h-40 items-center justify-center gap-1"
                 >
                   <Text variant="muted" className="text-center text-sm">
-                    Log a meal to see your protein, carbs and fat here.
+                    {t('today.progress.page.macros.emptyApp')}
                   </Text>
                   <Pressable
                     testID="progress-macros-open-tracker"
@@ -342,14 +348,18 @@ function LegacyProgressScreen() {
                     onPress={() => router.push('/tracker')}
                     className="min-h-11 justify-center px-3"
                   >
-                    <Text className="text-sm font-medium text-primary">Open Tracker</Text>
+                    <Text className="text-sm font-medium text-primary">
+                      {t('today.progress.page.openTracker')}
+                    </Text>
                   </Pressable>
                 </View>
               ) : (
                 <>
                   <BarChart
                     testID="progress-macros-chart"
-                    accessibilityLabel={`Daily protein, carbs and fat in grams, last ${windowDays} days`}
+                    accessibilityLabel={t('today.progress.page.macros.chartA11y', {
+                      count: windowDays,
+                    })}
                     data={macroData}
                     seriesColors={macroColors}
                     labelEvery={Math.max(1, Math.ceil(windowDays / 4))}
@@ -358,9 +368,9 @@ function LegacyProgressScreen() {
                   <View className="mt-2 flex-row justify-center gap-4">
                     {(
                       [
-                        ['Protein', macroColors.protein],
-                        ['Carbs', macroColors.carbs],
-                        ['Fat', macroColors.fat],
+                        [t('today.progress.page.macros.protein'), macroColors.protein],
+                        [t('today.progress.page.macros.carbs'), macroColors.carbs],
+                        [t('today.progress.page.macros.fat'), macroColors.fat],
                       ] as const
                     ).map(([label, color]) => (
                       <View key={label} className="flex-row items-center gap-1.5">
@@ -380,23 +390,29 @@ function LegacyProgressScreen() {
 
         {/* Weight */}
         <Card testID="progress-weight">
-          <SectionLabel>Weight tracking</SectionLabel>
+          <SectionLabel>{t('today.progress.weight.title')}</SectionLabel>
 
           {latestWeight != null && (
             <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-1">
               <Text className="text-sm text-label-tertiary">
-                Current:{' '}
+                {t('today.progress.weight.current')}{' '}
                 <Text testID="progress-weight-current" className="text-sm font-semibold">
                   {formatBodyWeight(latestWeight, system)}
                 </Text>
               </Text>
               {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
                 <Text className="text-sm text-label-tertiary">
-                  Trend change (90d):{' '}
+                  {t('today.progress.weight.trendChange90')}{' '}
                   <Text
                     testID="progress-weight-change"
                     // Colour alone doesn't tell a screen reader which way is good.
-                    accessibilityLabel={`${formatBodyWeight(weightDelta, system, { signed: true })}${TONE_SUFFIX[tone]}`}
+                    accessibilityLabel={
+                      tone === 'positive'
+                        ? t('today.progress.weight.towardGoal', {
+                            change: formatBodyWeight(weightDelta, system, { signed: true }),
+                          })
+                        : formatBodyWeight(weightDelta, system, { signed: true })
+                    }
                     className={cn('text-sm font-semibold', TONE_CLASS[tone])}
                   >
                     {formatBodyWeight(weightDelta, system, { signed: true })}
@@ -409,7 +425,7 @@ function LegacyProgressScreen() {
           {weightQuery.isError && weights.length === 0 ? (
             <ErrorState
               testID="progress-weight-error"
-              title="Couldn't load your weigh-ins"
+              title={t('today.progress.weight.loadError')}
               onRetry={() => void weightQuery.refetch()}
             />
           ) : weightQuery.isLoading ? (
@@ -420,7 +436,9 @@ function LegacyProgressScreen() {
             <>
               <LineChart
                 testID="progress-weight-chart"
-                accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
+                accessibilityLabel={t('today.progress.weight.chartA11y', {
+                  weight: latestWeight != null ? formatBodyWeight(latestWeight, system) : '',
+                })}
                 data={weightData}
                 trend={trendData}
                 {...(weightLabels && { xLabels: weightLabels })}
@@ -429,19 +447,19 @@ function LegacyProgressScreen() {
                 height={170}
               />
               <Text testID="progress-weight-explainer" variant="muted" className="mt-1 text-xs">
-                {TREND_WEIGHT_EXPLAINER}
+                {t('today.progress.weight.explainer')}
               </Text>
             </>
           ) : (
             <Text testID="progress-weight-empty" variant="muted" className="mb-2 text-sm">
-              No weight entries yet. Log your first entry below.
+              {t('today.progress.weight.empty')}
             </Text>
           )}
 
           <View className="mt-3">
             <WeightLogForm
               lastEntry={weights.at(-1) ?? null}
-              placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'}
+              placeholder={tr.number(system === 'IMPERIAL' ? 160.5 : 72.5, 1)}
             />
           </View>
           {weights.length > 0 && <WeightEntriesList entries={weights} />}
@@ -449,13 +467,13 @@ function LegacyProgressScreen() {
 
         {/* Body measurements: free, one chart per measure (lane D3) */}
         <Card>
-          <SectionLabel>{MEASUREMENTS_COPY.title}</SectionLabel>
+          <SectionLabel>{t('today.measurements.title')}</SectionLabel>
           <BodyMeasurements />
         </Card>
 
         {/* Progress photos: on this phone only (lane D4) */}
         <Card>
-          <SectionLabel>{PROGRESS_PHOTOS_COPY.title}</SectionLabel>
+          <SectionLabel>{t('today.photos.title')}</SectionLabel>
           <ProgressPhotos />
         </Card>
       </KeyboardAwareScrollView>

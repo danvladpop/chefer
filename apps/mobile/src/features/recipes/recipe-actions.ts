@@ -1,4 +1,5 @@
 import { formatDate, sourceDomainOf } from '@chefer/utils';
+import { getTranslator } from '../../lib/i18n';
 
 // UX-REC-08 / UX-REC-13: the pure parts of the recipe page's ⋯ menu and the
 // cookbook rows — the lines sent to the shopping list and a row's source/date
@@ -28,7 +29,8 @@ export function recipeCardMeta(
     added && !Number.isNaN(added.getTime())
       ? formatDate(added, added.getFullYear() === now.getFullYear() ? 'short' : 'medium')
       : null;
-  if (domain && addedText) return `From ${domain} · ${addedText}`;
-  if (domain) return `From ${domain}`;
-  return addedText ? `Added ${addedText}` : null;
+  const { t } = getTranslator();
+  if (domain && addedText) return t('recipes.cookbook.fromDomainDate', { domain, date: addedText });
+  if (domain) return t('recipes.cookbook.fromDomain', { domain });
+  return addedText ? t('recipes.cookbook.addedOn', { date: addedText }) : null;
 }

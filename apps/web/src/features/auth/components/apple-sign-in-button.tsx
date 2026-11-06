@@ -2,6 +2,7 @@
 
 // Sign in with Apple button, drawn to Apple's HIG: black, white Apple logo,
 // "Continue with Apple" (the logo is decorative). 44px minimum height.
+import { useT } from '@/lib/i18n';
 
 function AppleLogo() {
   return (
@@ -12,7 +13,7 @@ function AppleLogo() {
 }
 
 export function AppleSignInButton({
-  label = 'Continue with Apple',
+  label,
   disabled,
   onClick,
 }: {
@@ -20,6 +21,7 @@ export function AppleSignInButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const { t } = useT();
   return (
     <button
       type="button"
@@ -28,7 +30,7 @@ export function AppleSignInButton({
       className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white ring-offset-background hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <AppleLogo />
-      {label}
+      {label ?? t('auth.social.apple')}
     </button>
   );
 }

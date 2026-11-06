@@ -201,6 +201,24 @@ export function coachingConsentLabel(event: {
   return COACHING_CONSENT_LABELS[event.granted ? 'granted' : 'withdrawn'];
 }
 
+/** The @chefer/i18n key of a coaching consent-history row (`t(key)`); same rows as `coachingConsentLabel`. */
+export type CoachingConsentLabelKey =
+  | `coaching.consentHistory.${'granted' | 'withdrawn'}`
+  | `coaching.consentHistory.${CoachingSharedData}.${'granted' | 'withdrawn'}`;
+
+/** Like `coachingConsentLabel`, as a catalog key for the UI language. Null = not a coaching row. */
+export function coachingConsentLabelKey(event: {
+  kind: string;
+  granted: boolean;
+  providers: readonly string[];
+}): CoachingConsentLabelKey | null {
+  if (event.kind !== 'COACHING_SHARING') return null;
+  const state = event.granted ? 'granted' : 'withdrawn';
+  const data = event.providers[0];
+  if (data === 'FOOD' || data === 'WEIGHT') return `coaching.consentHistory.${data}.${state}`;
+  return `coaching.consentHistory.${state}`;
+}
+
 // ─── Lane K2: the trainer's views (client detail) ─────────────────────────────
 
 /** `trainer.client.weekSummary`: the 7 days ending `today` (the trainer's device-local date). */

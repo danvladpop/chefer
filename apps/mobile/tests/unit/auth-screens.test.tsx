@@ -7,11 +7,7 @@ import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
 import { clearRegisterDraft, getRegisterDraft } from '../../src/features/auth/register-draft';
-import {
-  clearSessionExpired,
-  markSessionExpired,
-  SESSION_EXPIRED_NOTICE,
-} from '../../src/features/auth/session-expired';
+import { clearSessionExpired, markSessionExpired } from '../../src/features/auth/session-expired';
 import type { createTrpcAuthMock } from './auth-trpc-mock';
 import { mutationResult } from './auth-trpc-mock';
 import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
@@ -111,7 +107,9 @@ describe('Login', () => {
 
     markSessionExpired();
     await renderWithSafeArea(<LoginScreen />);
-    expect(screen.getByTestId('login-session-expired')).toHaveTextContent(SESSION_EXPIRED_NOTICE);
+    expect(screen.getByTestId('login-session-expired')).toHaveTextContent(
+      'Your session expired, so we signed you out. Sign in to pick up where you left off.',
+    );
     clearSessionExpired();
   });
 
@@ -252,6 +250,7 @@ describe('Register', () => {
         acceptedTerms: true,
         ageConfirmed: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
+        deviceLocale: 'en',
       }),
     );
   });
@@ -275,6 +274,8 @@ describe('Register', () => {
         ageConfirmed: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         region: 'US',
+        // ADR 0004: the app's language, for the confirmation email.
+        deviceLocale: 'en',
       }),
     );
     mockRegion = null;

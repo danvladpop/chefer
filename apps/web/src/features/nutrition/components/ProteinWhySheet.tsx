@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useT } from '@/lib/i18n';
 import type { ProteinWhy } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 
@@ -24,14 +25,30 @@ export interface ProteinWhySheetProps {
 export function ProteinWhySheet({ open, onClose, why, actionHref }: ProteinWhySheetProps) {
   // Lane E3 "Hide numbers": the protein target is never explained in figures.
   const { noNumbers } = useNumbersMode();
+  const { t } = useT();
   const rows = why
     ? [
-        { label: 'Protein a day', value: `${why.effectiveG} g` },
+        {
+          label: t('today.settings.proteinWhy.perDay'),
+          value: t('today.settings.grams.protein', { value: why.effectiveG }),
+        },
         ...(why.gPerKg !== null
-          ? [{ label: 'Per kg of bodyweight', value: `${why.gPerKg} g` }]
+          ? [
+              {
+                label: t('today.settings.proteinWhy.perKg'),
+                value: t('today.settings.grams.protein', { value: why.gPerKg }),
+              },
+            ]
           : []),
         ...(why.differs && why.referenceG !== null
-          ? [{ label: `At ${why.referenceGPerKg} g per kg`, value: `${why.referenceG} g` }]
+          ? [
+              {
+                label: t('today.settings.proteinWhy.atReference', {
+                  value: why.referenceGPerKg,
+                }),
+                value: t('today.settings.grams.protein', { value: why.referenceG }),
+              },
+            ]
           : []),
       ]
     : [];
@@ -40,8 +57,8 @@ export function ProteinWhySheet({ open, onClose, why, actionHref }: ProteinWhySh
     <Sheet
       open={open}
       onClose={onClose}
-      title="Why this protein number?"
-      description="Your protein"
+      title={t('today.settings.proteinWhy.title')}
+      description={t('today.settings.proteinWhy.eyebrow')}
       size="sm"
       footer={
         actionHref ? (
@@ -50,7 +67,7 @@ export function ProteinWhySheet({ open, onClose, why, actionHref }: ProteinWhySh
             onClick={onClose}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-neutral-300 text-sm font-medium hover:bg-neutral-50"
           >
-            Change your targets
+            {t('today.settings.targetExplain.changeTargets')}
           </Link>
         ) : undefined
       }
@@ -59,7 +76,7 @@ export function ProteinWhySheet({ open, onClose, why, actionHref }: ProteinWhySh
         {why ? (
           <p className="text-base text-neutral-800">{why.sentence}</p>
         ) : (
-          <p className="text-sm text-neutral-500">Loading…</p>
+          <p className="text-sm text-neutral-500">{t('common.states.loading')}</p>
         )}
         {rows.length > 0 && (
           <dl className="space-y-1">

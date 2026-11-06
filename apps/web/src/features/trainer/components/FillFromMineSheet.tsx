@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
-import { COACHING_COPY, type RoutineDto } from '@chefer/types';
+import type { RoutineDto } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
@@ -16,6 +17,7 @@ export function FillFromMineSheet({
   onClose: () => void;
   onPick: (routine: RoutineDto) => void;
 }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const list = trpc.gym.routine.list.useQuery(undefined, { enabled: open, retry: false });
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -27,8 +29,8 @@ export function FillFromMineSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={COACHING_COPY.trainer.fillFromMine}
-      description="Copies the days into the draft below. Nothing is saved until you press Save changes."
+      title={t('coaching.trainer.fillFromMine')}
+      description={t('coaching.trainer.fillFromMineHint')}
       size="md"
     >
       <div className="px-3 pb-4">
@@ -36,7 +38,7 @@ export function FillFromMineSheet({
           <div className="mx-2 h-24 animate-pulse rounded-lg bg-gray-100" aria-hidden="true" />
         ) : rows.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-gray-500">
-            You have no routines of your own yet.
+            {t('coaching.trainer.fillFromMineEmpty')}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-gray-100">
@@ -62,7 +64,7 @@ export function FillFromMineSheet({
                     {row.name}
                   </span>
                   <span className="shrink-0 text-xs text-gray-500">
-                    {row.dayCount} day{row.dayCount === 1 ? '' : 's'}
+                    {t('common.counts.days', { count: row.dayCount })}
                   </span>
                 </button>
               </li>

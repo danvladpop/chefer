@@ -37,17 +37,12 @@ import {
   isTailoringRunning,
   localDateStr,
   mealGroupTotalLine,
-  PLAN_MEAL_MENU_COPY,
-  PLAN_TAILORING_COPY,
-  PLAN_WEEK_COPY,
   planButtonLabel,
   planShapeSummary,
   SAFETY_COPY,
   slotStates,
   sumPlanDay,
   userFacingErrorMessage,
-  weekdayLongName,
-  weekdayShortName,
   WELLNESS_COPY,
   type DaySlotEntry,
 } from '@chefer/utils';
@@ -57,7 +52,7 @@ import { PartnerBanner } from '../../src/features/household/sharing/partner-bann
 import { useSharedWeek } from '../../src/features/household/sharing/use-shared-week';
 import { CompareWeeksSheet } from '../../src/features/meal-plan/compare-weeks-sheet';
 import { dismissPlan, isPlanDismissed } from '../../src/features/meal-plan/dismissals';
-import { DAY_LABELS, PlanDayChips } from '../../src/features/meal-plan/plan-day-chips';
+import { PlanDayChips } from '../../src/features/meal-plan/plan-day-chips';
 import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
 import { PlanMealActions } from '../../src/features/meal-plan/plan-meal-actions';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
@@ -83,15 +78,21 @@ import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
+import {
+  mealTypeWord,
+  weekdayName,
+  weekdayShort,
+} from '../../src/features/shell/meals/meals-model';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { RebalanceOffer, useRebalanceCheck } from '../../src/features/tracker/rebalance-offer';
 import { SlotStatusLine } from '../../src/features/tracker/slot-controls';
-import { mealLabel, SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
+import { SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { trackPlanGenerated } from '../../src/lib/analytics-events';
+import { useT } from '../../src/lib/i18n';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
@@ -126,6 +127,7 @@ function formatWeekLabel(weekStart: Date): string {
 
 export default function MealPlanScreen() {
   const colors = useThemeColors();
+  const { t } = useT();
   // T-08.1 (UX-08 AC1): Plan and Shop both default to next week from Friday
   // 15:00 to Sunday 23:59 local, else this week — the same `defaultWeekOffset`
   // shared with the Shop tab (@chefer/utils).
@@ -316,8 +318,8 @@ export default function MealPlanScreen() {
     // must say so — and offer the retry the user just tried to make.
     onError: (err, vars) =>
       showSnackbar({
-        message: `Couldn't bring your previous week back. ${userFacingErrorMessage(err)}`,
-        actionLabel: 'Try again',
+        message: t('plan.meals.snack.restoreFailed', { error: userFacingErrorMessage(err) }),
+        actionLabel: t('common.actions.retry'),
         onAction: () => restoreMutation.mutate(vars),
       }),
   });
@@ -351,10 +353,12 @@ export default function MealPlanScreen() {
           : 0;
       trackPlanGenerated(data, keptCount);
       if (previousPlanId) {
-        const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
         showSnackbar({
-          message: `New week planned.${keptNote}`,
-          actionLabel: 'Undo',
+          message:
+            keptCount > 0
+              ? t('plan.meals.snack.newWeekKept', { count: keptCount })
+              : t('plan.meals.snack.newWeek'),
+          actionLabel: t('plan.meals.undo'),
           onAction: () => restoreMutation.mutate({ planId: previousPlanId }),
           tone: 'success',
         });
@@ -428,7 +432,9 @@ export default function MealPlanScreen() {
     // UX-PLAN-14: a failed pin must not look like nothing happened.
     onError: (err) => {
       if (sharedWeek.handleSlotConflict(err, refetch)) return;
-      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` });
+      showSnackbar({
+        message: t('plan.meals.snack.pinFailed', { error: userFacingErrorMessage(err) }),
+      });
     },
   });
 
@@ -485,7 +491,9 @@ export default function MealPlanScreen() {
     },
     onError: (err) => {
       if (sharedWeek.handleSlotConflict(err, refetch)) return;
-      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` });
+      showSnackbar({
+        message: t('plan.meals.snack.removeFailed', { error: userFacingErrorMessage(err) }),
+      });
     },
   });
 
@@ -498,7 +506,10 @@ export default function MealPlanScreen() {
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
-      showSnackbar({ message: `${DAY_LABELS[selectedDay]} planned.`, tone: 'success' });
+      showSnackbar({
+        message: t('plan.meals.snack.dayPlanned', { day: weekdayShort(t, selectedDay) }),
+        tone: 'success',
+      });
       if (__DEV__) console.warn('[analytics stub] plan_day_filled', { dayOfWeek: selectedDay });
     },
     onError: (err) => {
@@ -619,8 +630,10 @@ export default function MealPlanScreen() {
   const selectedTraining = trainingDays.find((d) => d.dayOfWeek === selectedDay);
   // The day's real target: a training day's bump when it is applied.
   const targetForDay = (dayOfWeek: number): number | undefined => {
-    const t = trainingDays.find((d) => d.dayOfWeek === dayOfWeek);
-    return t?.applied && t.targetKcal !== undefined ? t.targetKcal : plan?.calorieTarget;
+    const training = trainingDays.find((d) => d.dayOfWeek === dayOfWeek);
+    return training?.applied && training.targetKcal !== undefined
+      ? training.targetKcal
+      : plan?.calorieTarget;
   };
   const preRunDay = trainingDays.find(
     (d) => d.kind === 'long_run' && d.dayOfWeek === selectedDay + 1,
@@ -668,8 +681,8 @@ export default function MealPlanScreen() {
       {
         onSuccess: () =>
           showSnackbar({
-            message: PLAN_MEAL_MENU_COPY.removed(meal.recipe.name),
-            actionLabel: 'Undo',
+            message: t('plan.mealMenu.removed', { name: meal.recipe.name }),
+            actionLabel: t('plan.meals.undo'),
             onAction: () =>
               addToWeekMutation.mutate(
                 {
@@ -752,7 +765,9 @@ export default function MealPlanScreen() {
                 isSide ? `plan-side-swap-${meal.type}-${slotIndex}` : `plan-meal-swap-${meal.type}`
               }
               moreTestID={`plan-slot-actions-${slotIndex}`}
-              {...(isSide && { moreLabel: PLAN_MEAL_MENU_COPY.moreActions(meal.recipe.name) })}
+              {...(isSide && {
+                moreLabel: t('plan.mealMenu.moreActions', { name: meal.recipe.name }),
+              })}
               onSwap={() =>
                 setPickerTarget({
                   kind: 'replace',
@@ -810,7 +825,7 @@ export default function MealPlanScreen() {
         <Pressable
           testID="plan-week-prev"
           accessibilityRole="button"
-          accessibilityLabel="Previous week"
+          accessibilityLabel={t('plan.mobilePlan.prevWeek')}
           disabled={weekOffset <= MIN_OFFSET}
           onPress={() => setWeekOffset((o) => Math.max(MIN_OFFSET, o - 1))}
           className={cn(
@@ -862,7 +877,11 @@ export default function MealPlanScreen() {
                     : 'text-label-secondary',
               )}
             >
-              {isPast ? 'Past' : weekOffset === 0 ? 'This Week' : 'Next Week'}
+              {isPast
+                ? t('plan.mobilePlan.badge.past')
+                : weekOffset === 0
+                  ? t('plan.mobilePlan.badge.thisWeek')
+                  : t('plan.mobilePlan.badge.nextWeek')}
             </Text>
           </View>
           {plan && <Ionicons name="chevron-down" size={14} color={colors.labelTertiary} />}
@@ -870,7 +889,7 @@ export default function MealPlanScreen() {
         <Pressable
           testID="plan-week-next"
           accessibilityRole="button"
-          accessibilityLabel="Next week"
+          accessibilityLabel={t('plan.mobilePlan.nextWeek')}
           disabled={weekOffset >= MAX_OFFSET}
           onPress={() => setWeekOffset((o) => Math.min(MAX_OFFSET, o + 1))}
           className={cn(
@@ -890,7 +909,7 @@ export default function MealPlanScreen() {
           className="mx-4 mb-2 flex-row items-center justify-between gap-2 rounded-lg bg-surface-sunken px-3 py-2"
         >
           <Text className="flex-1 text-xs text-label-secondary">
-            Showing next week — it&apos;s the weekend.
+            {t('plan.mobilePlan.weekendLine')}
           </Text>
           <Pressable
             testID="plan-weekend-line-this-week"
@@ -901,7 +920,9 @@ export default function MealPlanScreen() {
             }}
             className="min-h-11 items-center justify-center px-1"
           >
-            <Text className="text-xs font-semibold text-brand">This week ›</Text>
+            <Text className="text-xs font-semibold text-brand">
+              {t('plan.mobilePlan.weekendThisWeek')}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -914,7 +935,7 @@ export default function MealPlanScreen() {
         // A failed load is not an empty week — never offer Generate over a
         // plan we couldn't fetch (F-X-3-1).
         <ErrorState
-          title="Couldn't load your meal plan"
+          title={t('plan.meals.loadError')}
           icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
@@ -924,7 +945,7 @@ export default function MealPlanScreen() {
           <Card testID="plan-empty" className="items-center border-dashed py-10">
             <Ionicons name="calendar-outline" size={40} color={colors.labelTertiary} />
             <Text className="mb-1 mt-3 font-semibold text-label-secondary">
-              No plan for {weekLabel} yet
+              {t('plan.meals.empty.title', { week: weekLabel })}
             </Text>
             {/* UX-07 §2/AC1,3: the summary + button name the shape, e.g.
                 "4 dinners for 2 · Mon–Thu · up to 30 min" / "Plan 4 dinners" —
@@ -939,9 +960,7 @@ export default function MealPlanScreen() {
               </Text>
             ) : (
               <Text variant="muted" className="mb-4 px-4 text-center text-sm">
-                {isPremium
-                  ? 'Generate an AI plan personalised to your profile and ratings.'
-                  : 'Generate a plan from our curated collection.'}
+                {isPremium ? t('plan.meals.empty.premium') : t('plan.meals.empty.free')}
               </Text>
             )}
             {/* ADR 0003: planning a week is the owner's. */}
@@ -960,10 +979,10 @@ export default function MealPlanScreen() {
                 onPress={() => generateWithConsent()}
               >
                 {generateMutation.isPending
-                  ? 'Cooking up your week…'
+                  ? t('plan.meals.empty.generating')
                   : shape
                     ? planButtonLabel(shape)
-                    : 'Generate Plan'}
+                    : t('plan.meals.empty.generate')}
               </Button>
             )}
             {!isPast && !isPartner && (
@@ -973,14 +992,16 @@ export default function MealPlanScreen() {
                 onPress={() => setSettingsOpen(true)}
                 className="mt-3 min-h-11 items-center justify-center px-2"
               >
-                <Text className="text-xs font-semibold text-primary">Change what we plan</Text>
+                <Text className="text-xs font-semibold text-primary">
+                  {t('plan.meals.empty.changeShape')}
+                </Text>
               </Pressable>
             )}
             {isPremium === true && !isPast && !isPartner && (
               <View className="mt-4 flex-row items-center gap-2">
                 <Switch value={leftovers} onValueChange={setLeftovers} />
                 <Text variant="muted" className="text-xs">
-                  Cook once, eat twice (leftover lunches)
+                  {t('plan.meals.empty.leftovers')}
                 </Text>
               </View>
             )}
@@ -989,7 +1010,7 @@ export default function MealPlanScreen() {
           {poolExhaustedMessage && (
             <Card className="border-primary/20 bg-accent">
               <Text testID="plan-pool-exhausted" className="text-sm font-semibold text-primary">
-                Our recipes can’t fill this week around your restrictions.
+                {t('plan.meals.pool.title')}
               </Text>
               <Text className="mt-1 text-xs text-primary/80">{poolExhaustedMessage}</Text>
               {/* T-10.4: two ways forward, neither one relaxes a safety rule. */}
@@ -999,7 +1020,7 @@ export default function MealPlanScreen() {
                   variant="outline"
                   onPress={() => router.push('/recipes')}
                 >
-                  Pick recipes yourself
+                  {t('plan.meals.pool.pickRecipes')}
                 </Button>
                 {isPremium !== true && (
                   <Button
@@ -1007,7 +1028,7 @@ export default function MealPlanScreen() {
                     variant="ghost"
                     onPress={() => openPremium('pool-exhaustion')}
                   >
-                    Premium builds a plan around them
+                    {t('plan.meals.pool.premium')}
                   </Button>
                 )}
               </View>
@@ -1050,7 +1071,7 @@ export default function MealPlanScreen() {
                 <Pressable
                   testID="plan-week-options"
                   accessibilityRole="button"
-                  accessibilityLabel={PLAN_WEEK_COPY.optionsLabel}
+                  accessibilityLabel={t('plan.week.optionsLabel')}
                   onPress={() => setWeekOptionsOpen(true)}
                   className="min-h-11 flex-shrink-0 flex-row items-center gap-1.5 rounded-lg border border-border px-3"
                 >
@@ -1063,7 +1084,7 @@ export default function MealPlanScreen() {
                     maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
                     className="text-sm font-medium text-foreground"
                   >
-                    {PLAN_WEEK_COPY.optionsLabel}
+                    {t('plan.week.optionsLabel')}
                   </Text>
                 </Pressable>
               )}
@@ -1071,7 +1092,7 @@ export default function MealPlanScreen() {
                 <Pressable
                   testID="plan-settings-open"
                   accessibilityRole="button"
-                  accessibilityLabel="Plan settings"
+                  accessibilityLabel={t('plan.mobilePlan.planSettings')}
                   onPress={() => setSettingsOpen(true)}
                   className="h-11 w-11 items-center justify-center"
                 >
@@ -1109,7 +1130,7 @@ export default function MealPlanScreen() {
               testID="plan-first-scaled-week"
               className="px-4 pb-2 text-xs text-label-secondary"
             >
-              Sized for your table of {memberCount + 1} — free for your first week
+              {t('plan.mobilePlan.firstScaledWeek', { size: String(memberCount + 1) })}
             </Text>
           )}
 
@@ -1130,7 +1151,7 @@ export default function MealPlanScreen() {
             {/* T-06.7: this week was built around the routine's training days. */}
             {builtAroundTraining && (
               <Text testID="plan-built-around-training" className="px-1 text-xs text-primary">
-                Your week is built around your training days
+                {t('plan.mobilePlan.builtAroundTraining')}
               </Text>
             )}
 
@@ -1156,8 +1177,11 @@ export default function MealPlanScreen() {
               >
                 <Text className="text-sm text-label">
                   {proteinOnly
-                    ? 'Your targets have changed since this week was planned. Re-plan to match them?'
-                    : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
+                    ? t('plan.meals.replan.protein')
+                    : t('plan.meals.replan.kcal', {
+                        planned: formatKcal(plannedKcal),
+                        live: formatKcal(liveKcal),
+                      })}
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -1166,7 +1190,9 @@ export default function MealPlanScreen() {
                     onPress={openRegenerateConfirm}
                     className="min-h-11 justify-center px-2"
                   >
-                    <Text className="text-sm font-semibold text-brand">Re-plan</Text>
+                    <Text className="text-sm font-semibold text-brand">
+                      {t('plan.meals.replan.action')}
+                    </Text>
                   </Pressable>
                   <Pressable
                     testID="plan-replan-keep"
@@ -1177,7 +1203,9 @@ export default function MealPlanScreen() {
                     }}
                     className="min-h-11 justify-center px-2"
                   >
-                    <Text className="text-sm font-semibold text-brand">Keep</Text>
+                    <Text className="text-sm font-semibold text-brand">
+                      {t('plan.meals.replan.keep')}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -1223,15 +1251,17 @@ export default function MealPlanScreen() {
                   className="rounded-full border border-separator bg-surface-sunken px-3 py-1"
                 >
                   <Text className="text-xs font-medium text-label-secondary">
-                    Continued from your last plan
+                    {t('plan.meals.carriedOver')}
                   </Text>
                 </View>
               )}
               {personalisation && (
                 <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
                   <Text className="text-xs font-medium text-primary">
-                    Learned from {personalisation.likedCount} likes ·{' '}
-                    {personalisation.dislikedCount} dislikes
+                    {t('plan.mobilePlan.learned', {
+                      liked: String(personalisation.likedCount),
+                      disliked: String(personalisation.dislikedCount),
+                    })}
                   </Text>
                 </View>
               )}
@@ -1261,13 +1291,17 @@ export default function MealPlanScreen() {
                       variant="muted"
                       className="text-center text-sm"
                     >
-                      Not planned — you cook {shape ? planShapeSummary(shape) : 'some days'}.
+                      {t('plan.mobilePlan.unplanned', {
+                        shape: shape ? planShapeSummary(shape) : t('plan.meals.someDays'),
+                      })}
                     </Text>
                     {!isPast && !isPartner && (
                       <Pressable
                         testID="plan-day-add"
                         accessibilityRole="button"
-                        accessibilityLabel={`Plan ${DAY_LABELS[selectedDay]} too`}
+                        accessibilityLabel={t('plan.meals.planDayToo', {
+                          day: weekdayShort(t, selectedDay),
+                        })}
                         disabled={planDayMutation.isPending}
                         onPress={() =>
                           planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
@@ -1277,13 +1311,15 @@ export default function MealPlanScreen() {
                         {planDayMutation.isPending ? (
                           <ActivityIndicator size="small" />
                         ) : (
-                          <Text className="text-xs font-semibold text-primary">Plan this day</Text>
+                          <Text className="text-xs font-semibold text-primary">
+                            {t('plan.meals.planThisDay')}
+                          </Text>
                         )}
                       </Pressable>
                     )}
                   </>
                 ) : (
-                  <Text variant="muted">No meals planned for this day.</Text>
+                  <Text variant="muted">{t('plan.meals.noMeals')}</Text>
                 )}
               </Card>
             ) : (
@@ -1301,7 +1337,7 @@ export default function MealPlanScreen() {
               >
                 {updatedDays.has(selectedDay) && (
                   <Text testID="plan-day-updated" className="text-xs font-semibold text-positive">
-                    {PLAN_TAILORING_COPY.dayUpdated}
+                    {t('plan.tailoring.dayUpdated')}
                   </Text>
                 )}
                 {mealGroups.map((group) =>
@@ -1357,7 +1393,11 @@ export default function MealPlanScreen() {
           <RecipePickerSheet
             visible={pickerTarget !== null}
             mealName={pickerTarget?.mealName ?? ''}
-            eyebrow={lastPickerKind.current === 'side' ? 'Add a side dish' : 'Replace meal'}
+            eyebrow={
+              lastPickerKind.current === 'side'
+                ? t('plan.mealMenu.addSide')
+                : t('plan.mobilePlan.replaceMeal')
+            }
             // T-08.10 (bug B-50): the picker never re-offers the meal being
             // replaced, and narrows to the slot's type.
             excludeRecipeId={pickerTarget?.recipeId}
@@ -1396,8 +1436,10 @@ export default function MealPlanScreen() {
                     onSuccess: (data) => {
                       setPickerTarget(null);
                       showSnackbar({
-                        message: `Added as a side to ${mealLabel(target.mealType).toLowerCase()}`,
-                        actionLabel: 'Undo',
+                        message: t('plan.meals.snack.addedAsSide', {
+                          meal: mealTypeWord(t, target.mealType),
+                        }),
+                        actionLabel: t('plan.meals.undo'),
                         onAction: () =>
                           undoAddMutation.mutate({
                             planId: data.planId,
@@ -1430,8 +1472,14 @@ export default function MealPlanScreen() {
                   onSuccess: (data) => {
                     const { previousRecipeId, previousPinned } = data;
                     showSnackbar({
-                      message: `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
-                      actionLabel: previousRecipeId ? 'Undo' : undefined,
+                      message:
+                        portion !== 1
+                          ? t('plan.meals.snack.swappedPortion', {
+                              name: data.name,
+                              portion: String(portion),
+                            })
+                          : t('plan.meals.snack.swapped', { name: data.name }),
+                      actionLabel: previousRecipeId ? t('plan.meals.undo') : undefined,
                       onAction: previousRecipeId
                         ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                         : undefined,
@@ -1459,8 +1507,8 @@ export default function MealPlanScreen() {
                           onSuccess: (data) => {
                             const { previousRecipeId, previousPinned } = data;
                             showSnackbar({
-                              message: `Swapped to ${data.name}`,
-                              actionLabel: previousRecipeId ? 'Undo' : undefined,
+                              message: t('plan.meals.snack.swapped', { name: data.name }),
+                              actionLabel: previousRecipeId ? t('plan.meals.undo') : undefined,
                               onAction: previousRecipeId
                                 ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                                 : undefined,
@@ -1491,9 +1539,9 @@ export default function MealPlanScreen() {
                         if (result === 'idle') {
                           planScrollRef.current?.scrollTo({ y: 0, animated: true });
                         } else if (result === 'on-track') {
-                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.onTrack });
+                          showSnackbar({ message: t('plan.week.rebalance.onTrack') });
                         } else if (result === 'error') {
-                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.error });
+                          showSnackbar({ message: t('plan.week.rebalance.error') });
                         }
                       });
                     },
@@ -1505,11 +1553,17 @@ export default function MealPlanScreen() {
           <WeekSummarySheet
             visible={summaryOpen}
             weekLabel={weekLabel}
-            badge={isPast ? 'Past week' : weekOffset === 0 ? 'This week' : 'Next week'}
-            days={DAY_LABELS.map((label, i): DaySummary => {
+            badge={
+              isPast
+                ? t('plan.mobilePlan.summaryBadge.past')
+                : weekOffset === 0
+                  ? t('plan.mobilePlan.summaryBadge.thisWeek')
+                  : t('plan.mobilePlan.summaryBadge.nextWeek')
+            }
+            days={Array.from({ length: 7 }, (_, i): DaySummary => {
               const dayMeals = plan.days.find((d) => d.dayOfWeek === i)?.meals ?? [];
               return {
-                label,
+                label: weekdayShort(t, i),
                 dayIndex: i,
                 mealsCount: dayMeals.length,
                 totalKcal: sumPlanDay(dayMeals).kcal,
@@ -1518,7 +1572,7 @@ export default function MealPlanScreen() {
                 training: trainingDays.find((t) => t.dayOfWeek === i),
               };
             })}
-            dinners={dinnersFromPlan(plan.days, weekdayShortName)}
+            dinners={dinnersFromPlan(plan.days, (day) => weekdayShort(t, day))}
             weekCostEur={weekCost}
             weekOffset={weekOffset}
             shoppingFromDay={plan.shoppingFromDay}
@@ -1586,7 +1640,7 @@ export default function MealPlanScreen() {
             onClose={() => setMissOpen(false)}
             planId={plan.planId}
             dayOfWeek={missDay}
-            dayName={weekdayLongName(missDay)}
+            dayName={weekdayName(t, missDay)}
             kcal={missTotals.kcal}
             protein={missTotals.protein}
             calorieTarget={targetForDay(missDay)}
@@ -1613,7 +1667,13 @@ export default function MealPlanScreen() {
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         hasPlan={plan !== null && plan !== undefined}
-        weekLabel={weekOffset === 0 ? 'this week' : weekOffset === 1 ? 'next week' : weekLabel}
+        weekLabel={
+          weekOffset === 0
+            ? t('plan.mobilePlan.settingsWeek.thisWeek')
+            : weekOffset === 1
+              ? t('plan.mobilePlan.settingsWeek.nextWeek')
+              : weekLabel
+        }
         isPremium={isPremium === true}
         {...(hasTrainingDays && {
           fitTraining: { value: fitTrainingDays, onChange: setFitTrainingPref },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { cn } from '@chefer/utils';
 
 export type ImageStatusType = 'PENDING' | 'GENERATING' | 'DONE' | 'FAILED';
@@ -65,22 +66,25 @@ export type RecipeImagePlaceholderLabel = 'generating' | 'unavailable' | 'none';
 export function RecipeImagePlaceholder({
   recipeName,
   cuisineType,
-  label,
+  kind,
   className,
 }: {
   recipeName: string;
   cuisineType?: string | undefined;
-  label: RecipeImagePlaceholderLabel;
+  kind: RecipeImagePlaceholderLabel;
   className?: string | undefined;
 }) {
+  const { t } = useT();
   const { emoji, gradient } = placeholderStyle(recipeName, cuisineType);
   return (
     <div
       className={cn('relative overflow-hidden bg-gradient-to-br', gradient, className)}
       role="img"
-      aria-label={label === 'generating' ? `Preparing photo for ${recipeName}` : recipeName}
+      aria-label={
+        kind === 'generating' ? t('recipes.image.preparing', { name: recipeName }) : recipeName
+      }
     >
-      {label === 'generating' ? (
+      {kind === 'generating' ? (
         // Food-prep animation conveys "photo being generated" — no text needed
         <div className="absolute inset-0 flex items-center justify-center p-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,9 +100,9 @@ export function RecipeImagePlaceholder({
           <span className="text-3xl" aria-hidden="true">
             {emoji}
           </span>
-          {label === 'unavailable' && (
+          {kind === 'unavailable' && (
             <span className="rounded-full bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-500">
-              Photo unavailable
+              {t('recipes.image.unavailable')}
             </span>
           )}
         </div>
@@ -124,7 +128,7 @@ export function RecipeImage({
       <RecipeImagePlaceholder
         recipeName={recipeName}
         cuisineType={cuisineType}
-        label="generating"
+        kind="generating"
         className={className}
       />
     );
@@ -137,7 +141,7 @@ export function RecipeImage({
       <RecipeImagePlaceholder
         recipeName={recipeName}
         cuisineType={cuisineType}
-        label="unavailable"
+        kind="unavailable"
         className={className}
       />
     );
@@ -149,7 +153,7 @@ export function RecipeImage({
         <RecipeImagePlaceholder
           recipeName={recipeName}
           cuisineType={cuisineType}
-          label="generating"
+          kind="generating"
           className="absolute inset-0"
         />
       )}

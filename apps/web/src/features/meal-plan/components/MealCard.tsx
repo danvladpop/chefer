@@ -6,15 +6,16 @@ import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
+import { useT } from '@/lib/i18n';
 import { ArrowLeftRight, Bookmark, CheckCircle2, Clock, Scale } from 'lucide-react';
+import type { Translator } from '@chefer/i18n';
 import { pressControl, pressTransition } from '@chefer/ui';
 import {
   cn,
+  formatKcal,
   formatPortion,
-  PLAN_MEAL_MENU_COPY,
   planMealMacroLine,
   planMealMacros,
-  planMealMetaLine,
   slotPortion,
   verifiedLabels,
   type ConflictLike,
@@ -110,12 +111,49 @@ interface MealCardProps {
   onRemove?: (() => void) | undefined;
 }
 
-const MEAL_TYPE_LABELS: Record<string, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snack',
-};
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+type PlanMealType = (typeof MEAL_TYPES)[number];
+const isPlanMealType = (type: string): type is PlanMealType =>
+  (MEAL_TYPES as readonly string[]).includes(type);
+
+// The API names a leftover's source day in English ("Monday"); show it in the UI language.
+const LEFTOVER_DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+function leftoverDay(t: Translator['t'], raw: string, short: boolean): string {
+  const key = DAY_KEYS[LEFTOVER_DAYS.indexOf(raw)];
+  if (key === undefined) return short ? raw.slice(0, 3) : raw;
+  return t(short ? `common.weekdaysShort.${key}` : `common.weekdays.${key}`);
+}
+
+/** "10 min · 687 kcal" (FB7-11), "· 32 g protein" in protein-only mode, "· 1½ portions" in "Hide numbers". */
+function planMealMeta(
+  t: Translator['t'],
+  minutes: number,
+  n: { kcal: number; protein: number },
+  portion: number,
+  proteinOnly: boolean,
+  noNumbers: boolean,
+): string {
+  const time = t('plan.card.minutes', { minutes: Math.max(0, Math.round(minutes)) });
+  const tail = noNumbers
+    ? t('plan.card.portionCount', {
+        count: portion > 1 ? 2 : 1,
+        amount: formatPortion(portion).replace(/×$/, ''),
+      })
+    : proteinOnly
+      ? t('plan.card.protein', { grams: Math.round(n.protein) })
+      : t('plan.card.kcal', { kcal: formatKcal(n.kcal) });
+  return `${time} · ${tail}`;
+}
 
 const MEAL_TYPE_COLORS: Record<string, string> = {
   breakfast: 'bg-amber-100 text-amber-800',
@@ -150,6 +188,8 @@ export function MealCard({
 }: MealCardProps) {
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
   const { proteinOnly, noNumbers } = useNumbersMode();
+  const { t } = useT();
+  const mealTypeLabel = isPlanMealType(mealType) ? t(`plan.mealTypes.${mealType}`) : mealType;
   // A side dish shares its meal type with the main: ids carry the slot too.
   const slotKey = side && slotIndex !== undefined ? `${mealType}-${slotIndex}` : mealType;
   // Cards are Links — the swap button and the "…" menu live inside, so stop navigation.
@@ -157,7 +197,7 @@ export function MealCard({
     onReplace && !readOnly ? (
       <button
         type="button"
-        aria-label={PLAN_MEAL_MENU_COPY.swap(recipe.name)}
+        aria-label={t('plan.mealMenu.swap', { name: recipe.name })}
         data-testid={`plan-meal-swap-${slotKey}`}
         onClick={(e) => {
           e.preventDefault();
@@ -192,8 +232,8 @@ export function MealCard({
     <span
       data-testid={`plan-meal-${slotKey}-pinned`}
       role="img"
-      aria-label={PLAN_MEAL_MENU_COPY.pinnedBadge}
-      title={PLAN_MEAL_MENU_COPY.pinnedBadge}
+      aria-label={t('plan.mealMenu.pinnedBadge')}
+      title={t('plan.mealMenu.pinnedBadge')}
       className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[#944a00] shadow-sm"
     >
       <Bookmark className="h-3 w-3" aria-hidden="true" fill="currentColor" />
@@ -205,7 +245,7 @@ export function MealCard({
       className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700"
     >
       <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" />
-      Eaten
+      {t('plan.card.eaten')}
     </span>
   ) : null;
   const sideBadge = side ? (
@@ -213,14 +253,14 @@ export function MealCard({
       data-testid={`plan-meal-${slotKey}-side`}
       className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600"
     >
-      {PLAN_MEAL_MENU_COPY.sideBadge}
+      {t('plan.mealMenu.sideBadge')}
     </span>
   ) : null;
   const typeBadge = hideTypeBadge ? null : (
     <span
       className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
     >
-      {MEAL_TYPE_LABELS[mealType] ?? mealType}
+      {mealTypeLabel}
     </span>
   );
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
@@ -236,8 +276,10 @@ export function MealCard({
       className="inline-flex items-center gap-1 rounded-full border border-[#944a00] bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
     >
       <Scale className="h-3 w-3 shrink-0" aria-hidden="true" />
-      {formatPortion(portion)}
-      <span className="sr-only"> portion, adjusted to keep the day on target</span>
+      <span aria-hidden="true">{formatPortion(portion)}</span>
+      <span className="sr-only">
+        {t('plan.card.adjusted', { portion: formatPortion(portion) })}
+      </span>
     </span>
   ) : null;
   const adjustedBorder = adjusted ? 'border-[#944a00] ring-1 ring-[#944a00]' : 'border-gray-200';
@@ -247,9 +289,9 @@ export function MealCard({
     (portion !== 1 ? (
       <span
         className="inline-block rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
-        title={`${formatPortion(portion)} the recipe's serving, sized to your daily targets`}
+        title={t('plan.card.portionTitle', { portion: formatPortion(portion) })}
       >
-        {formatPortion(portion)} portion
+        {t('plan.card.portion', { portion: formatPortion(portion) })}
       </span>
     ) : null);
 
@@ -299,7 +341,7 @@ export function MealCard({
               {sideBadge}
               {leftoverLabel && (
                 <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                  Leftovers from {leftoverLabel}
+                  {t('plan.card.leftoversFrom', { day: leftoverDay(t, leftoverLabel, false) })}
                 </span>
               )}
               {portionBadge}
@@ -325,13 +367,7 @@ export function MealCard({
               >
                 <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium text-gray-800">
-                  {planMealMetaLine(
-                    totalTime,
-                    recipe.nutritionInfo,
-                    portion,
-                    proteinOnly,
-                    noNumbers,
-                  )}
+                  {planMealMeta(t, totalTime, n, portion, proteinOnly, noNumbers)}
                 </span>
               </span>
             </div>
@@ -393,7 +429,7 @@ export function MealCard({
           <span
             className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
           >
-            {!hideTypeBadge && (MEAL_TYPE_LABELS[mealType] ?? mealType)}
+            {!hideTypeBadge && mealTypeLabel}
             {portion !== 1 && !adjusted && (
               <span className="normal-case tracking-normal">
                 {hideTypeBadge ? '' : ' · '}
@@ -404,7 +440,7 @@ export function MealCard({
         )}
         {side && (
           <span className="absolute bottom-1.5 left-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-gray-700 shadow-sm">
-            {PLAN_MEAL_MENU_COPY.sideBadge}
+            {t('plan.mealMenu.sideBadge')}
           </span>
         )}
         {!side && (
@@ -426,12 +462,12 @@ export function MealCard({
             className="absolute right-12 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-700 backdrop-blur-sm"
           >
             <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" />
-            Eaten
+            {t('plan.card.eaten')}
           </span>
         )}
         {leftoverLabel && !side && (
           <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-800 backdrop-blur-sm">
-            Leftovers · {leftoverLabel.slice(0, 3)}
+            {t('plan.card.leftoversShort', { day: leftoverDay(t, leftoverLabel, true) })}
           </span>
         )}
         {/* A pinned meal: a small bookmark on the photo (the pin button is in the "…" menu). */}
@@ -464,27 +500,37 @@ export function MealCard({
           <div className="flex flex-col gap-0.5 text-xs text-gray-500">
             <span className="flex items-center gap-0.5">
               <Clock className="h-3 w-3" aria-hidden="true" />
-              {totalTime} min
+              {t('plan.card.minutes', { minutes: totalTime })}
             </span>
-            {!proteinOnly && <span className="font-medium text-gray-700">{n.kcal} kcal</span>}
+            {!proteinOnly && (
+              <span className="font-medium text-gray-700">
+                {t('plan.card.kcal', { kcal: String(n.kcal) })}
+              </span>
+            )}
           </div>
 
           {/* Macros stacked — compact, right-aligned (WP-08: protein only in protein-only mode) */}
           {!side && !noNumbers && (
             <div className="space-y-px text-right text-xs leading-tight">
               <div>
-                <span className="text-blue-500">P </span>
-                <span className="font-medium text-gray-700">{n.protein}g</span>
+                <span className="text-blue-500">{t('plan.card.macrosProteinLetter')} </span>
+                <span className="font-medium text-gray-700">
+                  {t('plan.card.grams', { value: n.protein })}
+                </span>
               </div>
               {!proteinOnly && (
                 <>
                   <div>
-                    <span className="text-amber-500">C </span>
-                    <span className="font-medium text-gray-700">{n.carbs}g</span>
+                    <span className="text-amber-500">{t('plan.card.macrosCarbsLetter')} </span>
+                    <span className="font-medium text-gray-700">
+                      {t('plan.card.grams', { value: n.carbs })}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-green-500">F </span>
-                    <span className="font-medium text-gray-700">{n.fat}g</span>
+                    <span className="text-green-500">{t('plan.card.macrosFatLetter')} </span>
+                    <span className="font-medium text-gray-700">
+                      {t('plan.card.grams', { value: n.fat })}
+                    </span>
                   </div>
                 </>
               )}

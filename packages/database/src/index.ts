@@ -186,6 +186,12 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  // Lane J phase 3 (ADR 0004): recipe text in other languages
+  RecipeTranslationRepository,
+  recipeTranslationRepository,
+  type IRecipeTranslationRepository,
+  type TranslatableRecipe,
+  type UpsertRecipeTranslationData,
   CuratedRecipeDraftRepository,
   curatedRecipeDraftRepository,
   CuratedDraftStateError,
@@ -534,6 +540,8 @@ export type {
   PackagedProduct,
   // Saved meals (lane A2)
   SavedMeal,
+  // Lane J phase 3 (ADR 0004)
+  RecipeTranslation,
   CuratedRecipeDraft,
 } from '@prisma/client';
 export {
@@ -545,6 +553,7 @@ export {
   NutritionSource,
   NutritionStatus,
   PackagedProductSource,
+  TranslationStatus,
   UserRole,
   PostStatus,
   Prisma,

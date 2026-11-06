@@ -17,6 +17,7 @@
     "@ai-sdk/react": "^3.0.142",
     "@chefer/api": "workspace:*",
     "@chefer/tokens": "workspace:*",
+    "@chefer/i18n": "workspace:*",
     "@chefer/types": "workspace:*",
     "@chefer/ui": "workspace:*",
     "@chefer/utils": "workspace:*",

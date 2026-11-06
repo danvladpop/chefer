@@ -1,11 +1,10 @@
-import { FRIENDS_COPY } from '@chefer/types';
-
-// Header titles of the Following routes (UX §2.2), all from FRIENDS_COPY.
+// Header titles of the Following routes (UX §2.2): catalog keys, translated
+// where the header renders (`t(FRIENDS_SCREEN_TITLES.home)`).
 export const FRIENDS_SCREEN_TITLES = {
-  home: FRIENDS_COPY.home.title,
-  requests: FRIENDS_COPY.requests.title,
-  activity: FRIENDS_COPY.activity.title,
-  settings: FRIENDS_COPY.settings.title,
-  blocked: FRIENDS_COPY.blocked.title,
-  suggestions: FRIENDS_COPY.home.suggested,
+  home: 'friends.home.title',
+  requests: 'friends.requests.title',
+  activity: 'friends.activity.title',
+  settings: 'friends.settings.title',
+  blocked: 'friends.blocked.title',
+  suggestions: 'friends.home.suggested',
 } as const;

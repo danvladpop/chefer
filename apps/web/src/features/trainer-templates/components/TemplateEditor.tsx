@@ -14,11 +14,10 @@ import { TrainerNoteField } from '@/features/trainer/components/TrainerNoteField
 import { useTrainerUnit } from '@/features/trainer/use-trainer-unit';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, CircleAlert, UsersRound } from 'lucide-react';
 import {
-  COACHING_COPY,
-  TEMPLATE_COPY,
   TRAINER_MODE_LIMITS,
   WORKOUT_TYPE_GROUPS,
   WORKOUT_TYPES,
@@ -32,7 +31,6 @@ import {
   supersetSlot,
   takesStartingWeight,
   templateAssignmentStatus,
-  templateAssignmentStatusText,
   templateConflictCurrent,
   templateProblems,
   userFacingErrorMessage,
@@ -43,6 +41,8 @@ import {
   fromTemplateDto,
   hasTemplateContent,
   NEW_TEMPLATE_ID,
+  templateAssignedText,
+  templateAssignmentStatusLabel,
   templateDocKey,
   toTemplateDoc,
   type TemplateDraft,
@@ -59,7 +59,6 @@ import { UpdateClientsSheet } from './UpdateClientsSheet';
 // template (`/new`) is created on its first save once it holds something,
 // and the address becomes its id without remounting the editor.
 
-const copy = TEMPLATE_COPY;
 /** Quiet time after the last keystroke before an autosave. */
 export const TEMPLATE_AUTOSAVE_MS = 800;
 const LIBRARY_HREF = '/trainer/workouts';
@@ -97,6 +96,8 @@ function adoptServerIds(draft: TemplateDraft, saved: WorkoutTemplateDto): Templa
 }
 
 export function TemplateEditor({ templateId: initialId }: { templateId: string }) {
+  const tr = useT();
+  const { t } = tr;
   const router = useRouter();
   const utils = trpc.useUtils();
   const unit = useTrainerUnit();
@@ -261,7 +262,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
     <div className="flex min-w-0 items-center gap-2">
       <Link
         href={LIBRARY_HREF}
-        aria-label={copy.library.title}
+        aria-label={t('trainer.templates.library.title')}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
       >
         <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -281,7 +282,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
       <div role="alert" className="rounded-2xl border bg-white p-4 text-sm text-gray-700">
         <p>
           {isNotFound(templateQuery.error)
-            ? copy.server.notFound
+            ? t('trainer.templates.editor.notFound')
             : userFacingErrorMessage(templateQuery.error)}
         </p>
         {!isNotFound(templateQuery.error) && (
@@ -291,17 +292,17 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
             className="mt-3 min-h-11"
             onClick={() => void templateQuery.refetch()}
           >
-            {COACHING_COPY.common.retry}
+            {t('coaching.common.retry')}
           </Button>
         )}
       </div>,
-      copy.editor.title,
+      t('trainer.templates.editor.title'),
     );
   }
   if (!draft || !doc || !problems) {
     return frame(
       <div className="h-64 animate-pulse rounded-2xl bg-gray-100" aria-hidden="true" />,
-      copy.editor.title,
+      t('trainer.templates.editor.title'),
     );
   }
 
@@ -335,8 +336,8 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
         )}
         <TrainerNoteField
           clientName=""
-          label={copy.editor.note}
-          hint={COACHING_COPY.trainer.noteForClientHint('Clients')}
+          label={t('trainer.templates.editor.note')}
+          hint={t('trainer.templates.editor.noteHint')}
           value={exercise.trainerNote ?? ''}
           onChange={(value) =>
             dispatch({
@@ -364,11 +365,11 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
   const failed = saveState === 'error' && docKey === failedKey;
   const pending = inFlight || (dirty && isTemplateSavable(doc) && !failed);
   const status = failed
-    ? (saveError ?? copy.editor.saveFailed)
+    ? (saveError ?? t('trainer.templates.editor.saveFailed'))
     : pending
-      ? copy.editor.saving
+      ? t('trainer.templates.editor.saving')
       : saved
-        ? copy.editor.saved
+        ? t('trainer.templates.editor.saved')
         : null;
 
   const editorProps = {
@@ -403,7 +404,8 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
               onClick={() => setAssigning(true)}
               disabled={dirty || inFlight || (rows.length === 0 && draft.workoutType === null)}
             >
-              <UsersRound className="h-4 w-4" aria-hidden="true" /> {copy.assign.action}
+              <UsersRound className="h-4 w-4" aria-hidden="true" />{' '}
+              {t('trainer.templates.assign.action')}
             </Button>
             <Button
               type="button"
@@ -411,7 +413,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
               className="min-h-11 text-red-700"
               onClick={() => setDeleting(true)}
             >
-              {copy.editor.delete}
+              {t('trainer.templates.editor.delete')}
             </Button>
           </div>
         )}
@@ -419,13 +421,15 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
 
       {outdated > 0 && (
         <section
-          aria-label={copy.update.banner(outdated)}
+          aria-label={t('trainer.templates.update.banner', { count: outdated })}
           className="flex min-w-0 flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"
           data-testid="template-outdated-banner"
         >
           <p className="flex min-w-0 items-center gap-2 font-medium text-amber-950">
             <CircleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 break-words">{copy.update.banner(outdated)}</span>
+            <span className="min-w-0 break-words">
+              {t('trainer.templates.update.banner', { count: outdated })}
+            </span>
           </p>
           <Button
             type="button"
@@ -433,7 +437,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
             disabled={dirty || inFlight}
             onClick={() => setUpdating(true)}
           >
-            {copy.update.action}
+            {t('trainer.templates.update.action')}
           </Button>
         </section>
       )}
@@ -441,13 +445,13 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={nameId} className="text-sm font-medium text-gray-700">
-            {copy.editor.name}
+            {t('trainer.templates.editor.name')}
           </label>
           <input
             id={nameId}
             type="text"
             value={draft.name}
-            placeholder={copy.editor.namePlaceholder}
+            placeholder={t('trainer.templates.editor.namePlaceholder')}
             maxLength={TRAINER_MODE_LIMITS.templateNameMaxChars}
             autoComplete="off"
             enterKeyHint="done"
@@ -460,14 +464,16 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
           {showNameError && (
             <p id={nameErrorId} role="alert" className="text-xs text-red-700">
               {problems.nameMissing
-                ? copy.editor.nameRequired
-                : `Keep the name to ${TRAINER_MODE_LIMITS.templateNameMaxChars} characters.`}
+                ? t('trainer.templates.editor.nameRequired')
+                : t('trainer.templates.editor.nameTooLong', {
+                    count: TRAINER_MODE_LIMITS.templateNameMaxChars,
+                  })}
             </p>
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={typeId} className="text-sm font-medium text-gray-700">
-            {copy.editor.workoutType}
+            {t('trainer.templates.editor.workoutType')}
           </label>
           <select
             id={typeId}
@@ -480,7 +486,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
             }
             className="h-11 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-base focus:border-gray-400 focus:outline-none sm:text-sm"
           >
-            <option value="">{copy.editor.noWorkoutType}</option>
+            <option value="">{t('trainer.templates.editor.noWorkoutType')}</option>
             {WORKOUT_TYPE_GROUPS.map((group) => (
               <optgroup key={group.group} label={group.label}>
                 {WORKOUT_TYPES.filter((t) => t.group === group.group).map((t) => (
@@ -496,16 +502,16 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
 
       <section aria-labelledby="template-exercises" className="flex min-w-0 flex-col gap-2">
         <h2 id="template-exercises" className="font-semibold text-gray-900">
-          {copy.editor.exercises}
+          {t('trainer.templates.editor.exercises')}
         </h2>
-        <p className="text-xs text-gray-500">{copy.editor.curatedOnly}</p>
+        <p className="text-xs text-gray-500">{t('trainer.templates.editor.curatedOnly')}</p>
         <div className="hidden lg:block">
           <DesktopEditorBoard {...editorProps} />
         </div>
         <PhoneEditorList {...editorProps} />
         {atLimit && (
           <p className="text-sm text-amber-800" data-testid="template-exercise-limit">
-            {copy.editor.exerciseLimit(max)}
+            {t('trainer.templates.editor.exerciseLimit', { count: max })}
           </p>
         )}
       </section>
@@ -513,7 +519,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
       {assignments.length > 0 && (
         <section aria-labelledby="template-assigned" className="flex min-w-0 flex-col gap-2">
           <h2 id="template-assigned" className="font-semibold text-gray-900">
-            {copy.library.assigned(assignments.length)}
+            {templateAssignedText(tr, assignments.length)}
           </h2>
           <ul className="flex flex-col divide-y divide-gray-100 rounded-2xl border bg-white px-4">
             {assignments.map((a) => {
@@ -533,7 +539,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
                     </span>
                   </span>
                   <Badge variant={state === 'upToDate' ? 'secondary' : 'info'} className="shrink-0">
-                    {templateAssignmentStatusText(a)}
+                    {templateAssignmentStatusLabel(tr, a)}
                   </Badge>
                 </li>
               );
@@ -550,7 +556,11 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
         }}
         library={library.data ?? []}
         curatedOnly
-        title={swapKey ? 'Swap exercise' : 'Add exercise'}
+        title={
+          swapKey
+            ? t('trainer.templates.editor.swapExercise')
+            : t('trainer.templates.editor.addExercise')
+        }
         preferSwapGroup={swapExerciseId ? lookup(swapExerciseId)?.swapGroup : null}
         excludeIds={swapExerciseId ? [swapExerciseId] : []}
         onPick={(exercise) => {
@@ -612,7 +622,7 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
       <Sheet
         open={deleting}
         onClose={() => setDeleting(false)}
-        title={copy.editor.deleteTitle}
+        title={t('trainer.templates.editor.deleteTitle')}
         size="sm"
         footer={
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -622,19 +632,21 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
               onClick={() => setDeleting(false)}
               disabled={remove.isPending}
             >
-              {COACHING_COPY.common.cancel}
+              {t('common.actions.cancel')}
             </Button>
             <Button
               type="button"
               onClick={() => templateId && remove.mutate({ templateId })}
               loading={remove.isPending}
             >
-              {copy.editor.delete}
+              {t('trainer.templates.editor.delete')}
             </Button>
           </div>
         }
       >
-        <p className="px-5 py-4 text-sm text-gray-600">{copy.editor.deleteBody}</p>
+        <p className="px-5 py-4 text-sm text-gray-600">
+          {t('trainer.templates.editor.deleteBody')}
+        </p>
       </Sheet>
 
       {server && (
@@ -652,6 +664,8 @@ export function TemplateEditor({ templateId: initialId }: { templateId: string }
         </>
       )}
     </>,
-    templateId === null ? copy.editor.newTitle : (server?.name ?? copy.editor.title),
+    templateId === null
+      ? t('trainer.templates.editor.newTitle')
+      : (server?.name ?? t('trainer.templates.editor.title')),
   );
 }

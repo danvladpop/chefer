@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react';
 import { Keyboard, View, type TextInput } from 'react-native';
 import {
-  BOOKING_COPY,
-  TRAINER_MODE_COPY,
   TRAINER_MODE_LIMITS,
   type BookingScope,
   type BookingWorkoutRef,
@@ -23,7 +21,6 @@ import {
 import {
   addDaysLocal,
   bookingDraftFrom,
-  bookingOverlapWarnings,
   bookingWeekRange,
   defaultRepeatUntil,
   deviceTimeZone,
@@ -39,18 +36,19 @@ import {
   toggleDraftClient,
   toUpdateBookingInput,
   userFacingErrorMessage,
-  validateBookingDraft,
   weekStartOf,
   type BookingDraft,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { askBookingReminderPermissionOnce } from '../../notifications/booking-reminders';
 import { firstNameOf } from '../../trainer/format';
 import { CheckRow } from '../templates/check-row';
+import { bookingDraftErrorTexts, bookingOverlapTexts } from './booking-model';
 import { DateStepperField, DurationField, StartTimeField } from './editor-fields';
 import { useInvalidateBookings } from './use-bookings';
 
@@ -113,9 +111,10 @@ function ClientWorkoutPicker({
   testID: string;
 }) {
   const colors = useThemeColors();
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const choices: WorkoutChoice[] = [
-    { value: 'next', label: BOOKING_COPY.editor.nextDay, ref: { kind: 'NEXT_DAY' } },
+    { value: 'next', label: tr.t('trainer.bookings.editor.nextDay'), ref: { kind: 'NEXT_DAY' } },
     ...routineDays.map((d) => ({
       value: `day:${d.id}`,
       label: d.name,
@@ -124,18 +123,23 @@ function ClientWorkoutPicker({
     ...templates.map((t) => ({
       value: `tpl:${t.id}`,
       label: t.name,
-      group: BOOKING_COPY.editor.template,
+      group: tr.t('trainer.bookings.editor.template'),
       ref: { kind: 'TEMPLATE' as const, templateId: t.id },
     })),
   ];
   const current = choices.find((c) => c.value === workoutKey(value)) ?? choices[0];
-  const label = current?.group ? `${current.group}: ${current.label}` : current?.label;
+  const label = current?.group
+    ? tr.t('trainer.bookings.editor.workoutGroup', { group: current.group, name: current.label })
+    : current?.label;
   return (
     <View className="gap-1">
       <PressableScale
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={`${BOOKING_COPY.editor.workout}, ${client.name}: ${label ?? ''}`}
+        accessibilityLabel={tr.t('trainer.bookings.editor.workoutFor', {
+          name: client.name,
+          choice: label ?? '',
+        })}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen((o) => !o)}
         className="min-h-12 flex-row items-center gap-2 rounded-control bg-surface-sunken px-4 py-2"
@@ -182,6 +186,7 @@ export function BookingEditorSheet({
   onClose: () => void;
   onSaved?: (booking: TrainerBookingDto) => void;
 }) {
+  const tr = useT();
   const online = useIsOnline();
   const invalidate = useInvalidateBookings();
   const [zone] = useState(deviceTimeZone);
@@ -235,10 +240,11 @@ export function BookingEditorSheet({
     editing?.clients.find((c) => c.clientId === clientId)?.name ??
     '';
 
-  const errors = validateBookingDraft(draft);
+  const errors = bookingDraftErrorTexts(tr, draft);
   const problem = errors.clients ?? null;
   const invalid = Object.keys(errors).length > 0;
-  const warnings = bookingOverlapWarnings(
+  const warnings = bookingOverlapTexts(
+    tr,
     draft,
     week.data?.bookings ?? [],
     zone,
@@ -297,7 +303,7 @@ export function BookingEditorSheet({
   const footer = askScope ? (
     <View className="gap-2">
       <Button testID="booking-editor-scope-this" loading={busy} onPress={() => submit('THIS')}>
-        {BOOKING_COPY.editor.thisOnly}
+        {tr.t('trainer.bookings.editor.thisOnly')}
       </Button>
       <Button
         testID="booking-editor-scope-following"
@@ -305,12 +311,12 @@ export function BookingEditorSheet({
         disabled={busy}
         onPress={() => submit('FOLLOWING')}
       >
-        {BOOKING_COPY.editor.following}
+        {tr.t('trainer.bookings.editor.following')}
       </Button>
     </View>
   ) : (
     <Button testID="booking-editor-save" loading={busy} disabled={!online} onPress={onSave}>
-      {BOOKING_COPY.editor.save}
+      {tr.t('trainer.bookings.editor.save')}
     </Button>
   );
 
@@ -323,16 +329,18 @@ export function BookingEditorSheet({
       onClose={onClose}
       title={
         askScope
-          ? BOOKING_COPY.editor.scopeTitle
+          ? tr.t('trainer.bookings.editor.scopeTitle')
           : editing
-            ? BOOKING_COPY.editor.editTitle
-            : BOOKING_COPY.editor.newTitle
+            ? tr.t('trainer.bookings.editor.editTitle')
+            : tr.t('trainer.bookings.editor.newTitle')
       }
       footer={footer}
       maxHeight="92%"
     >
       {askScope ? (
-        <Text className="text-subhead text-label-secondary">{BOOKING_COPY.editor.scopeTitle}</Text>
+        <Text className="text-subhead text-label-secondary">
+          {tr.t('trainer.bookings.editor.scopeTitle')}
+        </Text>
       ) : (
         <View className="gap-5 pb-2">
           {!online ? (
@@ -341,29 +349,29 @@ export function BookingEditorSheet({
               accessibilityLiveRegion="polite"
               className="text-subhead text-attention"
             >
-              {BOOKING_COPY.schedule.offline}
+              {tr.t('trainer.bookings.schedule.offline')}
             </Text>
           ) : null}
 
           {editing ? null : (
             <View className="gap-2">
               <Text className="text-subhead font-semibold text-label-secondary">
-                {BOOKING_COPY.editor.type}
+                {tr.t('trainer.bookings.editor.type')}
               </Text>
               <SegmentedControl<'BOOKING' | 'BLOCK'>
                 testID="booking-editor-type"
-                accessibilityLabel={BOOKING_COPY.editor.type}
+                accessibilityLabel={tr.t('trainer.bookings.editor.type')}
                 value={draft.kind}
                 onChange={(kind) => update({ kind })}
                 options={[
                   {
                     value: 'BOOKING',
-                    label: BOOKING_COPY.editor.booking,
+                    label: tr.t('trainer.bookings.editor.booking'),
                     testID: 'booking-editor-type-booking',
                   },
                   {
                     value: 'BLOCK',
-                    label: BOOKING_COPY.editor.block,
+                    label: tr.t('trainer.bookings.editor.block'),
                     testID: 'booking-editor-type-block',
                   },
                 ]}
@@ -375,17 +383,19 @@ export function BookingEditorSheet({
             <View testID="booking-editor-clients" className="gap-2">
               <View className="flex-row items-baseline justify-between gap-2">
                 <Text className="text-subhead font-semibold text-label-secondary">
-                  {BOOKING_COPY.editor.clients}
+                  {tr.t('trainer.bookings.editor.clients')}
                 </Text>
                 <Text className="text-caption text-label-tertiary">
-                  {BOOKING_COPY.editor.clientsMax(TRAINER_MODE_LIMITS.clientsPerBooking)}
+                  {tr.t('trainer.bookings.editor.clientsMax', {
+                    count: TRAINER_MODE_LIMITS.clientsPerBooking,
+                  })}
                 </Text>
               </View>
               {searchable ? (
                 <SearchField
                   testID="booking-editor-search"
-                  accessibilityLabel={BOOKING_COPY.editor.clients}
-                  placeholder={TRAINER_MODE_COPY.clients.search}
+                  accessibilityLabel={tr.t('trainer.bookings.editor.clients')}
+                  placeholder={tr.t('trainer.clients.search')}
                   value={query}
                   onChangeText={setQuery}
                   onSubmitEditing={() => Keyboard.dismiss()}
@@ -422,7 +432,7 @@ export function BookingEditorSheet({
 
           <DateStepperField
             testID="booking-editor-date"
-            label={BOOKING_COPY.editor.date}
+            label={tr.t('trainer.bookings.editor.date')}
             value={draft.date}
             min={editing && initial.date < today ? initial.date : today}
             max={addDaysLocal(today, TRAINER_MODE_LIMITS.bookingHorizonDays)}
@@ -456,22 +466,22 @@ export function BookingEditorSheet({
           {editing ? null : (
             <View className="gap-2">
               <Text className="text-subhead font-semibold text-label-secondary">
-                {BOOKING_COPY.editor.repeat}
+                {tr.t('trainer.bookings.editor.repeat')}
               </Text>
               <SegmentedControl<'NONE' | 'WEEKLY'>
                 testID="booking-editor-repeat"
-                accessibilityLabel={BOOKING_COPY.editor.repeat}
+                accessibilityLabel={tr.t('trainer.bookings.editor.repeat')}
                 value={draft.repeat}
                 onChange={(repeat) => update({ repeat, until: null })}
                 options={[
                   {
                     value: 'NONE',
-                    label: BOOKING_COPY.editor.noRepeat,
+                    label: tr.t('trainer.bookings.editor.noRepeat'),
                     testID: 'booking-editor-repeat-none',
                   },
                   {
                     value: 'WEEKLY',
-                    label: BOOKING_COPY.editor.weekly,
+                    label: tr.t('trainer.bookings.editor.weekly'),
                     testID: 'booking-editor-repeat-weekly',
                   },
                 ]}
@@ -481,15 +491,15 @@ export function BookingEditorSheet({
                   <View className="flex-row flex-wrap gap-2">
                     <Chip
                       testID="booking-editor-repeat-default"
-                      label={BOOKING_COPY.editor.weeksDefault(
-                        TRAINER_MODE_LIMITS.defaultWeeklyRepeats,
-                      )}
+                      label={tr.t('trainer.bookings.editor.weeksDefault', {
+                        count: TRAINER_MODE_LIMITS.defaultWeeklyRepeats,
+                      })}
                       selected={draft.until === null}
                       onPress={() => update({ until: null })}
                     />
                     <Chip
                       testID="booking-editor-repeat-until"
-                      label={BOOKING_COPY.editor.until}
+                      label={tr.t('trainer.bookings.editor.until')}
                       selected={draft.until !== null}
                       onPress={() => update({ until })}
                     />
@@ -497,7 +507,7 @@ export function BookingEditorSheet({
                   {draft.until !== null ? (
                     <DateStepperField
                       testID="booking-editor-until"
-                      label={BOOKING_COPY.editor.until}
+                      label={tr.t('trainer.bookings.editor.until')}
                       value={draft.until}
                       min={addDaysLocal(draft.date, 7)}
                       max={maxRepeatUntil(draft.date)}
@@ -513,7 +523,7 @@ export function BookingEditorSheet({
           {booking && draft.clients.length > 0 ? (
             <View testID="booking-editor-workouts" className="gap-2">
               <Text className="text-subhead font-semibold text-label-secondary">
-                {BOOKING_COPY.editor.workout}
+                {tr.t('trainer.bookings.editor.workout')}
               </Text>
               {draft.clients.map(({ clientId, workout }, i) => {
                 const routine = routines[i]?.data;
@@ -541,7 +551,7 @@ export function BookingEditorSheet({
 
           <Input
             testID="booking-editor-location"
-            label={BOOKING_COPY.editor.location}
+            label={tr.t('trainer.bookings.editor.location')}
             maxLength={TRAINER_MODE_LIMITS.locationMaxChars}
             value={draft.location}
             onChangeText={(location) => update({ location })}
@@ -553,7 +563,7 @@ export function BookingEditorSheet({
             <Input
               ref={noteRef}
               testID="booking-editor-note"
-              label={BOOKING_COPY.editor.note}
+              label={tr.t('trainer.bookings.editor.note')}
               maxLength={TRAINER_MODE_LIMITS.noteMaxChars}
               multiline
               value={draft.note}
@@ -561,7 +571,7 @@ export function BookingEditorSheet({
               className="min-h-20"
             />
             <Text className="text-caption text-label-secondary">
-              {BOOKING_COPY.editor.noteHint}
+              {tr.t('trainer.bookings.editor.noteHint')}
             </Text>
           </View>
 

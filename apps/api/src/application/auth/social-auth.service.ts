@@ -313,6 +313,7 @@ export class SocialAuthService {
       weeklyEmailReady: false,
       weeklyEmailRecap: false,
       termsAcceptedVersion: termsVersion,
+      ...(input.deviceLocale && { deviceLocale: input.deviceLocale }),
       ...(display && {
         chefProfile: {
           create: { preferredUnits: display.preferredUnits, deliveryCurrency: display.currency },

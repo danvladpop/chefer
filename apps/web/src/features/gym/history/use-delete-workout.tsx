@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { deleteSessionWithUndo, type DeleteSource } from '../workout/session-corrections';
@@ -17,6 +18,7 @@ export function useDeleteWorkout(input: {
   onDeleted?: () => void;
 }) {
   const { bootstrap, source, onDeleted } = input;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [pending, setPending] = useState<SessionSummaryDto | null>(null);
 
@@ -32,6 +34,7 @@ export function useDeleteWorkout(input: {
           session,
           engineVersion: bootstrap?.engineVersion ?? 1,
           source,
+          t,
         });
         onDeleted?.();
       }}

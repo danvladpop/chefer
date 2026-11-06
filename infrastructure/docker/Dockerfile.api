@@ -17,6 +17,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/config/tsconfig/package.json ./packages/config/tsconfig/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
+COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/database/package.json ./packages/database/
 COPY apps/api/package.json ./apps/api/
 # Root package.json declares pnpm.patchedDependencies (mobile toolchain);
@@ -73,6 +74,7 @@ COPY --from=deps /app ./
 COPY packages/config/tsconfig ./packages/config/tsconfig
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
+COPY packages/i18n ./packages/i18n
 COPY packages/database ./packages/database
 COPY apps/api ./apps/api
 

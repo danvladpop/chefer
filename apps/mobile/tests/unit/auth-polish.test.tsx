@@ -10,7 +10,6 @@ import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
 import {
-  ACCOUNT_DELETED_NOTICE,
   clearAccountDeletedNotice,
   markAccountDeleted,
 } from '../../src/features/auth/account-deleted-notice';
@@ -216,7 +215,9 @@ describe('Login deleted-account notice (UX-ACC-11)', () => {
       markAccountDeleted();
     });
     const second = await renderWithSafeArea(<LoginScreen />);
-    expect(screen.getByTestId('login-account-deleted')).toHaveTextContent(ACCOUNT_DELETED_NOTICE);
+    expect(screen.getByTestId('login-account-deleted')).toHaveTextContent(
+      'Your account and data have been deleted.',
+    );
 
     // Leaving the screen (blur → effect cleanup) spends the notice.
     await second.unmount();

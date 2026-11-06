@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { COACHING_COPY, type CoachingRequestDto } from '@chefer/types';
+import type { CoachingRequestDto } from '@chefer/types';
 import {
   Button,
   ConfirmSheet,
@@ -12,15 +12,21 @@ import {
   useSnackbar,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { formatShortDay, userFacingErrorMessage } from '@chefer/utils';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { useCoachingAvailability } from '../../trainer/api/use-coaching-availability';
 import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TrainerHeader } from '../../trainer/components/trainer-header';
 import { UpcomingBookingsList } from '../bookings/upcoming-booking';
-import { COACHING_MOBILE_COPY } from '../copy';
+import {
+  consentCanLines,
+  consentWillSeeLines,
+  formatShortDayT,
+  trainerNameOrFallbackT,
+} from '../copy';
 import { ConsentUpdateNotice } from '../notices/consent-update-notice';
 import { SharingCard } from '../sharing/sharing-card';
 
@@ -48,13 +54,13 @@ function Lines({ lines, testID }: { lines: readonly string[]; testID: string }) 
 
 /** The client's pending request (PRD 2026-10 §4.1): who, until when, and Cancel request. */
 function PendingRequestCard({ request }: { request: CoachingRequestDto }) {
-  const copy = COACHING_COPY.request;
+  const { t } = useT();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const cancel = trpc.coaching.cancelRequest.useMutation({
     meta: { silent: true },
     onSuccess: () => {
-      snackbar.show({ message: copy.cancelled });
+      snackbar.show({ message: t('coaching.request.cancelled') });
     },
     onSettled: () => {
       void utils.coaching.status.invalidate();
@@ -64,10 +70,12 @@ function PendingRequestCard({ request }: { request: CoachingRequestDto }) {
   return (
     <CoachingCard testID="your-trainer-request" className="gap-2">
       <Text className="text-headline font-semibold text-label">
-        {copy.pending(request.trainer.name)}
+        {t('coaching.request.pending', {
+          trainer: trainerNameOrFallbackT(request.trainer.name, t),
+        })}
       </Text>
       <Text className="text-subhead text-label-secondary">
-        {copy.expires(formatShortDay(request.expiresAt))}
+        {t('coaching.request.expires', { date: formatShortDayT(request.expiresAt, t) })}
       </Text>
       {cancel.error ? (
         <Text testID="your-trainer-request-error" className="text-subhead text-danger">
@@ -80,14 +88,14 @@ function PendingRequestCard({ request }: { request: CoachingRequestDto }) {
         loading={cancel.isPending}
         onPress={() => cancel.mutate(undefined)}
       >
-        {copy.cancel}
+        {t('coaching.request.cancel')}
       </Button>
     </CoachingCard>
   );
 }
 
 export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean } = {}) {
-  const copy = COACHING_COPY.yourTrainer;
+  const { t } = useT();
   const colors = useThemeColors();
   const { enabled, isLoading, unreachable, retry } = useCoachingAvailability();
   const utils = trpc.useUtils();
@@ -109,11 +117,13 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
       setConfirming(false);
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();
-      snackbar.show({ message: copy.left });
+      snackbar.show({ message: t('coaching.yourTrainer.left') });
     },
   });
 
-  const header = <TrainerHeader testID="your-trainer-header" title={copy.title} />;
+  const header = (
+    <TrainerHeader testID="your-trainer-header" title={t('coaching.yourTrainer.title')} />
+  );
 
   if (isLoading)
     return <Screen edges={EDGES} className="bg-canvas px-0" testID="your-trainer-loading" />;
@@ -131,7 +141,7 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
         {header}
         <EmptyState
           icon={<Icon name="yourTrainer" color={colors.labelTertiary} size={40} />}
-          title={COACHING_MOBILE_COPY.unavailable}
+          title={t('coaching.join.unavailable')}
         />
       </Screen>
     );
@@ -159,8 +169,9 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
   const { trainer, stopped } = status.data;
   // Additive (API 2026-10-17): the client's pending coaching request, from Find a trainer.
   const request = status.data.request ?? null;
+  const trainerName = trainer ? trainerNameOrFallbackT(trainer.name, t) : '';
   const leaveError = offlineError
-    ? COACHING_MOBILE_COPY.offlineLeave
+    ? t('coaching.join.offlineLeave')
     : leave.error
       ? userFacingErrorMessage(leave.error)
       : null;
@@ -193,7 +204,12 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
               testID="your-trainer-summary"
               className="min-w-0 flex-1 text-subhead text-label-secondary"
             >
-              {trainer ? copy.since(trainer.name, formatShortDay(trainer.since)) : copy.noTrainer}
+              {trainer
+                ? t('coaching.yourTrainer.since', {
+                    trainer: trainerName,
+                    date: formatShortDayT(trainer.since, t),
+                  })
+                : t('coaching.yourTrainer.noTrainer')}
             </Text>
           </View>
 
@@ -201,17 +217,17 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
             <>
               <View className="gap-1.5">
                 <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-                  {copy.seesHeading(trainer.name)}
+                  {t('coaching.yourTrainer.seesHeading', { trainer: trainerName })}
                 </Text>
-                <Lines lines={COACHING_COPY.consent.willSee} testID="your-trainer-sees" />
+                <Lines lines={consentWillSeeLines(t)} testID="your-trainer-sees" />
               </View>
               <View className="gap-1.5">
                 <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
-                  {copy.canHeading(trainer.name)}
+                  {t('coaching.yourTrainer.canHeading', { trainer: trainerName })}
                 </Text>
-                <Lines lines={COACHING_COPY.consent.can(trainer.name)} testID="your-trainer-can" />
+                <Lines lines={consentCanLines(trainerName, t)} testID="your-trainer-can" />
                 <Text className="text-subhead text-label-secondary">
-                  {COACHING_COPY.consent.privateNotes(trainer.name)}
+                  {t('coaching.consent.privateNotes', { trainer: trainerName })}
                 </Text>
               </View>
               <Button
@@ -223,7 +239,7 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
                   setConfirming(true);
                 }}
               >
-                {copy.leave}
+                {t('coaching.yourTrainer.leave')}
               </Button>
             </>
           ) : (
@@ -233,17 +249,20 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
                   testID="your-trainer-stopped"
                   className="text-subhead font-semibold text-label"
                 >
-                  {copy.stopped(stopped.trainerName)} · {formatShortDay(stopped.at)}
+                  {t('coaching.yourTrainer.stopped', {
+                    trainer: trainerNameOrFallbackT(stopped.trainerName, t),
+                  })}{' '}
+                  · {formatShortDayT(stopped.at, t)}
                 </Text>
               ) : null}
               <Text testID="your-trainer-hint" className="text-subhead text-label-secondary">
-                {copy.noTrainerHint}
+                {t('coaching.yourTrainer.noTrainerHint')}
               </Text>
             </View>
           )}
         </CoachingCard>
 
-        {trainer ? <SharingCard trainerName={trainer.name} sharing={trainer.sharing} /> : null}
+        {trainer ? <SharingCard trainerName={trainerName} sharing={trainer.sharing} /> : null}
 
         {trainer ? <UpcomingBookingsList /> : null}
 
@@ -253,10 +272,10 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
           // PRD 2026-10 §4.1: no trainer and nothing pending — find one by name.
           <CoachingCard testID="your-trainer-find" className="gap-2">
             <Text className="text-subhead text-label-secondary">
-              {COACHING_COPY.find.entryHint}
+              {t('coaching.find.entryHint')}
             </Text>
             <Button testID="your-trainer-find-open" onPress={() => router.push('/coaching/find')}>
-              {COACHING_COPY.find.entry}
+              {t('coaching.find.entry')}
             </Button>
           </CoachingCard>
         )}
@@ -267,10 +286,10 @@ export function YourTrainerScreen({ openLeave = false }: { openLeave?: boolean }
           testID="your-trainer-leave-confirm"
           visible={confirming}
           onClose={() => setConfirming(false)}
-          title={copy.leaveTitle(trainer.name)}
-          body={copy.leaveBody(trainer.name)}
-          confirmLabel={copy.leaveConfirm}
-          cancelLabel={COACHING_COPY.common.cancel}
+          title={t('coaching.yourTrainer.leaveTitle', { trainer: trainerName })}
+          body={t('coaching.yourTrainer.leaveBody', { trainer: trainerName })}
+          confirmLabel={t('coaching.yourTrainer.leaveConfirm')}
+          cancelLabel={t('coaching.common.cancel')}
           destructive
           busy={leave.isPending}
           error={leaveError}

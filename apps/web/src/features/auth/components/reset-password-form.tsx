@@ -2,33 +2,38 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useT } from '@/lib/i18n';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import type { Translator } from '@chefer/i18n';
 import { RESET_LINK_INVALID_MESSAGE } from '@chefer/types';
 import { userFacingErrorMessage } from '@chefer/utils';
 
-const resetSchema = z
-  .object({
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .max(100, 'Password too long'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
+const makeResetSchema = (t: Translator['t']) =>
+  z
+    .object({
+      password: z
+        .string()
+        .min(8, t('auth.validation.passwordMin', { min: 8 }))
+        .max(100, t('auth.validation.passwordTooLong')),
+      confirmPassword: z.string().min(1, t('auth.validation.confirmRequired')),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t('auth.validation.mismatch'),
+      path: ['confirmPassword'],
+    });
 
-type ResetFormValues = z.infer<typeof resetSchema>;
+type ResetFormValues = z.infer<ReturnType<typeof makeResetSchema>>;
 
 const INPUT_CLASSES =
   'flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function ResetPasswordForm() {
+  const { t } = useT();
+  const resetSchema = useMemo(() => makeResetSchema(t), [t]);
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
 
@@ -73,10 +78,10 @@ export function ResetPasswordForm() {
   // under "Choose a new password").
   const linkProblem = !token || linkInvalid;
   const title = done
-    ? 'Password changed'
+    ? t('auth.reset.titleDone')
     : linkProblem
-      ? 'This link no longer works'
-      : 'Choose a new password';
+      ? t('auth.reset.titleLinkProblem')
+      : t('auth.reset.titleForm');
 
   const header = (
     <div className="text-center">
@@ -91,9 +96,7 @@ export function ResetPasswordForm() {
       </Link>
       <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">{title}</h1>
       {!done && !linkProblem && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          This link works once and expires an hour after it was requested
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t('auth.reset.hint')}</p>
       )}
     </div>
   );
@@ -104,16 +107,12 @@ export function ResetPasswordForm() {
         {header}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <div className="space-y-3 text-center text-sm">
-            <p>
-              {token
-                ? RESET_LINK_INVALID_MESSAGE
-                : 'This page needs the link from your reset email.'}
-            </p>
+            <p>{token ? t('auth.reset.invalidLink') : t('auth.reset.missingTokenWeb')}</p>
             <Link
               href="/forgot-password"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-input px-4 py-2 font-medium hover:bg-accent"
             >
-              Request a new reset link
+              {t('auth.reset.requestNew')}
             </Link>
           </div>
         </div>
@@ -130,15 +129,12 @@ export function ResetPasswordForm() {
             <span className="text-3xl" aria-hidden="true">
               ✅
             </span>
-            <p className="text-sm">
-              Your password has been changed and all devices signed out. Sign in with your new
-              password.
-            </p>
+            <p className="text-sm">{t('auth.reset.done')}</p>
             <Link
               href="/login"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Go to sign in
+              {t('auth.reset.goToSignIn')}
             </Link>
           </div>
         </div>
@@ -169,7 +165,7 @@ export function ResetPasswordForm() {
 
           <div className="space-y-1.5">
             <label htmlFor="password" className="block text-sm font-medium">
-              New password
+              {t('auth.fields.newPassword')}
               <span className="ml-1 text-destructive" aria-hidden="true">
                 *
               </span>
@@ -194,7 +190,7 @@ export function ResetPasswordForm() {
 
           <div className="space-y-1.5">
             <label htmlFor="confirmPassword" className="block text-sm font-medium">
-              Confirm new password
+              {t('auth.fields.confirmNewPassword')}
               <span className="ml-1 text-destructive" aria-hidden="true">
                 *
               </span>
@@ -221,7 +217,7 @@ export function ResetPasswordForm() {
             disabled={resetMutation.isPending}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
-            {resetMutation.isPending ? 'Resetting…' : 'Reset password'}
+            {resetMutation.isPending ? t('auth.reset.resetting') : t('auth.reset.submit')}
           </button>
         </form>
       </div>

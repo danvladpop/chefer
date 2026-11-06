@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
+import type { Translator } from '@chefer/i18n';
 import {
-  COACHING_COPY,
   NO_COACHING_SHARE as NO_SHARE,
   type CoachingShareChoice,
   type InvitePreviewDto,
@@ -13,16 +13,17 @@ import { Icon } from '../../../components/icon';
 import { track } from '../../../lib/analytics';
 import { trackSharingChosen } from '../../../lib/analytics-events';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
+import { getTranslator, useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { goBackOrHome } from '../../trainer/components/trainer-header';
-import { COACHING_MOBILE_COPY } from '../copy';
+import { trainerNameOrFallbackT } from '../copy';
 import { clearPendingJoin, rememberPendingJoin, setReturnAfterSignIn } from '../pending-join';
 import { routineHref, trainingHomeHref } from '../routes';
 import { ConsentScreen } from './consent-screen';
 
 // ─── coaching/join/<code> (spec §2.3) ─────────────────────────────────────────
-// previewInvite -> consent screen -> join. Every invite state has copy (`COACHING_COPY.inviteState`).
+// previewInvite -> consent screen -> join. Every invite state has copy (`coaching.inviteState.*`).
 // A client without gym setup is sent to the existing setup first; the code is kept on the device and
 // Gym Today offers to carry on. A signed-out visitor signs in or registers first and is brought back
 // (PendingJoinHost) — the route is reachable signed out for that reason.
@@ -32,13 +33,14 @@ import { ConsentScreen } from './consent-screen';
 const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 function Page({ children, testID }: { children: ReactNode; testID: string }) {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <Screen edges={EDGES} className="bg-canvas px-0" testID={testID}>
       <View className="min-h-11 flex-row items-center px-4 py-2">
         <IconButton
           testID={`${testID}-back`}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.actions.back')}
           icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={goBackOrHome}
           className="-ml-2"
@@ -60,6 +62,7 @@ function Message({
   testID: string;
   action?: { label: string; testID: string; onPress: () => void };
 }) {
+  const { t } = useT();
   return (
     <Page testID={testID}>
       <View className="gap-3 px-4 pt-2">
@@ -74,31 +77,36 @@ function Message({
           className="mt-3"
           onPress={action?.onPress ?? (() => router.replace(trainingHomeHref()))}
         >
-          {action?.label ?? COACHING_MOBILE_COPY.goToGym}
+          {action?.label ?? t('coaching.join.goToGym')}
         </Button>
       </View>
     </Page>
   );
 }
 
-export function stateMessage(preview: InvitePreviewDto): string | null {
-  const copy = COACHING_COPY.inviteState;
+export function stateMessage(
+  preview: InvitePreviewDto,
+  t: Translator['t'] = getTranslator().t,
+): string | null {
   switch (preview.state) {
     case 'OK':
       return null;
     case 'ALREADY_YOURS':
-      return copy.ALREADY_YOURS(preview.trainerName ?? COACHING_COPY.yourTrainer.title);
+      return t('coaching.inviteState.ALREADY_YOURS', {
+        trainer: preview.trainerName ?? t('coaching.yourTrainer.title'),
+      });
     case 'EXPIRED':
     case 'USED':
     case 'REVOKED':
     case 'SELF':
     case 'NOT_FOUND':
-      return copy[preview.state];
+      return t(`coaching.inviteState.${preview.state}`);
   }
 }
 
 /** Signed out: the preview needs an account, so sign in or create one first (the code is kept). */
 function SignedOutJoin({ code }: { code: string }) {
+  const { t } = useT();
   useEffect(() => {
     rememberPendingJoin(code);
     setReturnAfterSignIn(code);
@@ -107,24 +115,24 @@ function SignedOutJoin({ code }: { code: string }) {
     <Page testID="coaching-join-signed-out">
       <View className="gap-3 px-4 pt-2">
         <Text accessibilityRole="header" className="text-title2 font-bold text-label">
-          {COACHING_MOBILE_COPY.signedOutTitle}
+          {t('coaching.join.signedOutTitle')}
         </Text>
         <Text className="text-subhead text-label-secondary">
-          {COACHING_MOBILE_COPY.signedOutBody}
+          {t('coaching.join.signedOutBody')}
         </Text>
         <Button
           testID="coaching-join-sign-in"
           className="mt-3"
           onPress={() => router.push('/login')}
         >
-          {COACHING_MOBILE_COPY.signIn}
+          {t('coaching.join.signIn')}
         </Button>
         <Button
           testID="coaching-join-register"
           variant="outline"
           onPress={() => router.push('/register')}
         >
-          {COACHING_MOBILE_COPY.createAccount}
+          {t('coaching.join.createAccount')}
         </Button>
       </View>
     </Page>
@@ -132,6 +140,7 @@ function SignedOutJoin({ code }: { code: string }) {
 }
 
 function JoinFlow({ code }: { code: string }) {
+  const { t } = useT();
   const utils = trpc.useUtils();
   const online = useIsOnline();
   // Always fresh: the answer changes while the screen is away (gym setup done, link used), and a
@@ -153,7 +162,7 @@ function JoinFlow({ code }: { code: string }) {
       void utils.coaching.status.invalidate();
       void utils.gym.bootstrap.invalidate();
       setJoined(
-        status.trainer?.name ?? preview.data?.trainerName ?? COACHING_COPY.yourTrainer.title,
+        status.trainer?.name ?? preview.data?.trainerName ?? t('coaching.yourTrainer.title'),
       );
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
@@ -174,24 +183,24 @@ function JoinFlow({ code }: { code: string }) {
             accessibilityRole="header"
             className="text-title2 font-bold text-label"
           >
-            {COACHING_COPY.consent.joinedTitle(joined)}
+            {t('coaching.consent.joinedTitle', { trainer: joined })}
           </Text>
           <Text className="text-subhead text-label-secondary">
-            {COACHING_COPY.consent.oneTrainer(joined)}
+            {t('coaching.consent.oneTrainer', { trainer: joined })}
           </Text>
           <Button
             testID="coaching-joined-routine"
             className="mt-3"
             onPress={() => router.replace(routineHref())}
           >
-            {COACHING_MOBILE_COPY.openMyRoutine}
+            {t('coaching.join.openMyRoutine')}
           </Button>
           <Button
             testID="coaching-joined-your-trainer"
             variant="outline"
             onPress={() => router.replace('/coaching')}
           >
-            {COACHING_COPY.yourTrainer.title}
+            {t('coaching.yourTrainer.title')}
           </Button>
         </View>
       </Page>
@@ -224,34 +233,36 @@ function JoinFlow({ code }: { code: string }) {
     return (
       <Message
         testID="coaching-join-invalid"
-        title={COACHING_MOBILE_COPY.inviteTitle}
-        body={COACHING_COPY.inviteState.NOT_FOUND}
+        title={t('coaching.join.inviteTitle')}
+        body={t('coaching.inviteState.NOT_FOUND')}
       />
     );
   }
 
   const data = preview.data;
-  const message = stateMessage(data);
+  const message = stateMessage(data, t);
   if (message !== null) {
     return (
       <Message
         testID={`coaching-join-${data.state.toLowerCase()}`}
-        title={COACHING_MOBILE_COPY.inviteTitle}
+        title={t('coaching.join.inviteTitle')}
         body={message}
       />
     );
   }
 
-  const trainerName = data.trainerName ?? COACHING_COPY.yourTrainer.title;
+  const trainerName = data.trainerName
+    ? trainerNameOrFallbackT(data.trainerName, t)
+    : t('coaching.yourTrainer.title');
   if (data.needsGymSetup) {
     return (
       <Page testID="coaching-join-needs-setup">
         <View className="gap-3 px-4 pt-2">
           <Text accessibilityRole="header" className="text-title2 font-bold text-label">
-            {COACHING_COPY.consent.title(trainerName)}
+            {t('coaching.consent.title', { trainer: trainerName })}
           </Text>
           <Text testID="coaching-needs-setup-body" className="text-subhead text-label-secondary">
-            {COACHING_COPY.consent.needsSetup}
+            {t('coaching.consent.needsSetup')}
           </Text>
           <Button
             testID="coaching-needs-setup-cta"
@@ -261,7 +272,7 @@ function JoinFlow({ code }: { code: string }) {
               router.push('/gym/setup');
             }}
           >
-            {COACHING_MOBILE_COPY.setUpTraining}
+            {t('coaching.join.setUpTraining')}
           </Button>
         </View>
       </Page>

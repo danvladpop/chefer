@@ -8,6 +8,7 @@ import {
   resetPasswordFormSchema,
   withPasswordConfirmation,
 } from '@chefer/types';
+import { AGE_REQUIRED_MESSAGE, TERMS_REQUIRED_MESSAGE } from './validation-copy';
 
 // The rules themselves live in @chefer/types (shared with the API's limits in
 // apps/api/src/routers/auth.router.ts) — this file only shapes them into the
@@ -27,10 +28,8 @@ export const registerSchema = withPasswordConfirmation({
   // `z.boolean().refine` rather than `z.literal(true)` — the form value is a
   // real boolean while the box is unchecked (starts `false`), and `z.infer`
   // needs to type it as `boolean`, not the literal `true`.
-  acceptedTerms: z
-    .boolean()
-    .refine((v) => v, { message: 'You must agree to the Terms and the Privacy Policy' }),
-  ageConfirmed: z.boolean().refine((v) => v, { message: 'You must confirm you are 16 or older' }),
+  acceptedTerms: z.boolean().refine((v) => v, { message: TERMS_REQUIRED_MESSAGE }),
+  ageConfirmed: z.boolean().refine((v) => v, { message: AGE_REQUIRED_MESSAGE }),
 });
 
 export const forgotPasswordSchema = forgotPasswordFormSchema;

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { I18nProvider } from '@/lib/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { scheduleWeekDates } from '@chefer/utils';
@@ -41,6 +42,24 @@ function show(
   };
   render(<ScheduleGrid {...props} />);
   return props;
+}
+
+function showRo(bookings: ReturnType<typeof booking>[]) {
+  render(
+    <I18nProvider initialChoice="ro" deviceTags={[]}>
+      <ScheduleGrid
+        dates={scheduleWeekDates('2026-10-19')}
+        bookings={bookings}
+        timeZone={TZ}
+        today="2026-10-20"
+        nowMinute={600}
+        scrollKey="k"
+        onCreate={vi.fn()}
+        onOpen={vi.fn()}
+        onMove={vi.fn()}
+      />
+    </I18nProvider>,
+  );
 }
 
 const blockNamed = (name: RegExp | string) => screen.getByRole('button', { name });
@@ -121,5 +140,12 @@ describe('ScheduleGrid', () => {
       time: '18:00',
       durationMin: 60,
     });
+  });
+
+  it('renders in Romanian: block labels and lowercase day headers', () => {
+    showRo([booking(), booking({ id: 'blk', kind: 'BLOCK', clients: [], time: '10:00' })]);
+    expect(blockNamed('marți, 18:00–19:00, Maria, Lower body A')).toBeInTheDocument();
+    expect(blockNamed('marți, 10:00–11:00, Blocat')).toHaveTextContent('Blocat');
+    expect(screen.getByText(/^mar\./)).toBeInTheDocument();
   });
 });

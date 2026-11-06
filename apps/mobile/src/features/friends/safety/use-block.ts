@@ -7,9 +7,9 @@ import { removePerson } from '../api/relation-cache';
 // NOT optimistic: "Nothing is blocked until the server confirms" (UX §11.4).
 // Once it does, the person leaves every cached people list at once and the
 // namespace + recipe lists refetch (their recipes vanish from the cookbook).
-// The caller confirms first (`FRIENDS_CONFIRMS.block`), then on success backs
+// The caller confirms first (`friendsConfirms.block`), then on success backs
 // out of the profile from the sheet's `onDone` and shows
-// `FRIENDS_COPY.block.done(first)`.
+// `t('friends.block.done', { first })`.
 
 export type SafetyResult = { ok: true } | { ok: false; error: unknown };
 

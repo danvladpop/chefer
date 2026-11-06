@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import {
-  BOOKING_COPY,
-  COACHING_COPY,
-  COACHING_DATA_COPY,
-  TEMPLATE_COPY,
-  type CoachedExerciseDto,
-} from '@chefer/types';
+import { BOOKING_COPY, TEMPLATE_COPY, type CoachedExerciseDto } from '@chefer/types';
 import {
   Badge,
   Button,
@@ -21,6 +15,7 @@ import {
 } from '@chefer/ui-mobile';
 import { deviceTimeZone, todayIn, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { LogCoachedWorkoutButton } from '../../trainer-coach/log-workout-button';
@@ -65,6 +60,7 @@ export function ClientScreen({
   clientId: string;
   initialTab?: ClientTab;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const { name, firstName, keepItSimple: listKeepItSimple } = useTrainerClientName(clientId);
@@ -101,12 +97,12 @@ export function ClientScreen({
   if (unavailable) {
     return (
       <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-client-unavailable">
-        <TrainerHeader testID="trainer-client-header" title={COACHING_COPY.trainer.clients} />
+        <TrainerHeader testID="trainer-client-header" title={t('coaching.trainer.clients')} />
         <EmptyState
-          title={COACHING_COPY.server.clientUnavailable}
+          title={t('coaching.trainer.clientUnavailable')}
           icon={<Icon name="clientGone" color={colors.labelTertiary} size={40} />}
           action={{
-            label: 'Back to clients',
+            label: t('coaching.trainer.backToClients'),
             testID: 'trainer-client-unavailable-back',
             onPress: () => router.replace('/trainer'),
           }}
@@ -127,7 +123,7 @@ export function ClientScreen({
         right={
           keepItSimple ? (
             <Badge testID="trainer-client-keep-it-simple" variant="secondary">
-              {COACHING_COPY.trainerProfile.keepItSimple}
+              {t('coaching.trainer.profile.keepItSimple')}
             </Badge>
           ) : null
         }
@@ -142,14 +138,14 @@ export function ClientScreen({
               testID="trainer-client-keep-it-simple-hint"
               className="text-subhead text-label-secondary"
             >
-              {COACHING_COPY.trainerProfile.keepItSimpleHint(firstName)}
+              {t('coaching.trainer.profile.keepItSimpleHint', { client: firstName })}
             </Text>
           ) : null}
           <Button
             testID="trainer-client-edit-routine"
             onPress={() => router.push(`/trainer/${clientId}/routine`)}
           >
-            Edit routine
+            {t('coaching.trainer.editRoutine')}
           </Button>
           {trainerMode ? (
             <Button
@@ -188,31 +184,31 @@ export function ClientScreen({
 
         <SegmentedControl<Tab>
           testID="trainer-client-tabs"
-          accessibilityLabel="Client sections"
+          accessibilityLabel={t('coaching.trainer.clientSections')}
           {...(trainerMode ? { size: 'xs' as const } : {})}
           value={shownTab}
           onChange={setTab}
           options={[
             {
               value: 'workouts',
-              label: COACHING_COPY.trainer.tabs.workouts,
+              label: t('coaching.trainer.tabs.workouts'),
               testID: 'trainer-client-tab-workouts',
             },
             {
               value: 'adherence',
-              label: COACHING_COPY.trainer.tabs.adherence,
+              label: t('coaching.trainer.tabs.adherence'),
               testID: 'trainer-client-tab-adherence',
             },
             {
               value: 'notes',
-              label: COACHING_COPY.trainer.tabs.notes,
+              label: t('coaching.trainer.tabs.notes'),
               testID: 'trainer-client-tab-notes',
             },
             ...(sharesData
               ? [
                   {
                     value: 'food' as const,
-                    label: COACHING_DATA_COPY.tab,
+                    label: t('coaching.trainer.data.tab'),
                     testID: 'trainer-client-tab-food',
                   },
                 ]
@@ -255,7 +251,7 @@ export function ClientScreen({
           className="mt-4"
           onPress={() => setRemoveOpen(true)}
         >
-          {COACHING_COPY.trainerProfile.endCoaching}
+          {t('coaching.trainer.profile.endCoaching')}
         </Button>
       </ScrollView>
 
@@ -277,10 +273,10 @@ export function ClientScreen({
         testID="trainer-client-remove-confirm"
         visible={removeOpen}
         onClose={() => setRemoveOpen(false)}
-        title={COACHING_COPY.trainer.removeClientTitle(firstName)}
-        body={COACHING_COPY.trainer.removeClientBody(firstName)}
-        confirmLabel={COACHING_COPY.trainerProfile.endCoaching}
-        cancelLabel={COACHING_COPY.common.cancel}
+        title={t('coaching.trainer.removeClientTitle', { client: firstName })}
+        body={t('coaching.trainer.removeClientBody', { client: firstName })}
+        confirmLabel={t('coaching.trainer.profile.endCoaching')}
+        cancelLabel={t('coaching.common.cancel')}
         destructive
         busy={remove.isPending}
         error={remove.error ? userFacingErrorMessage(remove.error) : null}

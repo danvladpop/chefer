@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
 import {
   EmptyState,
   ErrorState,
@@ -15,6 +14,7 @@ import {
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { useFriendsMe } from '../api/use-friends-me';
 import { FriendsGate } from '../components/friends-gate';
@@ -48,12 +48,13 @@ export function SettingsTopBar({
   fallback: Href;
   testID: string;
 }) {
+  const { t } = useT();
   const colors = useThemeColors();
   return (
     <View testID={testID} className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
       <IconButton
         testID={`${testID}-back`}
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.actions.back')}
         icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
         onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback))}
         className="-ml-2"
@@ -124,6 +125,7 @@ function LinkRow({
 }
 
 function SettingsBody() {
+  const { t } = useT();
   const { me, isLoading, isError, refetch } = useFriendsMe();
   // `friends.me` has no id; the preview opens my own profile by it.
   const { data: user } = trpc.auth.me.useQuery(undefined, { staleTime: 30_000 });
@@ -147,9 +149,9 @@ function SettingsBody() {
     return (
       <EmptyState
         testID="friends-settings-not-activated"
-        title={FRIENDS_COPY.server.notActivated}
+        title={t('friends.settings.notActivated')}
         action={{
-          label: FRIENDS_COPY.intro.cta,
+          label: t('friends.intro.cta'),
           testID: 'friends-settings-turn-on',
           onPress: () => router.replace('/friends'),
         }}
@@ -164,37 +166,37 @@ function SettingsBody() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
       >
-        <SectionHeading testID="friends-settings-who">{FRIENDS_COPY.settings.who}</SectionHeading>
+        <SectionHeading testID="friends-settings-who">{t('friends.settings.who')}</SectionHeading>
         <Group>
           <VisibilitySection me={me} settings={settings} />
         </Group>
 
         <SectionHeading testID="friends-settings-name-heading">
-          {FRIENDS_COPY.intro.nameHeading}
+          {t('friends.intro.nameHeading')}
         </SectionHeading>
         <View className="rounded-card border border-separator bg-surface p-4">
           <NameSection me={me} />
         </View>
 
-        <SectionHeading testID="friends-settings-what">{FRIENDS_COPY.settings.what}</SectionHeading>
+        <SectionHeading testID="friends-settings-what">{t('friends.settings.what')}</SectionHeading>
         <Group>
           <SharingSection settings={settings} />
           <View className="h-px bg-separator" />
           <LinkRow
             testID="friends-settings-preview"
-            label={FRIENDS_COPY.settings.preview}
+            label={t('friends.settings.preview')}
             disabled={!user}
             onPress={() => user && router.push(`/friends/${user.id}`)}
           />
         </Group>
 
         <SectionHeading testID="friends-settings-safety">
-          {FRIENDS_COPY.settings.safety}
+          {t('friends.settings.safety')}
         </SectionHeading>
         <Group>
           <LinkRow
             testID="friends-settings-blocked"
-            label={FRIENDS_COPY.settings.blocked(me.counts.blocked)}
+            label={t('friends.settings.blocked', { n: me.counts.blocked })}
             onPress={() => router.push('/friends/blocked')}
           />
         </Group>
@@ -205,11 +207,11 @@ function SettingsBody() {
               testID="friends-settings-turn-off"
               pressScale="card"
               accessibilityRole="button"
-              accessibilityLabel={FRIENDS_COPY.settings.turnOff}
+              accessibilityLabel={t('friends.settings.turnOff')}
               onPress={() => setTurnOffVisible(true)}
               className="min-h-11 justify-center py-3"
             >
-              <Text className="text-body text-danger">{FRIENDS_COPY.settings.turnOff}</Text>
+              <Text className="text-body text-danger">{t('friends.settings.turnOff')}</Text>
             </PressableScale>
           </Group>
         </View>
@@ -225,11 +227,12 @@ function SettingsBody() {
 }
 
 export function FriendsSettingsScreen() {
+  const { t } = useT();
   return (
     <FriendsGate>
       <Screen testID="friends-settings" className="bg-canvas px-0">
         <SettingsTopBar
-          title={FRIENDS_SCREEN_TITLES.settings}
+          title={t(FRIENDS_SCREEN_TITLES.settings)}
           fallback="/friends"
           testID="friends-settings-header"
         />

@@ -38,6 +38,7 @@ export * from './nutrition';
 export * from './ingredient-catalog-copy';
 export * from './social-auth';
 export * from './usage-limits';
+export * from './locale';
 export * from './progress';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -85,6 +86,13 @@ export interface UserProfile {
   role: UserRole;
   planTier: PlanTier;
   image: string | null;
+  /**
+   * ADR 0004: the UI language columns (User.locale / User.deviceLocale), so
+   * server-rendered text — recipe translations — follows the reader. Optional:
+   * only the API's session lookup fills them.
+   */
+  locale?: string | null;
+  deviceLocale?: string | null;
 }
 
 export interface CreateUserInput {

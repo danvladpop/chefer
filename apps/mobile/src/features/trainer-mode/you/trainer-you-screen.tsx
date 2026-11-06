@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
-import { COACHING_LIMITS, SUPPORT_EMAIL, TRAINER_MODE_COPY } from '@chefer/types';
+import type { Translator } from '@chefer/i18n';
+import { COACHING_LIMITS, SUPPORT_EMAIL } from '@chefer/types';
 import {
   KeyboardAwareScrollView,
   ListRow,
@@ -12,6 +13,7 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { AppearanceRow } from '../../appearance/appearance-screen';
 import { useFriendsMe } from '../../friends/api/use-friends-me';
@@ -36,17 +38,17 @@ import { switchShellMode } from '../switch-mode';
 // also leaves trainer mode. Help, Sign out and the version line are personal
 // You's own pieces.
 
-const COPY = TRAINER_MODE_COPY.you;
-
 /** "Accepting new clients" until the client limit (PRD Q16b: no switch). */
-export function availabilityText(activeClients: number): string {
+export function availabilityText(tr: Translator, activeClients: number): string {
   return activeClients < COACHING_LIMITS.maxActiveClients
-    ? COPY.accepting
-    : COPY.notAccepting(COACHING_LIMITS.maxActiveClients);
+    ? tr.t('trainer.you.accepting')
+    : tr.t('trainer.you.notAccepting', { max: COACHING_LIMITS.maxActiveClients });
 }
 
 export function TrainerYouScreen() {
   const colors = useThemeColors();
+  const tr = useT();
+  const { t } = tr;
   // MO-03: the sections rise in on the first visit of the session only.
   const firstEntrance = useFirstEntrance('trainer-you');
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -79,25 +81,25 @@ export function TrainerYouScreen() {
               accessibilityRole="header"
               className="px-4 text-subhead font-semibold text-label-secondary"
             >
-              {COPY.profile}
+              {t('trainer.you.profile')}
             </Text>
             <TrainerProfileCard />
             <CheckInSettingsCard />
             <TrainerAlertsCard />
           </View>
 
-          <ListSection title={TRAINER_MODE_COPY.mode.trainer} footer={COPY.availabilityHint}>
+          <ListSection title={t('trainer.mode.trainer')} footer={t('trainer.you.availabilityHint')}>
             <ListRow
               testID="trainer-you-invites"
-              title={COPY.invites}
-              subtitle={COPY.invitesHint}
+              title={t('trainer.you.invites')}
+              subtitle={t('trainer.you.invitesHint')}
               icon={<Icon name="invite" color={colors.brand} />}
               onPress={() => setInviteOpen(true)}
             />
             <ListRow
               testID="trainer-you-availability"
-              title={COPY.availability}
-              {...(status.data ? { subtitle: availabilityText(activeClients) } : {})}
+              title={t('trainer.you.availability')}
+              {...(status.data ? { subtitle: availabilityText(tr, activeClients) } : {})}
               icon={<Icon name="availability" color={colors.brand} />}
             />
           </ListSection>
@@ -119,7 +121,7 @@ export function TrainerYouScreen() {
             feedback={
               <ListRow
                 testID="trainer-you-feedback"
-                title={COPY.feedback}
+                title={t('trainer.you.feedback')}
                 icon={<Icon name="feedback" color={colors.brand} />}
                 accessibilityHint={SUPPORT_EMAIL}
                 onPress={() => {
@@ -132,7 +134,7 @@ export function TrainerYouScreen() {
           <ListSection footer={turnOff.body}>
             <ListRow
               testID="trainer-you-turn-off"
-              title={COPY.turnOff}
+              title={t('trainer.you.turnOff')}
               icon={<Icon name="turnOff" color={colors.danger} />}
               destructive
               onPress={turnOff.request}

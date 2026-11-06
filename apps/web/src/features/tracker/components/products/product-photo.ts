@@ -15,6 +15,14 @@ const MIME_TYPES = new Set<ProductPhoto['mimeType']>([
   'image/heic',
 ]);
 
+/** The picked file could not be read (the flow shows its own translated line). */
+export class ProductPhotoReadError extends Error {
+  constructor() {
+    super('Couldn’t read that photo. Choose another.');
+    this.name = 'ProductPhotoReadError';
+  }
+}
+
 export async function productPhotoFromFile(picked: File): Promise<ProductPhoto> {
   const file = await resizeImageForUpload(picked);
   const mimeType = (
@@ -25,8 +33,8 @@ export async function productPhotoFromFile(picked: File): Promise<ProductPhoto> 
     reader.onload = () =>
       typeof reader.result === 'string'
         ? resolve(reader.result)
-        : reject(new Error('Couldn’t read that photo. Choose another.'));
-    reader.onerror = () => reject(new Error('Couldn’t read that photo. Choose another.'));
+        : reject(new ProductPhotoReadError());
+    reader.onerror = () => reject(new ProductPhotoReadError());
     reader.readAsDataURL(file);
   });
   return { imageBase64: dataUrl.slice(dataUrl.indexOf(',') + 1), mimeType };

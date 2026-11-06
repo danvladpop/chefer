@@ -1,8 +1,8 @@
 import { View } from 'react-native';
-import { COACHING_COPY } from '@chefer/types';
 import { IconButton, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { Icon, type IconName } from '../../../components/icon';
+import { useT } from '../../../lib/i18n';
 
 // One coaching notice as a quiet card (PRD 2026-10 §4.2): an icon, the line, an optional second line
 // (the routine changes), an optional View and a Dismiss. Shared by the client's notices (Train, Today,
@@ -15,7 +15,7 @@ export function NoticeCard({
   icon = 'yourTrainer',
   tone = 'plain',
   onView,
-  viewLabel = COACHING_COPY.notices.view,
+  viewLabel: viewLabelProp,
   onDismiss,
 }: {
   testID: string;
@@ -30,6 +30,8 @@ export function NoticeCard({
   viewLabel?: string;
   onDismiss: () => void;
 }) {
+  const { t } = useT();
+  const viewLabel = viewLabelProp ?? t('coaching.notices.view');
   const colors = useThemeColors();
   return (
     <View
@@ -66,7 +68,7 @@ export function NoticeCard({
           <PressableScale
             testID={`${testID}-view`}
             accessibilityRole="button"
-            accessibilityLabel={`${viewLabel}: ${title}`}
+            accessibilityLabel={t('coaching.notices.actionFor', { action: viewLabel, title })}
             onPress={onView}
             className="min-h-11 justify-center self-start"
           >
@@ -76,7 +78,7 @@ export function NoticeCard({
       </View>
       <IconButton
         testID={`${testID}-dismiss`}
-        accessibilityLabel={`${COACHING_COPY.notices.dismiss}: ${title}`}
+        accessibilityLabel={t('coaching.notices.dismissFor', { title })}
         icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
         onPress={onDismiss}
       />

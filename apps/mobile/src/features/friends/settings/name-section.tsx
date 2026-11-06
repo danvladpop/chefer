@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
-import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
+import type { FriendsMeDto } from '@chefer/types';
 import { FormField, Input } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
+import { useT } from '../../../lib/i18n';
 import { textRejectedOf } from '../api/friends-errors';
 import { useUpdateSettings } from './use-update-settings';
 
@@ -17,6 +18,7 @@ import { useUpdateSettings } from './use-update-settings';
 const MAX_NAME = 50;
 
 export function NameSection({ me }: { me: FriendsMeDto }) {
+  const { t } = useT();
   const { save } = useUpdateSettings();
   const [first, setFirst] = useState(me.firstName ?? '');
   const [last, setLast] = useState(me.lastName ?? '');
@@ -38,11 +40,11 @@ export function NameSection({ me }: { me: FriendsMeDto }) {
     const firstName = first.trim();
     const lastName = last.trim();
     if (!firstName) {
-      setError({ field: 'first', message: FRIENDS_COPY.intro.firstNameError });
+      setError({ field: 'first', message: t('friends.intro.firstNameError') });
       return;
     }
     if (!lastName) {
-      setError({ field: 'last', message: FRIENDS_COPY.intro.lastNameError });
+      setError({ field: 'last', message: t('friends.intro.lastNameError') });
       return;
     }
     setError(null);
@@ -58,9 +60,9 @@ export function NameSection({ me }: { me: FriendsMeDto }) {
     }
     if (textRejectedOf(outcome.error) === 'name') {
       track('friend_text_rejected', { field: 'name' });
-      setError({ field: 'both', message: FRIENDS_COPY.intro.nameRejected });
+      setError({ field: 'both', message: t('friends.intro.nameRejected') });
     } else {
-      setError({ field: 'both', message: FRIENDS_COPY.settings.saveError });
+      setError({ field: 'both', message: t('friends.settings.saveError') });
     }
   };
 
@@ -76,12 +78,12 @@ export function NameSection({ me }: { me: FriendsMeDto }) {
     <View testID="friends-settings-name" className="gap-3">
       <FormField
         testID="friends-settings-first-name-field"
-        label={FRIENDS_COPY.intro.firstName}
+        label={t('friends.intro.firstName')}
         {...(error?.field === 'first' ? { error: error.message } : {})}
       >
         <Input
           testID="friends-settings-first-name"
-          accessibilityLabel={FRIENDS_COPY.intro.firstName}
+          accessibilityLabel={t('friends.intro.firstName')}
           aria-invalid={invalid('first')}
           value={first}
           onChangeText={setFirst}
@@ -97,13 +99,13 @@ export function NameSection({ me }: { me: FriendsMeDto }) {
       </FormField>
       <FormField
         testID="friends-settings-last-name-field"
-        label={FRIENDS_COPY.intro.lastName}
+        label={t('friends.intro.lastName')}
         {...(error && error.field !== 'first' ? { error: error.message } : {})}
       >
         <Input
           ref={lastRef}
           testID="friends-settings-last-name"
-          accessibilityLabel={FRIENDS_COPY.intro.lastName}
+          accessibilityLabel={t('friends.intro.lastName')}
           aria-invalid={invalid('last')}
           value={last}
           onChangeText={setLast}

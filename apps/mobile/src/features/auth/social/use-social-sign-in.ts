@@ -3,9 +3,9 @@ import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { detectRegion } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
 import { setToken } from '../../../lib/auth-store';
+import { getTranslator } from '../../../lib/i18n';
 import { trpc } from '../../../lib/trpc';
 import { clearAccountDeletedNotice } from '../account-deleted-notice';
-import { AUTH_COPY } from '../copy';
 import { clearPendingOnboarding, requestOnboarding } from '../pending-onboarding';
 import { clearRegisterDraft } from '../register-draft';
 import { clearSessionExpired } from '../session-expired';
@@ -58,7 +58,7 @@ export function useSocialSignIn(providers: SocialProviders) {
     meta: { silent: true },
     onSuccess: async (data) => {
       if (!data.session) {
-        setError(AUTH_COPY.socialNoSession);
+        setError(getTranslator().t('auth.social.noSession'));
         return;
       }
       if (data.isNewUser) {
@@ -100,6 +100,7 @@ export function useSocialSignIn(providers: SocialProviders) {
         acceptLegal: true,
         acceptedTermsVersion: CURRENT_TERMS_VERSION,
         ...(region ? { region } : {}),
+        deviceLocale: getTranslator().locale,
       });
     },
     [providers, active, signIn],

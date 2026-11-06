@@ -3,6 +3,7 @@ import { Switch, View } from 'react-native';
 import { effectiveNumbersMode } from '@chefer/types';
 import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { useT } from '../../lib/i18n';
 import { trpc } from '../../lib/trpc';
 import { NumbersModeChoice, type NumbersModeChoiceValue } from './numbers-mode-choice';
 
@@ -23,6 +24,7 @@ export function NumbersSettingsSection({
   initialShowNutrition: boolean;
 }) {
   const colors = useThemeColors();
+  const { t } = useT();
   const utils = trpc.useUtils();
   const [mode, setMode] = useState<NumbersModeChoiceValue>(effectiveNumbersMode(initialMode));
   const [showNutrition, setShowNutrition] = useState(initialShowNutrition);
@@ -64,14 +66,16 @@ export function NumbersSettingsSection({
       {mode === 'NONE' ? null : (
         <View className="flex-row items-center justify-between gap-3">
           <View className="min-w-0 flex-1">
-            <Text className="text-body text-label">Show calories and macros on Today</Text>
+            <Text className="text-body text-label">
+              {t('today.settings.numbers.showOnToday.kcal')}
+            </Text>
             <Text className="mt-0.5 text-subhead text-label-secondary">
-              Off: Today shows your meals and workouts, without numbers.
+              {t('today.settings.numbers.showOnTodayOff')}
             </Text>
           </View>
           <Switch
             testID="prefs-home-display-switch"
-            accessibilityLabel="Show calories and macros on Today"
+            accessibilityLabel={t('today.settings.numbers.showOnToday.kcal')}
             value={showNutrition}
             disabled={homeMutation.isPending}
             onValueChange={(next) => {
@@ -85,7 +89,7 @@ export function NumbersSettingsSection({
       {failed && (
         <Text testID="prefs-numbers-error" className="text-caption text-danger">
           {userFacingErrorMessage(modeMutation.error ?? homeMutation.error) ||
-            "Couldn't save that. Try again."}
+            t('today.settings.numbers.saveError')}
         </Text>
       )}
     </View>
