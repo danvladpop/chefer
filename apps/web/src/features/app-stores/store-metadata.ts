@@ -6,8 +6,8 @@ import { APP_STORE_APP_ID, appStoreUrl, playStoreUrl } from '@chefer/types';
 
 /**
  * Safari's Smart App Banner (`<meta name="apple-itunes-app">`). Spread into
- * the metadata of every PUBLIC_ROUTES page; empty until the iOS app has an
- * Apple ID, so nothing points at an app that isn't on the store yet.
+ * the metadata of every PUBLIC_ROUTES page; empty without an Apple ID, so
+ * nothing points at an app that isn't on the store.
  */
 export function smartAppBanner(appId: string | null = APP_STORE_APP_ID): Metadata {
   return appId ? { itunes: { appId } } : {};
@@ -21,7 +21,7 @@ function storeListings(): string[] {
 /**
  * schema.org SoftwareApplication for the landing page. No aggregateRating on
  * purpose: there are no real ratings to report yet, and invented ones break
- * Google's structured-data policy. iOS joins operatingSystem with its listing.
+ * Google's structured-data policy. operatingSystem follows the live listings.
  */
 export function softwareApplicationJsonLd(siteUrl: string) {
   const listings = storeListings();

@@ -34,9 +34,14 @@ describe('landing page — route to the app stores (ASO plan §5.2–5.3)', () =
     expect(campaigns).toEqual(['landing-hero', 'landing-footer']);
   });
 
-  it('keeps the App Store badge hidden while iOS has no Apple ID', async () => {
+  it('shows the App Store badge in the same two places, each its own campaign', async () => {
     render(await HomePage());
-    expect(screen.queryByRole('link', { name: 'Download on the App Store' })).toBeNull();
+    const apple = screen.getAllByRole('link', { name: 'Download on the App Store' });
+    expect(apple.map((link) => link.getAttribute('href'))).toEqual([
+      'https://apps.apple.com/app/id6816948724?ct=landing-hero',
+      'https://apps.apple.com/app/id6816948724?ct=landing-footer',
+    ]);
+    expect(screen.getByText(/App Store is a service mark of Apple Inc\./)).toBeTruthy();
   });
 
   it('keeps the register and sign-in calls to action', async () => {
@@ -56,7 +61,11 @@ describe('landing page — route to the app stores (ASO plan §5.2–5.3)', () =
       name: 'Chefer',
       applicationCategory: 'HealthApplication',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
-      installUrl: ['https://play.google.com/store/apps/details?id=dev.chefer.app'],
+      operatingSystem: 'Android, iOS, Web',
+      installUrl: [
+        'https://play.google.com/store/apps/details?id=dev.chefer.app',
+        'https://apps.apple.com/app/id6816948724',
+      ],
     });
     expect(data).not.toHaveProperty('aggregateRating');
   });

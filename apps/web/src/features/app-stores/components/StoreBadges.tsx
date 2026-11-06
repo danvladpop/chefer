@@ -8,8 +8,7 @@ import { cn } from '@chefer/utils';
 // which bakes a quarter-height clear space into the PNG). Both render at the
 // same 48px visible height — above Apple's 40px minimum, and Google asks for
 // the Play badge to be no smaller than any other store's. Apple asks for its
-// badge to lead the lineup. The App Store badge appears only once
-// APP_STORE_APP_ID is set (iOS still in review).
+// badge to lead the lineup. The App Store badge follows APP_STORE_APP_ID.
 
 /** Visible artwork height in px; both badges are sized from it. */
 const BADGE_HEIGHT = 48;
