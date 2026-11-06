@@ -38,13 +38,16 @@ jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
 const ZONE = deviceTimeZone();
+// Mid-morning, so a booking a few hours ahead is still today.
+const NOW = new Date(2026, 9, 21, 10, 30, 0);
 
-/** A booking later today in the device zone (or tomorrow when the day is almost over). */
+/** A booking `minutes` from NOW in the device zone. */
 const soon = (minutes: number, overrides = {}) =>
   bookingIn(minutes, { timeZone: ZONE, ...overrides });
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   resetShellModeStoreForTests();
   resetSnackbarForTests();
@@ -52,7 +55,10 @@ beforeEach(() => {
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 function handlers(overrides: Parameters<typeof summary>[0] = {}) {
   return trainerModeHandlers({
@@ -87,17 +93,10 @@ describe('Trainer Today: bookings (M3)', () => {
   });
 
   it('Start waits until 15 minutes before', async () => {
-    // 40 minutes ahead; skipped if that crosses midnight (then it is not "today").
-    const next = soon(40);
-    const sameDay = new Date(next.startsAt).getDate() === new Date().getDate();
-    await renderWithTrpc(<TrainerTodayScreen />, handlers({ nextBooking: next }));
+    await renderWithTrpc(<TrainerTodayScreen />, handlers({ nextBooking: soon(40) }));
     await settle();
-    if (sameDay) {
-      expect(screen.getByTestId('trainer-today-start')).toBeDisabled();
-      expect(screen.getByText('Start opens 15 minutes before')).toBeTruthy();
-    } else {
-      expect(screen.getByTestId('trainer-today-no-bookings')).toBeTruthy();
-    }
+    expect(screen.getByTestId('trainer-today-start')).toBeDisabled();
+    expect(screen.getByText('Start opens 15 minutes before')).toBeTruthy();
   });
 
   it('nothing today: "No bookings today" and Add a booking opens the editor', async () => {
@@ -128,7 +127,7 @@ describe('Trainer Today: bookings (M3)', () => {
     await settle();
     // A new booking from Today starts at the next full hour (the same rule as web).
     expect(screen.getByTestId('booking-editor-start-value')).toHaveTextContent(
-      newBookingSlot(null, new Date(), ZONE).time,
+      newBookingSlot(null, NOW, ZONE).time,
     );
   });
 

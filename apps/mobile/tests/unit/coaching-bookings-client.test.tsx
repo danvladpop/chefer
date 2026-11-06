@@ -44,6 +44,7 @@ const { askBookingReminderPermissionOnce } = jest.requireMock<{
   askBookingReminderPermissionOnce: jest.Mock;
 }>('../../src/features/notifications/booking-reminders');
 
+const NOW = new Date(2026, 9, 21, 10, 30, 0);
 const DAY = 24 * 3_600_000;
 const inDays = (days: number) => new Date(Date.now() + days * DAY).toISOString();
 
@@ -86,12 +87,16 @@ function handlers(opts: {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   resetSnackbarForTests();
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 describe('the card’s booking (pure)', () => {
   const now = new Date('2026-10-20T08:00:00.000Z');
@@ -127,7 +132,7 @@ describe('Today / Train: card, booking notices and the consent notice', () => {
     await renderWithTrpc(<CoachingNotices />, handlers({ upcoming: [b] }));
     await settle();
     expect(screen.getByTestId('coaching-upcoming-booking-text')).toHaveTextContent(
-      clientCardText(b, deviceTimeZone(), todayIn(deviceTimeZone())),
+      clientCardText(b, deviceTimeZone(), todayIn(deviceTimeZone(), NOW)),
     );
     expect(screen.getByTestId('coaching-upcoming-booking-text')).toHaveTextContent(/with 1 other$/);
     expect(askBookingReminderPermissionOnce).toHaveBeenCalledWith('client');
