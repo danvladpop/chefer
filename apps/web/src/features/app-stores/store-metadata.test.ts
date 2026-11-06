@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { serializeJsonLd, smartAppBanner, softwareApplicationJsonLd } from './store-metadata';
 
 describe('smartAppBanner', () => {
-  it('emits nothing until the iOS app has an Apple ID', () => {
-    expect(smartAppBanner()).toEqual({});
-    expect(smartAppBanner(null)).toEqual({});
+  it('points at the live iOS app', () => {
+    expect(smartAppBanner()).toEqual({ itunes: { appId: '6816948724' } });
   });
 
-  it('emits the itunes app ID once set', () => {
-    expect(smartAppBanner('1234567890')).toEqual({ itunes: { appId: '1234567890' } });
+  it('emits nothing without an Apple ID', () => {
+    expect(smartAppBanner(null)).toEqual({});
   });
 });
 
@@ -16,8 +15,11 @@ describe('softwareApplicationJsonLd', () => {
   it('lists only live platforms and listings', () => {
     const data = softwareApplicationJsonLd('https://example.test');
     expect(data.url).toBe('https://example.test');
-    expect(data.operatingSystem).toBe('Android, Web');
-    expect(data.sameAs).toEqual(['https://play.google.com/store/apps/details?id=dev.chefer.app']);
+    expect(data.operatingSystem).toBe('Android, iOS, Web');
+    expect(data.sameAs).toEqual([
+      'https://play.google.com/store/apps/details?id=dev.chefer.app',
+      'https://apps.apple.com/app/id6816948724',
+    ]);
   });
 });
 

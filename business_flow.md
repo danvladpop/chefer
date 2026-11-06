@@ -93,8 +93,8 @@ stay the primary calls to action) and under the closing CTA; `/support` has a
 the owner sets the provider token; App Store Connect → App Analytics →
 Campaigns). The mobile app has no attribution SDK, so these console reports are
 the web-install measurement. The App Store badge, its trademark notice and
-Safari's Smart App Banner (on every public page) stay hidden until
-`APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
+Safari's Smart App Banner (on every public page) follow `APP_STORE_APP_ID` in
+`@chefer/types`, set since iOS went live. The landing page also carries
 `SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
 
 **Switch page: `/switch/mealime` (market review 2026-10, lane L, 2026-10-22).**

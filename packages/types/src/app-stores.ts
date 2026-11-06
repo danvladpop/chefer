@@ -9,11 +9,11 @@
 export const PLAY_STORE_PACKAGE = 'dev.chefer.app';
 
 /**
- * Numeric Apple ID from App Store Connect → App Information. OWNER STEP: set
- * it once iOS is approved and live; until then every App Store badge, link and
- * the Safari Smart App Banner stay hidden.
+ * Numeric Apple ID from App Store Connect → App Information — live on the App
+ * Store since 1.0.1. Drives every App Store badge and link and the Safari Smart
+ * App Banner; null would hide them all.
  */
-export const APP_STORE_APP_ID: string | null = null;
+export const APP_STORE_APP_ID: string | null = '6816948724';
 
 /**
  * App Store Connect provider token (`pt`, App Analytics → Campaigns → Generate

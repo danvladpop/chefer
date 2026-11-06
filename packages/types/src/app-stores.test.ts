@@ -20,9 +20,16 @@ describe('playStoreUrl', () => {
 });
 
 describe('appStoreUrl', () => {
-  it('stays hidden until the owner sets the Apple ID', () => {
-    expect(APP_STORE_APP_ID).toBeNull();
-    expect(appStoreUrl('landing-hero')).toBeNull();
+  it('links the live iOS listing', () => {
+    expect(APP_STORE_APP_ID).toBe('6816948724');
+    expect(appStoreUrl()).toBe('https://apps.apple.com/app/id6816948724');
+    expect(appStoreUrl('landing-hero')).toBe(
+      'https://apps.apple.com/app/id6816948724?ct=landing-hero',
+    );
+  });
+
+  it('stays hidden without an Apple ID', () => {
+    expect(appStoreUrl('landing-hero', { appId: null })).toBeNull();
     expect(appStoreUrl(undefined, { appId: null })).toBeNull();
   });
 
